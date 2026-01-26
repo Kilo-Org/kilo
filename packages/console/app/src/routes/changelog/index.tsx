@@ -92,9 +92,9 @@ export default function Changelog() {
 
   return (
     <main data-page="changelog">
-      <Title>OpenCode | Changelog</Title>
+      <Title>Kilo CLI | Changelog</Title>
       <Link rel="canonical" href={`${config.baseUrl}/changelog`} />
-      <Meta name="description" content="OpenCode release notes and changelog" />
+      <Meta name="description" content="Kilo CLI release notes and changelog" />
 
       <div data-component="container">
         <Header />
@@ -102,7 +102,7 @@ export default function Changelog() {
         <div data-component="content">
           <section data-component="changelog-hero">
             <h1>Changelog</h1>
-            <p>New updates and improvements to OpenCode</p>
+            <p>New updates and improvements to Kilo CLI</p>
           </section>
 
           <section data-component="releases">

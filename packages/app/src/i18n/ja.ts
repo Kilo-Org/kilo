@@ -95,7 +95,7 @@ export const dict = {
   "dialog.model.manage": "モデルを管理",
   "dialog.model.manage.description": "モデルセレクターに表示するモデルをカスタマイズします。",
 
-  "dialog.model.unpaid.freeModels.title": "OpenCodeが提供する無料モデル",
+  "dialog.model.unpaid.freeModels.title": "Kilo CLIが提供する無料モデル",
   "dialog.model.unpaid.addMore.title": "人気のプロバイダーからモデルを追加",
 
   "dialog.provider.viewAll": "すべてのプロバイダーを表示",
@@ -108,19 +108,19 @@ export const dict = {
   "provider.connect.status.waiting": "認証を待機中...",
   "provider.connect.status.failed": "認証に失敗しました: {{error}}",
   "provider.connect.apiKey.description":
-    "{{provider}}のAPIキーを入力してアカウントを接続し、OpenCodeで{{provider}}モデルを使用します。",
+    "{{provider}}のAPIキーを入力してアカウントを接続し、Kilo CLIで{{provider}}モデルを使用します。",
   "provider.connect.apiKey.label": "{{provider}} APIキー",
   "provider.connect.apiKey.placeholder": "APIキー",
   "provider.connect.apiKey.required": "APIキーが必要です",
   "provider.connect.opencodeZen.line1":
-    "OpenCode Zenは、コーディングエージェント向けに最適化された信頼性の高いモデルへのアクセスを提供します。",
+    "Kilo CLI Zenは、コーディングエージェント向けに最適化された信頼性の高いモデルへのアクセスを提供します。",
   "provider.connect.opencodeZen.line2": "1つのAPIキーで、Claude、GPT、Gemini、GLMなどのモデルにアクセスできます。",
   "provider.connect.opencodeZen.visit.prefix": " ",
   "provider.connect.opencodeZen.visit.suffix": " にアクセスしてAPIキーを取得してください。",
   "provider.connect.oauth.code.visit.prefix": " ",
   "provider.connect.oauth.code.visit.link": "このリンク",
   "provider.connect.oauth.code.visit.suffix":
-    " にアクセスして認証コードを取得し、アカウントを接続してOpenCodeで{{provider}}モデルを使用してください。",
+    " にアクセスして認証コードを取得し、アカウントを接続してKilo CLIで{{provider}}モデルを使用してください。",
   "provider.connect.oauth.code.label": "{{method}} 認証コード",
   "provider.connect.oauth.code.placeholder": "認証コード",
   "provider.connect.oauth.code.required": "認証コードが必要です",
@@ -128,7 +128,7 @@ export const dict = {
   "provider.connect.oauth.auto.visit.prefix": " ",
   "provider.connect.oauth.auto.visit.link": "このリンク",
   "provider.connect.oauth.auto.visit.suffix":
-    " にアクセスし、以下のコードを入力してアカウントを接続し、OpenCodeで{{provider}}モデルを使用してください。",
+    " にアクセスし、以下のコードを入力してアカウントを接続し、Kilo CLIで{{provider}}モデルを使用してください。",
   "provider.connect.oauth.auto.confirmationCode": "確認コード",
   "provider.connect.toast.connected.title": "{{provider}}が接続されました",
   "provider.connect.toast.connected.description": "{{provider}}モデルが使用可能になりました。",
@@ -218,7 +218,7 @@ export const dict = {
   "dialog.directory.empty": "フォルダが見つかりません",
 
   "dialog.server.title": "サーバー",
-  "dialog.server.description": "このアプリが接続するOpenCodeサーバーを切り替えます。",
+  "dialog.server.description": "このアプリが接続するKilo CLIサーバーを切り替えます。",
   "dialog.server.search.placeholder": "サーバーを検索",
   "dialog.server.empty": "サーバーはまだありません",
   "dialog.server.add.title": "サーバーを追加",
@@ -330,7 +330,7 @@ export const dict = {
   "toast.session.listFailed.title": "{{project}}のセッション読み込みに失敗しました",
 
   "toast.update.title": "アップデートが利用可能です",
-  "toast.update.description": "OpenCodeの新しいバージョン ({{version}}) がインストール可能です。",
+  "toast.update.description": "Kilo CLIの新しいバージョン ({{version}}) がインストール可能です。",
   "toast.update.action.installRestart": "インストールして再起動",
   "toast.update.action.notYet": "今はしない",
 
@@ -341,7 +341,7 @@ export const dict = {
   "error.page.action.checking": "確認中...",
   "error.page.action.checkUpdates": "アップデートを確認",
   "error.page.action.updateTo": "{{version}}にアップデート",
-  "error.page.report.prefix": "このエラーをOpenCodeチームに報告してください: ",
+  "error.page.report.prefix": "このエラーをKilo CLIチームに報告してください: ",
   "error.page.report.discord": "Discord",
   "error.page.version": "バージョン: {{version}}",
 
@@ -359,7 +359,7 @@ export const dict = {
   "error.chain.didYouMean": "もしかして: {{suggestions}}",
   "error.chain.modelNotFound": "モデルが見つかりません: {{provider}}/{{model}}",
   "error.chain.checkConfig": "config (opencode.json) のプロバイダー/モデル名を確認してください",
-  "error.chain.mcpFailed": 'MCPサーバー "{{name}}" が失敗しました。注意: OpenCodeはまだMCP認証をサポートしていません。',
+  "error.chain.mcpFailed": 'MCPサーバー "{{name}}" が失敗しました。注意: Kilo CLIはまだMCP認証をサポートしていません。',
   "error.chain.providerAuthFailed": "プロバイダー認証に失敗しました ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'プロバイダー "{{provider}}" の初期化に失敗しました。認証情報と設定を確認してください。',
@@ -457,7 +457,7 @@ export const dict = {
   "sidebar.workspaces.enable": "ワークスペースを有効化",
   "sidebar.workspaces.disable": "ワークスペースを無効化",
   "sidebar.gettingStarted.title": "はじめに",
-  "sidebar.gettingStarted.line1": "OpenCodeには無料モデルが含まれているため、すぐに開始できます。",
+  "sidebar.gettingStarted.line1": "Kilo CLIには無料モデルが含まれているため、すぐに開始できます。",
   "sidebar.gettingStarted.line2": "プロバイダーを接続して、Claude、GPT、Geminiなどのモデルを使用できます。",
   "sidebar.project.recentSessions": "最近のセッション",
   "sidebar.project.viewAllSessions": "すべてのセッションを表示",
@@ -471,11 +471,11 @@ export const dict = {
   "settings.general.section.sounds": "効果音",
 
   "settings.general.row.language.title": "言語",
-  "settings.general.row.language.description": "OpenCodeの表示言語を変更します",
+  "settings.general.row.language.description": "Kilo CLIの表示言語を変更します",
   "settings.general.row.appearance.title": "外観",
-  "settings.general.row.appearance.description": "デバイスでのOpenCodeの表示をカスタマイズします",
+  "settings.general.row.appearance.description": "デバイスでのKilo CLIの表示をカスタマイズします",
   "settings.general.row.theme.title": "テーマ",
-  "settings.general.row.theme.description": "OpenCodeのテーマをカスタマイズします。",
+  "settings.general.row.theme.description": "Kilo CLIのテーマをカスタマイズします。",
   "settings.general.row.font.title": "フォント",
   "settings.general.row.font.description": "コードブロックで使用する等幅フォントをカスタマイズします",
 

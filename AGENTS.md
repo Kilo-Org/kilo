@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Kilo Code is an open source AI coding agent for VS Code that generates code from natural language, automates tasks, and supports 500+ AI models.
+Kilo CLI is an open source AI coding agent that generates code from natural language, automates tasks, and supports 500+ AI models.
 
 - To regenerate the JavaScript SDK, run `./packages/sdk/js/script/build.ts`.
 - ALWAYS USE PARALLEL TOOLS WHEN APPLICABLE.
@@ -85,7 +85,7 @@ Tests MUST test actual implementation, do not duplicate logic into a test.
 
 ## Fork Merge Process
 
-Kilo Code is a fork of [opencode](https://github.com/anomalyco/opencode).
+Kilo CLI is a fork of [opencode](https://github.com/anomalyco/opencode).
 
 ## kilocode_change Markers
 

@@ -80,19 +80,19 @@ export default function Download() {
   }
   return (
     <main data-page="download">
-      <Title>OpenCode | Download</Title>
+      <Title>Kilo CLI | Download</Title>
       <Link rel="canonical" href={`${config.baseUrl}/download`} />
-      <Meta name="description" content="Download OpenCode for macOS, Windows, and Linux" />
+      <Meta name="description" content="Download Kilo CLI for macOS, Windows, and Linux" />
       <div data-component="container">
         <Header hideGetStarted />
 
         <div data-component="content">
           <section data-component="download-hero">
             <div data-component="hero-icon">
-              <img src={desktopAppIcon} alt="OpenCode Desktop" />
+              <img src={desktopAppIcon} alt="Kilo CLI Desktop" />
             </div>
             <div data-component="hero-text">
-              <h1>Download OpenCode</h1>
+              <h1>Download Kilo CLI</h1>
               <p>Available in Beta for macOS, Windows, and Linux</p>
               <Show when={detectedOS()}>
                 <a href={getDownloadHref(getDownloadPlatform(detectedOS()))} data-component="download-button">
@@ -105,7 +105,7 @@ export default function Download() {
 
           <section data-component="download-section">
             <div data-component="section-label">
-              <span>[1]</span> OpenCode Terminal
+              <span>[1]</span> Kilo CLI Terminal
             </div>
             <div data-component="section-content">
               <button
@@ -146,7 +146,7 @@ export default function Download() {
 
           <section data-component="download-section">
             <div data-component="section-label">
-              <span>[2]</span> OpenCode Desktop (Beta)
+              <span>[2]</span> Kilo CLI Desktop (Beta)
             </div>
             <div data-component="section-content">
               <button data-component="cli-row" onClick={handleCopyClick("brew install --cask opencode-desktop")}>
@@ -266,7 +266,7 @@ export default function Download() {
 
           <section data-component="download-section">
             <div data-component="section-label">
-              <span>[3]</span> OpenCode Extensions
+              <span>[3]</span> Kilo CLI Extensions
             </div>
             <div data-component="section-content">
               <div data-component="download-row">
@@ -372,7 +372,7 @@ export default function Download() {
 
           <section data-component="download-section">
             <div data-component="section-label">
-              <span>[4]</span> OpenCode Integrations
+              <span>[4]</span> Kilo CLI Integrations
             </div>
             <div data-component="section-content">
               <div data-component="download-row">
@@ -418,48 +418,48 @@ export default function Download() {
           </div>
           <ul>
             <li>
-              <Faq question="What is OpenCode?">
-                OpenCode is an open source agent that helps you write and run code with any AI model. It's available as
+              <Faq question="What is Kilo CLI?">
+                Kilo CLI is an open source agent that helps you write and run code with any AI model. It's available as
                 a terminal-based interface, desktop app, or IDE extension.
               </Faq>
             </li>
             <li>
-              <Faq question="How do I use OpenCode?">
+              <Faq question="How do I use Kilo CLI?">
                 The easiest way to get started is to read the <a href="/docs">intro</a>.
               </Faq>
             </li>
             <li>
-              <Faq question="Do I need extra AI subscriptions to use OpenCode?">
-                Not necessarily, but probably. You'll need an AI subscription if you want to connect OpenCode to a paid
+              <Faq question="Do I need extra AI subscriptions to use Kilo CLI?">
+                Not necessarily, but probably. You'll need an AI subscription if you want to connect Kilo CLI to a paid
                 provider, although you can work with{" "}
                 <a href="/docs/providers/#lm-studio" target="_blank">
                   local models
                 </a>{" "}
-                for free. While we encourage users to use <A href="/zen">Zen</A>, OpenCode works with all popular
+                for free. While we encourage users to use <A href="/zen">Zen</A>, Kilo CLI works with all popular
                 providers such as OpenAI, Anthropic, xAI etc.
               </Faq>
             </li>
             <li>
-              <Faq question="Can I only use OpenCode in the terminal?">
-                Not anymore! OpenCode is now available as an app for your <a href="/download">desktop</a> and{" "}
+              <Faq question="Can I only use Kilo CLI in the terminal?">
+                Not anymore! Kilo CLI is now available as an app for your <a href="/download">desktop</a> and{" "}
                 <a href="/docs/cli/#web">web</a>!
               </Faq>
             </li>
             <li>
-              <Faq question="How much does OpenCode cost?">
-                OpenCode is 100% free to use. Any additional costs will come from your subscription to a model provider.
-                While OpenCode works with any model provider, we recommend using <A href="/zen">Zen</A>.
+              <Faq question="How much does Kilo CLI cost?">
+                Kilo CLI is 100% free to use. Any additional costs will come from your subscription to a model provider.
+                While Kilo CLI works with any model provider, we recommend using <A href="/zen">Zen</A>.
               </Faq>
             </li>
             <li>
               <Faq question="What about data and privacy?">
-                Your data and information is only stored when you create sharable links in OpenCode. Learn more about{" "}
+                Your data and information is only stored when you create sharable links in Kilo CLI. Learn more about{" "}
                 <a href="/docs/share/#privacy">share pages</a>.
               </Faq>
             </li>
             <li>
-              <Faq question="Is OpenCode open source?">
-                Yes, OpenCode is fully open source. The source code is public on{" "}
+              <Faq question="Is Kilo CLI open source?">
+                Yes, Kilo CLI is fully open source. The source code is public on{" "}
                 <a href={config.github.repoUrl} target="_blank">
                   GitHub
                 </a>{" "}

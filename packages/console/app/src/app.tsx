@@ -13,8 +13,8 @@ export default function App() {
       explicitLinks={true}
       root={(props) => (
         <MetaProvider>
-          <Title>opencode</Title>
-          <Meta name="description" content="OpenCode - The open source coding agent." />
+          <Title>Kilo CLI</Title>
+          <Meta name="description" content="Kilo CLI - The open source coding agent." />
           <Favicon />
           <Font />
           <Suspense>{props.children}</Suspense>

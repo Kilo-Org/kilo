@@ -53,16 +53,16 @@ export default function Brand() {
 
   return (
     <main data-page="enterprise">
-      <Title>OpenCode | Brand</Title>
+      <Title>Kilo CLI | Brand</Title>
       <Link rel="canonical" href={`${config.baseUrl}/brand`} />
-      <Meta name="description" content="OpenCode brand guidelines" />
+      <Meta name="description" content="Kilo CLI brand guidelines" />
       <div data-component="container">
         <Header />
 
         <div data-component="content">
           <section data-component="brand-content">
             <h1>Brand guidelines</h1>
-            <p>Resources and assets to help you work with the OpenCode brand.</p>
+            <p>Resources and assets to help you work with the Kilo CLI brand.</p>
             <button
               data-component="download-button"
               onClick={() => downloadFile(brandAssets, "opencode-brand-assets.zip")}
@@ -80,7 +80,7 @@ export default function Brand() {
 
             <div data-component="brand-grid">
               <div>
-                <img src={previewLogoLight} alt="OpenCode brand guidelines" />
+                <img src={previewLogoLight} alt="Kilo CLI brand guidelines" />
                 <div data-component="actions">
                   <button onClick={() => downloadFile(logoLightPng, "opencode-logo-light.png")}>
                     PNG
@@ -107,7 +107,7 @@ export default function Brand() {
                 </div>
               </div>
               <div>
-                <img src={previewLogoDark} alt="OpenCode brand guidelines" />
+                <img src={previewLogoDark} alt="Kilo CLI brand guidelines" />
                 <div data-component="actions">
                   <button onClick={() => downloadFile(logoDarkPng, "opencode-logo-dark.png")}>
                     PNG
@@ -134,7 +134,7 @@ export default function Brand() {
                 </div>
               </div>
               <div>
-                <img src={previewWordmarkLight} alt="OpenCode brand guidelines" />
+                <img src={previewWordmarkLight} alt="Kilo CLI brand guidelines" />
                 <div data-component="actions">
                   <button onClick={() => downloadFile(wordmarkLightPng, "opencode-wordmark-light.png")}>
                     PNG
@@ -161,7 +161,7 @@ export default function Brand() {
                 </div>
               </div>
               <div>
-                <img src={previewWordmarkDark} alt="OpenCode brand guidelines" />
+                <img src={previewWordmarkDark} alt="Kilo CLI brand guidelines" />
                 <div data-component="actions">
                   <button onClick={() => downloadFile(wordmarkDarkPng, "opencode-wordmark-dark.png")}>
                     PNG
@@ -188,7 +188,7 @@ export default function Brand() {
                 </div>
               </div>
               <div>
-                <img src={previewWordmarkSimpleLight} alt="OpenCode brand guidelines" />
+                <img src={previewWordmarkSimpleLight} alt="Kilo CLI brand guidelines" />
                 <div data-component="actions">
                   <button onClick={() => downloadFile(wordmarkSimpleLightPng, "opencode-wordmark-simple-light.png")}>
                     PNG
@@ -215,7 +215,7 @@ export default function Brand() {
                 </div>
               </div>
               <div>
-                <img src={previewWordmarkSimpleDark} alt="OpenCode brand guidelines" />
+                <img src={previewWordmarkSimpleDark} alt="Kilo CLI brand guidelines" />
                 <div data-component="actions">
                   <button onClick={() => downloadFile(wordmarkSimpleDarkPng, "opencode-wordmark-simple-dark.png")}>
                     PNG

@@ -1,0 +1,76 @@
+# kilocode_change - new file
+name: publish-beta
+run-name: "beta release ${{ inputs.version || 'auto' }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Override version (optional, e.g., 1.2.0-beta.1)"
+        required: false
+        type: string
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.version }}
+
+permissions:
+  id-token: write
+  contents: write
+  packages: write
+
+jobs:
+  publish-beta:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - run: git fetch --force --tags
+
+      - uses: ./.github/actions/setup-bun
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Build and Pack Beta
+        run: |
+          cd packages/opencode
+          bun run script/pack-beta.ts
+        env:
+          OPENCODE_CHANNEL: beta
+          OPENCODE_VERSION: ${{ inputs.version }}
+
+      - name: Publish to npm with beta tag
+        run: |
+          cd packages/opencode/dist/@kilocode/cli
+          npm publish *.tgz --tag beta --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Pre-release
+        run: |
+          VERSION=$(node -p "require('./packages/opencode/dist/@kilocode/cli/package.json').version")
+          gh release create "v${VERSION}-beta" \
+            --prerelease \
+            --title "Beta v${VERSION}" \
+            --notes "🔵 Beta Release
+
+          Install with:
+          
+          \`\`\`bash
+          npm install -g @kilocode/cli@beta
+          \`\`\`
+          
+          ⚠️ This is a pre-release version for testing.
+          " \
+            ./packages/opencode/dist/*.tar.gz \
+            ./packages/opencode/dist/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kilocode-cli-beta
+          path: packages/opencode/dist

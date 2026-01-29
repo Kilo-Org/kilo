@@ -93,6 +93,7 @@ export const dict = {
   "dialog.provider.group.other": "Other",
   "dialog.provider.tag.recommended": "Recommended",
   "dialog.provider.kilo.note": "Access 500+ AI models",
+  "dialog.provider.opencode.note": "Connect with OpenCode Zen or API key", // kilocode_change
   "dialog.provider.anthropic.note": "Direct access to Claude models, including Pro and Max",
   "dialog.provider.copilot.note": "Claude models for coding assistance",
   "dialog.provider.openai.note": "GPT models for fast, capable general AI tasks",

@@ -268,7 +268,7 @@ export namespace Session {
       throw new Error("Sharing is disabled in configuration")
     }
     const { ShareNext } = await import("@/share/share-next")
-    const share = await ShareNext.create(id)
+    const share = await ShareNext.share(id) // kilocode_change
     await update(
       id,
       (draft) => {
@@ -284,7 +284,7 @@ export namespace Session {
   export const unshare = fn(Identifier.schema("session"), async (id) => {
     // Use ShareNext to remove the share (same as share function uses ShareNext to create)
     const { ShareNext } = await import("@/share/share-next")
-    await ShareNext.remove(id)
+    await ShareNext.unshare(id) // kilocode_change
     await update(
       id,
       (draft) => {
@@ -354,7 +354,8 @@ export namespace Session {
       for (const child of await children(sessionID)) {
         await remove(child.id)
       }
-      await unshare(sessionID).catch(() => {})
+      const { ShareNext } = await import("@/share/share-next")
+      await ShareNext.remove(sessionID).catch(() => {}) // kilocode_change
       for (const msg of await Storage.list(["message", sessionID])) {
         for (const part of await Storage.list(["part", msg.at(-1)!])) {
           await Storage.remove(part)

@@ -11,7 +11,7 @@ export const ImportCommand = cmd({
   describe: "import session data from JSON file or URL",
   builder: (yargs: Argv) => {
     return yargs.positional("file", {
-      describe: "path to JSON file or opencode.ai share URL",
+      describe: "path to JSON file or app.kilo.ai share URL", // kilocode_change
       type: "string",
       demandOption: true,
     })
@@ -31,15 +31,30 @@ export const ImportCommand = cmd({
       const isUrl = args.file.startsWith("http://") || args.file.startsWith("https://")
 
       if (isUrl) {
-        const urlMatch = args.file.match(/https?:\/\/opncd\.ai\/share\/([a-zA-Z0-9_-]+)/)
-        if (!urlMatch) {
-          process.stdout.write(`Invalid URL format. Expected: https://opncd.ai/share/<slug>`)
+        // kilocode_change start
+        const url = (() => {
+          try {
+            return new URL(args.file)
+          } catch {
+            return undefined
+          }
+        })()
+
+        if (!url || url.hostname !== "app.kilo.ai") {
+          process.stdout.write(`Invalid URL format. Expected: https://app.kilo.ai/s/<id>`)
           process.stdout.write(EOL)
           return
         }
 
-        const slug = urlMatch[1]
-        const response = await fetch(`https://opncd.ai/api/share/${slug}`)
+        const parts = url.pathname.split("/").filter(Boolean)
+        const id = parts.length >= 2 && parts[0] === "s" ? parts[1] : undefined
+        if (!id) {
+          process.stdout.write(`Invalid URL format. Expected: https://app.kilo.ai/s/<id>`)
+          process.stdout.write(EOL)
+          return
+        }
+
+        const response = await fetch(`https://ingest.kilosessions.ai/session/${encodeURIComponent(id)}`)
 
         if (!response.ok) {
           process.stdout.write(`Failed to fetch share data: ${response.statusText}`)
@@ -49,22 +64,14 @@ export const ImportCommand = cmd({
 
         const data = await response.json()
 
-        if (!data.info || !data.messages || Object.keys(data.messages).length === 0) {
-          process.stdout.write(`Share not found: ${slug}`)
+        if (!data.info || !data.messages || !Array.isArray(data.messages)) {
+          process.stdout.write(`Share not found: ${id}`)
           process.stdout.write(EOL)
           return
         }
 
-        exportData = {
-          info: data.info,
-          messages: Object.values(data.messages).map((msg: any) => {
-            const { parts, ...info } = msg
-            return {
-              info,
-              parts,
-            }
-          }),
-        }
+        exportData = data
+        // kilocode_change end
       } else {
         const file = Bun.file(args.file)
         exportData = await file.json().catch(() => {})

@@ -70,11 +70,24 @@ export namespace ToolRegistry {
             worktree: Instance.worktree,
           } as unknown as PluginToolContext
           const result = await def.execute(args as any, pluginCtx)
-          const out = await Truncate.output(result, {}, initCtx?.agent)
+          if (typeof result === "string") {
+            const out = await Truncate.output(result, {}, initCtx?.agent)
+            return {
+              title: id,
+              output: out.truncated ? out.content : result,
+              metadata: { truncated: out.truncated, outputPath: out.truncated ? out.outputPath : undefined },
+            }
+          }
+          const res = result as { title?: string; output: string; metadata?: { [key: string]: any } }
+          const out = await Truncate.output(res.output, {}, initCtx?.agent)
           return {
-            title: "",
-            output: out.truncated ? out.content : result,
-            metadata: { truncated: out.truncated, outputPath: out.truncated ? out.outputPath : undefined },
+            title: res.title ?? id,
+            output: out.truncated ? out.content : res.output,
+            metadata: {
+              ...(res.metadata ?? {}),
+              truncated: out.truncated,
+              outputPath: out.truncated ? out.outputPath : undefined,
+            },
           }
         },
       }),

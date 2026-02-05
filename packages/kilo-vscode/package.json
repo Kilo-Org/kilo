@@ -25,19 +25,86 @@
       "kilo-code-sidebar": [
         {
           "type": "webview",
-          "id": "kilo-code.sidebarView",
+          "id": "kilo-code.new.sidebarView",
           "name": "Kilo Code"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "kilo-code.new.plusButtonClicked",
+        "title": "New Task",
+        "icon": "$(add)"
+      },
+      {
+        "command": "kilo-code.new.agentManagerOpen",
+        "title": "Agent Manager",
+        "icon": "$(circuit-board)"
+      },
+      {
+        "command": "kilo-code.new.marketplaceButtonClicked",
+        "title": "Marketplace",
+        "icon": "$(extensions)"
+      },
+      {
+        "command": "kilo-code.new.historyButtonClicked",
+        "title": "History",
+        "icon": "$(history)"
+      },
+      {
+        "command": "kilo-code.new.profileButtonClicked",
+        "title": "Profile",
+        "icon": "$(account)"
+      },
+      {
+        "command": "kilo-code.new.settingsButtonClicked",
+        "title": "Settings",
+        "icon": "$(settings-gear)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "kilo-code.new.plusButtonClicked",
+          "group": "navigation@0",
+          "when": "view == kilo-code.new.sidebarView"
+        },
+        {
+          "command": "kilo-code.new.agentManagerOpen",
+          "group": "navigation@1",
+          "when": "view == kilo-code.new.sidebarView"
+        },
+        {
+          "command": "kilo-code.new.marketplaceButtonClicked",
+          "group": "navigation@2",
+          "when": "view == kilo-code.new.sidebarView"
+        },
+        {
+          "command": "kilo-code.new.historyButtonClicked",
+          "group": "navigation@3",
+          "when": "view == kilo-code.new.sidebarView"
+        },
+        {
+          "command": "kilo-code.new.profileButtonClicked",
+          "group": "navigation@4",
+          "when": "view == kilo-code.new.sidebarView"
+        },
+        {
+          "command": "kilo-code.new.settingsButtonClicked",
+          "group": "navigation@5",
+          "when": "view == kilo-code.new.sidebarView"
         }
       ]
     }
   },
   "scripts": {
     "vscode:prepublish": "pnpm run package",
-    "compile": "pnpm run check-types && pnpm run lint && node esbuild.js",
+    "prepare:cli-binary": "node scripts/prepare-cli-binary.mjs",
+    "compile": "pnpm run prepare:cli-binary && pnpm run check-types && pnpm run lint && node esbuild.js",
     "watch": "npm-run-all -p watch:*",
-    "watch:esbuild": "node esbuild.js --watch",
+    "watch:esbuild": "pnpm run prepare:cli-binary && node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-    "package": "pnpm run check-types && pnpm run lint && node esbuild.js --production",
+    "package": "pnpm run prepare:cli-binary && pnpm run check-types && pnpm run lint && node esbuild.js --production",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
@@ -59,6 +126,7 @@
     "typescript-eslint": "^8.54.0"
   },
   "dependencies": {
+    "eventsource": "^2.0.2",
     "solid-js": "^1.9.11"
   }
 }

@@ -7,6 +7,7 @@ import PROMPT_INITIALIZE from "./template/initialize.txt"
 import PROMPT_REVIEW from "./template/review.txt"
 import { MCP } from "../mcp"
 import { Skill } from "../skill"
+import { localReviewCommand, localReviewUncommittedCommand } from "@/kilocode/review/command" // kilocode_change
 
 export namespace Command {
   export const Event = {
@@ -54,6 +55,10 @@ export namespace Command {
   export const Default = {
     INIT: "init",
     REVIEW: "review",
+    // kilocode_change start
+    LOCAL_REVIEW: "local-review",
+    LOCAL_REVIEW_UNCOMMITTED: "local-review-uncommitted",
+    // kilocode_change end
   } as const
 
   const state = Instance.state(async () => {
@@ -69,16 +74,19 @@ export namespace Command {
         },
         hints: hints(PROMPT_INITIALIZE),
       },
-      [Default.REVIEW]: {
-        name: Default.REVIEW,
-        description: "review changes [commit|branch|pr], defaults to uncommitted",
-        source: "command",
-        get template() {
-          return PROMPT_REVIEW.replace("${path}", Instance.worktree)
-        },
-        subtask: true,
-        hints: hints(PROMPT_REVIEW),
-      },
+      // kilocode_change start
+      // [Default.REVIEW]: {
+      //   name: Default.REVIEW,
+      //   description: "review changes [commit|branch|pr], defaults to uncommitted",
+      //   get template() {
+      //     return PROMPT_REVIEW.replace("${path}", Instance.worktree)
+      //   },
+      //   subtask: true,
+      //   hints: hints(PROMPT_REVIEW),
+      // },
+      [Default.LOCAL_REVIEW]: localReviewCommand(),
+      [Default.LOCAL_REVIEW_UNCOMMITTED]: localReviewUncommittedCommand(),
+      // kilocode_change end
     }
 
     for (const [name, command] of Object.entries(cfg.command ?? {})) {

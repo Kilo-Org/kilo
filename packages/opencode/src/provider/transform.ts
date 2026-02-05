@@ -138,6 +138,39 @@ export namespace ProviderTransform {
       return result
     }
 
+    // @kilocode/kilo-gateway needs to check if message contains JSON arrays
+    // and convert them to plain text
+    if (model.providerID === "kilo" && model.api.id.startsWith("z-ai/glm")) {
+      msgs = msgs.map((msg) => {
+        if (msg.role !== "assistant" && typeof msg.content !== "string") {
+          return msg
+        }
+
+        const content = msg.content.toString().trim()
+        if (content.startsWith("[") && content.endsWith("]")) {
+          try {
+            const parsed = JSON.parse(content)
+            if (Array.isArray(parsed) && parsed.length && typeof parsed[0] === "object") {
+              const text = parsed
+                .filter((item) => item && typeof item === "object")
+                .map((item) =>
+                  Object.entries(item)
+                    .map(([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : value}`)
+                    .join("\n"),
+                )
+                .join("\n\n")
+              if (text) {
+                return { ...msg, content: text } as ModelMessage
+              }
+            }
+          } catch {
+            // Not valid JSON, return as-is
+          }
+        }
+        return msg
+      })
+    }
+
     if (typeof model.capabilities.interleaved === "object" && model.capabilities.interleaved.field) {
       const field = model.capabilities.interleaved.field
       return msgs.map((msg) => {

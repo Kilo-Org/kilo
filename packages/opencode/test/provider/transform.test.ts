@@ -2253,3 +2253,140 @@ describe("ProviderTransform.smallOptions", () => {
   })
 })
 // kilocode_change end
+
+describe("ProviderTransform.message - JSON array conversion", () => {
+  const createMockModel = (overrides: Partial<any> = {}) =>
+    ({
+      id: "z-ai/glm-4.7",
+      providerID: "kilo",
+      api: {
+        id: "z-ai/glm-4.7",
+        url: "https://api.z.ai",
+        npm: "@kilocode/kilo-gateway",
+      },
+      name: "Test Model",
+      capabilities: {
+        temperature: true,
+        reasoning: false,
+        attachment: true,
+        toolcall: true,
+        input: { text: true, audio: false, image: false, video: false, pdf: false },
+        output: { text: true, audio: false, image: false, video: false, pdf: false },
+        interleaved: false,
+      },
+      cost: { input: 0.001, output: 0.002, cache: { read: 0.0001, write: 0.0002 } },
+      limit: { context: 128000, output: 4096 },
+      status: "active",
+      options: {},
+      headers: {},
+      ...overrides,
+    }) as any
+
+  test("converts JSON array of objects to plain text", () => {
+    const mockModel = createMockModel()
+    const messages = [
+      {
+        role: "assistant",
+        content: '[{"@angular/core": "import { ComponentFixture }", "@angular/testing": "import { render }"}]',
+      },
+    ] as any
+    const result = ProviderTransform.message(messages, mockModel, {})
+    expect(result[0].content).toBe("@angular/core: import { ComponentFixture }\n@angular/testing: import { render }")
+  })
+
+  test("converts multi-item JSON array to plain text with double newlines", () => {
+    const mockModel = createMockModel()
+    const messages = [
+      {
+        role: "assistant",
+        content:
+          '[{"imports": "import { A } from \\"a\\""}, {"imports": "import { B } from \\"b\\""}, {"code": "const x = 1;"}]',
+      },
+    ] as any
+    const result = ProviderTransform.message(messages, mockModel, {})
+    expect(result[0].content).toBe(
+      'imports: import { A } from "a"\n\nimports: import { B } from "b"\n\ncode: const x = 1;',
+    )
+  })
+
+  test("ignores non-array JSON", () => {
+    const mockModel = createMockModel()
+    const messages = [{ role: "assistant", content: '{"key": "value"}' }] as any
+    const result = ProviderTransform.message(messages, mockModel, {})
+    expect(result[0].content).toBe('{"key": "value"}')
+  })
+
+  test("ignores invalid JSON", () => {
+    const mockModel = createMockModel()
+    const messages = [{ role: "assistant", content: "[not valid json" }] as any
+    const result = ProviderTransform.message(messages, mockModel, {})
+    expect(result[0].content).toBe("[not valid json")
+  })
+
+  test("ignores arrays of non-objects", () => {
+    const mockModel = createMockModel()
+    const messages = [{ role: "assistant", content: '["string1", "string2", 123]' }] as any
+    const result = ProviderTransform.message(messages, mockModel, {})
+    expect(result[0].content).toBe('["string1", "string2", 123]')
+  })
+
+  test("ignores empty arrays", () => {
+    const mockModel = createMockModel()
+    const messages = [{ role: "assistant", content: "[]" }] as any
+    const result = ProviderTransform.message(messages, mockModel, {})
+    expect(result[0].content).toBe("[]")
+  })
+
+  test("ignores non-assistant messages (user/system)", () => {
+    const mockModel = createMockModel()
+    const messages = [
+      { role: "user", content: "[{}]" },
+      { role: "system", content: "[{foo: 'bar'}]" },
+    ] as any
+    const result = ProviderTransform.message(messages, mockModel, {})
+    expect(result[0].content).toBe("[{}]")
+    expect(result[1].content).toBe("[{foo: 'bar'}]")
+  })
+
+  test("ignores array content (not string)", () => {
+    const mockModel = createMockModel()
+    const messages = [
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "hello" },
+          { type: "text", text: "world" },
+        ],
+      },
+    ] as any
+    const result = ProviderTransform.message(messages, mockModel, {})
+    expect(result[0].content).toEqual([
+      { type: "text", text: "hello" },
+      { type: "text", text: "world" },
+    ])
+  })
+
+  test("handles JSON with whitespace", () => {
+    const mockModel = createMockModel()
+    const messages = [
+      {
+        role: "assistant",
+        content: '  [{"key": "value"}]  \n',
+      },
+    ] as any
+    const result = ProviderTransform.message(messages, mockModel, {})
+    expect(result[0].content).toBe("key: value")
+  })
+
+  test("handles deeply nested objects", () => {
+    const mockModel = createMockModel()
+    const messages = [
+      {
+        role: "assistant",
+        content: '[{"nested": {"key": "value", "arr": [1, 2, 3]}}]',
+      },
+    ] as any
+    const result = ProviderTransform.message(messages, mockModel, {})
+    expect(result[0].content).toBe('nested: {"key":"value","arr":[1,2,3]}')
+  })
+})

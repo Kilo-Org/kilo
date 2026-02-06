@@ -40,6 +40,7 @@ import { writeHeapSnapshot } from "v8"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { registerKiloCommands } from "@/kilocode/kilo-commands" // kilocode_change
 import { initializeTUIDependencies } from "@kilocode/kilo-gateway/tui" // kilocode_change
+import { resetTerminalState } from "@tui/util/terminal"
 
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   // can't set raw mode if not a TTY
@@ -119,6 +120,9 @@ export function tui(input: {
       await input.onExit?.()
       resolve()
     }
+
+    // Safety net: ensure mouse tracking is disabled regardless of exit path
+    process.on("exit", resetTerminalState)
 
     render(
       () => {
@@ -714,6 +718,7 @@ function ErrorComponent(props: {
   const handleExit = async () => {
     renderer.setTerminalTitle("")
     renderer.destroy()
+    resetTerminalState()
     props.onExit()
   }
 

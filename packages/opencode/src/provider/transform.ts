@@ -1,4 +1,4 @@
-import type { APICallError, ModelMessage } from "ai"
+import type { APICallError, ModelMessage, ToolCallPart } from "ai"
 import { mergeDeep, unique } from "remeda"
 import type { JSONSchema7 } from "@ai-sdk/provider"
 import type { JSONSchema } from "zod/v4/core"
@@ -142,31 +142,47 @@ export namespace ProviderTransform {
     // and convert them to plain text
     if (model.providerID === "kilo" && model.api.id.startsWith("z-ai/glm")) {
       msgs = msgs.map((msg) => {
-        if (msg.role !== "assistant" && typeof msg.content !== "string") {
-          return msg
-        }
+        if (Array.isArray(msg.content)) {
+          const content = msg.content.map((part) => {
+            if (part.type === "tool-call" && "input" in part && part.input && typeof part.input === "object") {
+              const callPart = part as ToolCallPart
+              const input = callPart.input as Record<string, unknown>
+              const content = input.content
 
-        const content = msg.content.toString().trim()
-        if (content.startsWith("[") && content.endsWith("]")) {
-          try {
-            const parsed = JSON.parse(content)
-            if (Array.isArray(parsed) && parsed.length && typeof parsed[0] === "object") {
-              const text = parsed
-                .filter((item) => item && typeof item === "object")
-                .map((item) =>
-                  Object.entries(item)
-                    .map(([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : value}`)
-                    .join("\n"),
-                )
-                .join("\n\n")
-              if (text) {
-                return { ...msg, content: text } as ModelMessage
+              if (typeof content === "string") {
+                const trimmed = content.trim()
+                if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+                  try {
+                    const parsed = JSON.parse(trimmed)
+                    if (Array.isArray(parsed) && parsed.length && typeof parsed[0] === "object") {
+                      const text = parsed
+                        .filter((item) => item && typeof item === "object")
+                        .map((item) =>
+                          Object.entries(item)
+                            .map(
+                              ([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : value}`,
+                            )
+                            .join("\n"),
+                        )
+                        .join("\n\n")
+
+                      if (text) {
+                        return { ...callPart, input: { ...input, content: text } }
+                      }
+                    }
+                  } catch (error) {
+                    console.error("Failed to parse JSON:", error instanceof Error ? error.message : error)
+                  }
+                }
               }
             }
-          } catch {
-            // Not valid JSON, return as-is
-          }
+
+            return part
+          })
+
+          return { ...msg, content } as ModelMessage
         }
+
         return msg
       })
     }

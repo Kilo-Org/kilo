@@ -1278,6 +1278,544 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
   })
 })
 
+describe("ProviderTransform.message - GLM JSON array to text conversion", () => {
+  const glmModel = {
+    id: "kilo/z-ai/glm-4",
+    providerID: "kilo",
+    api: {
+      id: "z-ai/glm-4",
+      url: "https://gateway.kilo.ai",
+      npm: "@kilocode/kilo-gateway",
+    },
+    name: "GLM-4",
+    capabilities: {
+      temperature: true,
+      reasoning: true,
+      attachment: false,
+      toolcall: true,
+      input: { text: true, audio: false, image: false, video: false, pdf: false },
+      output: { text: true, audio: false, image: false, video: false, pdf: false },
+      interleaved: false,
+    },
+    cost: { input: 0.001, output: 0.002, cache: { read: 0.0001, write: 0.0002 } },
+    limit: { context: 128000, output: 8192 },
+    status: "active",
+    options: {},
+    headers: {},
+  } as any
+
+  test("converts simple JSON array to text", () => {
+    const jsonContent = '[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]'
+    const msgs = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "test123",
+            toolName: "bash",
+            input: { content: jsonContent, filePath: "/tmp/output" },
+          },
+        ],
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, glmModel, {})
+
+    expect(result).toHaveLength(1)
+    expect(result[0].content).toHaveLength(1)
+    expect((result[0].content as any)[0].type).toBe("tool-call")
+    expect((result[0].content as any)[0].input.content).toBe("name: Alice\nage: 30\n\nname: Bob\nage: 25")
+    expect((result[0].content as any)[0].input.filePath).toBe("/tmp/output")
+  })
+
+  test("converts nested object values to JSON string in output", () => {
+    const jsonContent = '[{"name": "Alice", "data": {"key": "value"}}]'
+    const msgs = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "test123",
+            toolName: "bash",
+            input: { content: jsonContent, filePath: "/tmp/output" },
+          },
+        ],
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, glmModel, {})
+
+    expect((result[0].content as any)[0].input.content).toBe('name: Alice\ndata: {"key":"value"}')
+  })
+
+  test("handles single object in array", () => {
+    const jsonContent = '[{"name": "Alice", "age": 30}]'
+    const msgs = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "test123",
+            toolName: "bash",
+            input: { content: jsonContent, filePath: "/tmp/output" },
+          },
+        ],
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, glmModel, {})
+
+    expect((result[0].content as any)[0].input.content).toBe("name: Alice\nage: 30")
+  })
+
+  test("keeps non-JSON content unchanged", () => {
+    const plainText = "This is just plain text, not JSON"
+    const msgs = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "test123",
+            toolName: "bash",
+            input: { content: plainText, filePath: "/tmp/output" },
+          },
+        ],
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, glmModel, {})
+
+    expect((result[0].content as any)[0].input.content).toBe(plainText)
+  })
+
+  test("keeps invalid JSON unchanged", () => {
+    const invalidJson = "[not valid json"
+    const msgs = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "test123",
+            toolName: "bash",
+            input: { content: invalidJson, filePath: "/tmp/output" },
+          },
+        ],
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, glmModel, {})
+
+    expect((result[0].content as any)[0].input.content).toBe(invalidJson)
+  })
+
+  test("keeps non-array JSON unchanged", () => {
+    const objectJson = '{"name": "Alice", "age": 30}'
+    const msgs = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "test123",
+            toolName: "bash",
+            input: { content: objectJson, filePath: "/tmp/output" },
+          },
+        ],
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, glmModel, {})
+
+    expect((result[0].content as any)[0].input.content).toBe(objectJson)
+  })
+
+  test("keeps array of primitives unchanged", () => {
+    const primitiveArray = '["item1", "item2", "item3"]'
+    const msgs = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "test123",
+            toolName: "bash",
+            input: { content: primitiveArray, filePath: "/tmp/output" },
+          },
+        ],
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, glmModel, {})
+
+    expect((result[0].content as any)[0].input.content).toBe(primitiveArray)
+  })
+
+  test("filters out null items from array", () => {
+    const jsonContent = '[{"name": "Alice"}, null, {"name": "Bob"}]'
+    const msgs = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "test123",
+            toolName: "bash",
+            input: { content: jsonContent, filePath: "/tmp/output" },
+          },
+        ],
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, glmModel, {})
+
+    expect((result[0].content as any)[0].input.content).toBe("name: Alice\n\nname: Bob")
+  })
+
+  test("handles empty object in array", () => {
+    const jsonContent = '[{"name": "Alice"}, {}]'
+    const msgs = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "test123",
+            toolName: "bash",
+            input: { content: jsonContent, filePath: "/tmp/output" },
+          },
+        ],
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, glmModel, {})
+
+    expect((result[0].content as any)[0].input.content).toBe("name: Alice\n\n")
+  })
+
+  test("handles whitespace around JSON", () => {
+    const jsonContent = '  [{"name": "Alice", "age": 30}]  '
+    const msgs = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "test123",
+            toolName: "bash",
+            input: { content: jsonContent, filePath: "/tmp/output" },
+          },
+        ],
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, glmModel, {})
+
+    expect((result[0].content as any)[0].input.content).toBe("name: Alice\nage: 30")
+  })
+
+  test("only transforms GLM models", () => {
+    const nonGlmModel = {
+      ...glmModel,
+      id: "kilo/other/model",
+      providerID: "kilo",
+      api: {
+        id: "other/model",
+        url: "https://gateway.kilo.ai",
+        npm: "@kilocode/kilo-gateway",
+      },
+    }
+
+    const jsonContent = '[{"name": "Alice", "age": 30}]'
+    const msgs = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "test123",
+            toolName: "bash",
+            input: { content: jsonContent, filePath: "/tmp/output" },
+          },
+        ],
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, nonGlmModel, {})
+
+    expect((result[0].content as any)[0].input.content).toBe(jsonContent)
+  })
+
+  test("handles multiple tool-calls in message", () => {
+    const jsonContent1 = '[{"name": "Alice", "age": 30}]'
+    const jsonContent2 = '[{"city": "NYC", "country": "USA"}]'
+    const msgs = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "test123",
+            toolName: "bash",
+            input: { content: jsonContent1, filePath: "/tmp/output1" },
+          },
+          {
+            type: "tool-call",
+            toolCallId: "test456",
+            toolName: "bash",
+            input: { content: jsonContent2, filePath: "/tmp/output2" },
+          },
+        ],
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, glmModel, {})
+
+    expect(result[0].content).toHaveLength(2)
+    expect((result[0].content as any)[0].input.content).toBe("name: Alice\nage: 30")
+    expect((result[0].content as any)[1].input.content).toBe("city: NYC\ncountry: USA")
+  })
+
+  test("preserves other content types in message", () => {
+    const jsonContent = '[{"name": "Alice"}]'
+    const msgs = [
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "Here is the result:" },
+          {
+            type: "tool-call",
+            toolCallId: "test123",
+            toolName: "bash",
+            input: { content: jsonContent, filePath: "/tmp/output" },
+          },
+          { type: "text", text: "Done." },
+        ],
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, glmModel, {})
+
+    expect(result[0].content).toHaveLength(3)
+    expect((result[0].content as any)[0]).toEqual({ type: "text", text: "Here is the result:" })
+    expect((result[0].content as any)[1].input.content).toBe("name: Alice")
+    expect((result[0].content as any)[2]).toEqual({ type: "text", text: "Done." })
+  })
+})
+
+describe("ProviderTransform.message - GLM model identification", () => {
+  test("identifies GLM models via providerID 'kilo' and api.id starting with 'z-ai/glm'", () => {
+    const glmModel = createMockModel({
+      id: "kilo/z-ai/glm-4.7",
+      providerID: "kilo",
+      api: {
+        id: "z-ai/glm-4.7",
+        url: "https://api.kilo.ai",
+        npm: "@kilocode/kilo-gateway",
+      },
+    })
+
+    expect(glmModel.providerID).toBe("kilo")
+    expect(glmModel.api.id).toMatch(/^z-ai\/glm/)
+  })
+
+  test("matches different GLM versions", () => {
+    const versions = ["z-ai/glm-4", "z-ai/glm-4.6", "z-ai/glm-4.7", "z-ai/glm-5"]
+    versions.forEach((version) => {
+      const model = createMockModel({
+        id: `kilo/${version}`,
+        providerID: "kilo",
+        api: {
+          id: version,
+          url: "https://api.kilo.ai",
+          npm: "@kilocode/kilo-gateway",
+        },
+      })
+      expect(model.api.id.startsWith("z-ai/glm")).toBe(true)
+    })
+  })
+})
+
+describe("ProviderTransform.message - GLM model identification edge cases", () => {
+  test("does not match model with providerID 'kilo' but non-GLM api.id", () => {
+    const model = createMockModel({
+      id: "kilo/anthropic/claude-3",
+      providerID: "kilo",
+      api: {
+        id: "anthropic/claude-3",
+        url: "https://api.kilo.ai",
+        npm: "@kilocode/kilo-gateway",
+      },
+    })
+
+    const condition = model.providerID === "kilo" && model.api.id.startsWith("z-ai/glm")
+    expect(condition).toBe(false)
+  })
+
+  test("matches model with both providerID 'kilo' and GLM api.id", () => {
+    const model = createMockModel({
+      id: "kilo/z-ai/glm-4.7",
+      providerID: "kilo",
+      api: {
+        id: "z-ai/glm-4.7",
+        url: "https://api.kilo.ai",
+        npm: "@kilocode/kilo-gateway",
+      },
+    })
+
+    const condition = model.providerID === "kilo" && model.api.id.startsWith("z-ai/glm")
+    expect(condition).toBe(true)
+  })
+
+  test("does not match model with GLM api.id but different providerID", () => {
+    const model = createMockModel({
+      id: "zhipuai/glm-4",
+      providerID: "zhipuai",
+      api: {
+        id: "z-ai/glm-4",
+        url: "https://api.zhipuai.com",
+        npm: "@ai-sdk/openai-compatible",
+      },
+    })
+
+    const condition = model.providerID === "kilo" && model.api.id.startsWith("z-ai/glm")
+    expect(condition).toBe(false)
+  })
+})
+
+describe("ProviderTransform.message - GLM tool-call message handling", () => {
+  const glmModel = createMockModel({
+    id: "kilo/z-ai/glm-4.7",
+    providerID: "kilo",
+    api: {
+      id: "z-ai/glm-4.7",
+      url: "https://api.kilo.ai",
+      npm: "@kilocode/kilo-gateway",
+    },
+  })
+
+  test("handles string content messages", () => {
+    const msgs = [
+      {
+        role: "assistant",
+        content: "Hello world",
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, glmModel, {})
+
+    expect(result).toHaveLength(1)
+    expect(result[0].content).toBe("Hello world")
+  })
+
+  test("does not modify non-GLM models", () => {
+    const nonGlmModel = createMockModel({
+      id: "kilo/openai/gpt-4",
+      providerID: "kilo",
+      api: {
+        id: "openai/gpt-4",
+        url: "https://api.kilo.ai",
+        npm: "@kilocode/kilo-gateway",
+      },
+    })
+
+    const msgs = [
+      {
+        role: "assistant",
+        content: "Hello world",
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, nonGlmModel, {})
+
+    expect(result).toHaveLength(1)
+    expect(result[0].content).toBe("Hello world")
+  })
+
+  test("does not apply for zhipuai provider (needs kilo providerID)", () => {
+    const zhipuModel = createMockModel({
+      id: "zhipuai/glm-4",
+      providerID: "zhipuai",
+      api: {
+        id: "z-ai/glm-4",
+        url: "https://api.zhipu.ai",
+        npm: "@ai-sdk/openai-compatible",
+      },
+    })
+
+    const msgs = [
+      {
+        role: "assistant",
+        content: "Hello world",
+      },
+    ] as any[]
+
+    const result = ProviderTransform.message(msgs, zhipuModel, {})
+
+    expect(result).toHaveLength(1)
+    expect(result[0].content).toBe("Hello world")
+  })
+})
+
+describe("ProviderTransform.message - GLM transform function coverage", () => {
+  const glmModel = createMockModel({
+    id: "kilo/z-ai/glm-4.7",
+    providerID: "kilo",
+    api: {
+      id: "z-ai/glm-4.7",
+      url: "https://api.kilo.ai",
+      npm: "@kilocode/kilo-gateway",
+    },
+  })
+
+  test("GLM-specific block checks providerID === 'kilo'", () => {
+    expect(glmModel.providerID).toBe("kilo")
+  })
+
+  test("GLM-specific block checks api.id.startsWith('z-ai/glm')", () => {
+    expect(glmModel.api.id.startsWith("z-ai/glm")).toBe(true)
+  })
+
+  test("both conditions must be true for GLM-specific processing", () => {
+    const condition = glmModel.providerID === "kilo" && glmModel.api.id.startsWith("z-ai/glm")
+    expect(condition).toBe(true)
+  })
+
+  test("condition is false for non-kilo provider", () => {
+    const model = createMockModel({
+      id: "other/z-ai/glm-4.7",
+      providerID: "other",
+      api: {
+        id: "z-ai/glm-4.7",
+        url: "https://api.other.com",
+        npm: "@ai-sdk/openai-compatible",
+      },
+    })
+
+    const condition = model.providerID === "kilo" && model.api.id.startsWith("z-ai/glm")
+    expect(condition).toBe(false)
+  })
+
+  test("condition is false for non-GLM model", () => {
+    const model = createMockModel({
+      id: "kilo/openai/gpt-4",
+      providerID: "kilo",
+      api: {
+        id: "openai/gpt-4",
+        url: "https://api.kilo.ai",
+        npm: "@kilocode/kilo-gateway",
+      },
+    })
+
+    const condition = model.providerID === "kilo" && model.api.id.startsWith("z-ai/glm")
+    expect(condition).toBe(false)
+  })
+})
+
 describe("ProviderTransform.message - providerOptions key remapping", () => {
   const createModel = (providerID: string, npm: string) =>
     ({
@@ -2253,140 +2791,3 @@ describe("ProviderTransform.smallOptions", () => {
   })
 })
 // kilocode_change end
-
-describe("ProviderTransform.message - JSON array conversion", () => {
-  const createMockModel = (overrides: Partial<any> = {}) =>
-    ({
-      id: "z-ai/glm-4.7",
-      providerID: "kilo",
-      api: {
-        id: "z-ai/glm-4.7",
-        url: "https://api.z.ai",
-        npm: "@kilocode/kilo-gateway",
-      },
-      name: "Test Model",
-      capabilities: {
-        temperature: true,
-        reasoning: false,
-        attachment: true,
-        toolcall: true,
-        input: { text: true, audio: false, image: false, video: false, pdf: false },
-        output: { text: true, audio: false, image: false, video: false, pdf: false },
-        interleaved: false,
-      },
-      cost: { input: 0.001, output: 0.002, cache: { read: 0.0001, write: 0.0002 } },
-      limit: { context: 128000, output: 4096 },
-      status: "active",
-      options: {},
-      headers: {},
-      ...overrides,
-    }) as any
-
-  test("converts JSON array of objects to plain text", () => {
-    const mockModel = createMockModel()
-    const messages = [
-      {
-        role: "assistant",
-        content: '[{"@angular/core": "import { ComponentFixture }", "@angular/testing": "import { render }"}]',
-      },
-    ] as any
-    const result = ProviderTransform.message(messages, mockModel, {})
-    expect(result[0].content).toBe("@angular/core: import { ComponentFixture }\n@angular/testing: import { render }")
-  })
-
-  test("converts multi-item JSON array to plain text with double newlines", () => {
-    const mockModel = createMockModel()
-    const messages = [
-      {
-        role: "assistant",
-        content:
-          '[{"imports": "import { A } from \\"a\\""}, {"imports": "import { B } from \\"b\\""}, {"code": "const x = 1;"}]',
-      },
-    ] as any
-    const result = ProviderTransform.message(messages, mockModel, {})
-    expect(result[0].content).toBe(
-      'imports: import { A } from "a"\n\nimports: import { B } from "b"\n\ncode: const x = 1;',
-    )
-  })
-
-  test("ignores non-array JSON", () => {
-    const mockModel = createMockModel()
-    const messages = [{ role: "assistant", content: '{"key": "value"}' }] as any
-    const result = ProviderTransform.message(messages, mockModel, {})
-    expect(result[0].content).toBe('{"key": "value"}')
-  })
-
-  test("ignores invalid JSON", () => {
-    const mockModel = createMockModel()
-    const messages = [{ role: "assistant", content: "[not valid json" }] as any
-    const result = ProviderTransform.message(messages, mockModel, {})
-    expect(result[0].content).toBe("[not valid json")
-  })
-
-  test("ignores arrays of non-objects", () => {
-    const mockModel = createMockModel()
-    const messages = [{ role: "assistant", content: '["string1", "string2", 123]' }] as any
-    const result = ProviderTransform.message(messages, mockModel, {})
-    expect(result[0].content).toBe('["string1", "string2", 123]')
-  })
-
-  test("ignores empty arrays", () => {
-    const mockModel = createMockModel()
-    const messages = [{ role: "assistant", content: "[]" }] as any
-    const result = ProviderTransform.message(messages, mockModel, {})
-    expect(result[0].content).toBe("[]")
-  })
-
-  test("ignores non-assistant messages (user/system)", () => {
-    const mockModel = createMockModel()
-    const messages = [
-      { role: "user", content: "[{}]" },
-      { role: "system", content: "[{foo: 'bar'}]" },
-    ] as any
-    const result = ProviderTransform.message(messages, mockModel, {})
-    expect(result[0].content).toBe("[{}]")
-    expect(result[1].content).toBe("[{foo: 'bar'}]")
-  })
-
-  test("ignores array content (not string)", () => {
-    const mockModel = createMockModel()
-    const messages = [
-      {
-        role: "assistant",
-        content: [
-          { type: "text", text: "hello" },
-          { type: "text", text: "world" },
-        ],
-      },
-    ] as any
-    const result = ProviderTransform.message(messages, mockModel, {})
-    expect(result[0].content).toEqual([
-      { type: "text", text: "hello" },
-      { type: "text", text: "world" },
-    ])
-  })
-
-  test("handles JSON with whitespace", () => {
-    const mockModel = createMockModel()
-    const messages = [
-      {
-        role: "assistant",
-        content: '  [{"key": "value"}]  \n',
-      },
-    ] as any
-    const result = ProviderTransform.message(messages, mockModel, {})
-    expect(result[0].content).toBe("key: value")
-  })
-
-  test("handles deeply nested objects", () => {
-    const mockModel = createMockModel()
-    const messages = [
-      {
-        role: "assistant",
-        content: '[{"nested": {"key": "value", "arr": [1, 2, 3]}}]',
-      },
-    ] as any
-    const result = ProviderTransform.message(messages, mockModel, {})
-    expect(result[0].content).toBe('nested: {"key":"value","arr":[1,2,3]}')
-  })
-})

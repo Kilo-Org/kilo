@@ -58,6 +58,38 @@ Add to your `~/.opencode/config.json`:
 - `OLLAMA_HOST`: Set the Ollama host URL (alternative to config)
 - `OLLAMA_API_KEY`: API key for secured/remote Ollama instances (optional)
 
+### Interactive Setup (Recommended)
+
+The easiest way to configure Ollama is using the interactive setup command:
+
+```bash
+kilo auth login ollama
+```
+
+This will prompt you for:
+1. **Host URL** - Your Ollama server address (e.g., `http://localhost:11434` or `http://192.168.1.100:11434`)
+2. **API Key** - Whether your instance requires authentication
+3. **Key Value** - The API key if required
+
+The configuration is automatically saved to both `auth.json` and `opencode.json`.
+
+**Example for local Ollama:**
+```bash
+$ kilo auth login ollama
+> Enter Ollama host URL: http://localhost:11434
+> Does your Ollama instance require an API key? No
+✓ Ollama configured with host: http://localhost:11434
+```
+
+**Example for remote/secured Ollama:**
+```bash
+$ kilo auth login ollama
+> Enter Ollama host URL: http://my-server:11434
+> Does your Ollama instance require an API key? Yes
+> Enter your API key: sk-xxxxxxxx
+✓ Ollama configured with host: http://my-server:11434
+```
+
 ## Supported Models
 
 The provider will automatically detect all models installed in your Ollama instance. Common models include:

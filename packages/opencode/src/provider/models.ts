@@ -150,22 +150,62 @@ export namespace ModelsDev {
     }
 
     // Inject ollama provider for local model support
-    // This provider is only available when Ollama is running locally
+    // This provider is available when Ollama is running locally or via network
     if (!providers["ollama"]) {
       const config = await Config.get()
-      const ollamaBaseURL = config.provider?.["ollama"]?.options?.baseURL ?? "http://localhost:11434"
+      const env = process.env
+      
+      // Get baseURL from config or env
+      const ollamaBaseURL = config.provider?.["ollama"]?.options?.baseURL ?? 
+                            env.OLLAMA_HOST ?? 
+                            "http://localhost:11434"
+      
+      // Get API key from config or env (for secured/remote instances)
+      const apiKey = config.provider?.["ollama"]?.options?.apiKey ?? 
+                     env.OLLAMA_API_KEY
 
-      // Try to fetch available models from local Ollama
+      // Try to fetch available models from Ollama
       let ollamaModels: Record<string, any> = {}
+      
+      const fetchWithAuth = async (url: string): Promise<Response> => {
+        const fetchOptions: RequestInit = {
+          signal: AbortSignal.timeout(5000),
+        }
+        
+        // Add authorization header if API key is provided
+        if (apiKey) {
+          fetchOptions.headers = {
+            "Authorization": `Bearer ${apiKey}`,
+          }
+        }
+        
+        return fetch(url, fetchOptions)
+      }
+      
       try {
-        const response = await fetch(`${ollamaBaseURL}/api/tags`, {
-          signal: AbortSignal.timeout(3000),
-        })
+        // Try Ollama native endpoint first (/api/tags)
+        let response = await fetchWithAuth(`${ollamaBaseURL}/api/tags`)
+        
+        // If that fails and we have an API key, try OpenAI-compatible endpoint (/v1/models)
+        if (!response.ok && apiKey) {
+          response = await fetchWithAuth(`${ollamaBaseURL}/v1/models`)
+        }
+        
         if (response.ok) {
           const data = await response.json()
-          for (const model of data.models ?? []) {
-            const modelId = model.name ?? model.model
-            const size = model.size ?? 0
+          
+          // Handle both Ollama native format and OpenAI-compatible format
+          const modelsList = data.models ?? data.data ?? []
+          
+          for (const model of modelsList) {
+            // Handle different response formats
+            const modelId = model.name ?? model.model ?? model.id
+            if (!modelId) continue
+            
+            // Extract context length from various possible fields
+            const contextLength = model.details?.context_length ?? 
+                                  model.context_window ?? 
+                                  4096
 
             ollamaModels[modelId] = {
               id: modelId,
@@ -182,15 +222,18 @@ export namespace ModelsDev {
                 output: 0,
               },
               limit: {
-                context: model.details?.context_length ?? 4096,
+                context: contextLength,
                 output: 4096,
               },
               modalities: {
                 input: ["text"],
                 output: ["text"],
               },
-              options: {},
-              headers: {},
+              options: {
+                baseURL: `${ollamaBaseURL}/v1`,
+                ...(apiKey ? { apiKey } : {}),
+              },
+              headers: apiKey ? { "Authorization": `Bearer ${apiKey}` } : {},
               provider: {
                 npm: "@ai-sdk/openai-compatible",
               },
@@ -198,16 +241,21 @@ export namespace ModelsDev {
           }
         }
       } catch {
-        // Ollama not running, don't add provider
+        // Ollama not running or not accessible, don't add provider
       }
 
       // Only add provider if we have models
       if (Object.keys(ollamaModels).length > 0) {
+        // Normalize API URL - don't double-append /v1
+        const apiUrl = ollamaBaseURL.endsWith("/v1") 
+          ? ollamaBaseURL 
+          : `${ollamaBaseURL}/v1`
+          
         providers["ollama"] = {
           id: "ollama",
           name: "Ollama",
-          env: ["OLLAMA_HOST"],
-          api: ollamaBaseURL,
+          env: ["OLLAMA_HOST", "OLLAMA_API_KEY"],
+          api: apiUrl,
           npm: "@ai-sdk/openai-compatible",
           models: ollamaModels,
         }

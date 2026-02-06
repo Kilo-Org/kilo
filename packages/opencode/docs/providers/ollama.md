@@ -13,12 +13,23 @@ This document describes the Ollama provider integration for Kilo CLI, which allo
 
 ## Prerequisites
 
-1. Install Ollama from [ollama.com](https://ollama.com)
-2. Pull at least one model:
+1. Install Ollama from [ollama.com](https://ollama.com) (or have access to a remote Ollama instance)
+2. Pull at least one model (if running locally):
    ```bash
    ollama pull llama3.2
    ```
-3. Ensure Ollama is running (it starts automatically after installation)
+3. Ensure Ollama is running and accessible
+
+## How It Works
+
+Kilo CLI automatically discovers Ollama models when the provider is loaded:
+
+1. **For local Ollama**: Auto-detected at `http://localhost:11434`
+2. **For remote Ollama**: Configure `baseURL` and optionally `apiKey`
+3. **Model Discovery**: On startup, Kilo fetches available models from `/api/tags` (native) or `/v1/models` (OpenAI-compatible)
+4. **Dynamic Loading**: Models only appear in the provider list after successful connection
+
+**Note**: If Ollama doesn't appear in your provider list, it means Kilo couldn't connect. Check your configuration and ensure Ollama is accessible.
 
 ## Configuration
 
@@ -45,6 +56,7 @@ Add to your `~/.opencode/config.json`:
 ### Environment Variables
 
 - `OLLAMA_HOST`: Set the Ollama host URL (alternative to config)
+- `OLLAMA_API_KEY`: API key for secured/remote Ollama instances (optional)
 
 ## Supported Models
 
@@ -173,9 +185,11 @@ Local models require significant compute resources. For better performance:
 - **Context limits**: Varies by model (typically 4K-128K tokens)
 - **Performance**: Depends on your local hardware
 
-## Remote Ollama Instances
+## Remote/Secured Ollama Instances
 
-You can connect to remote Ollama instances:
+You can connect to remote Ollama instances or instances protected with an API key:
+
+### Basic Remote Connection
 
 ```json
 {
@@ -187,6 +201,43 @@ You can connect to remote Ollama instances:
     }
   }
 }
+```
+
+### Secured with API Key
+
+If your Ollama instance requires authentication (e.g., behind a reverse proxy or accessed via SSH tunnel):
+
+**Option 1: Config File**
+```json
+{
+  "provider": {
+    "ollama": {
+      "options": {
+        "baseURL": "http://127.0.0.1:11434",
+        "apiKey": "sk-your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+**Option 2: Environment Variables**
+```bash
+export OLLAMA_HOST="http://127.0.0.1:11434"
+export OLLAMA_API_KEY="sk-your-api-key-here"
+kilo
+```
+
+### SSH Tunnel Example
+
+Forward remote Ollama to local port with authentication:
+```bash
+# On local machine, forward remote port 11434 to local port 11434
+ssh -L 11434:localhost:11434 user@remote-server
+
+# Configure Kilo to use the tunnel with your API key
+export OLLAMA_API_KEY="sk-your-api-key-here"
+kilo --provider ollama --model llama3.2
 ```
 
 Note: Ensure the remote Ollama instance is accessible and properly configured.

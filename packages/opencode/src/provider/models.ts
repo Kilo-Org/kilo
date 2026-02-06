@@ -149,6 +149,71 @@ export namespace ModelsDev {
       }
     }
 
+    // Inject ollama provider for local model support
+    // This provider is only available when Ollama is running locally
+    if (!providers["ollama"]) {
+      const config = await Config.get()
+      const ollamaBaseURL = config.provider?.["ollama"]?.options?.baseURL ?? "http://localhost:11434"
+
+      // Try to fetch available models from local Ollama
+      let ollamaModels: Record<string, any> = {}
+      try {
+        const response = await fetch(`${ollamaBaseURL}/api/tags`, {
+          signal: AbortSignal.timeout(3000),
+        })
+        if (response.ok) {
+          const data = await response.json()
+          for (const model of data.models ?? []) {
+            const modelId = model.name ?? model.model
+            const size = model.size ?? 0
+
+            ollamaModels[modelId] = {
+              id: modelId,
+              name: modelId,
+              family: model.details?.family ?? "unknown",
+              release_date: new Date().toISOString().split("T")[0],
+              attachment: false,
+              reasoning: false,
+              temperature: true,
+              tool_call: false,
+              interleaved: false,
+              cost: {
+                input: 0,
+                output: 0,
+              },
+              limit: {
+                context: model.details?.context_length ?? 4096,
+                output: 4096,
+              },
+              modalities: {
+                input: ["text"],
+                output: ["text"],
+              },
+              options: {},
+              headers: {},
+              provider: {
+                npm: "@ai-sdk/openai-compatible",
+              },
+            }
+          }
+        }
+      } catch {
+        // Ollama not running, don't add provider
+      }
+
+      // Only add provider if we have models
+      if (Object.keys(ollamaModels).length > 0) {
+        providers["ollama"] = {
+          id: "ollama",
+          name: "Ollama",
+          env: ["OLLAMA_HOST"],
+          api: ollamaBaseURL,
+          npm: "@ai-sdk/openai-compatible",
+          models: ollamaModels,
+        }
+      }
+    }
+
     return providers
     // kilocode_change end
   }

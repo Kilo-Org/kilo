@@ -981,7 +981,9 @@ export namespace Provider {
       })
       const s = await state()
       const provider = s.providers[model.providerID]
-      const options = { ...provider.options }
+      // kilocode_change start - merge model options with provider options for baseURL and other settings
+      const options = { ...provider.options, ...model.options }
+      // kilocode_change end
 
       if (model.api.npm.includes("@ai-sdk/openai-compatible") && options["includeUsage"] !== false) {
         options["includeUsage"] = true

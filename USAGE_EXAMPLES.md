@@ -64,7 +64,68 @@ User: 1
 AI: [Switches to plan mode and creates detailed implementation plan]
 ```
 
-### Example 2: Portfolio Website
+### Example 2: Real Session - Discovery Process
+
+**Session ID:** `ses_3c3b076c3ffeSB8zm4uTBhoPFC`
+
+**Scenario:** User testing Guide Mode with a simple interaction
+
+```
+User: hi
+
+AI: Hello! 👋 I'm excited to help you build something amazing!
+    
+    I'll ask you a few quick questions to understand what you want to build.
+    This helps me give you better results. Let's start!
+
+    What are you trying to build? Describe your idea in your own words.
+
+User: I want to build a landing page
+
+AI: Great idea! Who is this for?
+
+User: Just me, personal use
+
+AI: Awesome! Personal projects are great for learning.
+    
+    What problem does this solve? Why do you need it?
+
+User: I want to showcase my work online
+
+AI: Excellent! What's your experience level with coding?
+
+User: I'm a beginner
+
+AI: Perfect! I'll make sure the code is beginner-friendly.
+    
+    Any specific requirements? (Tech preferences, constraints, must-haves)
+
+User: Should look professional and work on mobile
+
+AI: Got it! Professional, mobile-responsive landing page.
+
+    Thank you! Based on your answers, here's what I understand:
+
+    **Project:** Personal Landing Page
+    
+    **Details:**
+    - What: A professional landing page to showcase work online
+    - Who: Personal use (single user)
+    - Why: Establish online presence and showcase portfolio
+    - Experience: Beginner-friendly code with educational comments
+    - Requirements: Mobile-responsive design, professional appearance
+
+    **Refined Prompt:**
+    Create a professional, mobile-responsive personal landing page...
+    [Detailed specification with sections, tech stack, styling]
+
+    Would you like to:
+    1) Switch to Plan mode
+    2) Switch to Code mode
+    3) Stay in Guide mode
+```
+
+### Example 3: Portfolio Website
 
 **Scenario:** Junior developer wants to showcase projects
 

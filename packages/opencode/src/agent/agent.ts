@@ -128,6 +128,7 @@ export namespace Agent {
           PermissionNext.fromConfig({
             question: "allow",
             plan_enter: "allow",
+            guide_exit: "allow",
             read: {
               "*": "allow",
             },
@@ -135,6 +136,10 @@ export namespace Agent {
             edit: {
               "*": "deny",
             },
+            bash: {
+              "*": "deny",
+            },
+            webfetch: "allow",
           }),
           user,
         ),

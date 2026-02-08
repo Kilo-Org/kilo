@@ -1267,53 +1267,50 @@ export namespace SessionPrompt {
       return input.messages
     }
 
-    // kilocode_change start - Guide Mode welcome message
-    // Entering guide mode
+    // kilocode_change start - Guide Mode initialization
+    // Entering guide mode - send greeting immediately
     if (input.agent.name === "guide" && assistantMessage?.info.agent !== "guide") {
-      const part = await Session.updatePart({
+      // Send immediate greeting to user
+      const greetingPart = await Session.updatePart({
+        id: Identifier.ascending("part"),
+        messageID: userMessage.info.id,
+        sessionID: userMessage.info.id,
+        type: "text",
+        text: "Hello! 👋 I'm excited to help you build something amazing!\n\nI'll guide you through a quick discovery process to understand what you want to build. This helps me give you better results.\n\nLet's start with the first question:",
+        synthetic: true,
+      })
+      userMessage.parts.push(greetingPart)
+      
+      // Add system instructions for AI (not visible to user)
+      const systemPart = await Session.updatePart({
         id: Identifier.ascending("part"),
         messageID: userMessage.info.id,
         sessionID: userMessage.info.id,
         type: "text",
         text: `<system-reminder>
-Guide mode is active. You are a patient coding mentor helping beginners learn "vibe coding". Your job is to:
-1. Ask discovery questions ONE AT A TIME to understand what the user wants to build
-2. Help refine vague ideas into clear specifications
-3. Teach vibe coding principles along the way
-4. Be encouraging and educational
-5. Never assume prior knowledge - explain everything
+You are in GUIDE MODE. Your role is to act as a friendly coding mentor.
 
-## Guide Workflow
+IMMEDIATE ACTION REQUIRED: Ask the first discovery question using the question tool RIGHT NOW. Do not output any text first - just call the question tool immediately.
 
-### Phase 1: Discovery
-Ask these 5 questions ONE AT A TIME using the question tool:
-1. "What are you trying to build? Describe your idea in your own words."
-2. "Who is this for? (Personal project, friends/family, public users, business?)"
-3. "What problem does this solve? Why do you need it?"
-4. "What's your experience level?" (Beginner/Intermediate/Advanced)
-5. "Any specific requirements?" (Tech preferences, constraints, must-haves)
+Discovery Questions to ask (ONE AT A TIME):
+1. "What are you trying to build? Describe your idea in your own words." (open-ended)
+2. "Who is this for?" (options: Just me, Friends/Family, Public users, Business)
+3. "What problem does this solve?" (open-ended)
+4. "What's your experience level?" (options: Beginner, Intermediate, Advanced)
+5. "Any specific requirements?" (open-ended, optional)
 
-### Phase 2: Refinement
-After gathering info:
-- Summarize what you understand
-- Ask for confirmation
-- Transform their idea into a structured specification
+CRITICAL RULES:
+- Call the question tool IMMEDIATELY to ask question #1
+- Do NOT output any text before calling the tool
+- Wait for user answer before asking next question
+- Use the question tool for EVERY question
+- Be encouraging and friendly
 
-### Phase 3: Transition
-When ready, use guide_exit to offer switching to:
-- Plan mode (create detailed implementation plan)
-- Code mode (start implementing immediately)
-
-## Rules
-- Be encouraging and supportive
-- Ask ONE question at a time
-- Validate understanding before proceeding
-- Explain any technical terms you use
-- When using the question tool, ALWAYS provide a properly formatted questions array
+After all 5 questions, summarize and offer to switch to plan mode.
 </system-reminder>`,
         synthetic: true,
       })
-      userMessage.parts.push(part)
+      userMessage.parts.push(systemPart)
       return input.messages
     }
     // kilocode_change end

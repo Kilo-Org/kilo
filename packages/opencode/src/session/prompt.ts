@@ -1268,48 +1268,32 @@ export namespace SessionPrompt {
     }
 
     // kilocode_change start - Guide Mode initialization
-    // Entering guide mode - send immediate greeting and instructions
+    // Entering guide mode - simple conversational approach
     if (input.agent.name === "guide" && assistantMessage?.info.agent !== "guide") {
-      // Send greeting visible to user
-      const greetingPart = await Session.updatePart({
+      // Send greeting as a user message so AI responds to it
+      const greetingMsg: MessageV2.User = {
+        id: Identifier.ascending("message"),
+        sessionID: input.session.id,
+        role: "user",
+        time: { created: Date.now() },
+        agent: "guide",
+        model: await lastModel(input.session.id),
+      }
+      await Session.updateMessage(greetingMsg)
+      
+      await Session.updatePart({
         id: Identifier.ascending("part"),
-        messageID: userMessage.info.id,
-        sessionID: userMessage.info.id,
+        messageID: greetingMsg.id,
+        sessionID: input.session.id,
         type: "text",
-        text: "Hello! 👋 I'm excited to help you build something amazing!\n\nI'll ask you a few quick questions to understand what you want to build. This helps me give you better results. Let's start!\n\n**What are you trying to build?** Describe your idea in your own words.",
-        synthetic: false,
-      })
-      userMessage.parts.push(greetingPart)
-
-      // Send instructions to AI (hidden from user)
-      const systemPart = await Session.updatePart({
-        id: Identifier.ascending("part"),
-        messageID: userMessage.info.id,
-        sessionID: userMessage.info.id,
-        type: "text",
-        text: `<system-reminder>
-You are in GUIDE MODE for beginner onboarding.
-
-The user has been greeted and asked the first question. Continue the conversation naturally:
-
-1. Wait for user to answer "What are you trying to build?"
-2. Acknowledge their answer and ask: "Who is this for? (Just me, Friends/Family, Public users, or Business?)"
-3. Ask: "What problem does this solve? Why do you need it?"
-4. Ask: "What's your experience level? (Beginner/Intermediate/Advanced)"
-5. Ask: "Any specific requirements? (Tech preferences, constraints, must-haves)"
-
-Guidelines:
-- Be encouraging and friendly (e.g., "Great idea!", "Awesome!", "I love this concept!")
-- Ask ONE question at a time and wait for answer
-- After all 5 questions, create a refined project specification
-- Use guide_exit tool to offer switching to plan/code mode
-
-DO NOT output the questions as markdown headers. Just ask them naturally in conversation.
-</system-reminder>`,
+        text: "Start guide mode conversation. Ask the user: What are you trying to build?",
         synthetic: true,
       })
-      userMessage.parts.push(systemPart)
-      return input.messages
+
+      return [...input.messages, {
+        info: greetingMsg,
+        parts: [],
+      }]
     }
     // kilocode_change end
 

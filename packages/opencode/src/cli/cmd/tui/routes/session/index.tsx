@@ -1149,7 +1149,14 @@ function UserMessage(props: {
 }) {
   const ctx = use()
   const local = useLocal()
-  const text = createMemo(() => props.parts.flatMap((x) => (x.type === "text" && !x.synthetic ? [x] : []))[0])
+  // kilocode_change start - Filter out system-reminder content from display
+  const text = createMemo(() => props.parts.flatMap((x) => {
+    if (x.type !== "text" || x.synthetic) return []
+    // Hide system-reminder content from users
+    if (x.text?.includes("<system-reminder>")) return []
+    return [x]
+  })[0])
+  // kilocode_change end
   const files = createMemo(() => props.parts.flatMap((x) => (x.type === "file" ? [x] : [])))
   const sync = useSync()
   const { theme } = useTheme()

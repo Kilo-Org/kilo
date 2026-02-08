@@ -11,6 +11,7 @@ import { ProviderTransform } from "../provider/transform"
 import PROMPT_GENERATE from "./generate.txt"
 import PROMPT_COMPACTION from "./prompt/compaction.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
+import PROMPT_GUIDE from "./prompt/guide.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
 import { PermissionNext } from "@/permission/next"
@@ -116,6 +117,31 @@ export namespace Agent {
         mode: "primary",
         native: true,
       },
+      // kilocode_change start - Guide Mode for beginner onboarding
+      guide: {
+        name: "guide",
+        description: "Guide mode for beginners. Interactive onboarding that asks discovery questions and teaches vibe coding principles.",
+        prompt: PROMPT_GUIDE,
+        options: {},
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            question: "allow",
+            plan_enter: "allow",
+            read: {
+              "*": "allow",
+            },
+            // Guide mode restricts editing until proper planning
+            edit: {
+              "*": "deny",
+            },
+          }),
+          user,
+        ),
+        mode: "primary",
+        native: true,
+      },
+      // kilocode_change end
       general: {
         name: "general",
         description: `General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel.`,

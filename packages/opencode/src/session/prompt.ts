@@ -1268,45 +1268,81 @@ export namespace SessionPrompt {
     }
 
     // kilocode_change start - Guide Mode initialization
-    // Entering guide mode - send greeting immediately
+    // Entering guide mode - instruct AI to ask all 5 discovery questions at once
     if (input.agent.name === "guide" && assistantMessage?.info.agent !== "guide") {
-      // Send immediate greeting to user
       const greetingPart = await Session.updatePart({
         id: Identifier.ascending("part"),
         messageID: userMessage.info.id,
         sessionID: userMessage.info.id,
         type: "text",
-        text: "Hello! 👋 I'm excited to help you build something amazing!\n\nI'll guide you through a quick discovery process to understand what you want to build. This helps me give you better results.\n\nLet's start with the first question:",
+        text: "Hello! 👋 I'm excited to help you build something amazing!\n\nTo give you the best results, let's start with a quick discovery process.",
         synthetic: true,
       })
       userMessage.parts.push(greetingPart)
-      
-      // Add system instructions for AI (not visible to user)
+
+      // Instruct AI to use question tool with all 5 questions
       const systemPart = await Session.updatePart({
         id: Identifier.ascending("part"),
         messageID: userMessage.info.id,
         sessionID: userMessage.info.id,
         type: "text",
         text: `<system-reminder>
-CRITICAL: You are in GUIDE MODE. You MUST use the "question" tool to ask questions. DO NOT output text questions.
+You are in GUIDE MODE for beginner onboarding.
 
-YOUR NEXT ACTION: Call the "question" tool with this exact JSON:
-{"questions":[{"question":"What are you trying to build? Describe your idea in your own words.","header":"Project Goal","options":[],"custom":true}]}
+IMMEDIATE ACTION: Use the "question" tool RIGHT NOW with ALL 5 discovery questions at once.
 
-AFTER USER ANSWERS: Acknowledge briefly (1-2 words like "Great!" or "Awesome!"), then call question tool for next question.
+Call the question tool with this exact parameters:
+{
+  "questions": [
+    {
+      "question": "What are you trying to build? Describe your idea in your own words.",
+      "header": "1. Project Goal",
+      "options": [],
+      "custom": true
+    },
+    {
+      "question": "Who is this for?",
+      "header": "2. Target Audience", 
+      "options": [
+        {"label": "Just me", "description": "Personal project"},
+        {"label": "Friends/Family", "description": "People I know"},
+        {"label": "Public users", "description": "Anyone on the internet"},
+        {"label": "Business", "description": "Work or clients"}
+      ],
+      "custom": false
+    },
+    {
+      "question": "What problem does this solve? Why do you need it?",
+      "header": "3. Problem Statement",
+      "options": [],
+      "custom": true
+    },
+    {
+      "question": "What's your experience level with coding?",
+      "header": "4. Experience Level",
+      "options": [
+        {"label": "Beginner", "description": "I'm new to coding"},
+        {"label": "Intermediate", "description": "I know some basics"},
+        {"label": "Advanced", "description": "I build projects regularly"}
+      ],
+      "custom": false
+    },
+    {
+      "question": "Any specific requirements? (Tech preferences, constraints, must-haves - or just say 'none' to skip)",
+      "header": "5. Requirements",
+      "options": [],
+      "custom": true
+    }
+  ]
+}
 
-QUESTION SEQUENCE (ask in order):
-1. What are you trying to build? (open-ended)
-2. Who is this for? (options: Just me/Friends/Public/Business)
-3. What problem does this solve? (open-ended)  
-4. What's your experience level? (Beginner/Intermediate/Advanced)
-5. Any specific requirements? (open-ended, optional)
+AFTER USER ANSWERS ALL 5 QUESTIONS:
+1. Thank them
+2. Summarize their answers into a refined project specification
+3. Present the specification clearly
+4. Use guide_exit tool to offer switching to plan or code mode
 
-RULES:
-- ONLY use the question tool - never output markdown or text questions
-- Ask ONE question at a time
-- After Q5, summarize and use guide_exit tool to offer switch to plan/code mode
-- Be encouraging and brief
+DO NOT output text before calling the question tool. Call it immediately.
 </system-reminder>`,
         synthetic: true,
       })

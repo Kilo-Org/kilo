@@ -121,7 +121,7 @@ export namespace Agent {
       guide: {
         name: "guide",
         description: "Guide mode for beginners. Interactive onboarding that asks discovery questions and teaches vibe coding principles.",
-        prompt: PROMPT_GUIDE,
+        // Note: No prompt here - we rely entirely on system-reminder injection in prompt.ts
         options: {},
         permission: PermissionNext.merge(
           defaults,

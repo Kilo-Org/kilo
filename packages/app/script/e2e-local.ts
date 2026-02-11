@@ -159,7 +159,7 @@ try {
     const servermod = await import("../../opencode/src/server/server")
     inst = await import("../../opencode/src/project/instance")
     server = servermod.Server.listen({ port: serverPort, hostname: "127.0.0.1" })
-    console.log(`opencode server listening on http://127.0.0.1:${serverPort}`)
+    console.log(`kilo server listening on http://127.0.0.1:${serverPort}`) // kilocode_change
 
     await waitForHealth(`http://127.0.0.1:${serverPort}/global/health`)
     runner = Bun.spawn(["bun", "test:e2e", ...extraArgs], {

@@ -143,7 +143,7 @@ async function summarizeCommit(opencode: Awaited<ReturnType<typeof createOpencod
     .prompt(
       {
         sessionID: session.data!.id,
-        model: { providerID: "opencode", modelID: "claude-sonnet-4-5" },
+        model: { providerID: "kilo", modelID: "anthropic/claude-sonnet-4.5" }, // kilocode_change
         tools: {
           "*": false,
         },

@@ -2,7 +2,10 @@ import { test, expect } from "../fixtures"
 import { promptSelector } from "../selectors"
 import { sessionIDFromUrl, withSession } from "../actions"
 
-test("can send a prompt and receive a reply", async ({ page, sdk, gotoSession }) => {
+// Skip: this test depends on a live LLM backend responding in CI, which is
+// currently unreliable and blocks every PR.  Re-enable once the CI LLM
+// provider is stable.
+test.skip("can send a prompt and receive a reply", async ({ page, sdk, gotoSession }) => {
   test.setTimeout(120_000)
 
   const pageErrors: string[] = []

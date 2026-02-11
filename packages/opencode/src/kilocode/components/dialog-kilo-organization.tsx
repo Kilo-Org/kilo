@@ -63,7 +63,7 @@ export function DialogKiloOrganization(props: DialogKiloOrganizationProps) {
           if (error instanceof DOMException && error.name === "AbortError") return
           console.warn("Failed to set organization:", error)
           toast.show({
-            message: "Failed to set organization, using personal account",
+            message: "Failed to set organization; continuing with current account",
             variant: "warning",
           })
           dialog.replace(() => <props.DialogModel providerID={props.providerID} />)

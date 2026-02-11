@@ -236,8 +236,11 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
                   <Match when={props.request.permission === "websearch"}>
                     <TextBody icon="◈" title={`Exa Web Search "` + (input().query ?? "") + `"`} />
                   </Match>
-                  <Match when={props.request.permission === "codesearch"}>
+                   <Match when={props.request.permission === "codesearch"}>
                     <TextBody icon="◇" title={`Exa Code Search "` + (input().query ?? "") + `"`} />
+                  </Match>
+                  <Match when={props.request.permission === "codebase-search"}>
+                    <TextBody icon="◐" title={`Codebase Search "` + (input().query ?? "") + `"`} />
                   </Match>
                   <Match when={props.request.permission === "external_directory"}>
                     {(() => {

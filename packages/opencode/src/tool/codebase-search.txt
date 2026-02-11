@@ -1,0 +1,98 @@
+Use this tool to find files most relevant to a search query using semantic search.
+
+This tool searches the codebase based on meaning rather than exact text matches, making it far more effective than regex-based search for understanding implementations. By default, it searches the entire workspace.
+
+**CRITICAL: For ANY exploration of code you haven't examined yet in this conversation, you MUST use this tool FIRST before any other search or file exploration tools.** This applies throughout the entire conversation, not just at the beginning. Even if you've already explored some code, any new area of exploration requires codebase_search first.
+
+## Parameters
+
+- **query** (required): The search query in natural language. Reuse the user's exact wording/question format unless there's a clear reason not to. Queries MUST be in English (translate if needed).
+
+- **path** (optional): Limit search to a specific subdirectory (relative to the current workspace directory). Leave empty or omit to search the entire workspace.
+
+## Usage Notes
+
+- This tool uses local cloud indexing with your own embedding provider and vector database
+- **Embedding providers supported**: OpenAI (text-embedding-3-small), Mistral (codestral-embed-2505), Ollama (nomic-embed-text)
+- **Vector database supported**: Qdrant
+- Requires configuration in `opencode.json` with embedding model and Qdrant connection details
+- Requires API keys configured in auth settings for your chosen embedding provider
+- Results include file path, relevance score, line numbers, and code snippets
+- Results are filtered by similarity threshold (default: 0.4) and limited to maxResults (default: 50)
+
+## Configuration
+
+Configure in `opencode.json`:
+
+```json
+{
+  "provider": {
+    "kilo": {
+      "options": {
+        "codebase_search": {
+          "embedModel": "codestral-embed-2505",
+          "vectorDb": {
+            "type": "qdrant",
+            "url": "http://localhost:6333"
+          },
+          "similarityThreshold": 0.4,
+          "maxResults": 50
+        }
+      }
+    }
+  }
+}
+```
+
+**Collection name** is automatically generated from workspace path using SHA-256 hash (e.g., `ws-a1b2c3d4e5f6g7h8`). This matches Kilo Code VSCode extension pattern. You can optionally override this by specifying `collection` in `vectorDb` config.
+
+Set API keys in auth settings (`~/.local/share/kilo/auth.json`):
+- `openai`: For OpenAI embeddings (required if using OpenAI as embedModel)
+- `mistral`: For Mistral embeddings (required if using Mistral as embedModel)
+- `qdrant`: For Qdrant authentication (**required**)
+
+## Directory Scoping
+
+Use the optional path parameter to focus searches on specific parts of your codebase:
+
+- Search within API modules: `path: "src/api"`
+- Search in test files: `path: "tests"`
+- Search specific feature directories: `path: "src/components/auth"`
+
+## Usage Examples
+
+### Searching for authentication code in a specific directory
+```
+query: "user login and authentication logic"
+path: "src/auth"
+```
+
+### Searching for entire workspace
+```
+query: "environment variables and application configuration"
+path: (empty)
+```
+
+### Searching for database-related code in a specific directory
+```
+query: "database connection and query execution"
+path: "src/data"
+```
+
+### Looking for error handling patterns in API code
+```
+query: "HTTP error responses and exception handling"
+path: "src/api"
+```
+
+### Searching for testing utilities and mock setups
+```
+query: "test setup and mock data creation"
+path: "tests"
+```
+
+### Searching for React hooks
+```
+query: "useState hook implementation"
+path: "src/components"
+```

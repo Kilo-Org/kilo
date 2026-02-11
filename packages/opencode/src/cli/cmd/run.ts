@@ -20,6 +20,7 @@ import { WebFetchTool } from "../../tool/webfetch"
 import { EditTool } from "../../tool/edit"
 import { WriteTool } from "../../tool/write"
 import { CodeSearchTool } from "../../tool/codesearch"
+import { CodebaseSearchTool } from "../../tool/codebase-search"
 import { WebSearchTool } from "../../tool/websearch"
 import { TaskTool } from "../../tool/task"
 import { SkillTool } from "../../tool/skill"
@@ -156,6 +157,13 @@ function codesearch(info: ToolProps<typeof CodeSearchTool>) {
   inline({
     icon: "◇",
     title: `Exa Code Search "${info.input.query}"`,
+  })
+}
+
+function codebasesearch(info: ToolProps<typeof CodebaseSearchTool>) {
+  inline({
+    icon: "◐",
+    title: `Codebase Search "${info.input.query}"`,
   })
 }
 
@@ -408,6 +416,7 @@ export const RunCommand = cmd({
         if (part.tool === "webfetch") return webfetch(props<typeof WebFetchTool>(part))
         if (part.tool === "edit") return edit(props<typeof EditTool>(part))
         if (part.tool === "codesearch") return codesearch(props<typeof CodeSearchTool>(part))
+        if (part.tool === "codebase-search") return codebasesearch(props<typeof CodebaseSearchTool>(part))
         if (part.tool === "websearch") return websearch(props<typeof WebSearchTool>(part))
         if (part.tool === "task") return task(props<typeof TaskTool>(part))
         if (part.tool === "todowrite") return todo(props<typeof TodoWriteTool>(part))

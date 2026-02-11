@@ -119,6 +119,7 @@ export function KiloAutoMethod(props: KiloAutoMethodProps) {
         await sync.bootstrap()
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") return
+        console.warn("Failed to reset state during fallback:", e)
       }
       dialog.replace(() => <props.DialogModel providerID={props.providerID} />)
     }

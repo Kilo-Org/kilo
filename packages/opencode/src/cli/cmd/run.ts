@@ -1,5 +1,6 @@
 import type { Argv } from "yargs"
 import path from "path"
+import { pathToFileURL } from "bun"
 import { UI } from "../ui"
 import { cmd } from "./cmd"
 import { Flag } from "../../flag/flag"
@@ -237,6 +238,10 @@ export const RunCommand = cmd({
           describe: "session id to continue",
           type: "string",
         })
+        .option("fork", {
+          describe: "fork the session before continuing (requires --continue or --session)",
+          type: "boolean",
+        })
         .option("share", {
           type: "boolean",
           describe: "share the session",
@@ -268,7 +273,7 @@ export const RunCommand = cmd({
         })
         .option("attach", {
           type: "string",
-          describe: "attach to a running kilo server (e.g., http://localhost:4096)", // kilocode_change
+          describe: "attach to a running opencode server (e.g., http://localhost:4096)",
         })
         .option("port", {
           type: "number",
@@ -289,8 +294,8 @@ export const RunCommand = cmd({
           describe: "auto-approve all permissions (for autonomous/pipeline usage)",
           default: false,
         })
+      // kilocode_change end
     )
-    // kilocode_change end
   },
   handler: async (args) => {
     let message = [...args.message, ...(args["--"] || [])]
@@ -319,7 +324,7 @@ export const RunCommand = cmd({
 
         files.push({
           type: "file",
-          url: `file://${resolvedPath}`,
+          url: pathToFileURL(resolvedPath).href,
           filename: path.basename(resolvedPath),
           mime,
         })
@@ -330,6 +335,11 @@ export const RunCommand = cmd({
 
     if (message.trim().length === 0 && !args.command) {
       UI.error("You must provide a message or a command")
+      process.exit(1)
+    }
+
+    if (args.fork && !args.continue && !args.session) {
+      UI.error("--fork requires --continue or --session")
       process.exit(1)
     }
 
@@ -358,11 +368,15 @@ export const RunCommand = cmd({
     }
 
     async function session(sdk: OpencodeClient) {
-      if (args.continue) {
-        const result = await sdk.session.list()
-        return result.data?.find((s) => !s.parentID)?.id
+      const baseID = args.continue ? (await sdk.session.list()).data?.find((s) => !s.parentID)?.id : args.session
+
+      if (baseID && args.fork) {
+        const forked = await sdk.session.fork({ sessionID: baseID })
+        return forked.data?.id
       }
-      if (args.session) return args.session
+
+      if (baseID) return baseID
+
       const name = title()
       const result = await sdk.session.create({ title: name, permission: rules })
       return result.data?.id

@@ -18,6 +18,14 @@ export type SessionStatusInfo =
   | { type: "retry"; attempt: number; message: string; next: number }
   | { type: "busy" }
 
+// Token usage shape returned by the server on assistant messages
+export interface TokenUsage {
+  input: number
+  output: number
+  reasoning?: number
+  cache?: { read: number; write: number }
+}
+
 // Message types from MessageV2
 export interface MessageInfo {
   id: string
@@ -27,6 +35,9 @@ export interface MessageInfo {
     created: number
     completed?: number
   }
+  // Present on assistant messages
+  cost?: number
+  tokens?: TokenUsage
 }
 
 // Part types - simplified for UI display
@@ -99,6 +110,8 @@ export interface ProviderModel {
   contextLength?: number
   releaseDate?: string
   latest?: boolean
+  // Actual shape returned by the server (Provider.Model)
+  limit?: { context: number; input?: number; output: number }
 }
 
 // Provider definition

@@ -1,43 +1,20 @@
 /**
  * ModeSwitcher component
- * Dropdown for selecting an agent/mode in the chat prompt area.
- * Mirrors the pattern used in ModelSelector.
+ * Popover-based selector for choosing an agent/mode in the chat prompt area.
+ * Uses kilo-ui Popover component (Phase 4.5 of UI implementation plan).
  */
 
-import { Component, createSignal, createEffect, onCleanup, For, Show } from "solid-js"
+import { Component, createSignal, For, Show } from "solid-js"
+import { Popover } from "@kilocode/kilo-ui/popover"
+import { Button } from "@kilocode/kilo-ui/button"
 import { useSession } from "../../context/session"
 
 export const ModeSwitcher: Component = () => {
   const session = useSession()
-
   const [open, setOpen] = createSignal(false)
-  let containerRef: HTMLDivElement | undefined
 
   const available = () => session.agents()
   const hasAgents = () => available().length > 1
-
-  // Click-outside handler
-  createEffect(() => {
-    if (!open()) {
-      return
-    }
-
-    const handler = (e: MouseEvent) => {
-      if (containerRef && !containerRef.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-
-    document.addEventListener("mousedown", handler)
-    onCleanup(() => document.removeEventListener("mousedown", handler))
-  })
-
-  function toggle() {
-    if (!hasAgents()) {
-      return
-    }
-    setOpen((prev) => !prev)
-  }
 
   function pick(name: string) {
     session.selectAgent(name)
@@ -48,32 +25,29 @@ export const ModeSwitcher: Component = () => {
     const name = session.selectedAgent()
     const agent = available().find((a) => a.name === name)
     if (agent) {
-      // Capitalize first letter for display
       return agent.name.charAt(0).toUpperCase() + agent.name.slice(1)
     }
     return name || "Code"
   }
 
   return (
-    <div class="mode-switcher" ref={containerRef}>
-      <button
-        class="mode-switcher-trigger"
-        onClick={toggle}
-        disabled={!hasAgents()}
-        aria-haspopup="listbox"
-        aria-expanded={open()}
-        title={`Mode: ${session.selectedAgent()}`}
+    <Show when={hasAgents()}>
+      <Popover
+        placement="top-start"
+        open={open()}
+        onOpenChange={setOpen}
+        triggerAs={Button}
+        triggerProps={{ variant: "ghost", size: "small" }}
+        trigger={
+          <>
+            <span class="mode-switcher-trigger-label">{triggerLabel()}</span>
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ "flex-shrink": "0" }}>
+              <path d="M8 4l4 5H4l4-5z" />
+            </svg>
+          </>
+        }
       >
-        <span class="mode-switcher-trigger-label">{triggerLabel()}</span>
-        <Show when={hasAgents()}>
-          <svg class="mode-switcher-trigger-chevron" width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 4l4 5H4l4-5z" />
-          </svg>
-        </Show>
-      </button>
-
-      <Show when={open()}>
-        <div class="mode-switcher-dropdown" role="listbox">
+        <div class="mode-switcher-list" role="listbox">
           <For each={available()}>
             {(agent) => (
               <div
@@ -90,7 +64,7 @@ export const ModeSwitcher: Component = () => {
             )}
           </For>
         </div>
-      </Show>
-    </div>
+      </Popover>
+    </Show>
   )
 }

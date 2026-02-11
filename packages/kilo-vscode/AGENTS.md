@@ -18,6 +18,17 @@ pnpm run format       # Run formatter (do this before committing to avoid stylin
 
 Single test: `pnpm test -- --grep "test name"`
 
+## CLI Binary
+
+The extension bundles a CLI backend binary. To build it:
+
+```bash
+cd ../../packages/opencode && bun install && cd ../../packages/kilo-vscode
+node scripts/prepare-cli-binary.mjs
+```
+
+`bun install` in the opencode package is required before the binary can be built.
+
 ## Architecture (Non-Obvious)
 
 - Two separate esbuild builds in [`esbuild.js`](esbuild.js): extension (Node/CJS) and webview (browser/IIFE)
@@ -29,6 +40,33 @@ Single test: `pnpm test -- --grep "test name"`
 - Extension and webview have no shared state - communicate via `vscode.Webview.postMessage()`
 - For editor panels, use [`AgentManagerProvider`](src/AgentManagerProvider.ts) pattern with `retainContextWhenHidden: true`
 - esbuild webview build includes [`cssPackageResolvePlugin`](esbuild.js:29) for CSS `@import` resolution and font loaders (`.woff`, `.woff2`, `.ttf`)
+- [`KiloConnectionService`](src/services/cli-backend/connection-service.ts) is the shared singleton managing server lifecycle, HTTP, SSE — sidebar and editor tabs share one instance
+- Avoid `setTimeout` for sequencing VS Code operations — use deterministic event-based waits (e.g. `waitForWebviewPanelToBeActive()`)
+
+## Extension ↔ Webview Feature Pattern
+
+When adding a new feature that requires data from the CLI backend to be displayed in the webview:
+
+1. **Types** (`src/services/cli-backend/types.ts`): Add response types for the backend data
+2. **HTTP Client** (`src/services/cli-backend/http-client.ts`): Add a fetch method to retrieve the data
+3. **KiloProvider** (`src/KiloProvider.ts`): Add a `fetchAndSend*()` method using the cached message pattern, and handle the corresponding `request*` message from the webview in `handleWebviewMessage()`
+4. **Message Types** (`webview-ui/src/types/messages.ts`): Add `*LoadedMessage` (extension→webview) and `Request*Message` (webview→extension) types to the `ExtensionMessage` / `WebviewMessage` unions
+5. **Context** (`webview-ui/src/context/`): Subscribe to the loaded message **outside** `onMount` (to catch early pushes before mount), add retry logic for the request message, expose state via context
+6. **Component** (`webview-ui/src/components/`): Consume context, render UI
+
+Key patterns:
+
+- **Cached messages** (e.g. `cachedProvidersMessage`, `cachedAgentsMessage` in KiloProvider): Ensures webview refreshes get data immediately without waiting for a new HTTP round-trip
+- **Retry timers** (e.g. `agentRetryTimer` in session context): Handles race conditions where the extension's HTTP client isn't ready when the webview first requests data
+
+## Shared Connection Architecture
+
+- [`KiloConnectionService`](src/services/cli-backend/connection-service.ts) is the shared singleton managing server lifecycle, HTTP client, and SSE connection
+- Multiple `KiloProvider` instances (sidebar + editor tabs) subscribe via `onEvent()` / `onStateChange()`
+- Each `KiloProvider` tracks its own session IDs via a `trackedSessionIds` Set
+- SSE events are filtered per-webview using `onEventFiltered()` so tabs only see their own sessions
+- `KiloProvider.dispose()` only unsubscribes from the service; `KiloConnectionService.dispose()` kills the server
+- Session→message mapping (`recordMessageSessionId`) enables resolving `message.part.updated` events to the correct session
 
 ## Webview UI (kilo-ui)
 
@@ -36,9 +74,10 @@ New webview features must use **`@kilocode/kilo-ui`** components instead of raw 
 
 - Import via deep subpaths: `import { Button } from "@kilocode/kilo-ui/button"`
 - Available components include `Button`, `IconButton`, `Dialog`, `Spinner`, `Card`, `Tabs`, `Tooltip`, `Toast`, `Code`, `Markdown`, and more — see the [component migration table](docs/ui-implementation-plan.md#6-component-migration-reference-table) for the full list
-- Provider hierarchy in [`App.tsx`](webview-ui/src/App.tsx:113): `ThemeProvider → I18nProvider → DialogProvider → VSCodeProvider → ServerProvider → ProviderProvider → SessionProvider`
+- Provider hierarchy in [`App.tsx`](webview-ui/src/App.tsx:113): `ThemeProvider → I18nProvider → DialogProvider → MarkedProvider → VSCodeProvider → ServerProvider → ProviderProvider → SessionProvider`
 - Global styles imported via `import "@kilocode/kilo-ui/styles"` in [`index.tsx`](webview-ui/src/index.tsx:2)
 - [`chat.css`](webview-ui/src/styles/chat.css) is being progressively migrated — when replacing a component with kilo-ui, remove the corresponding CSS rules from it
+- New CSS for components not yet in kilo-ui goes into `chat.css` grouped by comment-delimited sections (`/* Component Name */`). Once a kilo-ui equivalent exists, remove the section.
 - See [`docs/ui-implementation-plan.md`](docs/ui-implementation-plan.md) for the full migration plan and phased rollout
 - **Check the desktop app first**: [`packages/app/src/`](../../packages/app/src/) is the reference implementation for how kilo-ui components are composed together. Always check how the app uses a component before implementing it in the webview — don't just look at the component API in isolation.
 - **`data-component` and `data-slot` attributes carry CSS styling** — kilo-ui uses `[data-component]` and `[data-slot]` attribute selectors, not class names. When the app uses e.g. `data-component="permission-prompt"` and `data-slot="permission-actions"`, these get kilo-ui styling for free.
@@ -54,6 +93,10 @@ New webview features must use **`@kilocode/kilo-ui`** components instead of raw 
 
 - All VSCode commands must use `kilo-code.new.` prefix (not `kilo-code.`)
 - All view IDs must use `kilo-code.new.` prefix (e.g., `kilo-code.new.sidebarView`)
+
+## Coexistence with Old Extension
+
+While the old extension coexists, runtime labels append `(NEW)` — controlled by the flag in [`constants.ts`](src/constants.ts). Static labels in `package.json` must be updated separately. Remove this convention once the old extension is retired.
 
 ## Style
 

@@ -6,6 +6,7 @@ export type {
   SessionStatusInfo,
   MessageInfo,
   MessagePart,
+  TokenUsage,
   ToolState,
   PermissionRequest,
   SSEEvent,

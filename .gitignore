@@ -30,3 +30,6 @@ target
 opencode-dev
 logs/
 *.bun-build
+
+# Telemetry ID
+telemetry-id

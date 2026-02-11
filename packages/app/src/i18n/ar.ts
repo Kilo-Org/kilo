@@ -28,8 +28,8 @@ export const dict = {
   "command.settings.open": "فتح الإعدادات",
   "command.session.previous": "الجلسة السابقة",
   "command.session.next": "الجلسة التالية",
-  "command.session.previous.unseen": "Previous unread session",
-  "command.session.next.unseen": "Next unread session",
+  "command.session.previous.unseen": "الجلسة غير المقروءة السابقة",
+  "command.session.next.unseen": "الجلسة غير المقروءة التالية",
   "command.session.archive": "أرشفة الجلسة",
 
   "command.palette": "لوحة الأوامر",
@@ -44,8 +44,10 @@ export const dict = {
 
   "command.session.new": "جلسة جديدة",
   "command.file.open": "فتح ملف",
+  "command.tab.close": "إغلاق علامة التبويب",
   "command.context.addSelection": "إضافة التحديد إلى السياق",
   "command.context.addSelection.description": "إضافة الأسطر المحددة من الملف الحالي",
+  "command.input.focus": "التركيز على حقل الإدخال",
   "command.terminal.toggle": "تبديل المحطة الطرفية",
   "command.fileTree.toggle": "تبديل شجرة الملفات",
   "command.review.toggle": "تبديل المراجعة",
@@ -210,6 +212,7 @@ export const dict = {
   "prompt.popover.emptyResults": "لا توجد نتائج مطابقة",
   "prompt.popover.emptyCommands": "لا توجد أوامر مطابقة",
   "prompt.dropzone.label": "أفلت الصور أو ملفات PDF هنا",
+  "prompt.dropzone.file.label": "أفلت لإشارة @ للملف",
   "prompt.slash.badge.custom": "مخصص",
   "prompt.slash.badge.skill": "مهارة",
   "prompt.slash.badge.mcp": "mcp",
@@ -231,6 +234,7 @@ export const dict = {
   "prompt.toast.shellSendFailed.title": "فشل إرسال أمر shell",
   "prompt.toast.commandSendFailed.title": "فشل إرسال الأمر",
   "prompt.toast.promptSendFailed.title": "فشل إرسال الموجه",
+  "prompt.toast.promptSendFailed.description": "تعذر استرداد الجلسة",
 
   "dialog.mcp.title": "MCPs",
   "dialog.mcp.description": "{{enabled}} من {{total}} مفعل",
@@ -503,6 +507,9 @@ export const dict = {
   "settings.section.server": "الخادم",
   "settings.tab.general": "عام",
   "settings.tab.shortcuts": "اختصارات",
+  "settings.desktop.section.wsl": "WSL",
+  "settings.desktop.wsl.title": "WSL integration",
+  "settings.desktop.wsl.description": "Run the Kilo server inside WSL on Windows.",
 
   "settings.general.section.appearance": "المظهر",
   "settings.general.section.notifications": "إشعارات النظام",

@@ -128,42 +128,6 @@
   gap: 4px;
 }
 
-.prompt-send-button,
-.prompt-abort-button {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.prompt-send-button {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-}
-
-.prompt-send-button:hover:not(:disabled) {
-  background: var(--vscode-button-hoverBackground);
-}
-
-.prompt-send-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.prompt-abort-button {
-  background: var(--vscode-errorForeground);
-  color: var(--vscode-button-foreground);
-}
-
-.prompt-abort-button:hover {
-  opacity: 0.9;
-}
-
 .prompt-input-hint {
   margin-top: 4px;
   font-size: 11px;
@@ -188,94 +152,12 @@
 }
 
 /* ============================================
-   Session List
+   Model Selector (uses kilo-ui Popover)
    ============================================ */
 
-.session-list {
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  height: 100%;
-}
-
-.session-list-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  min-height: 200px;
-  color: var(--vscode-descriptionForeground);
-  text-align: center;
-  padding: 20px;
-}
-
-.session-list-empty p {
-  margin: 0;
-}
-
-.session-item {
-  padding: 10px 14px;
-  cursor: pointer;
-  border-bottom: 1px solid var(--vscode-panel-border);
-}
-
-.session-item:hover {
-  background: var(--vscode-list-hoverBackground);
-}
-
-.session-item-active {
-  background: var(--vscode-list-activeSelectionBackground);
-  color: var(--vscode-list-activeSelectionForeground);
-}
-
-.session-item-title {
-  font-size: 13px;
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.session-item-date {
-  font-size: 11px;
-  color: var(--vscode-descriptionForeground);
-  margin-top: 2px;
-}
-
-/* ============================================
-   Model Selector
-   ============================================ */
-
-.model-selector {
-  position: relative;
-}
-
-.model-selector-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  background: transparent;
-  color: var(--vscode-descriptionForeground);
-  border: 1px solid transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 11px;
-  font-family: var(--vscode-font-family);
-  max-width: 220px;
-  transition:
-    border-color 0.15s,
-    color 0.15s;
-}
-
-.model-selector-trigger:hover:not(:disabled) {
-  color: var(--vscode-foreground);
-  border-color: var(--vscode-input-border);
-}
-
-.model-selector-trigger:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.model-selector-popover {
+  width: 300px;
+  max-width: 300px;
 }
 
 .model-selector-trigger-label {
@@ -288,25 +170,9 @@
   flex-shrink: 0;
 }
 
-.model-selector-dropdown {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  left: 0;
-  width: 300px;
-  max-height: 340px;
-  display: flex;
-  flex-direction: column;
-  background: var(--vscode-dropdown-background, var(--vscode-editor-background));
-  border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  z-index: 200;
-  overflow: hidden;
-}
-
 .model-selector-search-wrapper {
   padding: 8px;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  border-bottom: 1px solid var(--border-base, var(--vscode-panel-border));
 }
 
 .model-selector-search {
@@ -332,13 +198,13 @@
 
 .model-selector-list {
   overflow-y: auto;
-  flex: 1;
+  max-height: 300px;
   padding: 4px 0;
 }
 
 .model-selector-empty {
   padding: 12px 16px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-weak, var(--vscode-descriptionForeground));
   font-size: 12px;
   text-align: center;
 }
@@ -349,7 +215,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-weak, var(--vscode-descriptionForeground));
   user-select: none;
 }
 
@@ -359,18 +225,16 @@
   gap: 6px;
   padding: 5px 12px;
   font-size: 12px;
-  color: var(--vscode-foreground);
   cursor: pointer;
   user-select: none;
 }
 
 .model-selector-item:hover,
 .model-selector-item.active {
-  background: var(--vscode-list-hoverBackground);
+  background: var(--surface-interactive-hover, var(--vscode-list-hoverBackground));
 }
 
 .model-selector-item.selected {
-  color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
   font-weight: 600;
 }
 
@@ -394,62 +258,19 @@
 }
 
 /* ============================================
-   Mode Switcher
+   Mode Switcher (uses kilo-ui Popover)
    ============================================ */
-
-.mode-switcher {
-  position: relative;
-}
-
-.mode-switcher-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: none;
-  border: none;
-  color: var(--vscode-descriptionForeground);
-  font-size: 11px;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 3px;
-  white-space: nowrap;
-  max-width: 120px;
-}
-
-.mode-switcher-trigger:hover:not(:disabled) {
-  color: var(--vscode-foreground);
-  background: var(--vscode-toolbar-hoverBackground);
-}
-
-.mode-switcher-trigger:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
 
 .mode-switcher-trigger-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-transform: capitalize;
 }
 
-.mode-switcher-trigger-chevron {
-  flex-shrink: 0;
-}
-
-.mode-switcher-dropdown {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  margin-bottom: 4px;
-  min-width: 200px;
-  max-width: 300px;
+.mode-switcher-list {
   max-height: 280px;
   overflow-y: auto;
-  background: var(--vscode-dropdown-background);
-  border: 1px solid var(--vscode-dropdown-border);
-  border-radius: 4px;
-  z-index: 100;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .mode-switcher-item {
@@ -462,12 +283,14 @@
 }
 
 .mode-switcher-item:hover {
-  background: var(--vscode-list-hoverBackground);
+  background: var(--surface-interactive-hover, var(--vscode-list-hoverBackground));
 }
 
 .mode-switcher-item.selected {
-  color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
-  background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+  background: var(
+    --surface-interactive-active,
+    var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground))
+  );
 }
 
 .mode-switcher-item-name {
@@ -476,7 +299,7 @@
 
 .mode-switcher-item-desc {
   font-size: 11px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--text-weak, var(--vscode-descriptionForeground));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

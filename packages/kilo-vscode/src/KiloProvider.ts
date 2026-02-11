@@ -193,6 +193,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         case "requestProviders":
           await this.fetchAndSendProviders()
           break
+        case "compact":
+          await this.handleCompact(message.sessionID, message.providerID, message.modelID)
+          break
         case "requestAgents":
           await this.fetchAndSendAgents()
           break
@@ -358,13 +361,15 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       const workspaceDir = this.getWorkspaceDirectory()
       const messagesData = await this.httpClient.getMessages(sessionID, workspaceDir)
 
-      // Convert to webview format
+      // Convert to webview format, including cost/tokens for assistant messages
       const messages = messagesData.map((m) => ({
         id: m.info.id,
         sessionID: m.info.sessionID,
         role: m.info.role,
         parts: m.parts,
         createdAt: new Date(m.info.time.created).toISOString(),
+        cost: m.info.cost,
+        tokens: m.info.tokens,
       }))
 
       for (const message of messages) {
@@ -572,6 +577,45 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Handle compact (context summarization) request from the webview.
+   */
+  private async handleCompact(sessionID?: string, providerID?: string, modelID?: string): Promise<void> {
+    if (!this.httpClient) {
+      this.postMessage({
+        type: "error",
+        message: "Not connected to CLI backend",
+      })
+      return
+    }
+
+    const target = sessionID || this.currentSession?.id
+    if (!target) {
+      console.error("[Kilo New] KiloProvider: No sessionID for compact")
+      return
+    }
+
+    if (!providerID || !modelID) {
+      console.error("[Kilo New] KiloProvider: No model selected for compact")
+      this.postMessage({
+        type: "error",
+        message: "No model selected. Connect a provider to compact this session.",
+      })
+      return
+    }
+
+    try {
+      const workspaceDir = this.getWorkspaceDirectory()
+      await this.httpClient.summarize(target, providerID, modelID, workspaceDir)
+    } catch (error) {
+      console.error("[Kilo New] KiloProvider: Failed to compact session:", error)
+      this.postMessage({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to compact session",
+      })
+    }
+  }
+
+  /**
    * Handle permission response from the webview.
    */
   private async handlePermissionResponse(
@@ -739,7 +783,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       }
 
       case "message.updated":
-        // Message info updated
+        // Message info updated — forward cost/tokens for assistant messages
         this.postMessage({
           type: "messageCreated",
           message: {
@@ -747,6 +791,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             sessionID: event.properties.info.sessionID,
             role: event.properties.info.role,
             createdAt: new Date(event.properties.info.time.created).toISOString(),
+            cost: event.properties.info.cost,
+            tokens: event.properties.info.tokens,
           },
         })
         break
@@ -789,6 +835,17 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         // Notify webview
         this.postMessage({
           type: "sessionCreated",
+          session: this.sessionToWebview(event.properties.info),
+        })
+        break
+
+      case "session.updated":
+        // Keep local state in sync (e.g. title generation)
+        if (this.currentSession?.id === event.properties.info.id) {
+          this.currentSession = event.properties.info
+        }
+        this.postMessage({
+          type: "sessionUpdated",
           session: this.sessionToWebview(event.properties.info),
         })
         break

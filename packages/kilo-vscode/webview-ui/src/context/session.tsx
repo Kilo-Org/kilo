@@ -29,6 +29,7 @@ import type {
   PermissionRequest,
   TodoItem,
   ModelSelection,
+  ContextUsage,
   AgentInfo,
   ExtensionMessage,
 } from "../types/messages"
@@ -70,6 +71,10 @@ interface SessionContextValue {
   selected: Accessor<ModelSelection | null>
   selectModel: (providerID: string, modelID: string) => void
 
+  // Cost and context usage for the current session
+  totalCost: Accessor<number>
+  contextUsage: Accessor<ContextUsage | undefined>
+
   // Agent/mode selection
   agents: Accessor<AgentInfo[]>
   selectedAgent: Accessor<string>
@@ -78,6 +83,7 @@ interface SessionContextValue {
   // Actions
   sendMessage: (text: string, providerID?: string, modelID?: string) => void
   abort: () => void
+  compact: () => void
   respondToPermission: (permissionId: string, response: "once" | "always" | "reject") => void
   createSession: () => void
   loadSessions: () => void
@@ -232,6 +238,10 @@ export const SessionProvider: ParentComponent = (props) => {
 
         case "sessionsLoaded":
           handleSessionsLoaded(message.sessions)
+          break
+
+        case "sessionUpdated":
+          setStore("sessions", message.session.id, message.session)
           break
       }
     })
@@ -391,6 +401,27 @@ export const SessionProvider: ParentComponent = (props) => {
     })
   }
 
+  function compact() {
+    if (!server.isConnected()) {
+      console.warn("[Kilo New] Cannot compact: not connected")
+      return
+    }
+
+    const sessionID = currentSessionID()
+    if (!sessionID) {
+      console.warn("[Kilo New] Cannot compact: no current session")
+      return
+    }
+
+    const sel = selected()
+    vscode.postMessage({
+      type: "compact",
+      sessionID,
+      providerID: sel?.providerID,
+      modelID: sel?.modelID,
+    })
+  }
+
   function respondToPermission(permissionId: string, response: "once" | "always" | "reject") {
     // Resolve sessionID from the stored permission request
     const permission = permissions().find((p) => p.id === permissionId)
@@ -461,6 +492,33 @@ export const SessionProvider: ParentComponent = (props) => {
     Object.values(store.sessions).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
   )
 
+  // Total cost across all assistant messages in the current session
+  const totalCost = createMemo(() => {
+    return messages().reduce((sum, m) => sum + (m.role === "assistant" ? (m.cost ?? 0) : 0), 0)
+  })
+
+  // Context usage from the last assistant message that has token data
+  const contextUsage = createMemo<ContextUsage | undefined>(() => {
+    const msgs = messages()
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i]
+      if (m.role !== "assistant" || !m.tokens) continue
+      const total =
+        m.tokens.input +
+        m.tokens.output +
+        (m.tokens.reasoning ?? 0) +
+        (m.tokens.cache?.read ?? 0) +
+        (m.tokens.cache?.write ?? 0)
+      if (total === 0) continue
+      const sel = selected()
+      const model = sel ? provider.findModel(sel) : undefined
+      const limit = model?.limit?.context ?? model?.contextLength
+      const percentage = limit ? Math.round((total / limit) * 100) : null
+      return { tokens: total, percentage }
+    }
+    return undefined
+  })
+
   const value: SessionContextValue = {
     currentSessionID,
     currentSession,
@@ -473,11 +531,14 @@ export const SessionProvider: ParentComponent = (props) => {
     permissions,
     selected,
     selectModel,
+    totalCost,
+    contextUsage,
     agents,
     selectedAgent: selectedAgentName,
     selectAgent,
     sendMessage,
     abort,
+    compact,
     respondToPermission,
     createSession,
     loadSessions,

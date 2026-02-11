@@ -1,11 +1,15 @@
 /**
  * ModelSelector component
- * Dropdown for selecting a provider/model in the chat prompt area
+ * Popover-based selector for choosing a provider/model in the chat prompt area.
+ * Uses kilo-ui Popover component (Phase 4.5 of UI implementation plan).
  */
 
-import { Component, createSignal, createMemo, createEffect, onCleanup, For, Show } from "solid-js"
+import { Component, createSignal, createMemo, createEffect, For, Show } from "solid-js"
+import { Popover } from "@kilocode/kilo-ui/popover"
+import { Button } from "@kilocode/kilo-ui/button"
 import { useProvider, EnrichedModel } from "../../context/provider"
 import { useSession } from "../../context/session"
+import { useLanguage } from "../../context/language"
 
 interface ModelGroup {
   providerName: string
@@ -25,14 +29,15 @@ function providerSortKey(providerID: string): number {
 export const ModelSelector: Component = () => {
   const { connected, models, findModel } = useProvider()
   const session = useSession()
+  const language = useLanguage()
   const selectedModel = () => findModel(session.selected())
 
   const [open, setOpen] = createSignal(false)
   const [search, setSearch] = createSignal("")
   const [activeIndex, setActiveIndex] = createSignal(0)
 
-  let containerRef: HTMLDivElement | undefined
   let searchRef: HTMLInputElement | undefined
+  let listRef: HTMLDivElement | undefined
 
   // Only show models from Kilo Gateway or connected providers
   const visibleModels = createMemo(() => {
@@ -78,7 +83,7 @@ export const ModelSelector: Component = () => {
     setActiveIndex(0)
   })
 
-  // Focus search input when dropdown opens
+  // Focus search input when popover opens
   createEffect(() => {
     if (open()) {
       requestAnimationFrame(() => searchRef?.focus())
@@ -86,29 +91,6 @@ export const ModelSelector: Component = () => {
       setSearch("")
     }
   })
-
-  // Click-outside handler
-  createEffect(() => {
-    if (!open()) {
-      return
-    }
-
-    const handler = (e: MouseEvent) => {
-      if (containerRef && !containerRef.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-
-    document.addEventListener("mousedown", handler)
-    onCleanup(() => document.removeEventListener("mousedown", handler))
-  })
-
-  function toggle() {
-    if (!hasProviders()) {
-      return
-    }
-    setOpen((prev) => !prev)
-  }
 
   function pick(model: EnrichedModel) {
     session.selectModel(model.providerID, model.id)
@@ -148,7 +130,7 @@ export const ModelSelector: Component = () => {
 
   function scrollActiveIntoView() {
     requestAnimationFrame(() => {
-      const el = containerRef?.querySelector(".model-selector-item.active")
+      const el = listRef?.querySelector(".model-selector-item.active")
       el?.scrollIntoView({ block: "nearest" })
     })
   }
@@ -177,69 +159,73 @@ export const ModelSelector: Component = () => {
     if (raw?.providerID && raw?.modelID) {
       return raw.providerID === KILO_GATEWAY_ID ? raw.modelID : `${raw.providerID} / ${raw.modelID}`
     }
-    return hasProviders() ? "Select model" : "No providers"
+    return hasProviders() ? language.t("dialog.model.select.title") : language.t("dialog.model.noProviders")
   }
 
   return (
-    <div class="model-selector" ref={containerRef}>
-      <button
-        class="model-selector-trigger"
-        onClick={toggle}
-        disabled={!hasProviders()}
-        aria-haspopup="listbox"
-        aria-expanded={open()}
-        title={selectedModel()?.id}
-      >
-        <span class="model-selector-trigger-label">{() => triggerLabel()}</span>
-        <svg class="model-selector-trigger-chevron" width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M8 4l4 5H4l4-5z" />
-        </svg>
-      </button>
-
-      <Show when={open()}>
-        <div class="model-selector-dropdown" onKeyDown={handleKeyDown}>
-          <div class="model-selector-search-wrapper">
-            <input
-              ref={searchRef}
-              class="model-selector-search"
-              type="text"
-              placeholder="Search models..."
-              value={search()}
-              onInput={(e) => setSearch(e.currentTarget.value)}
-            />
-          </div>
-
-          <div class="model-selector-list" role="listbox">
-            <Show when={flatFiltered().length === 0}>
-              <div class="model-selector-empty">No models found</div>
-            </Show>
-
-            <For each={groups()}>
-              {(group) => (
-                <>
-                  <div class="model-selector-group-label">{group.providerName}</div>
-                  <For each={group.models}>
-                    {(model) => (
-                      <div
-                        class={`model-selector-item${flatIndex(model) === activeIndex() ? " active" : ""}${isSelected(model) ? " selected" : ""}`}
-                        role="option"
-                        aria-selected={isSelected(model)}
-                        onClick={() => pick(model)}
-                        onMouseEnter={() => setActiveIndex(flatIndex(model))}
-                      >
-                        <span class="model-selector-item-name">{model.name}</span>
-                        <Show when={isFree(model)}>
-                          <span class="model-selector-tag">free</span>
-                        </Show>
-                      </div>
-                    )}
-                  </For>
-                </>
-              )}
-            </For>
-          </div>
+    <Popover
+      placement="top-start"
+      open={open()}
+      onOpenChange={setOpen}
+      triggerAs={Button}
+      triggerProps={{
+        variant: "ghost",
+        size: "small",
+        disabled: !hasProviders(),
+        title: selectedModel()?.id,
+      }}
+      trigger={
+        <>
+          <span class="model-selector-trigger-label">{() => triggerLabel()}</span>
+          <svg class="model-selector-trigger-chevron" width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 4l4 5H4l4-5z" />
+          </svg>
+        </>
+      }
+      class="model-selector-popover"
+    >
+      <div onKeyDown={handleKeyDown}>
+        <div class="model-selector-search-wrapper">
+          <input
+            ref={searchRef}
+            class="model-selector-search"
+            type="text"
+            placeholder={language.t("dialog.model.search.placeholder")}
+            value={search()}
+            onInput={(e) => setSearch(e.currentTarget.value)}
+          />
         </div>
-      </Show>
-    </div>
+
+        <div class="model-selector-list" role="listbox" ref={listRef}>
+          <Show when={flatFiltered().length === 0}>
+            <div class="model-selector-empty">{language.t("dialog.model.empty")}</div>
+          </Show>
+
+          <For each={groups()}>
+            {(group) => (
+              <>
+                <div class="model-selector-group-label">{group.providerName}</div>
+                <For each={group.models}>
+                  {(model) => (
+                    <div
+                      class={`model-selector-item${flatIndex(model) === activeIndex() ? " active" : ""}${isSelected(model) ? " selected" : ""}`}
+                      role="option"
+                      aria-selected={isSelected(model)}
+                      onClick={() => pick(model)}
+                      onMouseEnter={() => setActiveIndex(flatIndex(model))}
+                    >
+                      <span class="model-selector-item-name">{model.name}</span>
+                      <Show when={isFree(model)}>
+                        <span class="model-selector-tag">{language.t("model.tag.free")}</span>
+                      </Show>
+                    </div>
+                  )}
+                </For>
+              </>
+            )}
+          </For>
+        </div>
+      </div>
+    </Popover>
   )
 }

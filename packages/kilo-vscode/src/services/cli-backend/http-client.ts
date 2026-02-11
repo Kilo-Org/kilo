@@ -207,6 +207,18 @@ export class HttpClient {
     return true
   }
 
+  /**
+   * Trigger context compaction (summarization) for a session.
+   */
+  async summarize(sessionId: string, providerID: string, modelID: string, directory: string): Promise<boolean> {
+    return this.request<boolean>(
+      "POST",
+      `/session/${sessionId}/summarize`,
+      { providerID, modelID, auto: false },
+      { directory, allowEmpty: true },
+    )
+  }
+
   // ============================================
   // Permission Methods
   // ============================================

@@ -161,12 +161,12 @@ describe("McpMigrator", () => {
       expect(result.skipped).toHaveLength(0)
     })
 
-    test("migrates servers from project .kilocode directory", async () => {
+    test("migrates servers from project .kilocode/mcp.json", async () => {
       await using tmp = await tmpdir({
         init: async (dir) => {
           const settingsDir = path.join(dir, ".kilocode")
           await Bun.write(
-            path.join(settingsDir, "mcp_settings.json"),
+            path.join(settingsDir, "mcp.json"),
             JSON.stringify({
               mcpServers: {
                 filesystem: {
@@ -196,7 +196,7 @@ describe("McpMigrator", () => {
         init: async (dir) => {
           const settingsDir = path.join(dir, ".kilocode")
           await Bun.write(
-            path.join(settingsDir, "mcp_settings.json"),
+            path.join(settingsDir, "mcp.json"),
             JSON.stringify({
               mcpServers: {
                 enabled: { command: "enabled-cmd" },
@@ -225,7 +225,7 @@ describe("McpMigrator", () => {
         init: async (dir) => {
           const settingsDir = path.join(dir, ".kilocode")
           await Bun.write(
-            path.join(settingsDir, "mcp_settings.json"),
+            path.join(settingsDir, "mcp.json"),
             JSON.stringify({
               mcpServers: {
                 filesystem: {
@@ -255,7 +255,7 @@ describe("McpMigrator", () => {
         init: async (dir) => {
           const settingsDir = path.join(dir, ".kilocode")
           await Bun.write(
-            path.join(settingsDir, "mcp_settings.json"),
+            path.join(settingsDir, "mcp.json"),
             JSON.stringify({
               mcpServers: {
                 filesystem: {
@@ -299,9 +299,33 @@ describe("McpMigrator", () => {
         init: async (dir) => {
           const settingsDir = path.join(dir, ".kilocode")
           await Bun.write(
-            path.join(settingsDir, "mcp_settings.json"),
+            path.join(settingsDir, "mcp.json"),
             JSON.stringify({
               mcpServers: {},
+            }),
+          )
+        },
+      })
+
+      const result = await McpMigrator.migrate({
+        projectDir: tmp.path,
+        skipGlobalPaths: true,
+      })
+
+      expect(Object.keys(result.mcp)).toHaveLength(0)
+    })
+
+    // Regression: project-level MCP settings use mcp.json, not mcp_settings.json
+    test("does not read project-level .kilocode/mcp_settings.json", async () => {
+      await using tmp = await tmpdir({
+        init: async (dir) => {
+          const settingsDir = path.join(dir, ".kilocode")
+          await Bun.write(
+            path.join(settingsDir, "mcp_settings.json"),
+            JSON.stringify({
+              mcpServers: {
+                wrong: { command: "should-not-be-found" },
+              },
             }),
           )
         },

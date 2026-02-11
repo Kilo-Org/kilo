@@ -69,7 +69,6 @@ jobs:
           # kilocode_change start
           KILO_API_KEY: ${{ secrets.KILO_API_KEY }}
           KILO_ORG_ID: ${{ secrets.KILO_ORG_ID }}
-          OPENCODE_DISABLE_SHARE: "true"
           KILO_DISABLE_SHARE: "true"
           KILO_DISABLE_SESSION_INGEST: "true"
           # kilocode_change end

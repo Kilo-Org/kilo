@@ -77,7 +77,7 @@ if (!Script.preview) {
     `  cd "kilo-\${pkgver}"`,
     `  bun install`,
     "  cd ./packages/kilo",
-    `  OPENCODE_CHANNEL=latest OPENCODE_VERSION=${pkgver} bun run ./script/build.ts --single`,
+    `  KILO_CHANNEL=latest KILO_VERSION=${pkgver} bun run ./script/build.ts --single`,
     "}",
     "",
     "package() {",

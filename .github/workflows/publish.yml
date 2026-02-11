@@ -50,9 +50,10 @@ jobs:
           ./script/version.ts
         env:
           GH_TOKEN: ${{ github.token }}
-          OPENCODE_BUMP: ${{ inputs.bump }}
-          OPENCODE_VERSION: ${{ inputs.version }}
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          KILO_BUMP: ${{ inputs.bump }}
+          KILO_VERSION: ${{ inputs.version }}
+          KILO_API_KEY: ${{ secrets.KILO_API_KEY }}
+          KILO_ORG_ID: ${{ secrets.KILO_ORG_ID }}
     outputs:
       version: ${{ steps.version.outputs.version }}
       release: ${{ steps.version.outputs.release }}
@@ -61,7 +62,7 @@ jobs:
   build-cli:
     needs: version
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    if: github.repository == 'anomalyco/opencode'
+    if: github.repository == 'Kilo-Org/kilo'
     steps:
       - uses: actions/checkout@v3
         with:
@@ -74,8 +75,8 @@ jobs:
         run: |
           ./packages/opencode/script/build.ts
         env:
-          OPENCODE_VERSION: ${{ needs.version.outputs.version }}
-          OPENCODE_RELEASE: ${{ needs.version.outputs.release }}
+          KILO_VERSION: ${{ needs.version.outputs.version }}
+          KILO_RELEASE: ${{ needs.version.outputs.release }}
           GH_TOKEN: ${{ github.token }}
 
       - uses: actions/upload-artifact@v4
@@ -163,7 +164,7 @@ jobs:
           cd packages/desktop
           bun ./scripts/prepare.ts
         env:
-          OPENCODE_VERSION: ${{ needs.version.outputs.version }}
+          KILO_VERSION: ${{ needs.version.outputs.version }}
           GITHUB_TOKEN: ${{ steps.committer.outputs.token }}
           RUST_TARGET: ${{ matrix.settings.target }}
           GH_TOKEN: ${{ github.token }}
@@ -235,8 +236,8 @@ jobs:
         id: committer
         uses: ./.github/actions/setup-git-committer
         with:
-          opencode-app-id: ${{ vars.OPENCODE_APP_ID }}
-          opencode-app-secret: ${{ secrets.OPENCODE_APP_SECRET }}
+          kilo-app-id: ${{ vars.KILO_APP_ID }}
+          kilo-app-secret: ${{ secrets.KILO_APP_SECRET }}
 
       - uses: actions/download-artifact@v4
         with:
@@ -264,8 +265,8 @@ jobs:
 
       - run: ./script/publish.ts
         env:
-          OPENCODE_VERSION: ${{ needs.version.outputs.version }}
-          OPENCODE_RELEASE: ${{ needs.version.outputs.release }}
+          KILO_VERSION: ${{ needs.version.outputs.version }}
+          KILO_RELEASE: ${{ needs.version.outputs.release }}
           AUR_KEY: ${{ secrets.AUR_KEY }}
           GITHUB_TOKEN: ${{ steps.committer.outputs.token }}
           NPM_CONFIG_PROVENANCE: false

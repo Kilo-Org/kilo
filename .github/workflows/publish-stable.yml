@@ -17,7 +17,7 @@
 #   (Get from: npmjs.com → Access Tokens → Generate New Token → Automation)
 #
 # WHAT THIS DOES:
-# - Runs the existing publish-start.ts script with OPENCODE_CHANNEL=latest
+# - Runs the existing publish-start.ts script with KILO_CHANNEL=latest
 # - Builds all platform binaries (Linux, macOS, Windows, x64, ARM64)
 # - Publishes to npm with @latest tag (default for npm install)
 # - Creates git tags and GitHub releases
@@ -79,9 +79,9 @@ jobs:
       - name: Publish Stable
         run: ./script/publish-start.ts
         env:
-          OPENCODE_CHANNEL: latest
-          OPENCODE_VERSION: ${{ inputs.version }}
-          OPENCODE_SKIP_NOTES: "1"
+          KILO_CHANNEL: latest
+          KILO_VERSION: ${{ inputs.version }}
+          KILO_SKIP_NOTES: "1"
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

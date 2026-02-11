@@ -230,7 +230,7 @@ export namespace LLM {
               "x-opencode-project": Instance.project.id,
               "x-opencode-session": input.sessionID,
               "x-opencode-request": input.user.id,
-              "x-opencode-client": Flag.OPENCODE_CLIENT,
+              "x-kilo-client": Flag.KILO_CLIENT,
             }
           : input.model.providerID !== "anthropic"
             ? DEFAULT_HEADERS // kilocode_change

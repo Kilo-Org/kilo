@@ -297,12 +297,12 @@ describe("KilocodeConfigInjector", () => {
       expect(envVars).toEqual({})
     })
 
-    test("returns OPENCODE_CONFIG_CONTENT for non-empty config", () => {
+    test("returns KILO_CONFIG_CONTENT for non-empty config", () => {
       const config = JSON.stringify({ agent: { test: {} } })
       const envVars = KilocodeConfigInjector.getEnvVars(config)
 
       expect(envVars).toEqual({
-        OPENCODE_CONFIG_CONTENT: config,
+        KILO_CONFIG_CONTENT: config,
       })
     })
   })

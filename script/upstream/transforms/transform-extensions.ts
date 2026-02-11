@@ -83,6 +83,13 @@ const EXTENSION_REPLACEMENTS: ExtensionReplacement[] = [
     replacement: '"Kilo"',
     description: "Product name",
   },
+
+  // Environment variables
+  {
+    pattern: /_EXTENSION_OPENCODE_/g,
+    replacement: "_EXTENSION_KILO_",
+    description: "Extension env var",
+  },
   {
     pattern: /OpenCode\s+language\s+server/gi,
     replacement: "Kilo language server",

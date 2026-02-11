@@ -50,16 +50,25 @@ export namespace McpMigrator {
     if (server.disabled) return null
 
     if (isRemote(server)) {
+      if (!server.url) {
+        log.warn("remote MCP server missing url, skipping", { name })
+        return null
+      }
       const config: Config.Mcp = {
         type: "remote",
-        url: server.url!,
+        url: server.url,
         ...(server.headers && Object.keys(server.headers).length > 0 && { headers: server.headers }),
       }
       return config
     }
 
+    if (!server.command) {
+      log.warn("local MCP server missing command, skipping", { name })
+      return null
+    }
+
     // Build command array: [command, ...args]
-    const command = [server.command!, ...(server.args ?? [])]
+    const command = [server.command, ...(server.args ?? [])]
 
     // Build the MCP config object
     const config: Config.Mcp = {

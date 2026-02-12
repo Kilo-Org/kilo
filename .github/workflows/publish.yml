@@ -15,9 +15,9 @@ on:
         required: false
         type: choice
         options:
-          - major
-          - minor
           - patch
+          - minor
+          - major
       version:
         description: "Override version (optional)"
         required: false

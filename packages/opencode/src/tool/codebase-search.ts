@@ -1,11 +1,12 @@
 import z from "zod"
 import { Tool } from "./tool"
-import { createHash } from "crypto"
 import { Instance } from "../project/instance"
-import { Config } from "../config/config"
 import { Auth } from "../auth"
 import { Log } from "../util/log"
 import DESCRIPTION from "./codebase-search.txt"
+// kilocode_change start - use Kilo-specific modules
+import { CodebaseSearchConfig, CodebaseSearchCollection, CodebaseSearchEmbeddings } from "@/kilocode/codebase-search"
+// kilocode_change end
 
 const log = Log.create({ service: "tool.codebase-search" })
 
@@ -22,143 +23,6 @@ interface QdrantSearchResponse {
       [key: string]: any
     }
   }>
-}
-
-// Helper function to generate collection name from workspace path (matches Kilo Code extension pattern)
-function generateCollectionName(workspacePath: string): string {
-  const hash = createHash("sha256").update(workspacePath).digest("hex")
-  return `ws-${hash.substring(0, 16)}`
-}
-
-// Helper function to map embed model to provider and model ID
-function getEmbeddingProvider(model: string): { provider: string; modelId: string } {
-  const lowerModel = model.toLowerCase()
-
-  if (lowerModel.includes("text-embedding")) {
-    return { provider: "openai", modelId: model }
-  }
-  if (lowerModel.includes("codestral") || lowerModel.includes("mistral")) {
-    return { provider: "mistral", modelId: model }
-  }
-  if (lowerModel.includes("nomic")) {
-    return { provider: "ollama", modelId: model }
-  }
-  if (lowerModel.includes("openai")) {
-    return { provider: "openai", modelId: model }
-  }
-
-  return { provider: "openai", modelId: "text-embedding-3-small" }
-}
-
-// Helper function to generate embedding using OpenAI
-async function generateOpenAIEmbedding(
-  text: string,
-  apiKey: string,
-  model = "text-embedding-3-small",
-): Promise<number[]> {
-  const response = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      input: text,
-    }),
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`OpenAI embeddings API error (${response.status}): ${errorText}`)
-  }
-
-  const data = await response.json()
-  return data.data[0].embedding
-}
-
-// Helper function to generate embedding using Mistral
-async function generateMistralEmbedding(
-  text: string,
-  apiKey: string,
-  model = "codestral-embed-2505",
-): Promise<number[]> {
-  const response = await fetch("https://api.mistral.ai/v1/embeddings", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      input: text,
-    }),
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Mistral embeddings API error (${response.status}): ${errorText}`)
-  }
-
-  const data = await response.json()
-  return data.data[0].embedding
-}
-
-// Helper function to generate embedding using Ollama (local)
-async function generateOllamaEmbedding(text: string, model = "nomic-embed-text"): Promise<number[]> {
-  const response = await fetch("http://localhost:11434/api/embeddings", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      prompt: text,
-    }),
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Ollama embeddings API error (${response.status}): ${errorText}`)
-  }
-
-  const data = await response.json()
-  return data.embedding
-}
-
-// Helper function to generate embedding
-async function generateEmbedding(text: string, embedModel: string, authMap: Map<string, any>): Promise<number[]> {
-  const { provider, modelId } = getEmbeddingProvider(embedModel)
-
-  if (provider === "openai") {
-    const openaiAuth = authMap.get("openai")
-    if (!openaiAuth) {
-      throw new Error("OpenAI API key not found. Please configure openai provider in auth settings.")
-    }
-    const apiKey = openaiAuth.type === "oauth" ? openaiAuth.access : openaiAuth.key
-    if (!apiKey) {
-      throw new Error("OpenAI API key not found in auth configuration.")
-    }
-    return generateOpenAIEmbedding(text, apiKey, modelId)
-  }
-
-  if (provider === "mistral") {
-    const mistralAuth = authMap.get("mistral")
-    if (!mistralAuth) {
-      throw new Error("Mistral API key not found. Please configure mistral provider in auth settings.")
-    }
-    const apiKey = mistralAuth.type === "oauth" ? mistralAuth.access : mistralAuth.key
-    if (!apiKey) {
-      throw new Error("Mistral API key not found in auth configuration.")
-    }
-    return generateMistralEmbedding(text, apiKey, modelId)
-  }
-
-  if (provider === "ollama") {
-    return generateOllamaEmbedding(text, modelId)
-  }
-
-  throw new Error(`Unsupported embedding provider: ${provider}. Supported providers: openai, mistral, ollama`)
 }
 
 // Helper function to search Qdrant
@@ -277,38 +141,20 @@ export const CodebaseSearchTool = Tool.define("codebase-search", {
       },
     })
 
-    const config = await Config.get()
+    // kilocode_change start - use Kilo-specific config module
+    const configResult = await CodebaseSearchConfig.getWithDefaults()
 
-    const codebaseSearch = config.provider?.kilo?.options?.codebase_search
-
-    if (!codebaseSearch) {
+    if (!configResult) {
       throw new Error(
         "Codebase search is not configured. Please configure in opencode.json:\n" +
-          JSON.stringify(
-            {
-              provider: {
-                kilo: {
-                  options: {
-                    codebase_search: {
-                      embedModel: "codestral-embed-2505",
-                      vectorDb: {
-                        type: "qdrant",
-                        url: "http://localhost:6333",
-                      },
-                      similarityThreshold: 0.4,
-                      maxResults: 50,
-                    },
-                  },
-                },
-              },
-            },
-            null,
-            2,
-          ),
+          JSON.stringify(CodebaseSearchConfig.getExampleConfig(), null, 2),
       )
     }
 
-    const { embedModel, vectorDb, similarityThreshold = 0.4, maxResults = 50 } = codebaseSearch
+    const { config, similarityThreshold, maxResults } = configResult
+    // kilocode_change end
+
+    const { embedModel, vectorDb } = config
 
     if (!embedModel) {
       throw new Error(
@@ -334,12 +180,11 @@ export const CodebaseSearchTool = Tool.define("codebase-search", {
       throw new Error(`Unsupported vector database type: ${vectorDb.type}. Supported types: qdrant`)
     }
 
-    // Auto-generate collection name if not specified
-    const collection = vectorDb.collection || generateCollectionName(workspacePath)
+    // kilocode_change start - use Kilo-specific collection naming
+    const collection = CodebaseSearchCollection.get(workspacePath, vectorDb.collection)
+    // kilocode_change end
 
     // Get auth keys
-    const openaiAuth = await Auth.get("openai")
-    const mistralAuth = await Auth.get("mistral")
     const qdrantAuth = await Auth.get("qdrant")
 
     if (!qdrantAuth) {
@@ -350,16 +195,18 @@ export const CodebaseSearchTool = Tool.define("codebase-search", {
       throw new Error("Qdrant API key not found in auth configuration.")
     }
 
-    const authMap = new Map<string, any>()
-    if (openaiAuth) authMap.set("openai", openaiAuth)
-    if (mistralAuth) authMap.set("mistral", mistralAuth)
+    // kilocode_change start - use Kilo-specific embeddings module
+    const authMap = await CodebaseSearchEmbeddings.buildAuthMap()
+    // kilocode_change end
 
     try {
-      const embedding = await generateEmbedding(params.query, embedModel, authMap)
+      // kilocode_change start - use Kilo-specific embeddings module
+      const embedding = await CodebaseSearchEmbeddings.generate(params.query, embedModel, authMap)
+      // kilocode_change end
 
       const results = await searchQdrant(
         embedding,
-        vectorDb.url,
+        vectorDb.url!,
         collection,
         qdrantApiKey,
         maxResults,

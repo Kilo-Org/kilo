@@ -5,22 +5,12 @@
   // },
   "provider": {
     "kilo": {
-      "options": {
-        "codebase_search": {
-          "embedModel": "codestral-embed-2505",
-          "vectorDb": {
-            "type": "qdrant",
-            "url": "https://e27bba4f-3225-4d61-b1d5-dc3cfb617131.europe-west3-0.gcp.cloud.qdrant.io:6333"
-          },
-          "similarityThreshold": 0.4,
-          "maxResults": 50
-        }
-      }
-    }
+      "options": {},
+    },
   },
   "mcp": {},
   "tools": {
     "github-triage": false,
-    "github-pr-search": false
-  }
+    "github-pr-search": false,
+  },
 }

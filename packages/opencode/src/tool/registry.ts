@@ -28,6 +28,9 @@ import { LspTool } from "./lsp"
 import { Truncate } from "./truncation"
 import { PlanExitTool, PlanEnterTool } from "./plan"
 import { ApplyPatchTool } from "./apply_patch"
+// kilocode_change start - import for codebase-search config check
+import { CodebaseSearchConfig } from "@/kilocode/codebase-search"
+// kilocode_change end
 
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
@@ -95,6 +98,9 @@ export namespace ToolRegistry {
   async function all(): Promise<Tool.Info[]> {
     const custom = await state().then((x) => x.custom)
     const config = await Config.get()
+    // kilocode_change start - check if codebase-search is configured
+    const codebaseSearchConfigured = await CodebaseSearchConfig.isConfigured()
+    // kilocode_change end
 
     return [
       InvalidTool,
@@ -111,7 +117,9 @@ export namespace ToolRegistry {
       // TodoReadTool,
       WebSearchTool,
       CodeSearchTool,
-      CodebaseSearchTool,
+      // kilocode_change start - only include codebase-search if configured
+      ...(codebaseSearchConfigured ? [CodebaseSearchTool] : []),
+      // kilocode_change end
       SkillTool,
       ApplyPatchTool,
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),

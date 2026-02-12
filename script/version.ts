@@ -7,6 +7,19 @@ import { buildNotes, getLatestRelease } from "./changelog"
 const output = [`version=${Script.version}`]
 
 if (!Script.preview) {
+  const pkgjsons = await Array.fromAsync(
+    new Bun.Glob("**/package.json").scan({
+      absolute: true,
+    }),
+  ).then((arr) => arr.filter((x) => !x.includes("node_modules") && !x.includes("dist")))
+
+  for (const file of pkgjsons) {
+    let pkg = await Bun.file(file).text()
+    pkg = pkg.replaceAll(/"version": "[^"]+"/g, `"version": "${Script.version}"`)
+    console.log("updated:", file)
+    await Bun.file(file).write(pkg)
+  }
+
   const previous = await getLatestRelease()
   const notes = await buildNotes(previous, "HEAD")
   const body = notes.join("\n") || "No notable changes"

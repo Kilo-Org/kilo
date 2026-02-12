@@ -232,12 +232,14 @@ jobs:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Setup git committer
+      - name: Setup Git Committer
         id: committer
         uses: ./.github/actions/setup-git-committer
         with:
-          kilo-app-id: ${{ vars.KILO_APP_ID }}
-          kilo-app-secret: ${{ secrets.KILO_APP_SECRET }}
+          # kilocode_change start
+          kilo-maintainer-app-id: ${{ secrets.KILO_MAINTAINER_APP_ID }}
+          kilo-maintainer-app-secret: ${{ secrets.KILO_MAINTAINER_APP_SECRET }}
+          # kilocode_change end
 
       - uses: actions/download-artifact@v4
         with:

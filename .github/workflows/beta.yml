@@ -21,7 +21,7 @@ jobs:
         uses: ./.github/actions/setup-bun
 
       - name: Setup Git Committer
-        id: setup-git-committer
+        id: committer
         uses: ./.github/actions/setup-git-committer
         with:
           # kilocode_change start
@@ -31,5 +31,5 @@ jobs:
 
       - name: Sync beta branch
         env:
-          GH_TOKEN: ${{ steps.setup-git-committer.outputs.token }}
+          GH_TOKEN: ${{ steps.committer.outputs.token }}
         run: bun script/beta.ts

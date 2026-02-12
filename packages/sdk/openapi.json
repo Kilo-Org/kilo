@@ -9995,6 +9995,9 @@
               "orchestrator": {
                 "$ref": "#/components/schemas/AgentConfig"
               },
+              "ask": {
+                "$ref": "#/components/schemas/AgentConfig"
+              },
               "general": {
                 "$ref": "#/components/schemas/AgentConfig"
               },

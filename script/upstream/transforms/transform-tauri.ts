@@ -146,6 +146,25 @@ const TAURI_REPLACEMENTS: TauriReplacement[] = [
     replacement: "kilo.ai",
     description: "Domain",
   },
+
+  // Environment variables (exclude OPENCODE_API_KEY)
+  {
+    pattern: /OPENCODE_(?!API_KEY)([A-Z_]+)/g,
+    replacement: "KILO_$1",
+    description: "Env variable",
+    fileTypes: [".rs"],
+  },
+  {
+    pattern: /__OPENCODE__/g,
+    replacement: "__KILO__",
+    description: "Window global",
+    fileTypes: [".rs"],
+  },
+  {
+    pattern: /OPENCODE_PORT/g,
+    replacement: "KILO_PORT",
+    description: "Port env var",
+  },
 ]
 
 /**

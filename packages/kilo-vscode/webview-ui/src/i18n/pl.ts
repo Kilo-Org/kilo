@@ -692,6 +692,10 @@ export const dict = {
   "session.delete.title": "Usuń sesję",
   "session.delete.confirm": 'Usunąć sesję "{{name}}"?',
   "session.delete.button": "Usuń sesję",
+  "session.untitled": "Bez tytułu",
+  "session.recent": "Ostatnie",
+  "session.search.placeholder": "Szukaj sesji...",
+  "session.empty": "Brak sesji. Kliknij + aby rozpocząć nową rozmowę.",
 
   "workspace.new": "Nowa przestrzeń robocza",
   "workspace.type.local": "lokalna",

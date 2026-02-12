@@ -61,6 +61,13 @@ const SCRIPT_REPLACEMENTS: ScriptReplacement[] = [
     description: "GitHub repo reference",
   },
 
+  // Environment variables (exclude OPENCODE_API_KEY)
+  {
+    pattern: /\bOPENCODE_(?!API_KEY\b)([A-Z_]+)\b/g,
+    replacement: "KILO_$1",
+    description: "Environment variable",
+  },
+
   // OpenCode branding in strings
   {
     pattern: /"OpenCode"/g,

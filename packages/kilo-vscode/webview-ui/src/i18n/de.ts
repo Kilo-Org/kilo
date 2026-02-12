@@ -696,6 +696,10 @@ export const dict = {
   "session.delete.title": "Sitzung löschen",
   "session.delete.confirm": 'Sitzung "{{name}}" löschen?',
   "session.delete.button": "Sitzung löschen",
+  "session.untitled": "Unbenannt",
+  "session.recent": "Kürzlich",
+  "session.search.placeholder": "Sitzungen suchen...",
+  "session.empty": "Noch keine Sitzungen. Klicke + um eine neue Unterhaltung zu starten.",
 
   "workspace.new": "Neuer Arbeitsbereich",
   "workspace.type.local": "lokal",

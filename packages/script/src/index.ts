@@ -15,50 +15,76 @@ const expectedBunVersionRange = `^${expectedBunVersion}`
 if (!semver.satisfies(process.versions.bun, expectedBunVersionRange)) {
   throw new Error(`This script requires bun@${expectedBunVersionRange}, but you are using bun@${process.versions.bun}`)
 }
-
+// kilocode_change start
 const env = {
-  OPENCODE_CHANNEL: process.env["OPENCODE_CHANNEL"],
-  OPENCODE_BUMP: process.env["OPENCODE_BUMP"],
-  OPENCODE_VERSION: process.env["OPENCODE_VERSION"],
-  OPENCODE_RELEASE: process.env["OPENCODE_RELEASE"],
+  KILO_CHANNEL: process.env["KILO_CHANNEL"],
+  KILO_BUMP: process.env["KILO_BUMP"],
+  KILO_VERSION: process.env["KILO_VERSION"],
+  KILO_RELEASE: process.env["KILO_RELEASE"],
 }
+// kilocode_change end
 const CHANNEL = await (async () => {
-  if (env.OPENCODE_CHANNEL) return env.OPENCODE_CHANNEL
-  if (env.OPENCODE_BUMP) return "latest"
-  if (env.OPENCODE_VERSION && !env.OPENCODE_VERSION.startsWith("0.0.0-")) return "latest"
+  if (env.KILO_CHANNEL) return env.KILO_CHANNEL // kilocode_change
+  if (env.KILO_BUMP) return "latest" // kilocode_change
+  if (env.KILO_VERSION && !env.KILO_VERSION.startsWith("0.0.0-")) return "latest" // kilocode_change
   return await $`git branch --show-current`.text().then((x) => x.trim())
 })()
 const IS_PREVIEW = CHANNEL !== "latest"
 
 const VERSION = await (async () => {
-  if (env.OPENCODE_VERSION) return env.OPENCODE_VERSION
+  if (env.KILO_VERSION) return env.KILO_VERSION // kilocode_change
   if (IS_PREVIEW) return `0.0.0-${CHANNEL}-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`
-  const version = await fetch("https://registry.npmjs.org/@kilocode/cli/latest")
+  const version = await fetch("https://registry.npmjs.org/@kilocode/cli/latest") // kilocode_change
     .then((res) => {
       if (!res.ok) throw new Error(res.statusText)
       return res.json()
     })
     .then((data: any) => data.version)
   const [major, minor, patch] = version.split(".").map((x: string) => Number(x) || 0)
-  const t = env.OPENCODE_BUMP?.toLowerCase()
+  const t = env.KILO_BUMP?.toLowerCase() // kilocode_change
   if (t === "major") return `${major + 1}.0.0`
   if (t === "minor") return `${major}.${minor + 1}.0`
   return `${major}.${minor}.${patch + 1}`
 })()
 
+// kilocode_change start
 const team = [
   "actions-user",
-  "opencode",
-  "rekram1-node",
-  "thdxr",
-  "kommander",
-  "jayair",
-  "fwang",
-  "adamdotdevin",
-  "iamdavidhill",
-  "opencode-agent[bot]",
-  "R44VC0RP",
+  "kilo-maintainer[bot]",
+  "kiloconnect[bot]",
+  "kiloconnect-lite[bot]",
+  "alexkgold",
+  "arimesser",
+  "arkadiykondrashov",
+  "bturcotte520",
+  "catrielmuller",
+  "chrarnoldus",
+  "codingelves",
+  "darkogj",
+  "dosire",
+  "DScdng",
+  "emilieschario",
+  "eshurakov",
+  "Helix-Kilo",
+  "iscekic",
+  "jeanduplessis",
+  "jobrietbergen",
+  "jrf0110",
+  "kevinvandijk",
+  "kilocode-bot",
+  "lambertjosh",
+  "LigiaZ",
+  "marius-kilocode",
+  "markijbema",
+  "olearycrew",
+  "pandemicsyn",
+  "pedroheyerdahl",
+  "RSO",
+  "sbreitenother",
+  "suhailkc2025",
+  "Sureshkumars",
 ]
+// kilocode_change end
 
 export const Script = {
   get channel() {
@@ -71,10 +97,10 @@ export const Script = {
     return IS_PREVIEW
   },
   get release(): boolean {
-    return !!env.OPENCODE_RELEASE
+    return !!env.KILO_RELEASE // kilocode_change
   },
   get team() {
     return team
   },
 }
-console.log(`opencode script`, JSON.stringify(Script, null, 2))
+console.log(`kilo script`, JSON.stringify(Script, null, 2)) // kilocode_change

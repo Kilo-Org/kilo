@@ -19,7 +19,7 @@ jobs:
         uses: ./.github/actions/setup-bun
 
       - name: Setup Git Committer
-        id: setup-git-committer
+        id: committer
         uses: ./.github/actions/setup-git-committer
         with:
           # kilocode_change start

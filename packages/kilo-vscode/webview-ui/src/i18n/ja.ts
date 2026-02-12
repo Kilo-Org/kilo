@@ -684,6 +684,10 @@ export const dict = {
   "session.delete.title": "セッションの削除",
   "session.delete.confirm": 'セッション "{{name}}" を削除しますか？',
   "session.delete.button": "セッションを削除",
+  "session.untitled": "無題",
+  "session.recent": "最近",
+  "session.search.placeholder": "セッションを検索...",
+  "session.empty": "セッションがありません。+ をクリックして新しい会話を始めましょう。",
 
   "workspace.new": "新しいワークスペース",
   "workspace.type.local": "ローカル",

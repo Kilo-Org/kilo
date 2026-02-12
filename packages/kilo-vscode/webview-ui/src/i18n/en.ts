@@ -723,6 +723,10 @@ export const dict = {
   "session.delete.title": "Delete session",
   "session.delete.confirm": 'Delete session "{{name}}"?',
   "session.delete.button": "Delete session",
+  "session.untitled": "Untitled",
+  "session.recent": "Recent",
+  "session.search.placeholder": "Search sessions...",
+  "session.empty": "No sessions yet. Click + to start a new conversation.",
 
   "workspace.new": "New workspace",
   "workspace.type.local": "local",

@@ -123,6 +123,13 @@ const I18N_REPLACEMENTS: StringReplacement[] = [
     replacement: "Kilo",
     description: "Product name",
   },
+
+  // Environment variables (exclude OPENCODE_API_KEY)
+  {
+    pattern: /\bOPENCODE_(?!API_KEY\b)([A-Z_]+)\b/g,
+    replacement: "KILO_$1",
+    description: "Environment variable",
+  },
 ]
 
 // Patterns that should NOT be replaced (preserved as-is)

@@ -70,6 +70,11 @@ test("ask agent has correct default properties", async () => {
       expect(evalPerm(ask, "edit")).toBe("deny")
       expect(evalPerm(ask, "bash")).toBe("deny")
       expect(evalPerm(ask, "task")).toBe("deny")
+      // ask agent should gate .env files
+      expect(PermissionNext.evaluate("read", ".env", ask!.permission).action).toBe("ask")
+      expect(PermissionNext.evaluate("read", "config.env.local", ask!.permission).action).toBe("ask")
+      expect(PermissionNext.evaluate("read", ".env.example", ask!.permission).action).toBe("allow")
+      expect(PermissionNext.evaluate("read", "src/index.ts", ask!.permission).action).toBe("allow")
     },
   })
 })

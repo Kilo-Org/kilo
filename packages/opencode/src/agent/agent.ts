@@ -175,7 +175,12 @@ export namespace Agent {
           defaults,
           PermissionNext.fromConfig({
             "*": "deny",
-            read: "allow",
+            read: {
+              "*": "allow",
+              "*.env": "ask",
+              "*.env.*": "ask",
+              "*.env.example": "allow",
+            },
             grep: "allow",
             glob: "allow",
             list: "allow",

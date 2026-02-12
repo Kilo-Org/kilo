@@ -682,6 +682,10 @@ export const dict = {
   "session.delete.title": "刪除工作階段",
   "session.delete.confirm": '刪除工作階段 "{{name}}"?',
   "session.delete.button": "刪除工作階段",
+  "session.untitled": "未命名",
+  "session.recent": "最近",
+  "session.search.placeholder": "搜尋工作階段...",
+  "session.empty": "尚無工作階段。點擊 + 開始新的對話。",
 
   "workspace.new": "新增工作區",
   "workspace.type.local": "本地",
@@ -767,10 +771,11 @@ export const dict = {
   "time.hoursAgo": "{{count}} 小時前",
   "time.daysAgo": "{{count}} 天前",
   "time.monthsAgo": "{{count}} 個月前",
-
-  "session.search.placeholder": "搜尋工作階段...",
-  "session.empty": "尚無工作階段。按 + 開始新的對話。",
-  "session.untitled": "未命名",
+  "time.today": "今天",
+  "time.yesterday": "昨天",
+  "time.thisWeek": "本週",
+  "time.thisMonth": "本月",
+  "time.older": "更早",
 
   "settings.aboutKiloCode.status.connected": "已連線",
   "settings.aboutKiloCode.status.connecting": "連線中...",
@@ -787,6 +792,15 @@ export const dict = {
   "settings.agentBehaviour.subtab.rules": "規則",
   "settings.agentBehaviour.subtab.workflows": "工作流程",
   "settings.agentBehaviour.subtab.skills": "技能",
+
+  "settings.browser.description":
+    "啟用後，AI 代理可以與網頁互動 — 導航、點擊、輸入和擷取螢幕截圖。Chrome 視窗將開啟，以便您觀察代理的工作。",
+  "settings.browser.enable.title": "啟用瀏覽器自動化",
+  "settings.browser.enable.description": "將 Playwright MCP 伺服器註冊到 CLI 後端。",
+  "settings.browser.systemChrome.title": "使用系統 Chrome",
+  "settings.browser.systemChrome.description": "使用已安裝的 Chrome 瀏覽器，而非獨立的 Chromium 實例。",
+  "settings.browser.headless.title": "無頭模式",
+  "settings.browser.headless.description": "以無頭模式執行（無可見瀏覽器視窗）。",
 
   "settings.language.description": "選擇 Kilo Code 介面的語言。「自動」使用 VS Code 的顯示語言。",
   "settings.language.auto": "自動（VS Code 語言）",

@@ -14,7 +14,7 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
 
     const auth = (() => {
       if (typeof window === "undefined") return
-      const password = window.__OPENCODE__?.serverPassword
+      const password = window.__KILO__?.serverPassword
       if (!password) return
       return {
         Authorization: `Basic ${btoa(`opencode:${password}`)}`,

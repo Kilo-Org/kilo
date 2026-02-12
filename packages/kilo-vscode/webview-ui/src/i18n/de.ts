@@ -696,6 +696,10 @@ export const dict = {
   "session.delete.title": "Sitzung löschen",
   "session.delete.confirm": 'Sitzung "{{name}}" löschen?',
   "session.delete.button": "Sitzung löschen",
+  "session.untitled": "Unbenannt",
+  "session.recent": "Kürzlich",
+  "session.search.placeholder": "Sitzungen suchen...",
+  "session.empty": "Noch keine Sitzungen. Klicke + um eine neue Unterhaltung zu starten.",
 
   "workspace.new": "Neuer Arbeitsbereich",
   "workspace.type.local": "lokal",
@@ -781,10 +785,11 @@ export const dict = {
   "time.hoursAgo": "vor {{count}} Std.",
   "time.daysAgo": "vor {{count}} T.",
   "time.monthsAgo": "vor {{count}} Mon.",
-
-  "session.search.placeholder": "Sitzungen durchsuchen...",
-  "session.empty": "Noch keine Sitzungen. Klicken Sie auf +, um eine neue Unterhaltung zu starten.",
-  "session.untitled": "Ohne Titel",
+  "time.today": "Heute",
+  "time.yesterday": "Gestern",
+  "time.thisWeek": "Diese Woche",
+  "time.thisMonth": "Diesen Monat",
+  "time.older": "Älter",
 
   "settings.aboutKiloCode.status.connected": "Verbunden",
   "settings.aboutKiloCode.status.connecting": "Verbindung wird hergestellt...",
@@ -801,6 +806,16 @@ export const dict = {
   "settings.agentBehaviour.subtab.rules": "Regeln",
   "settings.agentBehaviour.subtab.workflows": "Workflows",
   "settings.agentBehaviour.subtab.skills": "Fähigkeiten",
+
+  "settings.browser.description":
+    "Wenn aktiviert, kann der KI-Agent mit Webseiten interagieren — navigieren, klicken, tippen und Screenshots erstellen. Ein Chrome-Fenster wird geöffnet, damit Sie dem Agenten bei der Arbeit zusehen können.",
+  "settings.browser.enable.title": "Browser-Automatisierung aktivieren",
+  "settings.browser.enable.description": "Den Playwright-MCP-Server beim CLI-Backend registrieren.",
+  "settings.browser.systemChrome.title": "System-Chrome verwenden",
+  "settings.browser.systemChrome.description":
+    "Verwenden Sie Ihren installierten Chrome-Browser anstelle einer separaten Chromium-Instanz.",
+  "settings.browser.headless.title": "Headless-Modus",
+  "settings.browser.headless.description": "Im Headless-Modus ausführen (kein sichtbares Browserfenster).",
 
   "settings.language.description":
     'Wählen Sie die Sprache für die Kilo Code Oberfläche. „Auto" verwendet die VS Code Anzeigesprache.',

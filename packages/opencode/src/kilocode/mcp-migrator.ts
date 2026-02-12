@@ -8,13 +8,24 @@ import { KilocodePaths } from "./paths"
 export namespace McpMigrator {
   const log = Log.create({ service: "kilocode.mcp-migrator" })
 
+  // Remote transport types used by the Kilocode extension
+  const REMOTE_TYPES = new Set(["streamable-http", "sse"])
+
+  function isRemote(server: KilocodeMcpServer): boolean {
+    return !!server.type && REMOTE_TYPES.has(server.type)
+  }
+
   // Kilocode MCP server structure
   export interface KilocodeMcpServer {
-    command: string
+    command?: string
     args?: string[]
     env?: Record<string, string>
     disabled?: boolean
     alwaysAllow?: string[]
+    // Remote server fields
+    type?: string
+    url?: string
+    headers?: Record<string, string>
   }
 
   export interface KilocodeMcpSettings {
@@ -38,17 +49,35 @@ export namespace McpMigrator {
     // Skip disabled servers
     if (server.disabled) return null
 
+    if (isRemote(server)) {
+      if (!server.url) {
+        log.warn("remote MCP server missing url, skipping", { name })
+        return null
+      }
+      const config: Config.Mcp = {
+        type: "remote",
+        url: server.url,
+        ...(server.headers && Object.keys(server.headers).length > 0 && { headers: server.headers }),
+      }
+      return config
+    }
+
+    if (!server.command) {
+      log.warn("local MCP server missing command, skipping", { name })
+      return null
+    }
+
     // Build command array: [command, ...args]
     const command = [server.command, ...(server.args ?? [])]
 
     // Build the MCP config object
-    const mcpConfig: Config.Mcp = {
+    const config: Config.Mcp = {
       type: "local",
       command,
       ...(server.env && Object.keys(server.env).length > 0 && { environment: server.env }),
     }
 
-    return mcpConfig
+    return config
   }
 
   export async function migrate(options?: {

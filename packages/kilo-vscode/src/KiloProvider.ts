@@ -166,6 +166,10 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         case "createSession":
           await this.handleCreateSession()
           break
+        case "clearSession":
+          this.currentSession = null
+          this.trackedSessionIds.clear()
+          break
         case "loadMessages":
           await this.handleLoadMessages(message.sessionID)
           break
@@ -199,10 +203,28 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         case "requestAgents":
           await this.fetchAndSendAgents()
           break
+        case "questionReply":
+          await this.handleQuestionReply(message.requestID, message.answers)
+          break
+        case "questionReject":
+          await this.handleQuestionReject(message.requestID)
+          break
         case "setLanguage":
           await vscode.workspace
             .getConfiguration("kilo-code.new")
             .update("language", message.locale || undefined, vscode.ConfigurationTarget.Global)
+          break
+        case "deleteSession":
+          await this.handleDeleteSession(message.sessionID)
+          break
+        case "renameSession":
+          await this.handleRenameSession(message.sessionID, message.title)
+          break
+        case "updateSetting":
+          await this.handleUpdateSetting(message.key, message.value)
+          break
+        case "requestBrowserSettings":
+          this.sendBrowserSettings()
           break
       }
     })
@@ -361,6 +383,18 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       const workspaceDir = this.getWorkspaceDirectory()
       const messagesData = await this.httpClient.getMessages(sessionID, workspaceDir)
 
+      // Update currentSession so fallback logic in handleSendMessage/handleAbort
+      // references the correct session after switching to a historical session.
+      // Non-blocking: don't let a failure here prevent messages from loading.
+      this.httpClient
+        .getSession(sessionID, workspaceDir)
+        .then((session) => {
+          if (!this.currentSession || this.currentSession.id === sessionID) {
+            this.currentSession = session
+          }
+        })
+        .catch((err) => console.error("[Kilo New] KiloProvider: Failed to fetch session for tracking:", err))
+
       // Convert to webview format, including cost/tokens for assistant messages
       const messages = messagesData.map((m) => ({
         id: m.info.id,
@@ -415,6 +449,57 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       this.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Failed to load sessions",
+      })
+    }
+  }
+
+  /**
+   * Handle deleting a session.
+   */
+  private async handleDeleteSession(sessionID: string): Promise<void> {
+    if (!this.httpClient) {
+      this.postMessage({ type: "error", message: "Not connected to CLI backend" })
+      return
+    }
+
+    try {
+      const workspaceDir = this.getWorkspaceDirectory()
+      await this.httpClient.deleteSession(sessionID, workspaceDir)
+      this.trackedSessionIds.delete(sessionID)
+      if (this.currentSession?.id === sessionID) {
+        this.currentSession = null
+      }
+      this.postMessage({ type: "sessionDeleted", sessionID })
+    } catch (error) {
+      console.error("[Kilo New] KiloProvider: Failed to delete session:", error)
+      this.postMessage({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to delete session",
+      })
+    }
+  }
+
+  /**
+   * Handle renaming a session.
+   */
+  private async handleRenameSession(sessionID: string, title: string): Promise<void> {
+    if (!this.httpClient) {
+      this.postMessage({ type: "error", message: "Not connected to CLI backend" })
+      return
+    }
+
+    try {
+      const workspaceDir = this.getWorkspaceDirectory()
+      const updated = await this.httpClient.updateSession(sessionID, { title }, workspaceDir)
+      if (this.currentSession?.id === sessionID) {
+        this.currentSession = updated
+      }
+      this.postMessage({ type: "sessionUpdated", session: this.sessionToWebview(updated) })
+    } catch (error) {
+      console.error("[Kilo New] KiloProvider: Failed to rename session:", error)
+      this.postMessage({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to rename session",
       })
     }
   }
@@ -642,6 +727,40 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Handle question reply from the webview.
+   */
+  private async handleQuestionReply(requestID: string, answers: string[][]): Promise<void> {
+    if (!this.httpClient) {
+      this.postMessage({ type: "questionError", requestID })
+      return
+    }
+
+    try {
+      await this.httpClient.replyToQuestion(requestID, answers, this.getWorkspaceDirectory())
+    } catch (error) {
+      console.error("[Kilo New] KiloProvider: Failed to reply to question:", error)
+      this.postMessage({ type: "questionError", requestID })
+    }
+  }
+
+  /**
+   * Handle question reject (dismiss) from the webview.
+   */
+  private async handleQuestionReject(requestID: string): Promise<void> {
+    if (!this.httpClient) {
+      this.postMessage({ type: "questionError", requestID })
+      return
+    }
+
+    try {
+      await this.httpClient.rejectQuestion(requestID, this.getWorkspaceDirectory())
+    } catch (error) {
+      console.error("[Kilo New] KiloProvider: Failed to reject question:", error)
+      this.postMessage({ type: "questionError", requestID })
+    }
+  }
+
+  /**
    * Handle login request from the webview.
    * Uses the provider OAuth flow: authorize → open browser → callback (polls until complete).
    * Sends device auth messages so the webview can display a QR code, verification code, and timer.
@@ -736,6 +855,33 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Handle a generic setting update from the webview.
+   * The key uses dot notation relative to `kilo-code.new` (e.g. "browserAutomation.enabled").
+   */
+  private async handleUpdateSetting(key: string, value: unknown): Promise<void> {
+    const parts = key.split(".")
+    const section = parts.slice(0, -1).join(".")
+    const leaf = parts[parts.length - 1]
+    const config = vscode.workspace.getConfiguration(`kilo-code.new${section ? `.${section}` : ""}`)
+    await config.update(leaf, value, vscode.ConfigurationTarget.Global)
+  }
+
+  /**
+   * Read the current browser automation settings and push them to the webview.
+   */
+  private sendBrowserSettings(): void {
+    const config = vscode.workspace.getConfiguration("kilo-code.new.browserAutomation")
+    this.postMessage({
+      type: "browserSettingsLoaded",
+      settings: {
+        enabled: config.get<boolean>("enabled", false),
+        useSystemChrome: config.get<boolean>("useSystemChrome", true),
+        headless: config.get<boolean>("headless", false),
+      },
+    })
+  }
+
+  /**
    * Extract sessionID from an SSE event, if applicable.
    * Returns undefined for global events (server.connected, server.heartbeat).
    */
@@ -814,6 +960,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             toolName: event.properties.permission,
             args: event.properties.metadata,
             message: `Permission required: ${event.properties.permission}`,
+            tool: event.properties.tool,
           },
         })
         break
@@ -823,6 +970,32 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           type: "todoUpdated",
           sessionID: event.properties.sessionID,
           items: event.properties.items,
+        })
+        break
+
+      case "question.asked":
+        this.postMessage({
+          type: "questionRequest",
+          question: {
+            id: event.properties.id,
+            sessionID: event.properties.sessionID,
+            questions: event.properties.questions,
+            tool: event.properties.tool,
+          },
+        })
+        break
+
+      case "question.replied":
+        this.postMessage({
+          type: "questionResolved",
+          requestID: event.properties.requestID,
+        })
+        break
+
+      case "question.rejected":
+        this.postMessage({
+          type: "questionResolved",
+          requestID: event.properties.requestID,
         })
         break
 

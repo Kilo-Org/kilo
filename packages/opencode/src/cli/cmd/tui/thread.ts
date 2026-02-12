@@ -11,7 +11,7 @@ import type { Event } from "@kilocode/sdk/v2"
 import type { EventSource } from "./context/sdk"
 
 declare global {
-  const OPENCODE_WORKER_PATH: string
+  const KILO_WORKER_PATH: string // kilocode_change
 }
 
 type RpcClient = ReturnType<typeof Rpc.client<typeof rpc>>
@@ -88,7 +88,7 @@ export const TuiThreadCommand = cmd({
     const localWorker = new URL("./worker.ts", import.meta.url)
     const distWorker = new URL("./cli/cmd/tui/worker.js", import.meta.url)
     const workerPath = await iife(async () => {
-      if (typeof OPENCODE_WORKER_PATH !== "undefined") return OPENCODE_WORKER_PATH
+      if (typeof KILO_WORKER_PATH !== "undefined") return KILO_WORKER_PATH // kilocode_change
       if (await Bun.file(distWorker).exists()) return distWorker
       return localWorker
     })

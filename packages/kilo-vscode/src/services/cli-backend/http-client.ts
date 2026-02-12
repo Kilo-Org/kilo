@@ -7,6 +7,8 @@ import type {
   ProfileData,
   ProviderAuthAuthorization,
   ProviderListResponse,
+  McpStatus,
+  McpConfig,
 } from "./types"
 
 /**
@@ -136,6 +138,20 @@ export class HttpClient {
     return this.request<SessionInfo[]>("GET", "/session", undefined, { directory })
   }
 
+  /**
+   * Delete a session permanently.
+   */
+  async deleteSession(sessionId: string, directory: string): Promise<void> {
+    await this.request<void>("DELETE", `/session/${sessionId}`, undefined, { directory, allowEmpty: true })
+  }
+
+  /**
+   * Update a session (e.g. rename its title).
+   */
+  async updateSession(sessionId: string, updates: { title?: string }, directory: string): Promise<SessionInfo> {
+    return this.request<SessionInfo>("PATCH", `/session/${sessionId}`, updates, { directory })
+  }
+
   // ============================================
   // Provider Methods
   // ============================================
@@ -220,6 +236,24 @@ export class HttpClient {
   }
 
   // ============================================
+  // Question Methods
+  // ============================================
+
+  /**
+   * Reply to a question request with user answers.
+   */
+  async replyToQuestion(requestID: string, answers: string[][], directory: string): Promise<void> {
+    await this.request<void>("POST", `/question/${requestID}/reply`, { answers }, { directory, allowEmpty: true })
+  }
+
+  /**
+   * Reject (dismiss) a question request.
+   */
+  async rejectQuestion(requestID: string, directory: string): Promise<void> {
+    await this.request<void>("POST", `/question/${requestID}/reject`, {}, { directory, allowEmpty: true })
+  }
+
+  // ============================================
   // Permission Methods
   // ============================================
 
@@ -288,5 +322,37 @@ export class HttpClient {
    */
   async oauthCallback(providerId: string, method: number, directory: string): Promise<boolean> {
     return this.request<boolean>("POST", `/provider/${providerId}/oauth/callback`, { method }, { directory })
+  }
+
+  // ============================================
+  // MCP Methods
+  // ============================================
+
+  /**
+   * Get the status of all MCP servers.
+   */
+  async getMcpStatus(): Promise<Record<string, McpStatus>> {
+    return this.request<Record<string, McpStatus>>("GET", "/mcp")
+  }
+
+  /**
+   * Add or update an MCP server configuration.
+   */
+  async addMcpServer(name: string, config: McpConfig): Promise<Record<string, McpStatus>> {
+    return this.request<Record<string, McpStatus>>("POST", "/mcp", { name, config })
+  }
+
+  /**
+   * Connect an MCP server by name.
+   */
+  async connectMcpServer(name: string): Promise<boolean> {
+    return this.request<boolean>("POST", `/mcp/${encodeURIComponent(name)}/connect`)
+  }
+
+  /**
+   * Disconnect an MCP server by name.
+   */
+  async disconnectMcpServer(name: string): Promise<boolean> {
+    return this.request<boolean>("POST", `/mcp/${encodeURIComponent(name)}/disconnect`)
   }
 }

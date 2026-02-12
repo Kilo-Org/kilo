@@ -62,10 +62,10 @@ export namespace LSP {
   export type DocumentSymbol = z.infer<typeof DocumentSymbol>
 
   const filterExperimentalServers = (servers: Record<string, LSPServer.Info>) => {
-    if (Flag.OPENCODE_EXPERIMENTAL_LSP_TY) {
+    if (Flag.KILO_EXPERIMENTAL_LSP_TY) {
       // If experimental flag is enabled, disable pyright
       if (servers["pyright"]) {
-        log.info("LSP server pyright is disabled because OPENCODE_EXPERIMENTAL_LSP_TY is enabled")
+        log.info("LSP server pyright is disabled because KILO_EXPERIMENTAL_LSP_TY is enabled")
         delete servers["pyright"]
       }
     } else {

@@ -696,6 +696,10 @@ export const dict = {
   "session.delete.title": "Удалить сессию",
   "session.delete.confirm": 'Удалить сессию "{{name}}"?',
   "session.delete.button": "Удалить сессию",
+  "session.untitled": "Без названия",
+  "session.recent": "Недавние",
+  "session.search.placeholder": "Поиск сессий...",
+  "session.empty": "Сессий пока нет. Нажмите + чтобы начать новый разговор.",
 
   "workspace.new": "Новое рабочее пространство",
   "workspace.type.local": "локальное",
@@ -781,10 +785,11 @@ export const dict = {
   "time.hoursAgo": "{{count}} ч. назад",
   "time.daysAgo": "{{count}} дн. назад",
   "time.monthsAgo": "{{count}} мес. назад",
-
-  "session.search.placeholder": "Поиск сессий...",
-  "session.empty": "Пока нет сессий. Нажмите +, чтобы начать новую беседу.",
-  "session.untitled": "Без названия",
+  "time.today": "Сегодня",
+  "time.yesterday": "Вчера",
+  "time.thisWeek": "На этой неделе",
+  "time.thisMonth": "В этом месяце",
+  "time.older": "Ранее",
 
   "settings.aboutKiloCode.status.connected": "Подключено",
   "settings.aboutKiloCode.status.connecting": "Подключение...",
@@ -801,6 +806,16 @@ export const dict = {
   "settings.agentBehaviour.subtab.rules": "Правила",
   "settings.agentBehaviour.subtab.workflows": "Рабочие процессы",
   "settings.agentBehaviour.subtab.skills": "Навыки",
+
+  "settings.browser.description":
+    "При включении ИИ-агент может взаимодействовать с веб-страницами — переходить по ссылкам, нажимать, вводить текст и делать скриншоты. Откроется окно Chrome, чтобы вы могли наблюдать за работой агента.",
+  "settings.browser.enable.title": "Включить автоматизацию браузера",
+  "settings.browser.enable.description": "Зарегистрировать сервер Playwright MCP в CLI-бэкенде.",
+  "settings.browser.systemChrome.title": "Использовать системный Chrome",
+  "settings.browser.systemChrome.description":
+    "Использовать установленный браузер Chrome вместо отдельного экземпляра Chromium.",
+  "settings.browser.headless.title": "Безголовый режим",
+  "settings.browser.headless.description": "Запуск в безголовом режиме (без видимого окна браузера).",
 
   "settings.language.description": "Выберите язык интерфейса Kilo Code. «Авто» использует язык отображения VS Code.",
   "settings.language.auto": "Авто (язык VS Code)",

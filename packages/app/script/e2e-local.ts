@@ -55,34 +55,34 @@ const extraArgs = (() => {
 const [serverPort, webPort] = await Promise.all([freePort(), freePort()])
 
 const sandbox = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-e2e-"))
-const keepSandbox = process.env.OPENCODE_E2E_KEEP_SANDBOX === "1"
+const keepSandbox = process.env.KILO_E2E_KEEP_SANDBOX === "1"
 
 const serverEnv = {
   ...process.env,
-  OPENCODE_DISABLE_SHARE: process.env.OPENCODE_DISABLE_SHARE ?? "true",
+  KILO_DISABLE_SHARE: process.env.KILO_DISABLE_SHARE ?? "true",
   KILO_DISABLE_SHARE: "true", // kilocode_change
   KILO_DISABLE_SESSION_INGEST: "true", // kilocode_change
-  OPENCODE_DISABLE_LSP_DOWNLOAD: "true",
-  OPENCODE_DISABLE_DEFAULT_PLUGINS: "true",
-  OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: "true",
-  OPENCODE_TEST_HOME: path.join(sandbox, "home"),
+  KILO_DISABLE_LSP_DOWNLOAD: "true",
+  KILO_DISABLE_DEFAULT_PLUGINS: "true",
+  KILO_EXPERIMENTAL_DISABLE_FILEWATCHER: "true",
+  KILO_TEST_HOME: path.join(sandbox, "home"),
   XDG_DATA_HOME: path.join(sandbox, "share"),
   XDG_CACHE_HOME: path.join(sandbox, "cache"),
   XDG_CONFIG_HOME: path.join(sandbox, "config"),
   XDG_STATE_HOME: path.join(sandbox, "state"),
-  OPENCODE_E2E_PROJECT_DIR: repoDir,
-  OPENCODE_E2E_SESSION_TITLE: "E2E Session",
-  OPENCODE_E2E_MESSAGE: "Seeded for UI e2e",
-  OPENCODE_E2E_MODEL: "kilo/kilo/auto", // kilocode_change
-  OPENCODE_CLIENT: "app",
+  KILO_E2E_PROJECT_DIR: repoDir,
+  KILO_E2E_SESSION_TITLE: "E2E Session",
+  KILO_E2E_MESSAGE: "Seeded for UI e2e",
+  KILO_E2E_MODEL: "kilo/kilo/auto", // kilocode_change
+  KILO_CLIENT: "app",
 } satisfies Record<string, string>
 
 const runnerEnv = {
   ...serverEnv,
   PLAYWRIGHT_SERVER_HOST: "127.0.0.1",
   PLAYWRIGHT_SERVER_PORT: String(serverPort),
-  VITE_OPENCODE_SERVER_HOST: "127.0.0.1",
-  VITE_OPENCODE_SERVER_PORT: String(serverPort),
+  VITE_KILO_SERVER_HOST: "127.0.0.1",
+  VITE_KILO_SERVER_PORT: String(serverPort),
   PLAYWRIGHT_PORT: String(webPort),
 } satisfies Record<string, string>
 
@@ -159,7 +159,7 @@ try {
     const servermod = await import("../../opencode/src/server/server")
     inst = await import("../../opencode/src/project/instance")
     server = servermod.Server.listen({ port: serverPort, hostname: "127.0.0.1" })
-    console.log(`opencode server listening on http://127.0.0.1:${serverPort}`)
+    console.log(`kilo server listening on http://127.0.0.1:${serverPort}`) // kilocode_change
 
     await waitForHealth(`http://127.0.0.1:${serverPort}/global/health`)
     runner = Bun.spawn(["bun", "test:e2e", ...extraArgs], {

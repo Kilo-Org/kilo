@@ -696,6 +696,10 @@ export const dict = {
   "session.delete.title": "Eliminar sesión",
   "session.delete.confirm": '¿Eliminar sesión "{{name}}"?',
   "session.delete.button": "Eliminar sesión",
+  "session.untitled": "Sin título",
+  "session.recent": "Recientes",
+  "session.search.placeholder": "Buscar sesiones...",
+  "session.empty": "Aún no hay sesiones. Haz clic en + para iniciar una nueva conversación.",
 
   "workspace.new": "Nuevo espacio de trabajo",
   "workspace.type.local": "local",
@@ -781,10 +785,11 @@ export const dict = {
   "time.hoursAgo": "hace {{count}}h",
   "time.daysAgo": "hace {{count}}d",
   "time.monthsAgo": "hace {{count}} meses",
-
-  "session.search.placeholder": "Buscar sesiones...",
-  "session.empty": "Aún no hay sesiones. Haz clic en + para iniciar una nueva conversación.",
-  "session.untitled": "Sin título",
+  "time.today": "Hoy",
+  "time.yesterday": "Ayer",
+  "time.thisWeek": "Esta semana",
+  "time.thisMonth": "Este mes",
+  "time.older": "Anterior",
 
   "settings.aboutKiloCode.status.connected": "Conectado",
   "settings.aboutKiloCode.status.connecting": "Conectando...",
@@ -801,6 +806,16 @@ export const dict = {
   "settings.agentBehaviour.subtab.rules": "Reglas",
   "settings.agentBehaviour.subtab.workflows": "Flujos de trabajo",
   "settings.agentBehaviour.subtab.skills": "Habilidades",
+
+  "settings.browser.description":
+    "Cuando está activado, el agente de IA puede interactuar con páginas web: navegar, hacer clic, escribir y capturar pantallas. Se abrirá una ventana de Chrome para que puedas ver al agente trabajar.",
+  "settings.browser.enable.title": "Activar automatización del navegador",
+  "settings.browser.enable.description": "Registrar el servidor Playwright MCP con el backend CLI.",
+  "settings.browser.systemChrome.title": "Usar Chrome del sistema",
+  "settings.browser.systemChrome.description":
+    "Usar el navegador Chrome instalado en lugar de una instancia separada de Chromium.",
+  "settings.browser.headless.title": "Modo headless",
+  "settings.browser.headless.description": "Ejecutar en modo headless (sin ventana de navegador visible).",
 
   "settings.language.description":
     'Elige el idioma de la interfaz de Kilo Code. "Auto" utiliza el idioma de visualización de VS Code.',

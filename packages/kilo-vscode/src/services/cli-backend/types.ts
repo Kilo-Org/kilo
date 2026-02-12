@@ -82,11 +82,38 @@ export type SSEEvent =
       properties: { sessionID: string; requestID: string; reply: "once" | "always" | "reject" }
     }
   | { type: "todo.updated"; properties: { sessionID: string; items: TodoItem[] } }
+  | { type: "question.asked"; properties: QuestionRequest }
+  | { type: "question.replied"; properties: { sessionID: string; requestID: string; answers: string[][] } }
+  | { type: "question.rejected"; properties: { sessionID: string; requestID: string } }
 
 export interface TodoItem {
   id: string
   content: string
   status: "pending" | "in_progress" | "completed"
+}
+
+// Question types from Question module
+export interface QuestionOption {
+  label: string
+  description: string
+}
+
+export interface QuestionInfo {
+  question: string
+  header: string
+  options: QuestionOption[]
+  multiple?: boolean
+  custom?: boolean
+}
+
+export interface QuestionRequest {
+  id: string
+  sessionID: string
+  questions: QuestionInfo[]
+  tool?: {
+    messageID: string
+    callID: string
+  }
 }
 
 // Agent/mode info from the CLI /agent endpoint
@@ -169,3 +196,32 @@ export interface ProfileData {
   balance: KilocodeBalance | null
   currentOrgId: string | null
 }
+
+// MCP server status — discriminated union returned by the backend
+export type McpStatus =
+  | { status: "connected" }
+  | { status: "disabled" }
+  | { status: "failed"; error: string }
+  | { status: "needs_auth" }
+  | { status: "needs_client_registration"; error: string }
+
+// MCP server configuration for local (stdio) servers
+export interface McpLocalConfig {
+  type: "local"
+  command: string[]
+  environment?: Record<string, string>
+  enabled?: boolean
+  timeout?: number
+}
+
+// MCP server configuration for remote (SSE) servers
+export interface McpRemoteConfig {
+  type: "remote"
+  url: string
+  enabled?: boolean
+  headers?: Record<string, string>
+  timeout?: number
+}
+
+// Union of all MCP server config types
+export type McpConfig = McpLocalConfig | McpRemoteConfig

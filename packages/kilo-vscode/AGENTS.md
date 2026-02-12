@@ -107,6 +107,10 @@ Follow monorepo root AGENTS.md style guide:
 - Avoid `try`/`catch`, avoid `any` type
 - ESLint enforces: curly braces, strict equality, semicolons, camelCase/PascalCase imports
 
+## Markdown Tables
+
+Do not pad markdown table cells for column alignment. Use `| content |` with single spaces, not `| content       |` with extra padding. Padding creates spurious diffs. Markdown files are excluded from prettier (via `.prettierignore`) to prevent auto-reformatting of tables.
+
 ## Committing
 
 - Before committing, always run `pnpm run format` so commits don't accidentally include formatting/styling-only diffs.

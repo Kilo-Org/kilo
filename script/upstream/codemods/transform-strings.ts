@@ -36,6 +36,11 @@ const STRING_REPLACEMENTS: StringReplacement[] = [
 
   // Binary name references (be careful with these)
   { pattern: /\bopencode upgrade\b/g, replacement: "kilo upgrade" },
+
+  // Environment variables (exclude OPENCODE_API_KEY - upstream Zen SaaS key)
+  { pattern: /\bOPENCODE_(?!API_KEY\b)([A-Z_]+)\b/g, replacement: "KILO_$1" },
+  { pattern: /\bVITE_OPENCODE_/g, replacement: "VITE_KILO_" },
+  { pattern: /\b_EXTENSION_OPENCODE_/g, replacement: "_EXTENSION_KILO_" },
 ]
 
 export interface TransformResult {

@@ -684,6 +684,10 @@ export const dict = {
   "session.delete.title": "حذف الجلسة",
   "session.delete.confirm": 'حذف الجلسة "{{name}}"؟',
   "session.delete.button": "حذف الجلسة",
+  "session.untitled": "بدون عنوان",
+  "session.recent": "الأخيرة",
+  "session.search.placeholder": "البحث في الجلسات...",
+  "session.empty": "لا توجد جلسات بعد. انقر + لبدء محادثة جديدة.",
 
   "workspace.new": "مساحة عمل جديدة",
   "workspace.type.local": "محلي",
@@ -769,10 +773,11 @@ export const dict = {
   "time.hoursAgo": "قبل {{count}} ساعة",
   "time.daysAgo": "قبل {{count}} يوم",
   "time.monthsAgo": "قبل {{count}} شهر",
-
-  "session.search.placeholder": "البحث في الجلسات...",
-  "session.empty": "لا توجد جلسات بعد. انقر على + لبدء محادثة جديدة.",
-  "session.untitled": "بدون عنوان",
+  "time.today": "اليوم",
+  "time.yesterday": "أمس",
+  "time.thisWeek": "هذا الأسبوع",
+  "time.thisMonth": "هذا الشهر",
+  "time.older": "أقدم",
 
   "settings.aboutKiloCode.status.connected": "متصل",
   "settings.aboutKiloCode.status.connecting": "جارٍ الاتصال...",
@@ -789,6 +794,15 @@ export const dict = {
   "settings.agentBehaviour.subtab.rules": "القواعد",
   "settings.agentBehaviour.subtab.workflows": "سير العمل",
   "settings.agentBehaviour.subtab.skills": "المهارات",
+
+  "settings.browser.description":
+    "عند التفعيل، يمكن لوكيل الذكاء الاصطناعي التفاعل مع صفحات الويب — التنقل والنقر والكتابة والتقاط لقطات الشاشة. سيتم فتح نافذة Chrome حتى تتمكن من مشاهدة الوكيل أثناء العمل.",
+  "settings.browser.enable.title": "تفعيل أتمتة المتصفح",
+  "settings.browser.enable.description": "تسجيل خادم Playwright MCP مع الواجهة الخلفية لـ CLI.",
+  "settings.browser.systemChrome.title": "استخدام Chrome النظام",
+  "settings.browser.systemChrome.description": "استخدم متصفح Chrome المثبت لديك بدلاً من نسخة Chromium منفصلة.",
+  "settings.browser.headless.title": "الوضع بدون واجهة",
+  "settings.browser.headless.description": "التشغيل في الوضع بدون واجهة (بدون نافذة متصفح مرئية).",
 
   "settings.language.description": 'اختر اللغة لواجهة Kilo Code. "تلقائي" يستخدم لغة عرض VS Code.',
   "settings.language.auto": "تلقائي (لغة VS Code)",

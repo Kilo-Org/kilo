@@ -700,6 +700,10 @@ export const dict = {
   "session.delete.title": "Supprimer la session",
   "session.delete.confirm": 'Supprimer la session "{{name}}" ?',
   "session.delete.button": "Supprimer la session",
+  "session.untitled": "Sans titre",
+  "session.recent": "Récentes",
+  "session.search.placeholder": "Rechercher des sessions...",
+  "session.empty": "Aucune session pour l'instant. Cliquez + pour démarrer une nouvelle conversation.",
 
   "workspace.new": "Nouvel espace de travail",
   "workspace.type.local": "local",
@@ -785,10 +789,11 @@ export const dict = {
   "time.hoursAgo": "il y a {{count}}h",
   "time.daysAgo": "il y a {{count}}j",
   "time.monthsAgo": "il y a {{count}} mois",
-
-  "session.search.placeholder": "Rechercher des sessions...",
-  "session.empty": "Aucune session pour l'instant. Cliquez sur + pour démarrer une nouvelle conversation.",
-  "session.untitled": "Sans titre",
+  "time.today": "Aujourd'hui",
+  "time.yesterday": "Hier",
+  "time.thisWeek": "Cette semaine",
+  "time.thisMonth": "Ce mois-ci",
+  "time.older": "Plus ancien",
 
   "settings.aboutKiloCode.status.connected": "Connecté",
   "settings.aboutKiloCode.status.connecting": "Connexion en cours...",
@@ -805,6 +810,16 @@ export const dict = {
   "settings.agentBehaviour.subtab.rules": "Règles",
   "settings.agentBehaviour.subtab.workflows": "Flux de travail",
   "settings.agentBehaviour.subtab.skills": "Compétences",
+
+  "settings.browser.description":
+    "Lorsqu'il est activé, l'agent IA peut interagir avec les pages web — naviguer, cliquer, saisir du texte et prendre des captures d'écran. Une fenêtre Chrome s'ouvrira pour que vous puissiez observer l'agent travailler.",
+  "settings.browser.enable.title": "Activer l'automatisation du navigateur",
+  "settings.browser.enable.description": "Enregistrer le serveur Playwright MCP auprès du backend CLI.",
+  "settings.browser.systemChrome.title": "Utiliser le Chrome système",
+  "settings.browser.systemChrome.description":
+    "Utiliser votre navigateur Chrome installé au lieu d'une instance Chromium séparée.",
+  "settings.browser.headless.title": "Mode headless",
+  "settings.browser.headless.description": "Exécuter en mode headless (sans fenêtre de navigateur visible).",
 
   "settings.language.description":
     "Choisissez la langue de l'interface de Kilo Code. \"Auto\" utilise la langue d'affichage de VS Code.",

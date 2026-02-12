@@ -21,6 +21,10 @@ export type {
   Provider,
   ProviderListResponse,
   ModelSelection,
+  McpStatus,
+  McpLocalConfig,
+  McpRemoteConfig,
+  McpConfig,
 } from "./types"
 
 export { ServerManager } from "./server-manager"

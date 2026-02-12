@@ -145,6 +145,9 @@ export class KiloConnectionService {
       }
       case "permission.asked":
       case "permission.replied":
+      case "question.asked":
+      case "question.replied":
+      case "question.rejected":
         return event.properties.sessionID
       default:
         return undefined

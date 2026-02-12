@@ -33,6 +33,6 @@ jobs:
         uses: Kilo-Org/kilo/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          OPENCODE_PERMISSION: '{"bash": "deny"}'
+          KILO_PERMISSION: '{"bash": "deny"}'
         with:
           model: opencode/claude-opus-4-5

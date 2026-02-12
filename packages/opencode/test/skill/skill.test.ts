@@ -73,8 +73,8 @@ description: Skill for dirs test.
     },
   })
 
-  const home = process.env.OPENCODE_TEST_HOME
-  process.env.OPENCODE_TEST_HOME = tmp.path
+  const home = process.env.KILO_TEST_HOME
+  process.env.KILO_TEST_HOME = tmp.path
 
   try {
     await Instance.provide({
@@ -87,7 +87,7 @@ description: Skill for dirs test.
       },
     })
   } finally {
-    process.env.OPENCODE_TEST_HOME = home
+    process.env.KILO_TEST_HOME = home
   }
 })
 
@@ -188,8 +188,8 @@ description: A skill in the .claude/skills directory.
 test("discovers global skills from ~/.claude/skills/ directory", async () => {
   await using tmp = await tmpdir({ git: true })
 
-  const originalHome = process.env.OPENCODE_TEST_HOME
-  process.env.OPENCODE_TEST_HOME = tmp.path
+  const originalHome = process.env.KILO_TEST_HOME
+  process.env.KILO_TEST_HOME = tmp.path
 
   try {
     await createGlobalSkill(tmp.path)
@@ -204,7 +204,7 @@ test("discovers global skills from ~/.claude/skills/ directory", async () => {
       },
     })
   } finally {
-    process.env.OPENCODE_TEST_HOME = originalHome
+    process.env.KILO_TEST_HOME = originalHome
   }
 })
 
@@ -253,8 +253,8 @@ description: A skill in the .agents/skills directory.
 test("discovers global skills from ~/.agents/skills/ directory", async () => {
   await using tmp = await tmpdir({ git: true })
 
-  const originalHome = process.env.OPENCODE_TEST_HOME
-  process.env.OPENCODE_TEST_HOME = tmp.path
+  const originalHome = process.env.KILO_TEST_HOME
+  process.env.KILO_TEST_HOME = tmp.path
 
   try {
     const skillDir = path.join(tmp.path, ".agents", "skills", "global-agent-skill")
@@ -283,7 +283,7 @@ This skill is loaded from the global home directory.
       },
     })
   } finally {
-    process.env.OPENCODE_TEST_HOME = originalHome
+    process.env.KILO_TEST_HOME = originalHome
   }
 })
 

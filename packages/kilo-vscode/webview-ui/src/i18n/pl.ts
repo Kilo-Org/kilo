@@ -692,6 +692,10 @@ export const dict = {
   "session.delete.title": "Usuń sesję",
   "session.delete.confirm": 'Usunąć sesję "{{name}}"?',
   "session.delete.button": "Usuń sesję",
+  "session.untitled": "Bez tytułu",
+  "session.recent": "Ostatnie",
+  "session.search.placeholder": "Szukaj sesji...",
+  "session.empty": "Brak sesji. Kliknij + aby rozpocząć nową rozmowę.",
 
   "workspace.new": "Nowa przestrzeń robocza",
   "workspace.type.local": "lokalna",
@@ -777,10 +781,11 @@ export const dict = {
   "time.hoursAgo": "{{count}} godz. temu",
   "time.daysAgo": "{{count}} dn. temu",
   "time.monthsAgo": "{{count}} mies. temu",
-
-  "session.search.placeholder": "Szukaj sesji...",
-  "session.empty": "Brak sesji. Kliknij +, aby rozpocząć nową rozmowę.",
-  "session.untitled": "Bez tytułu",
+  "time.today": "Dzisiaj",
+  "time.yesterday": "Wczoraj",
+  "time.thisWeek": "Ten tydzień",
+  "time.thisMonth": "Ten miesiąc",
+  "time.older": "Starsze",
 
   "settings.aboutKiloCode.status.connected": "Połączono",
   "settings.aboutKiloCode.status.connecting": "Łączenie...",
@@ -797,6 +802,16 @@ export const dict = {
   "settings.agentBehaviour.subtab.rules": "Reguły",
   "settings.agentBehaviour.subtab.workflows": "Przepływy pracy",
   "settings.agentBehaviour.subtab.skills": "Umiejętności",
+
+  "settings.browser.description":
+    "Po włączeniu agent AI może wchodzić w interakcję ze stronami internetowymi — nawigować, klikać, pisać i robić zrzuty ekranu. Otworzy się okno Chrome, abyś mógł obserwować pracę agenta.",
+  "settings.browser.enable.title": "Włącz automatyzację przeglądarki",
+  "settings.browser.enable.description": "Zarejestruj serwer Playwright MCP w backendzie CLI.",
+  "settings.browser.systemChrome.title": "Użyj systemowego Chrome",
+  "settings.browser.systemChrome.description":
+    "Użyj zainstalowanej przeglądarki Chrome zamiast oddzielnej instancji Chromium.",
+  "settings.browser.headless.title": "Tryb headless",
+  "settings.browser.headless.description": "Uruchom w trybie headless (bez widocznego okna przeglądarki).",
 
   "settings.language.description": 'Wybierz język interfejsu Kilo Code. „Auto" używa języka wyświetlania VS Code.',
   "settings.language.auto": "Auto (język VS Code)",

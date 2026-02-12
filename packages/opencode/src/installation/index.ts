@@ -7,9 +7,10 @@ import { Log } from "../util/log"
 import { iife } from "@/util/iife"
 import { Flag } from "../flag/flag"
 
+// kilocode_change - renamed build-time globals
 declare global {
-  const OPENCODE_VERSION: string
-  const OPENCODE_CHANNEL: string
+  const KILO_VERSION: string
+  const KILO_CHANNEL: string
 }
 
 export namespace Installation {
@@ -189,9 +190,9 @@ export namespace Installation {
     await $`${process.execPath} --version`.nothrow().quiet().text()
   }
 
-  export const VERSION = typeof OPENCODE_VERSION === "string" ? OPENCODE_VERSION : "local"
-  export const CHANNEL = typeof OPENCODE_CHANNEL === "string" ? OPENCODE_CHANNEL : "local"
-  export const USER_AGENT = `opencode/${CHANNEL}/${VERSION}/${Flag.OPENCODE_CLIENT}`
+  export const VERSION = typeof KILO_VERSION === "string" ? KILO_VERSION : "local"
+  export const CHANNEL = typeof KILO_CHANNEL === "string" ? KILO_CHANNEL : "local"
+  export const USER_AGENT = `kilo/${CHANNEL}/${VERSION}/${Flag.KILO_CLIENT}` // kilocode_change
 
   export async function latest(installMethod?: Method) {
     const detectedMethod = installMethod || (await method())

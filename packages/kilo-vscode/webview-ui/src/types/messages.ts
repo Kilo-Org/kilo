@@ -105,6 +105,7 @@ export interface PermissionRequest {
   toolName: string
   args: Record<string, unknown>
   message?: string
+  tool?: { messageID: string; callID: string }
 }
 
 // Todo item
@@ -112,6 +113,30 @@ export interface TodoItem {
   id: string
   content: string
   status: "pending" | "in_progress" | "completed"
+}
+
+// Question types
+export interface QuestionOption {
+  label: string
+  description: string
+}
+
+export interface QuestionInfo {
+  question: string
+  header: string
+  options: QuestionOption[]
+  multiple?: boolean
+  custom?: boolean
+}
+
+export interface QuestionRequest {
+  id: string
+  sessionID: string
+  questions: QuestionInfo[]
+  tool?: {
+    messageID: string
+    callID: string
+  }
 }
 
 // Agent/mode info from CLI backend
@@ -240,6 +265,11 @@ export interface SessionUpdatedMessage {
   session: SessionInfo
 }
 
+export interface SessionDeletedMessage {
+  type: "sessionDeleted"
+  sessionID: string
+}
+
 export interface MessagesLoadedMessage {
   type: "messagesLoaded"
   sessionID: string
@@ -300,6 +330,32 @@ export interface AgentsLoadedMessage {
   defaultAgent: string
 }
 
+export interface QuestionRequestMessage {
+  type: "questionRequest"
+  question: QuestionRequest
+}
+
+export interface QuestionResolvedMessage {
+  type: "questionResolved"
+  requestID: string
+}
+
+export interface QuestionErrorMessage {
+  type: "questionError"
+  requestID: string
+}
+
+export interface BrowserSettings {
+  enabled: boolean
+  useSystemChrome: boolean
+  headless: boolean
+}
+
+export interface BrowserSettingsLoadedMessage {
+  type: "browserSettingsLoaded"
+  settings: BrowserSettings
+}
+
 export type ExtensionMessage =
   | ReadyMessage
   | ConnectionStateMessage
@@ -310,6 +366,7 @@ export type ExtensionMessage =
   | TodoUpdatedMessage
   | SessionCreatedMessage
   | SessionUpdatedMessage
+  | SessionDeletedMessage
   | MessagesLoadedMessage
   | MessageCreatedMessage
   | SessionsLoadedMessage
@@ -321,6 +378,10 @@ export type ExtensionMessage =
   | DeviceAuthCancelledMessage
   | ProvidersLoadedMessage
   | AgentsLoadedMessage
+  | QuestionRequestMessage
+  | QuestionResolvedMessage
+  | QuestionErrorMessage
+  | BrowserSettingsLoadedMessage
 
 // ============================================
 // Messages FROM webview TO extension
@@ -349,6 +410,10 @@ export interface PermissionResponseRequest {
 
 export interface CreateSessionRequest {
   type: "createSession"
+}
+
+export interface ClearSessionRequest {
+  type: "clearSession"
 }
 
 export interface LoadMessagesRequest {
@@ -405,11 +470,44 @@ export interface SetLanguageRequest {
   locale: string
 }
 
+export interface QuestionReplyRequest {
+  type: "questionReply"
+  requestID: string
+  answers: string[][]
+}
+
+export interface QuestionRejectRequest {
+  type: "questionReject"
+  requestID: string
+}
+
+export interface DeleteSessionRequest {
+  type: "deleteSession"
+  sessionID: string
+}
+
+export interface RenameSessionRequest {
+  type: "renameSession"
+  sessionID: string
+  title: string
+}
+
+export interface UpdateSettingRequest {
+  type: "updateSetting"
+  key: string
+  value: unknown
+}
+
+export interface RequestBrowserSettingsMessage {
+  type: "requestBrowserSettings"
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
   | PermissionResponseRequest
   | CreateSessionRequest
+  | ClearSessionRequest
   | LoadMessagesRequest
   | LoadSessionsRequest
   | LoginRequest
@@ -422,6 +520,12 @@ export type WebviewMessage =
   | CompactRequest
   | RequestAgentsMessage
   | SetLanguageRequest
+  | QuestionReplyRequest
+  | QuestionRejectRequest
+  | DeleteSessionRequest
+  | RenameSessionRequest
+  | UpdateSettingRequest
+  | RequestBrowserSettingsMessage
 
 // ============================================
 // VS Code API type

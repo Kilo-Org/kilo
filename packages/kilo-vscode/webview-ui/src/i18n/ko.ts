@@ -689,6 +689,10 @@ export const dict = {
   "session.delete.title": "세션 삭제",
   "session.delete.confirm": '"{{name}}" 세션을 삭제하시겠습니까?',
   "session.delete.button": "세션 삭제",
+  "session.untitled": "제목 없음",
+  "session.recent": "최근",
+  "session.search.placeholder": "세션 검색...",
+  "session.empty": "아직 세션이 없습니다. +를 클릭하여 새 대화를 시작하세요.",
 
   "workspace.new": "새 작업 공간",
   "workspace.type.local": "로컬",
@@ -774,10 +778,11 @@ export const dict = {
   "time.hoursAgo": "{{count}}시간 전",
   "time.daysAgo": "{{count}}일 전",
   "time.monthsAgo": "{{count}}개월 전",
-
-  "session.search.placeholder": "세션 검색...",
-  "session.empty": "아직 세션이 없습니다. +를 클릭하여 새 대화를 시작하세요.",
-  "session.untitled": "제목 없음",
+  "time.today": "오늘",
+  "time.yesterday": "어제",
+  "time.thisWeek": "이번 주",
+  "time.thisMonth": "이번 달",
+  "time.older": "이전",
 
   "settings.aboutKiloCode.status.connected": "연결됨",
   "settings.aboutKiloCode.status.connecting": "연결 중...",
@@ -794,6 +799,15 @@ export const dict = {
   "settings.agentBehaviour.subtab.rules": "규칙",
   "settings.agentBehaviour.subtab.workflows": "워크플로",
   "settings.agentBehaviour.subtab.skills": "스킬",
+
+  "settings.browser.description":
+    "활성화하면 AI 에이전트가 웹 페이지와 상호작용할 수 있습니다 — 탐색, 클릭, 입력, 스크린샷 촬영. Chrome 창이 열려 에이전트의 작업을 확인할 수 있습니다.",
+  "settings.browser.enable.title": "브라우저 자동화 활성화",
+  "settings.browser.enable.description": "Playwright MCP 서버를 CLI 백엔드에 등록합니다.",
+  "settings.browser.systemChrome.title": "시스템 Chrome 사용",
+  "settings.browser.systemChrome.description": "별도의 Chromium 인스턴스 대신 설치된 Chrome 브라우저를 사용합니다.",
+  "settings.browser.headless.title": "헤드리스 모드",
+  "settings.browser.headless.description": "헤드리스 모드로 실행합니다 (브라우저 창이 표시되지 않음).",
 
   "settings.language.description": 'Kilo Code UI의 언어를 선택하세요. "자동"은 VS Code 표시 언어를 사용합니다.',
   "settings.language.auto": "자동 (VS Code 언어)",

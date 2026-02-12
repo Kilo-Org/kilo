@@ -682,6 +682,10 @@ export const dict = {
   "session.delete.title": "ลบเซสชัน",
   "session.delete.confirm": 'ลบเซสชัน "{{name}}" หรือไม่?',
   "session.delete.button": "ลบเซสชัน",
+  "session.untitled": "ไม่มีชื่อ",
+  "session.recent": "ล่าสุด",
+  "session.search.placeholder": "ค้นหาเซสชัน...",
+  "session.empty": "ยังไม่มีเซสชัน คลิก + เพื่อเริ่มการสนทนาใหม่",
 
   "workspace.new": "พื้นที่ทำงานใหม่",
   "workspace.type.local": "ในเครื่อง",
@@ -767,10 +771,11 @@ export const dict = {
   "time.hoursAgo": "{{count}} ชม. ที่แล้ว",
   "time.daysAgo": "{{count}} วันที่แล้ว",
   "time.monthsAgo": "{{count}} เดือนที่แล้ว",
-
-  "session.search.placeholder": "ค้นหาเซสชัน...",
-  "session.empty": "ยังไม่มีเซสชัน คลิก + เพื่อเริ่มการสนทนาใหม่",
-  "session.untitled": "ไม่มีชื่อ",
+  "time.today": "วันนี้",
+  "time.yesterday": "เมื่อวาน",
+  "time.thisWeek": "สัปดาห์นี้",
+  "time.thisMonth": "เดือนนี้",
+  "time.older": "เก่ากว่า",
 
   "settings.aboutKiloCode.status.connected": "เชื่อมต่อแล้ว",
   "settings.aboutKiloCode.status.connecting": "กำลังเชื่อมต่อ...",
@@ -787,6 +792,15 @@ export const dict = {
   "settings.agentBehaviour.subtab.rules": "กฎ",
   "settings.agentBehaviour.subtab.workflows": "เวิร์กโฟลว์",
   "settings.agentBehaviour.subtab.skills": "ทักษะ",
+
+  "settings.browser.description":
+    "เมื่อเปิดใช้งาน ตัวแทน AI สามารถโต้ตอบกับหน้าเว็บได้ — นำทาง คลิก พิมพ์ และจับภาพหน้าจอ หน้าต่าง Chrome จะเปิดขึ้นเพื่อให้คุณดูการทำงานของตัวแทน",
+  "settings.browser.enable.title": "เปิดใช้งานการทำงานอัตโนมัติของเบราว์เซอร์",
+  "settings.browser.enable.description": "ลงทะเบียนเซิร์ฟเวอร์ Playwright MCP กับ CLI backend",
+  "settings.browser.systemChrome.title": "ใช้ Chrome ของระบบ",
+  "settings.browser.systemChrome.description": "ใช้เบราว์เซอร์ Chrome ที่ติดตั้งแทนอินสแตนซ์ Chromium แยกต่างหาก",
+  "settings.browser.headless.title": "โหมด Headless",
+  "settings.browser.headless.description": "ทำงานในโหมด headless (ไม่มีหน้าต่างเบราว์เซอร์ที่มองเห็นได้)",
 
   "settings.language.description": 'เลือกภาษาสำหรับ UI ของ Kilo Code "อัตโนมัติ" จะใช้ภาษาการแสดงผลของ VS Code',
   "settings.language.auto": "อัตโนมัติ (ภาษา VS Code)",

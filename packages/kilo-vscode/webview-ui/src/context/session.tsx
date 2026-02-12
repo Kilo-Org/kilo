@@ -27,6 +27,7 @@ import type {
   PartDelta,
   SessionStatus,
   PermissionRequest,
+  QuestionRequest,
   TodoItem,
   ModelSelection,
   ContextUsage,
@@ -54,6 +55,7 @@ interface SessionContextValue {
 
   // Session status
   status: Accessor<SessionStatus>
+  loading: Accessor<boolean>
 
   // Messages for current session
   messages: Accessor<Message[]>
@@ -66,6 +68,10 @@ interface SessionContextValue {
 
   // Pending permission requests
   permissions: Accessor<PermissionRequest[]>
+
+  // Pending question requests
+  questions: Accessor<QuestionRequest[]>
+  questionErrors: Accessor<Set<string>>
 
   // Model selection (per-session)
   selected: Accessor<ModelSelection | null>
@@ -85,9 +91,14 @@ interface SessionContextValue {
   abort: () => void
   compact: () => void
   respondToPermission: (permissionId: string, response: "once" | "always" | "reject") => void
+  replyToQuestion: (requestID: string, answers: string[][]) => void
+  rejectQuestion: (requestID: string) => void
   createSession: () => void
+  clearCurrentSession: () => void
   loadSessions: () => void
   selectSession: (id: string) => void
+  deleteSession: (id: string) => void
+  renameSession: (id: string, title: string) => void
 }
 
 const SessionContext = createContext<SessionContextValue>()
@@ -102,9 +113,16 @@ export const SessionProvider: ParentComponent = (props) => {
 
   // Session status
   const [status, setStatus] = createSignal<SessionStatus>("idle")
+  const [loading, setLoading] = createSignal(false)
 
   // Pending permissions
   const [permissions, setPermissions] = createSignal<PermissionRequest[]>([])
+
+  // Pending questions
+  const [questions, setQuestions] = createSignal<QuestionRequest[]>([])
+
+  // Tracks question IDs that failed so the UI can reset sending state
+  const [questionErrors, setQuestionErrors] = createSignal<Set<string>>(new Set())
 
   // Pending model selection for before a session exists
   const [pendingModelSelection, setPendingModelSelection] = createSignal<ModelSelection | null>(null)
@@ -236,12 +254,32 @@ export const SessionProvider: ParentComponent = (props) => {
           handleTodoUpdated(message.sessionID, message.items)
           break
 
+        case "questionRequest":
+          handleQuestionRequest(message.question)
+          break
+
+        case "questionResolved":
+          handleQuestionResolved(message.requestID)
+          break
+
+        case "questionError":
+          handleQuestionError(message.requestID)
+          break
+
         case "sessionsLoaded":
           handleSessionsLoaded(message.sessions)
           break
 
         case "sessionUpdated":
           setStore("sessions", message.session.id, message.session)
+          break
+
+        case "sessionDeleted":
+          handleSessionDeleted(message.sessionID)
+          break
+
+        case "error":
+          setLoading(false)
           break
       }
     })
@@ -270,6 +308,7 @@ export const SessionProvider: ParentComponent = (props) => {
   }
 
   function handleMessagesLoaded(sessionID: string, messages: Message[]) {
+    if (sessionID === currentSessionID()) setLoading(false)
     setStore("messages", sessionID, messages)
 
     // Also extract parts from messages
@@ -353,6 +392,29 @@ export const SessionProvider: ParentComponent = (props) => {
     setPermissions((prev) => [...prev, permission])
   }
 
+  function handleQuestionRequest(question: QuestionRequest) {
+    setQuestions((prev) => {
+      const idx = prev.findIndex((q) => q.id === question.id)
+      if (idx === -1) return [...prev, question]
+      const next = prev.slice()
+      next[idx] = question
+      return next
+    })
+  }
+
+  function handleQuestionResolved(requestID: string) {
+    setQuestions((prev) => prev.filter((q) => q.id !== requestID))
+    setQuestionErrors((prev) => {
+      const next = new Set(prev)
+      next.delete(requestID)
+      return next
+    })
+  }
+
+  function handleQuestionError(requestID: string) {
+    setQuestionErrors((prev) => new Set(prev).add(requestID))
+  }
+
   function handleTodoUpdated(sessionID: string, items: TodoItem[]) {
     setStore("todos", sessionID, items)
   }
@@ -361,6 +423,65 @@ export const SessionProvider: ParentComponent = (props) => {
     batch(() => {
       for (const s of loaded) {
         setStore("sessions", s.id, s)
+      }
+    })
+  }
+
+  function handleSessionDeleted(sessionID: string) {
+    batch(() => {
+      // Collect message IDs so we can clean up their parts
+      const msgs = store.messages[sessionID] ?? []
+      const msgIds = msgs.map((m) => m.id)
+
+      setStore(
+        "sessions",
+        produce((sessions) => {
+          delete sessions[sessionID]
+        }),
+      )
+      setStore(
+        "messages",
+        produce((messages) => {
+          delete messages[sessionID]
+        }),
+      )
+      setStore(
+        "parts",
+        produce((parts) => {
+          for (const id of msgIds) {
+            delete parts[id]
+          }
+        }),
+      )
+      setStore(
+        "todos",
+        produce((todos) => {
+          delete todos[sessionID]
+        }),
+      )
+      setStore(
+        "modelSelections",
+        produce((selections) => {
+          delete selections[sessionID]
+        }),
+      )
+      // Clean up pending questions/errors for the deleted session
+      const deleted = questions()
+        .filter((q) => q.sessionID === sessionID)
+        .map((q) => q.id)
+      if (deleted.length > 0) {
+        setQuestions((prev) => prev.filter((q) => q.sessionID !== sessionID))
+        setQuestionErrors((prev) => {
+          const next = new Set(prev)
+          for (const id of deleted) next.delete(id)
+          if (next.size === prev.size) return prev
+          return next
+        })
+      }
+      if (currentSessionID() === sessionID) {
+        setCurrentSessionID(undefined)
+        setStatus("idle")
+        setLoading(false)
       }
     })
   }
@@ -438,6 +559,32 @@ export const SessionProvider: ParentComponent = (props) => {
     setPermissions((prev) => prev.filter((p) => p.id !== permissionId))
   }
 
+  function clearQuestionError(requestID: string) {
+    setQuestionErrors((prev) => {
+      if (!prev.has(requestID)) return prev
+      const next = new Set(prev)
+      next.delete(requestID)
+      return next
+    })
+  }
+
+  function replyToQuestion(requestID: string, answers: string[][]) {
+    clearQuestionError(requestID)
+    vscode.postMessage({
+      type: "questionReply",
+      requestID,
+      answers,
+    })
+  }
+
+  function rejectQuestion(requestID: string) {
+    clearQuestionError(requestID)
+    vscode.postMessage({
+      type: "questionReject",
+      requestID,
+    })
+  }
+
   function createSession() {
     if (!server.isConnected()) {
       console.warn("[Kilo New] Cannot create session: not connected")
@@ -448,6 +595,18 @@ export const SessionProvider: ParentComponent = (props) => {
     setPendingModelSelection(provider.defaultSelection())
     setPendingWasUserSet(false)
     vscode.postMessage({ type: "createSession" })
+  }
+
+  function clearCurrentSession() {
+    setCurrentSessionID(undefined)
+    setStatus("idle")
+    setLoading(false)
+    setPermissions([])
+    setQuestions([])
+    setQuestionErrors(new Set<string>())
+    setPendingModelSelection(provider.defaultSelection())
+    setPendingWasUserSet(false)
+    vscode.postMessage({ type: "clearSession" })
   }
 
   function loadSessions() {
@@ -465,7 +624,24 @@ export const SessionProvider: ParentComponent = (props) => {
     }
     setCurrentSessionID(id)
     setStatus("idle")
+    setLoading(true)
     vscode.postMessage({ type: "loadMessages", sessionID: id })
+  }
+
+  function deleteSession(id: string) {
+    if (!server.isConnected()) {
+      console.warn("[Kilo New] Cannot delete session: not connected")
+      return
+    }
+    vscode.postMessage({ type: "deleteSession", sessionID: id })
+  }
+
+  function renameSession(id: string, title: string) {
+    if (!server.isConnected()) {
+      console.warn("[Kilo New] Cannot rename session: not connected")
+      return
+    }
+    vscode.postMessage({ type: "renameSession", sessionID: id, title })
   }
 
   // Computed values
@@ -525,10 +701,13 @@ export const SessionProvider: ParentComponent = (props) => {
     setCurrentSessionID,
     sessions,
     status,
+    loading,
     messages,
     getParts,
     todos,
     permissions,
+    questions,
+    questionErrors,
     selected,
     selectModel,
     totalCost,
@@ -540,9 +719,14 @@ export const SessionProvider: ParentComponent = (props) => {
     abort,
     compact,
     respondToPermission,
+    replyToQuestion,
+    rejectQuestion,
     createSession,
+    clearCurrentSession,
     loadSessions,
     selectSession,
+    deleteSession,
+    renameSession,
   }
 
   return <SessionContext.Provider value={value}>{props.children}</SessionContext.Provider>

@@ -118,7 +118,7 @@ function formatResults(
   return output
 }
 
-export const CodebaseSearchTool = Tool.define("codebase-search", {
+export const CodebaseSearchTool = Tool.define("codebase_search", {
   description: DESCRIPTION,
   parameters: z.object({
     query: z.string().describe("The search query in natural language (required)"),
@@ -132,7 +132,7 @@ export const CodebaseSearchTool = Tool.define("codebase-search", {
 
     // Ask for permission
     await ctx.ask({
-      permission: "codebase-search",
+      permission: "codebase_search",
       patterns: [params.query, ...(params.path ? [params.path] : [])],
       always: ["*"],
       metadata: {

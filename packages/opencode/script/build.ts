@@ -185,10 +185,11 @@ for (const item of targets) {
 
 if (Script.release) {
   for (const key of Object.keys(binaries)) {
+    const archive = key.replace(pkg.name, "kilo") // kilocode_change
     if (key.includes("linux")) {
-      await $`tar -czf ../../${key}.tar.gz *`.cwd(`dist/${key}/bin`)
+      await $`tar -czf ../../${archive}.tar.gz *`.cwd(`dist/${key}/bin`) // kilocode_change
     } else {
-      await $`zip -r ../../${key}.zip *`.cwd(`dist/${key}/bin`)
+      await $`zip -r ../../${archive}.zip *`.cwd(`dist/${key}/bin`) // kilocode_change
     }
   }
   await $`gh release upload v${Script.version} ./dist/*.zip ./dist/*.tar.gz --clobber`

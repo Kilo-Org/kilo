@@ -1160,6 +1160,7 @@ export namespace Config {
           build: Agent.optional(),
           debug: Agent.optional(), // kilocode_change
           orchestrator: Agent.optional(), // kilocode_change
+          ask: Agent.optional(), // kilocode_change
           // subagent
           general: Agent.optional(),
           explore: Agent.optional(),

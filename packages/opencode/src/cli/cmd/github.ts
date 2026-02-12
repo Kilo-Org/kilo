@@ -194,12 +194,21 @@ export const GithubInstallCommand = cmd({
           await installGitHubApp()
 
           const providers = await ModelsDev.get().then((p) => {
-            // TODO: add guide for copilot, for now just hide it
             delete p["github-copilot"]
             return p
           })
 
           const provider = await promptProvider()
+
+          if (provider === undefined || !(provider in providers)) {
+            prompts.log.info("")
+            prompts.log.info("Note: GitHub Copilot is also available but requires separate setup.")
+            prompts.log.info("Learn more: https://opencode.ai/docs/providers#github-copilot")
+            prompts.log.info("")
+            prompts.outro("Done")
+            return
+          }
+
           const model = await promptModel()
           //const key = await promptKey()
 

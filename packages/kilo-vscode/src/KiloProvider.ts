@@ -251,6 +251,11 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             return event.type !== "message.part.updated"
           }
 
+          // Session metadata events (title changes, creation) must pass through
+          // even when no session is actively tracked, so the recents list stays current.
+          if (event.type === "session.updated" || event.type === "session.created") {
+            return true
+          }
           return this.trackedSessionIds.has(sessionId)
         },
         (event) => {
@@ -863,7 +868,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     if (!sessionID && event.type === "message.part.updated") {
       return
     }
-    if (sessionID && !this.trackedSessionIds.has(sessionID)) {
+    if (
+      sessionID &&
+      !this.trackedSessionIds.has(sessionID) &&
+      event.type !== "session.updated" &&
+      event.type !== "session.created"
+    ) {
       return
     }
 

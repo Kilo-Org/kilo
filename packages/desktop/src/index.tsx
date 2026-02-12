@@ -46,9 +46,9 @@ const deepLinkEvent = "opencode:deep-link"
 
 const emitDeepLinks = (urls: string[]) => {
   if (urls.length === 0) return
-  window.__OPENCODE__ ??= {}
-  const pending = window.__OPENCODE__.deepLinks ?? []
-  window.__OPENCODE__.deepLinks = [...pending, ...urls]
+  window.__KILO__ ??= {}
+  const pending = window.__KILO__.deepLinks ?? []
+  window.__KILO__.deepLinks = [...pending, ...urls]
   window.dispatchEvent(new CustomEvent(deepLinkEvent, { detail: { urls } }))
 }
 
@@ -66,12 +66,12 @@ const createPlatform = (password: Accessor<string | null>): Platform => {
   })()
 
   const wslHome = async () => {
-    if (os !== "windows" || !window.__OPENCODE__?.wsl) return undefined
+    if (os !== "windows" || !window.__KILO__?.wsl) return undefined
     return commands.wslPath("~", "windows").catch(() => undefined)
   }
 
   const handleWslPicker = async <T extends string | string[]>(result: T | null): Promise<T | null> => {
-    if (!result || !window.__OPENCODE__?.wsl) return result
+    if (!result || !window.__KILO__?.wsl) return result
     if (Array.isArray(result)) {
       return Promise.all(result.map((path) => commands.wslPath(path, "linux").catch(() => path))) as any
     }
@@ -119,7 +119,7 @@ const createPlatform = (password: Accessor<string | null>): Platform => {
       if (os === "windows") {
         const resolvedApp = (app && (await commands.resolveAppPath(app))) || app
         const resolvedPath = await (async () => {
-          if (window.__OPENCODE__?.wsl) {
+          if (window.__KILO__?.wsl) {
             const converted = await commands.wslPath(path, "windows").catch(() => null)
             if (converted) return converted
           }
@@ -369,7 +369,7 @@ const createPlatform = (password: Accessor<string | null>): Platform => {
     getWslEnabled: async () => {
       const next = await commands.getWslConfig().catch(() => null)
       if (next) return next.enabled
-      return window.__OPENCODE__!.wsl ?? false
+      return window.__KILO__!.wsl ?? false
     },
 
     setWslEnabled: async (enabled) => {
@@ -459,8 +459,8 @@ render(() => {
         <ServerGate>
           {(data) => {
             setServerPassword(data().password)
-            window.__OPENCODE__ ??= {}
-            window.__OPENCODE__.serverPassword = data().password ?? undefined
+            window.__KILO__ ??= {}
+            window.__KILO__.serverPassword = data().password ?? undefined
 
             function Inner() {
               const cmd = useCommand()

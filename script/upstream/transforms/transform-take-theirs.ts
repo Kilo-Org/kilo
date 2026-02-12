@@ -96,6 +96,33 @@ const BRANDING_REPLACEMENTS: BrandingReplacement[] = [
     replacement: "Kilo",
     description: "Product name",
   },
+
+  // Environment variables (exclude OPENCODE_API_KEY)
+  {
+    pattern: /\bOPENCODE_(?!API_KEY\b)([A-Z_]+)\b/g,
+    replacement: "KILO_$1",
+    description: "Environment variable",
+  },
+  {
+    pattern: /VITE_OPENCODE_/g,
+    replacement: "VITE_KILO_",
+    description: "Vite env var",
+  },
+  {
+    pattern: /window\.__OPENCODE__/g,
+    replacement: "window.__KILO__",
+    description: "Window global",
+  },
+  {
+    pattern: /x-opencode-client/g,
+    replacement: "x-kilo-client",
+    description: "HTTP header",
+  },
+  {
+    pattern: /_EXTENSION_OPENCODE_/g,
+    replacement: "_EXTENSION_KILO_",
+    description: "Extension env var",
+  },
 ]
 
 // Patterns that should NOT be replaced (preserved as-is)

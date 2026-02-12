@@ -339,4 +339,277 @@ describe("McpMigrator", () => {
       expect(Object.keys(result.mcp)).toHaveLength(0)
     })
   })
+
+  describe("remote server migration", () => {
+    describe("convertServer", () => {
+      test("converts streamable-http server to remote type", () => {
+        const server = {
+          type: "streamable-http",
+          url: "http://localhost:4321/mcp",
+        } as any
+
+        const result = McpMigrator.convertServer("local-mcp", server)
+
+        expect(result).toEqual({
+          type: "remote",
+          url: "http://localhost:4321/mcp",
+        })
+      })
+
+      test("converts sse server to remote type", () => {
+        const server = {
+          type: "sse",
+          url: "https://mcp.example.com/sse",
+        } as any
+
+        const result = McpMigrator.convertServer("sse-server", server)
+
+        expect(result).toEqual({
+          type: "remote",
+          url: "https://mcp.example.com/sse",
+        })
+      })
+
+      test("converts remote server with headers", () => {
+        const server = {
+          type: "streamable-http",
+          url: "https://mcp.example.com/api",
+          headers: {
+            Authorization: "Bearer token123",
+            "X-Custom-Header": "value",
+          },
+        } as any
+
+        const result = McpMigrator.convertServer("auth-server", server)
+
+        expect(result).toEqual({
+          type: "remote",
+          url: "https://mcp.example.com/api",
+          headers: {
+            Authorization: "Bearer token123",
+            "X-Custom-Header": "value",
+          },
+        })
+      })
+
+      test("returns null for disabled remote server", () => {
+        const server = {
+          type: "streamable-http",
+          url: "http://localhost:4321/mcp",
+          disabled: true,
+        } as any
+
+        const result = McpMigrator.convertServer("disabled-remote", server)
+
+        expect(result).toBeNull()
+      })
+
+      test("omits headers when not provided on remote server", () => {
+        const server = {
+          type: "sse",
+          url: "https://mcp.example.com/sse",
+        } as any
+
+        const result = McpMigrator.convertServer("no-headers", server)
+
+        expect(result).not.toHaveProperty("headers")
+      })
+
+      test("omits headers when empty object on remote server", () => {
+        const server = {
+          type: "streamable-http",
+          url: "https://mcp.example.com/api",
+          headers: {},
+        } as any
+
+        const result = McpMigrator.convertServer("empty-headers", server)
+
+        expect(result).not.toHaveProperty("headers")
+      })
+    })
+
+    describe("migrate", () => {
+      test("migrates streamable-http server from project settings", async () => {
+        await using tmp = await tmpdir({
+          init: async (dir) => {
+            const settingsDir = path.join(dir, ".kilocode")
+            await Bun.write(
+              path.join(settingsDir, "mcp.json"),
+              JSON.stringify({
+                mcpServers: {
+                  "local-mcp": {
+                    type: "streamable-http",
+                    url: "http://localhost:4321/mcp",
+                  },
+                },
+              }),
+            )
+          },
+        })
+
+        const result = await McpMigrator.migrate({
+          projectDir: tmp.path,
+          skipGlobalPaths: true,
+        })
+
+        expect(result.mcp).toHaveProperty("local-mcp")
+        expect(result.mcp["local-mcp"]).toEqual({
+          type: "remote",
+          url: "http://localhost:4321/mcp",
+        })
+      })
+
+      test("migrates sse server from project settings", async () => {
+        await using tmp = await tmpdir({
+          init: async (dir) => {
+            const settingsDir = path.join(dir, ".kilocode")
+            await Bun.write(
+              path.join(settingsDir, "mcp.json"),
+              JSON.stringify({
+                mcpServers: {
+                  "sse-server": {
+                    type: "sse",
+                    url: "https://mcp.example.com/sse",
+                  },
+                },
+              }),
+            )
+          },
+        })
+
+        const result = await McpMigrator.migrate({
+          projectDir: tmp.path,
+          skipGlobalPaths: true,
+        })
+
+        expect(result.mcp).toHaveProperty("sse-server")
+        expect(result.mcp["sse-server"]).toEqual({
+          type: "remote",
+          url: "https://mcp.example.com/sse",
+        })
+      })
+
+      test("migrates mixed stdio and remote servers", async () => {
+        await using tmp = await tmpdir({
+          init: async (dir) => {
+            const settingsDir = path.join(dir, ".kilocode")
+            await Bun.write(
+              path.join(settingsDir, "mcp.json"),
+              JSON.stringify({
+                mcpServers: {
+                  filesystem: {
+                    command: "npx",
+                    args: ["-y", "@modelcontextprotocol/server-filesystem"],
+                  },
+                  "remote-api": {
+                    type: "streamable-http",
+                    url: "http://localhost:4321/mcp",
+                  },
+                  "sse-api": {
+                    type: "sse",
+                    url: "https://mcp.example.com/sse",
+                    headers: { Authorization: "Bearer secret" },
+                  },
+                },
+              }),
+            )
+          },
+        })
+
+        const result = await McpMigrator.migrate({
+          projectDir: tmp.path,
+          skipGlobalPaths: true,
+        })
+
+        expect(Object.keys(result.mcp)).toHaveLength(3)
+        expect(result.mcp.filesystem).toEqual({
+          type: "local",
+          command: ["npx", "-y", "@modelcontextprotocol/server-filesystem"],
+        })
+        expect(result.mcp["remote-api"]).toEqual({
+          type: "remote",
+          url: "http://localhost:4321/mcp",
+        })
+        expect(result.mcp["sse-api"]).toEqual({
+          type: "remote",
+          url: "https://mcp.example.com/sse",
+          headers: { Authorization: "Bearer secret" },
+        })
+      })
+
+      test("migrates remote server with headers and auth", async () => {
+        await using tmp = await tmpdir({
+          init: async (dir) => {
+            const settingsDir = path.join(dir, ".kilocode")
+            await Bun.write(
+              path.join(settingsDir, "mcp.json"),
+              JSON.stringify({
+                mcpServers: {
+                  "auth-api": {
+                    type: "streamable-http",
+                    url: "https://api.example.com/mcp",
+                    headers: {
+                      Authorization: "Bearer token123",
+                      "X-API-Key": "key456",
+                    },
+                  },
+                },
+              }),
+            )
+          },
+        })
+
+        const result = await McpMigrator.migrate({
+          projectDir: tmp.path,
+          skipGlobalPaths: true,
+        })
+
+        expect(result.mcp).toHaveProperty("auth-api")
+        expect(result.mcp["auth-api"]).toEqual({
+          type: "remote",
+          url: "https://api.example.com/mcp",
+          headers: {
+            Authorization: "Bearer token123",
+            "X-API-Key": "key456",
+          },
+        })
+      })
+
+      test("skips disabled remote servers and records them", async () => {
+        await using tmp = await tmpdir({
+          init: async (dir) => {
+            const settingsDir = path.join(dir, ".kilocode")
+            await Bun.write(
+              path.join(settingsDir, "mcp.json"),
+              JSON.stringify({
+                mcpServers: {
+                  enabled: {
+                    type: "streamable-http",
+                    url: "http://localhost:4321/mcp",
+                  },
+                  disabled: {
+                    type: "streamable-http",
+                    url: "http://localhost:4322/mcp",
+                    disabled: true,
+                  },
+                },
+              }),
+            )
+          },
+        })
+
+        const result = await McpMigrator.migrate({
+          projectDir: tmp.path,
+          skipGlobalPaths: true,
+        })
+
+        expect(result.mcp).toHaveProperty("enabled")
+        expect(result.mcp).not.toHaveProperty("disabled")
+        expect(result.skipped).toContainEqual({
+          name: "disabled",
+          reason: "Server is disabled",
+        })
+      })
+    })
+  })
 })

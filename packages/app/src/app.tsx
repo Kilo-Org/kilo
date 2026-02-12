@@ -43,7 +43,7 @@ function UiI18nBridge(props: ParentProps) {
 
 declare global {
   interface Window {
-    __OPENCODE__?: { updaterEnabled?: boolean; serverPassword?: string; deepLinks?: string[]; wsl?: boolean }
+    __KILO__?: { updaterEnabled?: boolean; serverPassword?: string; deepLinks?: string[]; wsl?: boolean }
   }
 }
 
@@ -100,7 +100,7 @@ export function AppInterface(props: { defaultUrl?: string; children?: JSX.Elemen
     if (stored) return stored
     if (location.hostname.includes("opencode.ai")) return "http://localhost:4096"
     if (import.meta.env.DEV)
-      return `http://${import.meta.env.VITE_OPENCODE_SERVER_HOST ?? "localhost"}:${import.meta.env.VITE_OPENCODE_SERVER_PORT ?? "4096"}`
+      return `http://${import.meta.env.VITE_KILO_SERVER_HOST ?? "localhost"}:${import.meta.env.VITE_KILO_SERVER_PORT ?? "4096"}`
 
     return window.location.origin
   }

@@ -684,6 +684,10 @@ export const dict = {
   "session.delete.title": "حذف الجلسة",
   "session.delete.confirm": 'حذف الجلسة "{{name}}"؟',
   "session.delete.button": "حذف الجلسة",
+  "session.untitled": "بدون عنوان",
+  "session.recent": "الأخيرة",
+  "session.search.placeholder": "البحث في الجلسات...",
+  "session.empty": "لا توجد جلسات بعد. انقر + لبدء محادثة جديدة.",
 
   "workspace.new": "مساحة عمل جديدة",
   "workspace.type.local": "محلي",

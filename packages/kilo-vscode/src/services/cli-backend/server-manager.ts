@@ -64,8 +64,8 @@ export class ServerManager {
       const serverProcess = spawn(cliPath, ["serve", "--port", "0"], {
         env: {
           ...process.env,
-          OPENCODE_SERVER_PASSWORD: password,
-          OPENCODE_CLIENT: "vscode",
+          KILO_SERVER_PASSWORD: password,
+          KILO_CLIENT: "vscode",
         },
         stdio: ["ignore", "pipe", "pipe"],
       })

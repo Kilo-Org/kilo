@@ -682,6 +682,10 @@ export const dict = {
   "session.delete.title": "ลบเซสชัน",
   "session.delete.confirm": 'ลบเซสชัน "{{name}}" หรือไม่?',
   "session.delete.button": "ลบเซสชัน",
+  "session.untitled": "ไม่มีชื่อ",
+  "session.recent": "ล่าสุด",
+  "session.search.placeholder": "ค้นหาเซสชัน...",
+  "session.empty": "ยังไม่มีเซสชัน คลิก + เพื่อเริ่มการสนทนาใหม่",
 
   "workspace.new": "พื้นที่ทำงานใหม่",
   "workspace.type.local": "ในเครื่อง",

@@ -7,9 +7,10 @@ import { Log } from "../util/log"
 import { iife } from "@/util/iife"
 import { Flag } from "../flag/flag"
 
+// kilocode_change - renamed build-time globals
 declare global {
-  const OPENCODE_VERSION: string
-  const OPENCODE_CHANNEL: string
+  const KILO_VERSION: string
+  const KILO_CHANNEL: string
 }
 
 export namespace Installation {

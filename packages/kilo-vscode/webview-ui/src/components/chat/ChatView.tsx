@@ -9,12 +9,16 @@ import { MessageList } from "./MessageList"
 import { PromptInput } from "./PromptInput"
 import { PermissionDialog } from "./PermissionDialog"
 
-export const ChatView: Component = () => {
+interface ChatViewProps {
+  onSelectSession?: (id: string) => void
+}
+
+export const ChatView: Component<ChatViewProps> = (props) => {
   return (
     <div class="chat-view">
       <TaskHeader />
       <div class="chat-messages">
-        <MessageList />
+        <MessageList onSelectSession={props.onSelectSession} />
       </div>
 
       <div class="chat-input">

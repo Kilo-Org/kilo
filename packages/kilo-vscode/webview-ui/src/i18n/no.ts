@@ -693,6 +693,11 @@ export const dict = {
   "session.delete.title": "Slett sesjon",
   "session.delete.confirm": 'Slette sesjonen "{{name}}"?',
   "session.delete.button": "Slett sesjon",
+  "session.untitled": "Uten tittel",
+  "session.recent": "Nylige",
+  "session.search.placeholder": "Søk i sesjoner...",
+  "session.empty": "Ingen sesjoner ennå. Klikk + for å starte en ny samtale.",
+
   "workspace.new": "Nytt arbeidsområde",
   "workspace.type.local": "lokal",
   "workspace.type.sandbox": "sandkasse",

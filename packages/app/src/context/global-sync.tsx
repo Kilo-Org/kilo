@@ -83,13 +83,13 @@ function createGlobalSync() {
     if (!import.meta.env.DEV) return
     ;(
       globalThis as {
-        __OPENCODE_GLOBAL_SYNC_STATS?: {
+        __KILO_GLOBAL_SYNC_STATS?: {
           activeDirectoryStores: number
           evictions: number
           loadSessionsFullFetchFallback: number
         }
       }
-    ).__OPENCODE_GLOBAL_SYNC_STATS = {
+    ).__KILO_GLOBAL_SYNC_STATS = {
       activeDirectoryStores,
       evictions: stats.evictions,
       loadSessionsFullFetchFallback: stats.loadSessionsFallback,

@@ -718,6 +718,10 @@ export const dict = {
   "session.delete.title": "Izbriši sesiju",
   "session.delete.confirm": 'Izbriši sesiju "{{name}}"?',
   "session.delete.button": "Izbriši sesiju",
+  "session.untitled": "Bez naslova",
+  "session.recent": "Nedavne",
+  "session.search.placeholder": "Pretraži sesije...",
+  "session.empty": "Još nema sesija. Kliknite + za početak novog razgovora.",
 
   "workspace.new": "Novi radni prostor",
   "workspace.type.local": "lokalno",

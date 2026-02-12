@@ -689,6 +689,10 @@ export const dict = {
   "session.delete.title": "세션 삭제",
   "session.delete.confirm": '"{{name}}" 세션을 삭제하시겠습니까?',
   "session.delete.button": "세션 삭제",
+  "session.untitled": "제목 없음",
+  "session.recent": "최근",
+  "session.search.placeholder": "세션 검색...",
+  "session.empty": "아직 세션이 없습니다. +를 클릭하여 새 대화를 시작하세요.",
 
   "workspace.new": "새 작업 공간",
   "workspace.type.local": "로컬",

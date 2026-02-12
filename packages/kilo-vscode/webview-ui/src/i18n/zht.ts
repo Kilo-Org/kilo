@@ -682,6 +682,10 @@ export const dict = {
   "session.delete.title": "刪除工作階段",
   "session.delete.confirm": '刪除工作階段 "{{name}}"?',
   "session.delete.button": "刪除工作階段",
+  "session.untitled": "未命名",
+  "session.recent": "最近",
+  "session.search.placeholder": "搜尋工作階段...",
+  "session.empty": "尚無工作階段。點擊 + 開始新的對話。",
 
   "workspace.new": "新增工作區",
   "workspace.type.local": "本地",

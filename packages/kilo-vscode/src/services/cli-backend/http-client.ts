@@ -136,6 +136,20 @@ export class HttpClient {
     return this.request<SessionInfo[]>("GET", "/session", undefined, { directory })
   }
 
+  /**
+   * Delete a session permanently.
+   */
+  async deleteSession(sessionId: string, directory: string): Promise<void> {
+    await this.request<void>("DELETE", `/session/${sessionId}`, undefined, { directory, allowEmpty: true })
+  }
+
+  /**
+   * Update a session (e.g. rename its title).
+   */
+  async updateSession(sessionId: string, updates: { title?: string }, directory: string): Promise<SessionInfo> {
+    return this.request<SessionInfo>("PATCH", `/session/${sessionId}`, updates, { directory })
+  }
+
   // ============================================
   // Provider Methods
   // ============================================

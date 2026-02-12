@@ -190,9 +190,9 @@ export namespace Installation {
     await $`${process.execPath} --version`.nothrow().quiet().text()
   }
 
-  export const VERSION = typeof OPENCODE_VERSION === "string" ? OPENCODE_VERSION : "local"
-  export const CHANNEL = typeof OPENCODE_CHANNEL === "string" ? OPENCODE_CHANNEL : "local"
-  export const USER_AGENT = `kilo/${CHANNEL}/${VERSION}/${Flag.OPENCODE_CLIENT}`
+  export const VERSION = typeof KILO_VERSION === "string" ? KILO_VERSION : "local"
+  export const CHANNEL = typeof KILO_CHANNEL === "string" ? KILO_CHANNEL : "local"
+  export const USER_AGENT = `kilo/${CHANNEL}/${VERSION}/${Flag.KILO_CLIENT}` // kilocode_change
 
   export async function latest(installMethod?: Method) {
     const detectedMethod = installMethod || (await method())

@@ -515,6 +515,16 @@ export namespace Session {
         },
       }
 
+      // kilocode_change start - Free models should never show a cost
+      const free = input.model.cost && input.model.cost.input === 0 && input.model.cost.output === 0
+      if (free) {
+        return {
+          cost: 0,
+          tokens,
+        }
+      }
+      // kilocode_change end
+
       // kilocode_change start - Use provider-reported cost when available for OpenRouter/Kilo
       // The OpenRouter AI SDK provider exposes cost at providerMetadata.openrouter.usage
       // Reference: https://openrouter.ai/docs/use-cases/usage-accounting

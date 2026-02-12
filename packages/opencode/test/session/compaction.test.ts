@@ -596,6 +596,65 @@ describe("session.getUsage", () => {
   })
   // kilocode_change end
 
+  // kilocode_change start - tests for free model cost
+  test("returns zero cost for free models", () => {
+    const model = createModel({
+      context: 100_000,
+      output: 32_000,
+      cost: {
+        input: 0,
+        output: 0,
+        cache: { read: 0, write: 0 },
+      },
+    })
+    const result = Session.getUsage({
+      model,
+      usage: {
+        inputTokens: 1000,
+        outputTokens: 500,
+        totalTokens: 1500,
+      },
+    })
+
+    expect(result.cost).toBe(0)
+  })
+
+  test("returns zero cost for free models even with openrouter metadata", () => {
+    const model = createModel({
+      context: 100_000,
+      output: 32_000,
+      cost: {
+        input: 0,
+        output: 0,
+        cache: { read: 0, write: 0 },
+      },
+    })
+    const provider = { id: "kilo" } as Provider.Info
+    const result = Session.getUsage({
+      model,
+      provider,
+      usage: {
+        inputTokens: 1000,
+        outputTokens: 500,
+        totalTokens: 1500,
+      },
+      metadata: {
+        openrouter: {
+          usage: {
+            cost: 0.05,
+            costDetails: {
+              upstreamInferenceCost: 0.03,
+            },
+          },
+        },
+      },
+    })
+
+    // Free model should always return zero cost regardless of provider metadata
+    expect(result.cost).toBe(0)
+  })
+  // kilocode_change end
+
   test.each(["@ai-sdk/anthropic", "@ai-sdk/amazon-bedrock", "@ai-sdk/google-vertex/anthropic"])(
     "computes total from components for %s models",
     (npm) => {

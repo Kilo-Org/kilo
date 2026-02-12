@@ -43,7 +43,7 @@ jobs:
 
       - name: Install Kilo
         if: inputs.bump || inputs.version
-        run: bun i -g @kilo/cli
+        run: bun i -g @kilocode/cli
 
       - id: version
         run: |
@@ -271,4 +271,5 @@ jobs:
           KILO_RELEASE: ${{ needs.version.outputs.release }}
           AUR_KEY: ${{ secrets.AUR_KEY }}
           GITHUB_TOKEN: ${{ steps.committer.outputs.token }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true

@@ -30,15 +30,15 @@ jobs:
           private-key: ${{ secrets['kilo-maintainer-app-secret'] }}
           owner: ${{ github.repository_owner }}
 
-      - name: Check if author is org member or kilo-maintainer bot
+      - name: Check if author is org member or kilo bot
         id: check
         env:
           GITHUB_TOKEN: ${{ steps.apptoken.outputs.token }}
           USERNAME: ${{ inputs.username }}
         run: |
-          if [[ "$USERNAME" == "kilo-maintainer[bot]" ]]; then
+          if [[ "$USERNAME" == "kilo-maintainer[bot]" || "$USERNAME" == "kiloconnect[bot]" || "$USERNAME" == "kiloconnect-lite[bot]" ]]; then
             echo "is-member=true" >> "$GITHUB_OUTPUT"
-            echo "User is kilo-maintainer bot"
+            echo "User is a kilo bot"
           elif gh api orgs/Kilo-Org/members/"$USERNAME" --silent 2>/dev/null; then
             echo "is-member=true" >> "$GITHUB_OUTPUT"
             echo "User is an org member"

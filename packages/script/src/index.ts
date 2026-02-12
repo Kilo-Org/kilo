@@ -51,6 +51,8 @@ const VERSION = await (async () => {
 const team = [
   "actions-user",
   "kilo-maintainer[bot]",
+  "kiloconnect[bot]",
+  "kiloconnect-lite[bot]",
   "alexkgold",
   "arimesser",
   "arkadiykondrashov",

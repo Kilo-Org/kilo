@@ -4,6 +4,11 @@
   "version": "1.0.19",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kilo-Org/kilo",
+    "directory": "packages/sdk/js"
+  },
   "scripts": {
     "typecheck": "tsgo --noEmit",
     "build": "./script/build.ts"

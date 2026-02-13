@@ -889,7 +889,11 @@ describe("ProviderTransform.message - OpenRouter/Kilo Gateway thinking stripping
 
     expect(result).toHaveLength(1)
     expect(result[0].content).toHaveLength(1)
-    expect(result[0].content[0]).toEqual({ type: "text", text: "Answer" })
+    // applyCaching adds providerOptions because model.api.id includes "anthropic"
+    const part = result[0].content[0] as any
+    expect(part.type).toEqual("text")
+    expect(part.text).toEqual("Answer")
+    expect(part.providerOptions?.openrouter?.cacheControl).toEqual({ type: "ephemeral" })
   })
 })
 
@@ -1479,7 +1483,7 @@ describe("ProviderTransform.variants", () => {
 
   // kilocode_change start
   describe("@kilocode/kilo-gateway", () => {
-    test("claude models return anthropic efforts with reasoning (max instead of xhigh)", () => {
+    test("claude models return empty variants (reasoning disabled)", () => {
       const model = createMockModel({
         id: "kilo/anthropic/claude-sonnet-4",
         providerID: "kilo",
@@ -1490,15 +1494,10 @@ describe("ProviderTransform.variants", () => {
         },
       })
       const result = ProviderTransform.variants(model)
-      expect(Object.keys(result)).toEqual(["none", "minimal", "low", "medium", "high", "max"])
-      expect(result.none).toEqual({ reasoning: { effort: "none" } })
-      expect(result.low).toEqual({ reasoning: { effort: "low" } })
-      expect(result.medium).toEqual({ reasoning: { effort: "medium" } })
-      expect(result.high).toEqual({ reasoning: { effort: "high" } })
-      expect(result.max).toEqual({ reasoning: { effort: "xhigh" } })
+      expect(Object.keys(result)).toEqual([])
     })
 
-    test("anthropic models in api.id return anthropic efforts with reasoning (max instead of xhigh)", () => {
+    test("anthropic models in api.id return empty variants (reasoning disabled)", () => {
       const model = createMockModel({
         id: "kilo/anthropic/claude-opus-4",
         providerID: "kilo",
@@ -1509,9 +1508,7 @@ describe("ProviderTransform.variants", () => {
         },
       })
       const result = ProviderTransform.variants(model)
-      expect(Object.keys(result)).toEqual(["none", "minimal", "low", "medium", "high", "max"])
-      expect(result.low).toEqual({ reasoning: { effort: "low" } })
-      expect(result.max).toEqual({ reasoning: { effort: "xhigh" } })
+      expect(Object.keys(result)).toEqual([])
     })
 
     test("gpt models return OPENAI_EFFORTS with reasoning and encrypted content", () => {
@@ -2119,7 +2116,7 @@ describe("ProviderTransform.variants", () => {
 // kilocode_change start
 describe("ProviderTransform.smallOptions", () => {
   describe("@kilocode/kilo-gateway", () => {
-    test("claude models use reasoning.effort format", () => {
+    test("claude models return reasoningEffort minimal", () => {
       const model = createMockModel({
         id: "kilo/anthropic/claude-sonnet-4",
         providerID: "kilo",
@@ -2130,21 +2127,7 @@ describe("ProviderTransform.smallOptions", () => {
         },
       })
       const result = ProviderTransform.smallOptions(model)
-      expect(result).toEqual({ reasoning: { effort: "minimal" } })
-    })
-
-    test("anthropic models in api.id use reasoning.effort format", () => {
-      const model = createMockModel({
-        id: "kilo/anthropic/claude-opus-4",
-        providerID: "kilo",
-        api: {
-          id: "anthropic/claude-opus-4",
-          url: "https://gateway.kilo.ai",
-          npm: "@kilocode/kilo-gateway",
-        },
-      })
-      const result = ProviderTransform.smallOptions(model)
-      expect(result).toEqual({ reasoning: { effort: "minimal" } })
+      expect(result).toEqual({ reasoningEffort: "minimal" })
     })
 
     test("non-claude models use reasoningEffort format", () => {

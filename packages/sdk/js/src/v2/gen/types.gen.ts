@@ -4248,6 +4248,37 @@ export type KiloOrganizationSetResponses = {
 
 export type KiloOrganizationSetResponse = KiloOrganizationSetResponses[keyof KiloOrganizationSetResponses]
 
+export type KiloFimData = {
+  body?: {
+    prefix: string
+    suffix: string
+    model?: string
+    maxTokens?: number
+    temperature?: number
+  }
+  path?: never
+  query?: {
+    directory?: string
+  }
+  url: "/kilo/fim"
+}
+
+export type KiloFimErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type KiloFimError = KiloFimErrors[keyof KiloFimErrors]
+
+export type KiloFimResponses = {
+  /**
+   * Streaming FIM completion response
+   */
+  200: unknown
+}
+
 export type KiloNotificationsData = {
   body?: never
   path?: never

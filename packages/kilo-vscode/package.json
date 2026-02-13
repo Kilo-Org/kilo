@@ -2,7 +2,7 @@
   "name": "kilo-code",
   "displayName": "Kilo Code",
   "description": "Kilo Code AI Agent & Autocomplete",
-  "version": "1.0.19",
+  "version": "1.0.21",
   "engines": {
     "vscode": "^1.109.0"
   },
@@ -68,6 +68,11 @@
           "light": "assets/icons/kilo-light.svg",
           "dark": "assets/icons/kilo-dark.svg"
         }
+      },
+      {
+        "command": "kilo-code.new.autocomplete.generateSuggestions",
+        "title": "Generate Suggested Edits",
+        "category": "Kilo Code"
       }
     ],
     "menus": {
@@ -167,6 +172,21 @@
           "default": "kilo/auto",
           "description": "Default model ID for new sessions"
         },
+        "kilo-code.new.autocomplete.enableAutoTrigger": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic inline completion suggestions"
+        },
+        "kilo-code.new.autocomplete.enableSmartInlineTaskKeybinding": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable smart inline task keybinding"
+        },
+        "kilo-code.new.autocomplete.enableChatAutocomplete": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable chat textarea autocomplete"
+        },
         "kilo-code.new.browserAutomation.enabled": {
           "type": "boolean",
           "default": false,
@@ -242,9 +262,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "update-backend": "node scripts/prepare-cli-binary.mjs --force"
   },
   "devDependencies": {
+    "@types/diff": "^6.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/qrcode": "^1.5.6",
@@ -262,10 +284,22 @@
     "typescript-eslint": "^8.54.0"
   },
   "dependencies": {
-    "@kilocode/kilo-i18n": "workspace:*",
-    "@kilocode/kilo-ui": "workspace:*",
-    "@kilocode/sdk": "workspace:*",
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@kilocode/kilo-i18n": "file:../kilo-i18n",
+    "@kilocode/kilo-ui": "file:../kilo-ui",
+    "@kilocode/sdk": "file:../sdk/js",
+    "diff": "^7.0.0",
+    "dotenv": "^16.4.7",
     "eventsource": "^2.0.2",
-    "solid-js": "^1.9.11"
+    "fastest-levenshtein": "^1.0.16",
+    "ignore": "^7.0.3",
+    "js-tiktoken": "^1.0.18",
+    "lru-cache": "^11.0.2",
+    "quick-lru": "^7.0.0",
+    "openai": "^4.85.4",
+    "solid-js": "^1.9.11",
+    "uri-js": "^4.4.1",
+    "web-tree-sitter": "^0.24.7",
+    "zod": "^3.24.2"
   }
 }

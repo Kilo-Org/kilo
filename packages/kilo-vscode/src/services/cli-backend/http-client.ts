@@ -313,6 +313,120 @@ export class HttpClient {
     }
   }
 
+  /**
+   * Switch the active organization.
+   * Pass null to switch back to personal account.
+   */
+  async setOrganization(organizationId: string | null): Promise<void> {
+    await this.request<boolean>("POST", "/kilo/organization", { organizationId })
+  }
+
+  // ============================================
+  // FIM Completion Methods
+  // ============================================
+
+  /**
+   * Stream a FIM (Fill-in-the-Middle) completion from the Kilo Gateway via the CLI backend.
+   * The CLI backend handles auth — no API key needed in the extension.
+   *
+   * @param prefix - Code before the cursor
+   * @param suffix - Code after the cursor
+   * @param onChunk - Callback for each text chunk
+   * @param options - Optional model, maxTokens, temperature
+   * @returns Usage metadata (cost, tokens)
+   */
+  async fimCompletion(
+    prefix: string,
+    suffix: string,
+    onChunk: (text: string) => void,
+    options?: { model?: string; maxTokens?: number; temperature?: number },
+  ): Promise<{ cost: number; inputTokens: number; outputTokens: number }> {
+    const url = `${this.baseUrl}/kilo/fim`
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: this.authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        prefix,
+        suffix,
+        model: options?.model,
+        maxTokens: options?.maxTokens,
+        temperature: options?.temperature,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`FIM request failed: ${response.status} ${errorText}`)
+    }
+
+    if (!response.body) {
+      throw new Error("FIM response has no body")
+    }
+
+    let cost = 0
+    let inputTokens = 0
+    let outputTokens = 0
+
+    // Parse SSE stream
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ""
+
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) {
+        break
+      }
+
+      buffer += decoder.decode(value, { stream: true })
+
+      // Process complete SSE lines
+      const lines = buffer.split("\n")
+      buffer = lines.pop() ?? "" // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) {
+          continue
+        }
+
+        const data = line.slice(6).trim()
+        if (data === "[DONE]") {
+          continue
+        }
+
+        try {
+          const parsed = JSON.parse(data) as {
+            choices?: Array<{ delta?: { content?: string } }>
+            usage?: { prompt_tokens?: number; completion_tokens?: number }
+            cost?: number
+          }
+
+          const content = parsed.choices?.[0]?.delta?.content
+          if (content) {
+            onChunk(content)
+          }
+
+          if (parsed.usage) {
+            inputTokens = parsed.usage.prompt_tokens ?? 0
+            outputTokens = parsed.usage.completion_tokens ?? 0
+          }
+
+          if (parsed.cost !== undefined) {
+            cost = parsed.cost
+          }
+        } catch {
+          // Skip malformed JSON lines
+        }
+      }
+    }
+
+    return { cost, inputTokens, outputTokens }
+  }
+
   // ============================================
   // Auth Methods
   // ============================================

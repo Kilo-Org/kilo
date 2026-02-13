@@ -4,7 +4,7 @@ Interactive terminal output rendering and approval controls for executed command
 
 ## Location
 
-- [`webview-ui/src/components/chat/tool-message/CommandExecution.tsx`](../../webview-ui/src/components/chat/tool-message/CommandExecution.tsx:1)
+Command execution rendering is now handled by kilo-ui's `<KiloMessage>` component which includes per-tool renderers including `BasicTool`. There is no standalone command execution component — tool messages are rendered through the unified message pipeline.
 
 ## Interactions
 

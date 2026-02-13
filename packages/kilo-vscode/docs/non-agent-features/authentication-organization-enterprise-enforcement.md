@@ -18,5 +18,4 @@
 
 ## Primary implementation anchors
 
-- [`src/services/kilocode/`](../../src/services/kilocode/)
-- [`src/services/mdm/`](../../src/services/mdm/)
+Auth is handled via [`DeviceAuthCard.tsx`](../../webview-ui/src/components/DeviceAuthCard.tsx) for the device auth flow and [`ProfileView.tsx`](../../webview-ui/src/components/ProfileView.tsx) for login state display. The CLI backend manages the actual auth tokens. The old `src/services/kilocode/` and `src/services/mdm/` directories don't exist in the new extension.

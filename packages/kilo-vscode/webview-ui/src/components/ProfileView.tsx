@@ -1,6 +1,7 @@
-import { Component, Show } from "solid-js"
+import { Component, Show, createSignal, createMemo, createEffect } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Card } from "@kilocode/kilo-ui/card"
+import { Select } from "@kilocode/kilo-ui/select"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { useVSCode } from "../context/vscode"
 import { useLanguage } from "../context/language"
@@ -19,9 +20,56 @@ const formatBalance = (amount: number): string => {
   return `$${amount.toFixed(2)}`
 }
 
+const PERSONAL = "personal"
+
+interface OrgOption {
+  value: string
+  label: string
+  description?: string
+}
+
 const ProfileView: Component<ProfileViewProps> = (props) => {
   const vscode = useVSCode()
   const language = useLanguage()
+  const [target, setTarget] = createSignal<string | null>(null)
+
+  // Reset pending target whenever profileData changes (success or failure both send a fresh profile)
+  createEffect(() => {
+    props.profileData // track
+    setTarget(null)
+  })
+
+  const switching = createMemo(() => {
+    const t = target()
+    if (t === null) return false
+    const current = props.profileData?.currentOrgId ?? PERSONAL
+    return current !== t
+  })
+
+  const orgOptions = createMemo<OrgOption[]>(() => {
+    const orgs = props.profileData?.profile.organizations ?? []
+    if (orgs.length === 0) return []
+    return [
+      { value: PERSONAL, label: "Personal Account" },
+      ...orgs.map((org) => ({ value: org.id, label: org.name, description: org.role })),
+    ]
+  })
+
+  const currentOrg = createMemo(() => {
+    const id = props.profileData?.currentOrgId ?? PERSONAL
+    return orgOptions().find((o) => o.value === id)
+  })
+
+  const selectOrg = (option: OrgOption | undefined) => {
+    if (!option) return
+    const current = props.profileData?.currentOrgId ?? PERSONAL
+    if (option.value === current) return
+    setTarget(option.value)
+    vscode.postMessage({
+      type: "setOrganization",
+      organizationId: option.value === PERSONAL ? null : option.value,
+    })
+  }
 
   const handleLogin = () => {
     props.onLogin()
@@ -125,6 +173,34 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                 {data().profile.email}
               </p>
             </Card>
+
+            {/* Organization selector */}
+            <Show when={orgOptions().length > 0}>
+              <Card>
+                <p
+                  style={{
+                    "font-size": "11px",
+                    "text-transform": "uppercase",
+                    "letter-spacing": "0.5px",
+                    color: "var(--vscode-descriptionForeground)",
+                    margin: "0 0 8px 0",
+                  }}
+                >
+                  Account
+                </p>
+                <Select
+                  options={orgOptions()}
+                  current={currentOrg()}
+                  value={(o) => o.value}
+                  label={(o) => o.label}
+                  onSelect={selectOrg}
+                  variant="secondary"
+                  size="small"
+                  triggerVariant="settings"
+                  disabled={switching()}
+                />
+              </Card>
+            </Show>
 
             {/* Balance */}
             <Show when={data().balance}>

@@ -4209,6 +4209,75 @@
         ]
       }
     },
+    "/kilo/fim": {
+      "post": {
+        "operationId": "kilo.fim",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "directory",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "summary": "FIM completion",
+        "description": "Proxy a Fill-in-the-Middle completion request to the Kilo Gateway",
+        "responses": {
+          "200": {
+            "description": "Streaming FIM completion response",
+            "content": {
+              "text/event-stream": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prefix": {
+                    "type": "string"
+                  },
+                  "suffix": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "maxTokens": {
+                    "type": "number"
+                  },
+                  "temperature": {
+                    "type": "number"
+                  }
+                },
+                "required": ["prefix", "suffix"]
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@kilocode/sdk\n\nconst client = createOpencodeClient()\nawait client.kilo.fim({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/kilo/notifications": {
       "get": {
         "operationId": "kilo.notifications",

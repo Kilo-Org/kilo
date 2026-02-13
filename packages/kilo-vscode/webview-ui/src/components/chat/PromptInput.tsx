@@ -1,28 +1,99 @@
 /**
  * PromptInput component
- * Text input with send/abort buttons for the chat interface
+ * Text input with send/abort buttons and ghost-text autocomplete for the chat interface
  */
 
-import { Component, createSignal, Show } from "solid-js"
+import { Component, createSignal, onCleanup, Show } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { useSession } from "../../context/session"
 import { useServer } from "../../context/server"
 import { useLanguage } from "../../context/language"
+import { useVSCode } from "../../context/vscode"
 import { ModelSelector } from "./ModelSelector"
 import { ModeSwitcher } from "./ModeSwitcher"
+
+const AUTOCOMPLETE_DEBOUNCE_MS = 500
+const MIN_TEXT_LENGTH = 3
 
 export const PromptInput: Component = () => {
   const session = useSession()
   const server = useServer()
   const language = useLanguage()
+  const vscode = useVSCode()
 
   const [text, setText] = createSignal("")
+  const [ghostText, setGhostText] = createSignal("")
   let textareaRef: HTMLTextAreaElement | undefined
+  let debounceTimer: ReturnType<typeof setTimeout> | undefined
+  let requestCounter = 0
 
   const isBusy = () => session.status() === "busy"
   const isDisabled = () => !server.isConnected()
   const canSend = () => text().trim().length > 0 && !isBusy() && !isDisabled()
+
+  // Listen for chat completion results from the extension
+  const unsubscribe = vscode.onMessage((message) => {
+    if (message.type === "chatCompletionResult") {
+      const result = message as { type: "chatCompletionResult"; text: string; requestId: string }
+      // Only apply if the requestId matches the latest request
+      const expectedId = `chat-ac-${requestCounter}`
+      if (result.requestId === expectedId && result.text) {
+        setGhostText(result.text)
+      }
+    }
+  })
+
+  onCleanup(() => {
+    unsubscribe()
+    if (debounceTimer) {
+      clearTimeout(debounceTimer)
+    }
+  })
+
+  // Request autocomplete from the extension
+  const requestAutocomplete = (currentText: string) => {
+    if (currentText.length < MIN_TEXT_LENGTH || isDisabled()) {
+      setGhostText("")
+      return
+    }
+
+    requestCounter++
+    const requestId = `chat-ac-${requestCounter}`
+
+    vscode.postMessage({
+      type: "requestChatCompletion",
+      text: currentText,
+      requestId,
+    })
+  }
+
+  // Accept the ghost text suggestion
+  const acceptSuggestion = () => {
+    const suggestion = ghostText()
+    if (!suggestion) return
+
+    const newText = text() + suggestion
+    setText(newText)
+    setGhostText("")
+
+    // Notify extension of acceptance for telemetry
+    vscode.postMessage({
+      type: "chatCompletionAccepted",
+      suggestionLength: suggestion.length,
+    })
+
+    // Update textarea
+    if (textareaRef) {
+      textareaRef.value = newText
+      adjustHeight()
+    }
+  }
+
+  // Dismiss the ghost text
+  const dismissSuggestion = () => {
+    setGhostText("")
+  }
 
   // Auto-resize textarea
   const adjustHeight = () => {
@@ -35,12 +106,38 @@ export const PromptInput: Component = () => {
     const target = e.target as HTMLTextAreaElement
     setText(target.value)
     adjustHeight()
+
+    // Clear existing ghost text on new input
+    setGhostText("")
+
+    // Debounce autocomplete request
+    if (debounceTimer) {
+      clearTimeout(debounceTimer)
+    }
+    debounceTimer = setTimeout(() => {
+      requestAutocomplete(target.value)
+    }, AUTOCOMPLETE_DEBOUNCE_MS)
   }
 
   const handleKeyDown = (e: KeyboardEvent) => {
+    // Tab or ArrowRight to accept ghost text
+    if ((e.key === "Tab" || e.key === "ArrowRight") && ghostText()) {
+      e.preventDefault()
+      acceptSuggestion()
+      return
+    }
+
+    // Escape to dismiss ghost text
+    if (e.key === "Escape" && ghostText()) {
+      e.preventDefault()
+      dismissSuggestion()
+      return
+    }
+
     // Enter to send (without shift)
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
+      dismissSuggestion()
       handleSend()
     }
   }
@@ -52,6 +149,7 @@ export const PromptInput: Component = () => {
     const sel = session.selected()
     session.sendMessage(message, sel?.providerID, sel?.modelID)
     setText("")
+    setGhostText("")
 
     // Reset textarea height
     if (textareaRef) {
@@ -66,18 +164,26 @@ export const PromptInput: Component = () => {
   return (
     <div class="prompt-input-container">
       <div class="prompt-input-wrapper">
-        <textarea
-          ref={textareaRef}
-          class="prompt-input"
-          placeholder={
-            isDisabled() ? language.t("prompt.placeholder.connecting") : language.t("prompt.placeholder.default")
-          }
-          value={text()}
-          onInput={handleInput}
-          onKeyDown={handleKeyDown}
-          disabled={isDisabled()}
-          rows={1}
-        />
+        <div class="prompt-input-ghost-wrapper">
+          <textarea
+            ref={textareaRef}
+            class="prompt-input"
+            placeholder={
+              isDisabled() ? language.t("prompt.placeholder.connecting") : language.t("prompt.placeholder.default")
+            }
+            value={text()}
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            disabled={isDisabled()}
+            rows={1}
+          />
+          <Show when={ghostText()}>
+            <div class="prompt-input-ghost-overlay" aria-hidden="true">
+              <span class="prompt-input-ghost-text-hidden">{text()}</span>
+              <span class="prompt-input-ghost-text">{ghostText()}</span>
+            </div>
+          </Show>
+        </div>
         <div class="prompt-input-actions">
           <Show
             when={isBusy()}

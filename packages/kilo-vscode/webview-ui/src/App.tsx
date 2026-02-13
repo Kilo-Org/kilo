@@ -18,6 +18,7 @@ import type { Message as SDKMessage, Part as SDKPart } from "@kilocode/sdk/v2"
 import "./styles/chat.css"
 
 type ViewType = "newTask" | "marketplace" | "history" | "profile" | "settings"
+const VALID_VIEWS = new Set<string>(["newTask", "marketplace", "history", "profile", "settings"])
 
 const DummyView: Component<{ title: string }> = (props) => {
   return (
@@ -118,6 +119,10 @@ const AppContent: Component = () => {
       if (message?.type === "action" && message.action) {
         console.log("[Kilo New] App: 🎬 action:", message.action)
         handleViewAction(message.action)
+      }
+      if (message?.type === "navigate" && message.view && VALID_VIEWS.has(message.view)) {
+        console.log("[Kilo New] App: 🧭 navigate:", message.view)
+        setCurrentView(message.view as ViewType)
       }
     }
     window.addEventListener("message", handler)

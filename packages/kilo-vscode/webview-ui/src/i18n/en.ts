@@ -797,6 +797,8 @@ export const dict = {
   "settings.aboutKiloCode.title": "About Kilo Code",
 
   "session.messages.empty": "Start a conversation by typing a message below.",
+  "session.messages.welcome":
+    "Kilo Code is an AI coding assistant. Ask it to build features, fix bugs, or explain your codebase.",
   "session.messages.scrollToBottom": "Scroll to bottom",
 
   "dialog.model.noProviders": "No providers",

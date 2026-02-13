@@ -1,7 +1,9 @@
-import { existsSync, mkdirSync, readdirSync, statSync, copyFileSync, chmodSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, statSync, copyFileSync, chmodSync, rmSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { execSync } from "node:child_process"
+
+const forceRebuild = process.argv.includes("--force")
 
 /**
  * Ensures the VS Code extension has a CLI binary at `packages/kilo-vscode/bin/kilo`.
@@ -103,12 +105,23 @@ function ensureBuiltBinary() {
 }
 
 function main() {
-  if (existsSync(targetBinPath)) {
+  if (existsSync(targetBinPath) && !forceRebuild) {
     const st = statSync(targetBinPath)
     log(
-      `CLI binary already present at ${path.relative(kiloVscodeDir, targetBinPath)} (${Math.round(st.size / 1024 / 1024)}MB).`,
+      `CLI binary already present at ${path.relative(kiloVscodeDir, targetBinPath)} (${Math.round(st.size / 1024 / 1024)}MB). Use --force to rebuild.`,
     )
     return
+  }
+
+  if (existsSync(targetBinPath) && forceRebuild) {
+    log(`Removing existing binary (--force).`)
+    rmSync(targetBinPath)
+    // Also remove the prebuilt dist so ensureBuiltBinary() triggers a fresh build
+    const distDir = path.resolve(opencodeDir, "dist")
+    if (existsSync(distDir)) {
+      rmSync(distDir, { recursive: true })
+      log(`Removed ${path.relative(kiloVscodeDir, distDir)} to force rebuild.`)
+    }
   }
 
   if (!existsSync(opencodeDir)) {

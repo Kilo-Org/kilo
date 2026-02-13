@@ -41,6 +41,8 @@ import type {
   GlobalEventResponses,
   GlobalHealthResponses,
   InstanceDisposeResponses,
+  KiloFimErrors,
+  KiloFimResponses,
   KiloNotificationsErrors,
   KiloNotificationsResponses,
   KiloOrganizationSetErrors,
@@ -2223,6 +2225,49 @@ export class Kilo extends HeyApiClient {
       url: "/kilo/profile",
       ...options,
       ...params,
+    })
+  }
+
+  /**
+   * FIM completion
+   *
+   * Proxy a Fill-in-the-Middle completion request to the Kilo Gateway
+   */
+  public fim<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      prefix?: string
+      suffix?: string
+      model?: string
+      maxTokens?: number
+      temperature?: number
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "body", key: "prefix" },
+            { in: "body", key: "suffix" },
+            { in: "body", key: "model" },
+            { in: "body", key: "maxTokens" },
+            { in: "body", key: "temperature" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).sse.post<KiloFimResponses, KiloFimErrors, ThrowOnError>({
+      url: "/kilo/fim",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 

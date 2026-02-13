@@ -792,6 +792,8 @@ export const dict = {
   "settings.aboutKiloCode.title": "O Kilo Code-u",
 
   "session.messages.empty": "Započnite razgovor unosom poruke ispod.",
+  "session.messages.welcome":
+    "Kilo Code je AI asistent za programiranje. Zatražite da gradi funkcionalnosti, ispravlja greške ili objasni vašu bazu koda.",
   "session.messages.scrollToBottom": "Pomakni se na dno",
 
   "dialog.model.noProviders": "Nema pružatelja",

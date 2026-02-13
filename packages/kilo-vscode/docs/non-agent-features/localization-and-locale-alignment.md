@@ -1,5 +1,17 @@
 # Localization & locale alignment (Kilo Code ↔ Kilo CLI)
 
+## Implementation Status
+
+**Status: ✅ Complete**
+
+The localization system is fully implemented:
+
+- [`language.tsx`](../../webview-ui/src/context/language.tsx) provides the i18n context with three-layer dict merging (app + kilo-ui + kilo-i18n)
+- 16 locale files in [`webview-ui/src/i18n/`](../../webview-ui/src/i18n/): ar, br, bs, da, de, en, es, fr, ja, ko, no, pl, ru, th, zh, zht
+- Locale auto-detection: user override → VS Code language → browser default
+- [`LanguageTab`](../../webview-ui/src/components/settings/LanguageTab.tsx) provides a working locale selector in settings
+- Template interpolation support for dynamic values
+
 ## Goal
 
 During the Kilo CLI backend migration, we must keep **UI translations** and **server-facing locale identifiers** consistent.

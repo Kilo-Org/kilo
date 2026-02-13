@@ -18,22 +18,7 @@ Replicate the settings that are available in OpenCode (CLI) and allow users to c
 
 ## Current State
 
-A 14-tab settings sidebar navigation shell exists in [`Settings.tsx`](../../webview-ui/src/components/Settings.tsx) with stub tab components:
-
-- [`ProvidersTab.tsx`](../../webview-ui/src/components/settings/ProvidersTab.tsx)
-- [`AgentBehaviourTab.tsx`](../../webview-ui/src/components/settings/AgentBehaviourTab.tsx)
-- [`AutoApproveTab.tsx`](../../webview-ui/src/components/settings/AutoApproveTab.tsx)
-- [`AutocompleteTab.tsx`](../../webview-ui/src/components/settings/AutocompleteTab.tsx)
-- [`BrowserTab.tsx`](../../webview-ui/src/components/settings/BrowserTab.tsx)
-- [`CheckpointsTab.tsx`](../../webview-ui/src/components/settings/CheckpointsTab.tsx)
-- [`ContextTab.tsx`](../../webview-ui/src/components/settings/ContextTab.tsx)
-- [`DisplayTab.tsx`](../../webview-ui/src/components/settings/DisplayTab.tsx)
-- [`ExperimentalTab.tsx`](../../webview-ui/src/components/settings/ExperimentalTab.tsx)
-- [`LanguageTab.tsx`](../../webview-ui/src/components/settings/LanguageTab.tsx)
-- [`NotificationsTab.tsx`](../../webview-ui/src/components/settings/NotificationsTab.tsx)
-- [`PromptsTab.tsx`](../../webview-ui/src/components/settings/PromptsTab.tsx)
-- [`TerminalTab.tsx`](../../webview-ui/src/components/settings/TerminalTab.tsx)
-- [`AboutKiloCodeTab.tsx`](../../webview-ui/src/components/settings/AboutKiloCodeTab.tsx)
+15-tab settings shell exists, migrated to kilo-ui `Tabs` component. [`BrowserTab`](../../webview-ui/src/components/settings/BrowserTab.tsx) has real settings controls (enable/disable, system Chrome, headless toggles using kilo-ui `Switch`). [`LanguageTab`](../../webview-ui/src/components/settings/LanguageTab.tsx) has a working locale selector using kilo-ui `Select`. The remaining 13 tabs are still stubs.
 
 ## Gaps
 

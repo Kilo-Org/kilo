@@ -52,7 +52,7 @@ export const HEADER_TESTER = "X-KILOCODE-TESTER"
 export const HEADER_EDITORNAME = "X-KILOCODE-EDITORNAME"
 
 /** Default editor name value */
-export const DEFAULT_EDITOR_NAME = "opencode"
+export const DEFAULT_EDITOR_NAME = "Kilo CLI"
 
 /** Environment variable name for custom editor name */
 export const ENV_EDITOR_NAME = "KILOCODE_EDITOR_NAME"

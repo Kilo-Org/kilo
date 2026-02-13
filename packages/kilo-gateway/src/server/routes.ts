@@ -8,6 +8,7 @@
 
 import { fetchProfile, fetchBalance } from "../api/profile.js"
 import { fetchKilocodeNotifications, KilocodeNotificationSchema } from "../api/notifications.js"
+import { KILO_API_BASE } from "../api/constants.js"
 
 // Type definitions for OpenCode dependencies (injected at runtime)
 type Hono = any
@@ -160,6 +161,85 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
         })
 
         return c.json(true)
+      },
+    )
+    .post(
+      "/fim",
+      describeRoute({
+        summary: "FIM completion",
+        description: "Proxy a Fill-in-the-Middle completion request to the Kilo Gateway",
+        operationId: "kilo.fim",
+        responses: {
+          200: {
+            description: "Streaming FIM completion response",
+            content: {
+              "text/event-stream": {
+                schema: resolver(z.any()),
+              },
+            },
+          },
+          ...errors(400, 401),
+        },
+      }),
+      validator(
+        "json",
+        z.object({
+          prefix: z.string(),
+          suffix: z.string(),
+          model: z.string().optional(),
+          maxTokens: z.number().optional(),
+          temperature: z.number().optional(),
+        }),
+      ),
+      async (c: any) => {
+        const auth = await Auth.get("kilo")
+
+        if (!auth) {
+          return c.json({ error: "Not authenticated with Kilo Gateway" }, 401)
+        }
+
+        const token = auth.type === "api" ? auth.key : auth.type === "oauth" ? auth.access : undefined
+        if (!token) {
+          return c.json({ error: "No valid token found" }, 401)
+        }
+
+        const { prefix, suffix, model, maxTokens, temperature } = c.req.valid("json")
+        const fimModel = model ?? "mistralai/codestral-2501"
+        const fimMaxTokens = maxTokens ?? 256
+        const fimTemperature = temperature ?? 0.2
+
+        const baseApiUrl = KILO_API_BASE + "/api/"
+        const endpoint = new URL("fim/completions", baseApiUrl)
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            model: fimModel,
+            prompt: prefix,
+            suffix,
+            max_tokens: fimMaxTokens,
+            temperature: fimTemperature,
+            stream: true,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          return c.json({ error: `FIM request failed: ${response.status} ${errorText}` }, response.status as any)
+        }
+
+        // Stream the response through
+        return new Response(response.body, {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          },
+        })
       },
     )
     .get(

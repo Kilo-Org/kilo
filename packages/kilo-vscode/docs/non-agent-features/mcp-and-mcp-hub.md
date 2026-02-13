@@ -23,5 +23,4 @@
 
 ## Primary implementation anchors
 
-- [`src/services/mcp/`](../../src/services/mcp/)
-- [`src/services/mcp/oauth/`](../../src/services/mcp/oauth/)
+MCP is managed by the CLI backend, not local extension services. The extension interacts with MCP via HTTP client methods in [`http-client.ts`](../../src/services/cli-backend/http-client.ts): `getMcpStatus`, `addMcpServer`, `connectMcpServer`, `disconnectMcpServer`. The [`BrowserAutomationService`](../../src/services/browser-automation/browser-automation-service.ts) uses these methods to register Playwright as an MCP server.

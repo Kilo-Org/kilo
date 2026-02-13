@@ -4,12 +4,25 @@
  * Shows recent sessions in the empty state for quick resumption.
  */
 
-import { Component, For, Show, createSignal, createEffect, createMemo, onCleanup } from "solid-js"
+import { Component, For, Show, createSignal, createEffect, createMemo, onCleanup, JSX } from "solid-js"
 import { useSession } from "../../context/session"
 import { useServer } from "../../context/server"
 import { useLanguage } from "../../context/language"
 import { formatRelativeDate } from "../../utils/date"
 import { Message } from "./Message"
+
+const KiloLogo = (): JSX.Element => {
+  const iconsBaseUri = (window as { ICONS_BASE_URI?: string }).ICONS_BASE_URI || ""
+  const isLight =
+    document.body.classList.contains("vscode-light") || document.body.classList.contains("vscode-high-contrast-light")
+  const iconFile = isLight ? "kilo-light.svg" : "kilo-dark.svg"
+
+  return (
+    <div class="kilo-logo">
+      <img src={`${iconsBaseUri}/${iconFile}`} alt="Kilo Code" />
+    </div>
+  )
+}
 
 interface MessageListProps {
   onSelectSession?: (id: string) => void
@@ -92,7 +105,8 @@ export const MessageList: Component<MessageListProps> = (props) => {
       <div ref={containerRef} class="message-list" role="log" aria-live="polite">
         <Show when={isEmpty()}>
           <div class="message-list-empty">
-            <p>{language.t("session.messages.empty")}</p>
+            <KiloLogo />
+            <p class="kilo-about-text">{language.t("session.messages.welcome")}</p>
             <Show when={recent().length > 0 && props.onSelectSession}>
               <div class="recent-sessions">
                 <span class="recent-sessions-label">{language.t("session.recent")}</span>

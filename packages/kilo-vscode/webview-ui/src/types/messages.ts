@@ -400,6 +400,11 @@ export interface DeviceAuthCancelledMessage {
   type: "deviceAuthCancelled"
 }
 
+export interface NavigateMessage {
+  type: "navigate"
+  view: "newTask" | "marketplace" | "history" | "profile" | "settings"
+}
+
 export interface ProvidersLoadedMessage {
   type: "providersLoaded"
   providers: Record<string, Provider>
@@ -412,6 +417,21 @@ export interface AgentsLoadedMessage {
   type: "agentsLoaded"
   agents: AgentInfo[]
   defaultAgent: string
+}
+
+export interface AutocompleteSettingsLoadedMessage {
+  type: "autocompleteSettingsLoaded"
+  settings: {
+    enableAutoTrigger: boolean
+    enableSmartInlineTaskKeybinding: boolean
+    enableChatAutocomplete: boolean
+  }
+}
+
+export interface ChatCompletionResultMessage {
+  type: "chatCompletionResult"
+  text: string
+  requestId: string
 }
 
 export interface QuestionRequestMessage {
@@ -482,8 +502,11 @@ export type ExtensionMessage =
   | DeviceAuthCompleteMessage
   | DeviceAuthFailedMessage
   | DeviceAuthCancelledMessage
+  | NavigateMessage
   | ProvidersLoadedMessage
   | AgentsLoadedMessage
+  | AutocompleteSettingsLoadedMessage
+  | ChatCompletionResultMessage
   | QuestionRequestMessage
   | QuestionResolvedMessage
   | QuestionErrorMessage
@@ -555,6 +578,11 @@ export interface CancelLoginRequest {
   type: "cancelLogin"
 }
 
+export interface SetOrganizationRequest {
+  type: "setOrganization"
+  organizationId: string | null
+}
+
 export interface WebviewReadyRequest {
   type: "webviewReady"
 }
@@ -601,6 +629,26 @@ export interface RenameSessionRequest {
   title: string
 }
 
+export interface RequestAutocompleteSettingsMessage {
+  type: "requestAutocompleteSettings"
+}
+
+export interface UpdateAutocompleteSettingMessage {
+  type: "updateAutocompleteSetting"
+  key: "enableAutoTrigger" | "enableSmartInlineTaskKeybinding" | "enableChatAutocomplete"
+  value: boolean
+}
+
+export interface RequestChatCompletionMessage {
+  type: "requestChatCompletion"
+  text: string
+  requestId: string
+}
+
+export interface ChatCompletionAcceptedMessage {
+  type: "chatCompletionAccepted"
+  suggestionLength?: number
+}
 export interface UpdateSettingRequest {
   type: "updateSetting"
   key: string
@@ -637,6 +685,7 @@ export type WebviewMessage =
   | RefreshProfileRequest
   | OpenExternalRequest
   | CancelLoginRequest
+  | SetOrganizationRequest
   | WebviewReadyRequest
   | RequestProvidersMessage
   | CompactRequest
@@ -646,6 +695,10 @@ export type WebviewMessage =
   | QuestionRejectRequest
   | DeleteSessionRequest
   | RenameSessionRequest
+  | RequestAutocompleteSettingsMessage
+  | UpdateAutocompleteSettingMessage
+  | RequestChatCompletionMessage
+  | ChatCompletionAcceptedMessage
   | UpdateSettingRequest
   | RequestBrowserSettingsMessage
   | RequestConfigMessage

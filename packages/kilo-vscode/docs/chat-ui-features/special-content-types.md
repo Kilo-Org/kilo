@@ -4,7 +4,7 @@ Interactive elements for specialized message content beyond plain markdown/code.
 
 ## Location
 
-- Various specialized components
+Content type rendering is now handled by kilo-ui's `<KiloMessage>` component which includes renderers for reasoning blocks, tool results, and other part types. The old standalone components (`ReasoningBlock`, `OpenMarkdownPreviewButton`, etc.) don't exist in the new extension.
 
 ## Interactions
 

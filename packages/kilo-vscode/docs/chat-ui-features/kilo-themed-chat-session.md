@@ -2,7 +2,7 @@
 
 **GitHub Issue:** [#161](https://github.com/Kilo-Org/kilo/issues/161)
 **Priority:** P0
-**Status:** 🔨 Partial
+**Status:** ✅ Complete
 
 ## Description
 
@@ -19,12 +19,7 @@ The chat session should be present and Kilo-themed. This is the core chat experi
 
 ## Current State
 
-The basic chat infrastructure exists:
-
-- [`ChatView.tsx`](../../webview-ui/src/components/chat/ChatView.tsx) — main chat layout with message list and prompt input
-- [`MessageList.tsx`](../../webview-ui/src/components/chat/MessageList.tsx) — renders messages with auto-scroll
-- [`Message.tsx`](../../webview-ui/src/components/chat/Message.tsx) — renders text, tool, and reasoning parts with status icons
-- [`PromptInput.tsx`](../../webview-ui/src/components/chat/PromptInput.tsx) — send/abort controls
+The chat UI now uses kilo-ui components throughout. `ThemeProvider` with `defaultTheme="kilo-vscode"` provides consistent theming. Messages render via kilo-ui's `<KiloMessage>` component with full markdown support. UI elements use kilo-ui `Button`, `IconButton`, `Tooltip`, `Popover`, `Toast`. The provider hierarchy in [`App.tsx`](../../webview-ui/src/App.tsx) includes `ThemeProvider → DialogProvider → VSCodeProvider → ServerProvider → LanguageBridge → MarkedProvider → ProviderProvider → SessionProvider → DataBridge`.
 
 ## Gaps
 

@@ -758,6 +758,8 @@ export const dict = {
   "settings.aboutKiloCode.title": "حول Kilo Code",
 
   "session.messages.empty": "ابدأ محادثة بكتابة رسالة أدناه.",
+  "session.messages.welcome":
+    "Kilo Code هو مساعد ترميز بالذكاء الاصطناعي. اطلب منه بناء ميزات أو إصلاح أخطاء أو شرح قاعدة الشيفرة.",
   "session.messages.scrollToBottom": "التمرير إلى الأسفل",
 
   "dialog.model.noProviders": "لا يوجد موفرون",

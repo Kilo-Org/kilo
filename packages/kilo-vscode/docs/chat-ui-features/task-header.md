@@ -2,7 +2,7 @@
 
 **GitHub Issue:** [#166](https://github.com/Kilo-Org/kilo/issues/166)
 **Priority:** P0
-**Status:** ❌ Not started
+**Status:** ✅ Complete
 
 ## Description
 
@@ -18,7 +18,7 @@ A task header displayed at the top of the chat session that provides key context
 
 ## Current State
 
-No task header exists. The chat view starts directly with the message list.
+[`TaskHeader.tsx`](../../webview-ui/src/components/chat/TaskHeader.tsx) implements the task header with session title, cost display (formatted USD), context token usage with percentage bar, and a compact button with tooltip. Uses kilo-ui `IconButton` and `Tooltip`. Integrated into [`ChatView.tsx`](../../webview-ui/src/components/chat/ChatView.tsx).
 
 ## Gaps
 

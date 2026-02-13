@@ -2,7 +2,7 @@
 
 **GitHub Issue:** [#162](https://github.com/Kilo-Org/kilo/issues/162)
 **Priority:** P2
-**Status:** ❌ Not started
+**Status:** ✅ Complete
 
 ## Description
 
@@ -18,7 +18,7 @@ Users should be able to switch between modes (e.g., Code, Architect, Ask, Debug,
 
 ## Current State
 
-No mode switcher UI exists. The CLI backend supports modes (visible in the old extension).
+[`ModeSwitcher.tsx`](../../webview-ui/src/components/chat/ModeSwitcher.tsx) implements a popover-based agent/mode selector listing all available agents with descriptions. Selection is persisted via `session.selectAgent()`. Integrated into [`PromptInput.tsx`](../../webview-ui/src/components/chat/PromptInput.tsx). Agent data is fetched via the `listAgents` HTTP endpoint and `AgentsLoadedMessage`.
 
 ## Gaps
 

@@ -1,30 +1,60 @@
-import { Component } from "solid-js"
+import { Component, createSignal, onCleanup } from "solid-js"
+import { Switch } from "@kilocode/kilo-ui/switch"
+import { useVSCode } from "../../context/vscode"
+import type { ExtensionMessage } from "../../types/messages"
 
 const AutocompleteTab: Component = () => {
+  const vscode = useVSCode()
+
+  const [enableAutoTrigger, setEnableAutoTrigger] = createSignal(true)
+  const [enableSmartInlineTaskKeybinding, setEnableSmartInlineTaskKeybinding] = createSignal(false)
+  const [enableChatAutocomplete, setEnableChatAutocomplete] = createSignal(false)
+
+  const unsubscribe = vscode.onMessage((message: ExtensionMessage) => {
+    if (message.type !== "autocompleteSettingsLoaded") {
+      return
+    }
+    setEnableAutoTrigger(message.settings.enableAutoTrigger)
+    setEnableSmartInlineTaskKeybinding(message.settings.enableSmartInlineTaskKeybinding)
+    setEnableChatAutocomplete(message.settings.enableChatAutocomplete)
+  })
+
+  onCleanup(unsubscribe)
+
+  vscode.postMessage({ type: "requestAutocompleteSettings" })
+
+  const updateSetting = (
+    key: "enableAutoTrigger" | "enableSmartInlineTaskKeybinding" | "enableChatAutocomplete",
+    value: boolean,
+  ) => {
+    vscode.postMessage({ type: "updateAutocompleteSetting", key, value })
+  }
+
   return (
-    <div>
-      <div
-        style={{
-          background: "var(--vscode-editor-background)",
-          border: "1px solid var(--vscode-panel-border)",
-          "border-radius": "4px",
-          padding: "16px",
-        }}
+    <div data-component="autocomplete-settings" style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+      <Switch
+        checked={enableAutoTrigger()}
+        onChange={(checked) => updateSetting("enableAutoTrigger", checked)}
+        description="Automatically show inline completion suggestions as you type"
       >
-        <p
-          style={{
-            "font-size": "12px",
-            color: "var(--vscode-descriptionForeground)",
-            margin: 0,
-            "line-height": "1.5",
-          }}
-        >
-          <strong style={{ color: "var(--vscode-foreground)" }}>This section is not implemented yet.</strong> It will
-          contain configuration options and explanatory text related to the selected settings category. During
-          reimplementation, use this space to validate layout, spacing, scrolling behavior, and navigation state before
-          wiring up real controls.
-        </p>
-      </div>
+        Enable automatic inline completions
+      </Switch>
+
+      <Switch
+        checked={enableSmartInlineTaskKeybinding()}
+        onChange={(checked) => updateSetting("enableSmartInlineTaskKeybinding", checked)}
+        description="Use a smart keybinding for triggering inline tasks"
+      >
+        Enable smart inline task keybinding
+      </Switch>
+
+      <Switch
+        checked={enableChatAutocomplete()}
+        onChange={(checked) => updateSetting("enableChatAutocomplete", checked)}
+        description="Show autocomplete suggestions in the chat textarea"
+      >
+        Enable chat textarea autocomplete
+      </Switch>
     </div>
   )
 }

@@ -774,6 +774,8 @@ export const dict = {
   "settings.aboutKiloCode.title": "À propos de Kilo Code",
 
   "session.messages.empty": "Commencez une conversation en tapant un message ci-dessous.",
+  "session.messages.welcome":
+    "Kilo Code est un assistant de programmation IA. Demandez-lui de créer des fonctionnalités, corriger des bugs ou expliquer votre code.",
   "session.messages.scrollToBottom": "Défiler vers le bas",
 
   "dialog.model.noProviders": "Aucun fournisseur",

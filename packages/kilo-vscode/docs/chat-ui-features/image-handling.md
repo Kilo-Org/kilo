@@ -20,10 +20,12 @@ Interactive image attachment/viewing behavior across prompt input and chat surfa
 - Extension host persists pasted attachments and returns them via the same `filesSelected` pipeline
 - Prompt attachments now support an in-webview image preview modal with zoom controls, drag-to-pan while zoomed, and quick open/copy actions
 - Chat rows now render inline image thumbnails for image file parts with context actions (preview/open/copy path)
+- Prompt attachments and chat image attachments now support save/export via VS Code Save dialog
+- Image preview modal now includes save/export action alongside open/copy actions
 
 ## Remaining Gaps
 
-- Save/export affordances and richer image-specific action set
+- Richer image-specific action set beyond open/copy/save (for example format-specific exports)
 
 ## Suggested migration
 

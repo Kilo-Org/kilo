@@ -865,6 +865,13 @@ export interface OpenFileAttachmentRequest {
   url: string
 }
 
+export interface SaveFileAttachmentRequest {
+  type: "saveFileAttachment"
+  url: string
+  name?: string
+  mime?: string
+}
+
 export interface OpenFilePathRequest {
   type: "openFilePath"
   path: string
@@ -975,6 +982,7 @@ export type WebviewMessage =
   | RetryConnectionRequest
   | SelectFilesRequest
   | OpenFileAttachmentRequest
+  | SaveFileAttachmentRequest
   | OpenFilePathRequest
   | OpenDiffPreviewRequest
   | RevertMessageRequest

@@ -19,10 +19,13 @@ Support for using the Kilo Gateway — Kilo's cloud-hosted model proxy that prov
 
 Auth flow works ([`DeviceAuthCard.tsx`](../../webview-ui/src/components/DeviceAuthCard.tsx)), profile/balance display exists ([`ProfileView.tsx`](../../webview-ui/src/components/ProfileView.tsx)). The CLI backend handles Kilo Gateway connections.
 
+`ProvidersTab` now includes explicit startup model controls for new sessions:
+
+- Startup model selector (`kilo-code.new.model.providerID` + `kilo-code.new.model.modelID`)
+- One-click "Use Kilo Gateway Default" action backed by the CLI provider defaults map
+
 ## Gaps
 
-- No explicit Kilo Gateway provider selection in the UI
-- No default model selection for Kilo Gateway
 - Need to verify CLI-side Kilo Gateway integration is complete
 - Need to ensure auth token is passed correctly to CLI for gateway access
 - Related to [Provider Configuration](provider-configuration.md) and [Model Switcher](model-switcher.md)

@@ -173,6 +173,14 @@ describe("validateConfigPatch", () => {
 })
 
 describe("validateSettingUpdate", () => {
+  it("accepts model startup defaults", () => {
+    const providerResult = validateSettingUpdate("model.providerID", "kilo")
+    const modelResult = validateSettingUpdate("model.modelID", "kilo/gateway-default")
+
+    expect(providerResult.ok).toBe(true)
+    expect(modelResult.ok).toBe(true)
+  })
+
   it("accepts known boolean setting values", () => {
     const result = validateSettingUpdate("notifications.agent", true)
 

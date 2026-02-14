@@ -1,12 +1,14 @@
 import { Component, Show, createEffect, createSignal } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
 import type { FileAttachment } from "../../types/messages"
+import { useLanguage } from "../../context/language"
 
 interface ImageViewerProps {
   file: FileAttachment | null
   onClose: () => void
   onOpenFile: (url: string) => void
   onCopyPath: (url: string) => void | Promise<void>
+  onSaveFile: (file: FileAttachment) => void
 }
 
 const MIN_ZOOM = 0.5
@@ -20,6 +22,7 @@ function clampZoom(value: number): number {
 }
 
 export const ImageViewer: Component<ImageViewerProps> = (props) => {
+  const language = useLanguage()
   const [zoom, setZoom] = createSignal(1)
   const [pan, setPan] = createSignal({ x: 0, y: 0 })
   const [dragging, setDragging] = createSignal(false)
@@ -120,10 +123,13 @@ export const ImageViewer: Component<ImageViewerProps> = (props) => {
               <div class="image-viewer-toolbar-spacer" />
               <span class="image-viewer-pan-hint">Drag to pan when zoomed</span>
               <Button size="small" variant="ghost" onClick={() => void props.onCopyPath(file().url)}>
-                Copy Path
+                {language.t("session.header.open.copyPath")}
+              </Button>
+              <Button size="small" variant="ghost" onClick={() => props.onSaveFile(file())}>
+                {language.t("common.save")}
               </Button>
               <Button size="small" variant="secondary" onClick={() => props.onOpenFile(file().url)}>
-                Open in VS Code
+                {language.t("command.file.open")}
               </Button>
             </div>
             <div class="image-viewer-canvas" onWheel={handleWheel} onMouseDown={startPan}>

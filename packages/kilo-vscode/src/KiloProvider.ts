@@ -15,11 +15,7 @@ import {
 } from "./services/cli-backend"
 import { handleChatCompletionRequest } from "./services/autocomplete/chat-autocomplete/handleChatCompletionRequest"
 import { handleChatCompletionAccepted } from "./services/autocomplete/chat-autocomplete/handleChatCompletionAccepted"
-import {
-  readSettingsActiveTab,
-  writeLastProviderAuth,
-  writeSettingsActiveTab,
-} from "./services/settings-sync"
+import { readSettingsActiveTab, writeLastProviderAuth, writeSettingsActiveTab } from "./services/settings-sync"
 import { logger } from "./utils/logger"
 import { parseAllowedOpenExternalUrl } from "./utils/open-external"
 import {
@@ -305,6 +301,15 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           }
           break
         }
+        case "saveFileAttachment":
+          if (typeof message.url === "string") {
+            await this.handleSaveFileAttachment(
+              message.url,
+              typeof message.name === "string" ? message.name : undefined,
+              typeof message.mime === "string" ? message.mime : undefined,
+            )
+          }
+          break
         case "openFilePath":
           if (typeof message.path === "string") {
             await this.handleOpenFilePath(message.path)
@@ -312,7 +317,11 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           break
         case "openDiffPreview":
           if (typeof message.before === "string" && typeof message.after === "string") {
-            await this.handleOpenDiffPreview(typeof message.path === "string" ? message.path : undefined, message.before, message.after)
+            await this.handleOpenDiffPreview(
+              typeof message.path === "string" ? message.path : undefined,
+              message.before,
+              message.after,
+            )
           }
           break
         case "revertMessage":
@@ -447,6 +456,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           if (validated.value.key.startsWith("browserAutomation.")) {
             this.sendBrowserSettings()
           }
+          if (validated.value.key.startsWith("model.")) {
+            await this.fetchAndSendProviders()
+          }
           if (validated.value.key.startsWith("notifications.") || validated.value.key.startsWith("sounds.")) {
             this.sendNotificationSettings()
           }
@@ -508,6 +520,94 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       await vscode.commands.executeCommand("vscode.open", vscode.Uri.parse(fileUrl))
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to open file attachment:", error)
+    }
+  }
+
+  private inferAttachmentFilename(rawUrl: string, rawName?: string, mime?: string): string {
+    const explicitName = rawName?.trim()
+    if (explicitName) {
+      return explicitName.replace(/[\\/:*?"<>|]/g, "_")
+    }
+
+    try {
+      if (rawUrl.startsWith("file://")) {
+        const basename = path.basename(vscode.Uri.parse(rawUrl).fsPath)
+        if (basename) {
+          return basename
+        }
+      } else if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+        const parsed = new URL(rawUrl)
+        const basename = path.basename(decodeURIComponent(parsed.pathname))
+        if (basename && basename !== "/" && basename !== ".") {
+          return basename
+        }
+      }
+    } catch {
+      // Fall through to mime-derived fallback.
+    }
+
+    const extension = mime ? ATTACHMENT_MIME_TO_EXT[mime.toLowerCase()] : undefined
+    return `attachment${extension ?? ""}`
+  }
+
+  private decodeDataUrl(dataUrl: string): Uint8Array {
+    const match = /^data:([^;,]+)?(?:;charset=[^;,]+)?(;base64)?,(.*)$/i.exec(dataUrl)
+    if (!match) {
+      throw new Error("Invalid data URL")
+    }
+    const isBase64 = !!match[2]
+    const payload = match[3] ?? ""
+    const buffer = isBase64 ? Buffer.from(payload, "base64") : Buffer.from(decodeURIComponent(payload), "utf8")
+    return new Uint8Array(buffer)
+  }
+
+  private async readAttachmentBytes(rawUrl: string): Promise<Uint8Array> {
+    if (rawUrl.startsWith("file://")) {
+      return vscode.workspace.fs.readFile(vscode.Uri.parse(rawUrl))
+    }
+    if (rawUrl.startsWith("data:")) {
+      return this.decodeDataUrl(rawUrl)
+    }
+    if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+      const response = await fetch(rawUrl)
+      if (!response.ok) {
+        throw new Error(`Download failed with status ${response.status}`)
+      }
+      const bytes = await response.arrayBuffer()
+      return new Uint8Array(bytes)
+    }
+    throw new Error("Unsupported attachment URL scheme")
+  }
+
+  private async handleSaveFileAttachment(rawUrl: string, rawName?: string, mime?: string): Promise<void> {
+    const sourceUrl = rawUrl.trim()
+    if (!sourceUrl) {
+      return
+    }
+
+    try {
+      const filename = this.inferAttachmentFilename(sourceUrl, rawName, mime)
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri
+      const defaultUri = workspaceRoot
+        ? vscode.Uri.joinPath(workspaceRoot, filename)
+        : vscode.Uri.file(path.join(os.homedir(), filename))
+
+      const target = await vscode.window.showSaveDialog({
+        defaultUri,
+        saveLabel: "Save",
+      })
+      if (!target) {
+        return
+      }
+
+      const bytes = await this.readAttachmentBytes(sourceUrl)
+      await vscode.workspace.fs.writeFile(target, bytes)
+      void vscode.window.showInformationMessage(`Saved attachment: ${path.basename(target.fsPath)}`)
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to save file attachment:", { url: sourceUrl, error })
+      void vscode.window.showErrorMessage(
+        `Failed to save attachment: ${error instanceof Error ? error.message : "Unknown error"}`,
+      )
     }
   }
 
@@ -585,9 +685,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     })
   }
 
-  private async handlePasteAttachments(
-    files: Array<{ mime: string; name?: string; dataUrl: string }>,
-  ): Promise<void> {
+  private async handlePasteAttachments(files: Array<{ mime: string; name?: string; dataUrl: string }>): Promise<void> {
     if (files.length === 0) {
       return
     }
@@ -927,7 +1025,10 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           id: todo.id,
           content: todo.content,
           status: this.mapTodoStatus(todo.status),
-          priority: todo.priority === "high" || todo.priority === "low" || todo.priority === "medium" ? todo.priority : undefined,
+          priority:
+            todo.priority === "high" || todo.priority === "low" || todo.priority === "medium"
+              ? todo.priority
+              : undefined,
         })),
       })
     } catch (error) {
@@ -972,7 +1073,11 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       return
     }
 
-    const changes: { content?: string; status?: "pending" | "in_progress" | "completed" | "cancelled"; priority?: "high" | "medium" | "low" } = {}
+    const changes: {
+      content?: string
+      status?: "pending" | "in_progress" | "completed" | "cancelled"
+      priority?: "high" | "medium" | "low"
+    } = {}
     if (typeof content === "string") {
       const trimmed = content.trim()
       if (trimmed.length > 0) {
@@ -1115,15 +1220,66 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       }
 
       const config = vscode.workspace.getConfiguration("kilo-code.new.model")
-      const providerID = config.get<string>("providerID", "kilo")
-      const modelID = config.get<string>("modelID", "kilo/auto")
+      const configuredProviderID = config.get<string>("providerID", "kilo")
+      const configuredModelID = config.get<string>("modelID", "kilo/auto")
+      const configuredIsFallback = configuredProviderID === "kilo" && configuredModelID === "kilo/auto"
+      const gatewayDefaultModelID = response.default.kilo
+
+      const isValidSelection = (
+        selection: { providerID: string; modelID: string } | undefined,
+      ): selection is {
+        providerID: string
+        modelID: string
+      } => {
+        if (!selection) {
+          return false
+        }
+        return !!normalized[selection.providerID]?.models?.[selection.modelID]
+      }
+
+      const firstValidDefaultFromBackend = (): { providerID: string; modelID: string } | undefined => {
+        for (const [providerID, modelID] of Object.entries(response.default)) {
+          if (normalized[providerID]?.models?.[modelID]) {
+            return { providerID, modelID }
+          }
+        }
+        return undefined
+      }
+
+      const firstModelFromCatalog = (): { providerID: string; modelID: string } | undefined => {
+        for (const providerID of Object.keys(normalized)) {
+          const firstModelID = Object.keys(normalized[providerID]?.models ?? {})[0]
+          if (firstModelID) {
+            return { providerID, modelID: firstModelID }
+          }
+        }
+        return undefined
+      }
+
+      let defaultSelection = {
+        providerID: configuredProviderID,
+        modelID: configuredModelID,
+      }
+
+      if (configuredIsFallback && gatewayDefaultModelID) {
+        defaultSelection = { providerID: "kilo", modelID: gatewayDefaultModelID }
+      }
+
+      if (!isValidSelection(defaultSelection)) {
+        const gatewayFallback =
+          gatewayDefaultModelID && normalized.kilo?.models?.[gatewayDefaultModelID]
+            ? { providerID: "kilo", modelID: gatewayDefaultModelID }
+            : undefined
+        defaultSelection =
+          gatewayFallback ?? firstValidDefaultFromBackend() ?? firstModelFromCatalog() ?? defaultSelection
+      }
 
       const message = {
         type: "providersLoaded",
         providers: normalized,
         connected: response.connected,
         defaults: response.default,
-        defaultSelection: { providerID, modelID },
+        defaultSelection,
       }
       this.cachedProvidersMessage = message
       this.postMessage(message)
@@ -2060,7 +2216,10 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             id: todo.id,
             content: todo.content,
             status: this.mapTodoStatus(todo.status),
-            priority: todo.priority === "high" || todo.priority === "low" || todo.priority === "medium" ? todo.priority : undefined,
+            priority:
+              todo.priority === "high" || todo.priority === "low" || todo.priority === "medium"
+                ? todo.priority
+                : undefined,
           })),
         })
         break

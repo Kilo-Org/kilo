@@ -327,6 +327,10 @@ export const PromptInput: Component = () => {
     vscode.postMessage({ type: "openFileAttachment", url })
   }
 
+  const handleSaveAttachment = (file: FileAttachment) => {
+    vscode.postMessage({ type: "saveFileAttachment", url: file.url, name: file.name, mime: file.mime })
+  }
+
   const handleCopyAttachmentPath = async (url: string) => {
     try {
       await navigator.clipboard.writeText(url)
@@ -424,6 +428,9 @@ export const PromptInput: Component = () => {
                   <ContextMenu.Content>
                     <ContextMenu.Item onSelect={() => handleOpenAttachment(file.url)}>
                       <ContextMenu.ItemLabel>{language.t("command.file.open")}</ContextMenu.ItemLabel>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item onSelect={() => handleSaveAttachment(file)}>
+                      <ContextMenu.ItemLabel>{language.t("common.save")}</ContextMenu.ItemLabel>
                     </ContextMenu.Item>
                     <ContextMenu.Item onSelect={() => void handleCopyAttachmentPath(file.url)}>
                       <ContextMenu.ItemLabel>{language.t("session.header.open.copyPath")}</ContextMenu.ItemLabel>
@@ -532,6 +539,7 @@ export const PromptInput: Component = () => {
         onClose={() => setViewerFile(null)}
         onOpenFile={handleOpenAttachment}
         onCopyPath={handleCopyAttachmentPath}
+        onSaveFile={handleSaveAttachment}
       />
     </div>
   )

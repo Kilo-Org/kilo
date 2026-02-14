@@ -14,6 +14,8 @@ type ValidatedSettingKey =
   | "browserAutomation.enabled"
   | "browserAutomation.useSystemChrome"
   | "browserAutomation.headless"
+  | "model.providerID"
+  | "model.modelID"
   | "notifications.agent"
   | "notifications.permissions"
   | "notifications.errors"
@@ -177,6 +179,8 @@ const settingSchemas: Record<ValidatedSettingKey, z.ZodTypeAny> = {
   "browserAutomation.enabled": z.boolean(),
   "browserAutomation.useSystemChrome": z.boolean(),
   "browserAutomation.headless": z.boolean(),
+  "model.providerID": nonEmptyStringSchema,
+  "model.modelID": nonEmptyStringSchema,
   "notifications.agent": z.boolean(),
   "notifications.permissions": z.boolean(),
   "notifications.errors": z.boolean(),

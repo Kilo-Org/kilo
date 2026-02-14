@@ -129,7 +129,9 @@ function getToolDiffTargets(props: ToolProps): DiffTarget[] {
   }
 
   if (props.tool === "edit") {
-    const filediff = props.metadata?.filediff as { path?: unknown; file?: unknown; before?: unknown; after?: unknown } | undefined
+    const filediff = props.metadata?.filediff as
+      | { path?: unknown; file?: unknown; before?: unknown; after?: unknown }
+      | undefined
     addTarget(
       filediff?.path ?? filediff?.file ?? props.input?.filePath,
       filediff?.before ?? props.input?.oldString ?? "",
@@ -139,7 +141,9 @@ function getToolDiffTargets(props: ToolProps): DiffTarget[] {
   }
 
   if (props.tool === "write") {
-    const filediff = props.metadata?.filediff as { path?: unknown; file?: unknown; before?: unknown; after?: unknown } | undefined
+    const filediff = props.metadata?.filediff as
+      | { path?: unknown; file?: unknown; before?: unknown; after?: unknown }
+      | undefined
     addTarget(
       filediff?.path ?? filediff?.file ?? props.input?.filePath,
       filediff?.before ?? "",
@@ -372,7 +376,8 @@ export const Message: Component<MessageProps> = (props) => {
   const [viewerFile, setViewerFile] = createSignal<FileAttachment | null>(null)
   const imageParts = createMemo<ImagePart[]>(() =>
     (parts() as unknown as ImagePart[]).filter(
-      (part): part is ImagePart => part.type === "file" && typeof part.mime === "string" && part.mime.startsWith("image/"),
+      (part): part is ImagePart =>
+        part.type === "file" && typeof part.mime === "string" && part.mime.startsWith("image/"),
     ),
   )
   const openImageAttachment = (part: ImagePart) => {
@@ -393,6 +398,15 @@ export const Message: Component<MessageProps> = (props) => {
     } catch {
       showToast({ variant: "error", title: "Failed to copy path" })
     }
+  }
+
+  const saveImageAttachment = (part: ImagePart) => {
+    vscode.postMessage({
+      type: "saveFileAttachment",
+      url: part.originalUrl ?? part.url,
+      name: part.filename,
+      mime: part.mime,
+    })
   }
 
   const previewImage = (part: ImagePart) => {
@@ -427,7 +441,9 @@ export const Message: Component<MessageProps> = (props) => {
     if (mermaidBlocks().length === 0) {
       return
     }
-    const markdown = mermaidBlocks().map((block) => `\`\`\`mermaid\n${block}\n\`\`\``).join("\n\n")
+    const markdown = mermaidBlocks()
+      .map((block) => `\`\`\`mermaid\n${block}\n\`\`\``)
+      .join("\n\n")
     vscode.postMessage({ type: "openMarkdownPreview", text: markdown })
   }
 
@@ -531,6 +547,9 @@ export const Message: Component<MessageProps> = (props) => {
                         <ContextMenu.Item onSelect={() => openImageAttachment(part)}>
                           <ContextMenu.ItemLabel>{language.t("command.file.open")}</ContextMenu.ItemLabel>
                         </ContextMenu.Item>
+                        <ContextMenu.Item onSelect={() => saveImageAttachment(part)}>
+                          <ContextMenu.ItemLabel>{language.t("common.save")}</ContextMenu.ItemLabel>
+                        </ContextMenu.Item>
                         <ContextMenu.Item onSelect={() => void copyImagePath(part)}>
                           <ContextMenu.ItemLabel>{language.t("session.header.open.copyPath")}</ContextMenu.ItemLabel>
                         </ContextMenu.Item>
@@ -546,6 +565,9 @@ export const Message: Component<MessageProps> = (props) => {
             onClose={() => setViewerFile(null)}
             onOpenFile={(url) => openImageAttachment({ type: "file", id: "", mime: "image/*", url })}
             onCopyPath={async (url) => copyImagePath({ type: "file", id: "", mime: "image/*", url })}
+            onSaveFile={(file) =>
+              saveImageAttachment({ type: "file", id: "", mime: file.mime, url: file.url, filename: file.name })
+            }
           />
         </ContextMenu.Trigger>
         <ContextMenu.Portal>

@@ -18,6 +18,8 @@ interface ProviderOption {
   label: string
 }
 
+const KILO_GATEWAY_PROVIDER_ID = "kilo"
+
 /** Parse a "provider/model" config string into a ModelSelection (or null). */
 function parseModelConfig(raw: string | undefined): ModelSelection | null {
   if (!raw) {
@@ -119,6 +121,26 @@ const ProvidersTab: Component = () => {
       .sort((a, b) => a.name.localeCompare(b.name))
   })
 
+  const startupSelection = createMemo<ModelSelection | null>(() => {
+    const selection = provider.defaultSelection()
+    if (!selection?.providerID || !selection?.modelID) {
+      return null
+    }
+    return selection
+  })
+
+  const gatewayDefault = createMemo<ModelSelection | null>(() => {
+    const modelID = provider.defaults()[KILO_GATEWAY_PROVIDER_ID]
+    if (!modelID) {
+      return null
+    }
+    return { providerID: KILO_GATEWAY_PROVIDER_ID, modelID }
+  })
+  const gatewayDefaultButtonLabel = createMemo(() => {
+    const selection = gatewayDefault()
+    return selection ? `Use ${selection.modelID}` : "No gateway default"
+  })
+
   const addToList = (key: "disabled_providers" | "enabled_providers", value: string) => {
     const current = key === "disabled_providers" ? [...disabledProviders()] : [...enabledProviders()]
     if (value && !current.includes(value)) {
@@ -141,6 +163,16 @@ const ProvidersTab: Component = () => {
         updateConfig({ [configKey]: `${providerID}/${modelID}` })
       }
     }
+  }
+
+  const updateStartupSelection = (selection: ModelSelection) => {
+    vscode.postMessage({ type: "updateSetting", key: "model.providerID", value: selection.providerID })
+    vscode.postMessage({ type: "updateSetting", key: "model.modelID", value: selection.modelID })
+    showToast({
+      variant: "success",
+      title: "Startup model updated",
+      description: `${selection.providerID}/${selection.modelID}`,
+    })
   }
 
   return (
@@ -247,6 +279,45 @@ const ProvidersTab: Component = () => {
             allowClear
             clearLabel="Not set (use server default)"
           />
+        </SettingsRow>
+      </Card>
+
+      {/* Startup model defaults for new sessions */}
+      <Card style={{ "margin-top": "16px" }}>
+        <SettingsRow
+          label="Startup Model (New Sessions)"
+          description="Default model preselected when you open a new chat session"
+        >
+          <ModelSelectorBase
+            value={startupSelection()}
+            onSelect={(providerID, modelID) => {
+              if (!providerID || !modelID) {
+                return
+              }
+              updateStartupSelection({ providerID, modelID })
+            }}
+            placement="bottom-start"
+          />
+        </SettingsRow>
+        <SettingsRow
+          label="Use Kilo Gateway Default"
+          description="Pin startup model to the backend default model for Kilo Gateway"
+          last
+        >
+          <Button
+            size="small"
+            variant="ghost"
+            disabled={!gatewayDefault()}
+            onClick={() => {
+              const selection = gatewayDefault()
+              if (!selection) {
+                return
+              }
+              updateStartupSelection(selection)
+            }}
+          >
+            {gatewayDefaultButtonLabel()}
+          </Button>
         </SettingsRow>
       </Card>
 

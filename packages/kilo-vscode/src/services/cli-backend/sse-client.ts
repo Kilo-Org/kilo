@@ -7,6 +7,19 @@ export type SSEEventHandler = (event: SSEEvent) => void
 export type SSEErrorHandler = (error: Error) => void
 export type SSEStateHandler = (state: "connecting" | "connected" | "reconnecting" | "disconnected") => void
 
+type EventSourceLike = {
+  onopen: ((event: unknown) => void) | null
+  onmessage: ((event: { data: string }) => void) | null
+  onerror: ((event: unknown) => void) | null
+  close(): void
+}
+
+interface SSEClientOptions {
+  createEventSource?: (url: string, init: { headers: Record<string, string> }) => EventSourceLike
+  initialReconnectDelayMs?: number
+  maxReconnectDelayMs?: number
+}
+
 const INITIAL_RECONNECT_DELAY_MS = 2_000
 const MAX_RECONNECT_DELAY_MS = 30_000
 
@@ -15,18 +28,29 @@ const MAX_RECONNECT_DELAY_MS = 30_000
  * Manages EventSource connection and distributes events to subscribers.
  */
 export class SSEClient {
-  private eventSource: EventSource | null = null
+  private eventSource: EventSourceLike | null = null
   private handlers: Set<SSEEventHandler> = new Set()
   private errorHandlers: Set<SSEErrorHandler> = new Set()
   private stateHandlers: Set<SSEStateHandler> = new Set()
   private readonly authUsername = "opencode"
+  private readonly createEventSourceImpl: (url: string, init: { headers: Record<string, string> }) => EventSourceLike
+  private readonly initialReconnectDelayMs: number
+  private readonly maxReconnectDelayMs: number
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null
-  private reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
+  private reconnectDelayMs: number
   private shouldReconnect = false
   private directory: string | null = null
   private hasConnected = false
 
-  constructor(private readonly config: ServerConfig) {}
+  constructor(
+    private readonly config: ServerConfig,
+    options?: SSEClientOptions,
+  ) {
+    this.createEventSourceImpl = options?.createEventSource ?? ((url, init) => new EventSource(url, init) as EventSourceLike)
+    this.initialReconnectDelayMs = options?.initialReconnectDelayMs ?? INITIAL_RECONNECT_DELAY_MS
+    this.maxReconnectDelayMs = options?.maxReconnectDelayMs ?? MAX_RECONNECT_DELAY_MS
+    this.reconnectDelayMs = this.initialReconnectDelayMs
+  }
 
   /**
    * Connect to the SSE endpoint for a specific directory.
@@ -38,7 +62,7 @@ export class SSEClient {
     this.shouldReconnect = true
     this.directory = directory
     this.hasConnected = false
-    this.reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
+    this.reconnectDelayMs = this.initialReconnectDelayMs
     this.clearReconnectTimeout()
     this.closeEventSource()
 
@@ -67,7 +91,7 @@ export class SSEClient {
 
     // Create EventSource with headers
     logger.info("[Kilo New] SSE: 🎬 Creating EventSource...")
-    const currentEventSource = new EventSource(url, {
+    const currentEventSource = this.createEventSourceImpl(url, {
       headers: {
         Authorization: authHeader,
       },
@@ -81,7 +105,7 @@ export class SSEClient {
       }
       logger.info("[Kilo New] SSE: ✅ EventSource opened successfully")
       this.hasConnected = true
-      this.reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
+      this.reconnectDelayMs = this.initialReconnectDelayMs
       this.notifyState("connected")
     }
 
@@ -131,7 +155,7 @@ export class SSEClient {
     }
 
     const delayMs = this.reconnectDelayMs
-    this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, MAX_RECONNECT_DELAY_MS)
+    this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, this.maxReconnectDelayMs)
     this.notifyState("reconnecting")
 
     this.reconnectTimeout = setTimeout(() => {
@@ -167,7 +191,7 @@ export class SSEClient {
     this.shouldReconnect = false
     this.directory = null
     this.hasConnected = false
-    this.reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
+    this.reconnectDelayMs = this.initialReconnectDelayMs
     this.clearReconnectTimeout()
     this.closeEventSource()
     this.notifyState("disconnected")

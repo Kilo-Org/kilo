@@ -264,6 +264,7 @@
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
     "check-types": "tsc --noEmit",
+    "test:unit": "bun test tests/unit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint src",

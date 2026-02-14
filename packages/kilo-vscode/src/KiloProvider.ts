@@ -4,8 +4,7 @@ import { type HttpClient, type SessionInfo, type SSEEvent, type KiloConnectionSe
 import { handleChatCompletionRequest } from "./services/autocomplete/chat-autocomplete/handleChatCompletionRequest"
 import { handleChatCompletionAccepted } from "./services/autocomplete/chat-autocomplete/handleChatCompletionAccepted"
 import { logger } from "./utils/logger"
-
-const ALLOWED_OPEN_EXTERNAL_SCHEMES = new Set(["https:", "vscode:"])
+import { parseAllowedOpenExternalUrl } from "./utils/open-external"
 const RETRY_ACTION_LABEL = "Retry"
 const NOTIFICATION_DEDUPE_MS = 10_000
 
@@ -297,28 +296,13 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Only allows explicit safe schemes to reduce openExternal abuse.
    */
   private async openExternalFromWebview(rawUrl: unknown): Promise<void> {
-    const parsedInput = z.string().trim().min(1).safeParse(rawUrl)
-    if (!parsedInput.success) {
-      logger.warn("[Kilo New] KiloProvider: Blocked openExternal request with invalid payload")
+    const safeUrl = parseAllowedOpenExternalUrl(rawUrl)
+    if (!safeUrl) {
+      logger.warn("[Kilo New] KiloProvider: Blocked openExternal request", { rawUrl })
       return
     }
 
-    let parsedUrl: URL
-    try {
-      parsedUrl = new URL(parsedInput.data)
-    } catch {
-      logger.warn("[Kilo New] KiloProvider: Blocked openExternal request with malformed URL")
-      return
-    }
-
-    if (!ALLOWED_OPEN_EXTERNAL_SCHEMES.has(parsedUrl.protocol)) {
-      logger.warn("[Kilo New] KiloProvider: Blocked openExternal request with unsupported scheme", {
-        scheme: parsedUrl.protocol,
-      })
-      return
-    }
-
-    await vscode.env.openExternal(vscode.Uri.parse(parsedUrl.toString()))
+    await vscode.env.openExternal(vscode.Uri.parse(safeUrl))
   }
 
   /**

@@ -3,7 +3,7 @@
  * Text input with send/abort buttons and ghost-text autocomplete for the chat interface
  */
 
-import { Component, For, createSignal, onCleanup, Show } from "solid-js"
+import { Component, For, Show, createMemo, createSignal, onCleanup } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { ContextMenu } from "@kilocode/kilo-ui/context-menu"
@@ -12,6 +12,8 @@ import { useSession } from "../../context/session"
 import { useServer } from "../../context/server"
 import { useLanguage } from "../../context/language"
 import { useVSCode } from "../../context/vscode"
+import { useProvider } from "../../context/provider"
+import { useConfig } from "../../context/config"
 import { ModelSelector } from "./ModelSelector"
 import { ModeSwitcher } from "./ModeSwitcher"
 import { ImageViewer } from "../common/ImageViewer"
@@ -41,6 +43,8 @@ export const PromptInput: Component = () => {
   const server = useServer()
   const language = useLanguage()
   const vscode = useVSCode()
+  const provider = useProvider()
+  const { config, updateConfig } = useConfig()
 
   const [text, setText] = createSignal("")
   const [ghostText, setGhostText] = createSignal("")
@@ -55,8 +59,57 @@ export const PromptInput: Component = () => {
   const hasAttachments = () => attachments().length > 0
   const canSend = () => (text().trim().length > 0 || hasAttachments()) && !isBusy() && !isDisabled()
 
+  const availableVariants = createMemo(() => {
+    const selected = session.selected()
+    const model = provider.findModel(selected)
+    if (!model?.variants) return []
+    return Object.keys(model.variants).filter((name) => name && name !== "default")
+  })
+
+  const activeVariant = createMemo(() => {
+    const variants = availableVariants()
+    if (variants.length === 0) return undefined
+    const configured = config().agent?.[session.selectedAgent()]?.variant
+    return configured && variants.includes(configured) ? configured : undefined
+  })
+
+  const thinkingLabel = createMemo(() => {
+    const variant = activeVariant()
+    return variant ? `Thinking: ${variant}` : "Thinking: off"
+  })
+
   const setFollowUpAutoApprovePaused = (paused: boolean) => {
     window.dispatchEvent(new CustomEvent(FOLLOW_UP_AUTO_APPROVE_PAUSE_EVENT, { detail: { paused } }))
+  }
+
+  const cycleThinkingVariant = () => {
+    if (isDisabled() || isBusy()) return
+
+    const variants = availableVariants()
+    if (variants.length === 0) return
+
+    const sequence: Array<string | undefined> = [undefined, ...variants]
+    const current = activeVariant()
+    const index = sequence.findIndex((item) => item === current)
+    const next = sequence[(index + 1) % sequence.length]
+
+    const selectedAgent = session.selectedAgent()
+    const nextAgents = { ...(config().agent ?? {}) }
+    const nextAgentConfig = { ...(nextAgents[selectedAgent] ?? {}) }
+
+    if (next) {
+      nextAgentConfig.variant = next
+    } else {
+      delete nextAgentConfig.variant
+    }
+
+    if (Object.keys(nextAgentConfig).length === 0) {
+      delete nextAgents[selectedAgent]
+    } else {
+      nextAgents[selectedAgent] = nextAgentConfig
+    }
+
+    updateConfig({ agent: nextAgents })
   }
 
   const getLastUserMessageText = () => {
@@ -457,6 +510,19 @@ export const PromptInput: Component = () => {
       <div class="prompt-input-hint">
         <ModeSwitcher />
         <ModelSelector />
+        <Show when={availableVariants().length > 0}>
+          <Tooltip value={language.t("command.model.variant.cycle.description")} placement="top">
+            <Button
+              variant="ghost"
+              size="small"
+              class="prompt-thinking-toggle"
+              onClick={cycleThinkingVariant}
+              disabled={isDisabled() || isBusy()}
+            >
+              {thinkingLabel()}
+            </Button>
+          </Tooltip>
+        </Show>
         <Show when={!isDisabled()}>
           <span>{language.t("prompt.hint.sendShortcut")}</span>
         </Show>

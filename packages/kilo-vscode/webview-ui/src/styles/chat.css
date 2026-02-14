@@ -571,6 +571,13 @@
   color: var(--vscode-descriptionForeground);
 }
 
+.prompt-thinking-toggle {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ============================================
    Image Viewer
    ============================================ */

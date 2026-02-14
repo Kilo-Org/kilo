@@ -18,10 +18,16 @@ Allow users to enable or disable "thinking" (extended reasoning) for models that
 
 ## Current State
 
-Reasoning/thinking blocks already render in the chat (collapsible sections in [`Message.tsx`](../../webview-ui/src/components/chat/Message.tsx)). A linked PR (#127) exists suggesting work is in progress.
+Reasoning/thinking blocks render in the chat (collapsible sections in [`Message.tsx`](../../webview-ui/src/components/chat/Message.tsx)).
+
+Prompt input now includes a "Thinking" cycle control in [`PromptInput.tsx`](../../webview-ui/src/components/chat/PromptInput.tsx:1) that:
+
+- Detects model variants from provider metadata
+- Cycles variant (`off → variant1 → variant2 ...`) for the currently selected agent
+- Persists choice by updating `config.agent[agentName].variant`
 
 ## Gaps
 
-- No toggle control in the UI to enable/disable thinking
-- No setting persistence for thinking preference
-- Need to determine how to pass thinking preference to CLI backend
+- Variant labels are currently raw variant keys (no localized/friendly names)
+- UX still uses cycle behavior; no dedicated dropdown or explicit per-model variant picker
+- Need end-to-end validation across providers to confirm which variants map to “thinking on/off” semantics

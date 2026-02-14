@@ -147,6 +147,7 @@ export interface ProviderModel {
   latest?: boolean
   // Actual shape returned by the server (Provider.Model)
   limit?: { context: number; input?: number; output: number }
+  variants?: Record<string, Record<string, unknown>>
 }
 
 // Provider definition
@@ -247,6 +248,7 @@ export type PermissionConfig = Partial<Record<string, PermissionLevel>>
 /** Per-agent configuration */
 export interface AgentConfig {
   model?: string
+  variant?: string
   prompt?: string
   temperature?: number
   top_p?: number

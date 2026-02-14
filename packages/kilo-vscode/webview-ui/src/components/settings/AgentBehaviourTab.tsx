@@ -11,7 +11,7 @@ import { useSession } from "../../context/session"
 import { useLanguage } from "../../context/language"
 import type { AgentConfig } from "../../types/messages"
 
-type SubtabId = "agents" | "mcpServers" | "rules" | "workflows" | "skills"
+type SubtabId = "agents" | "mcpServers" | "rules" | "commands" | "skills"
 
 interface SubtabConfig {
   id: SubtabId
@@ -22,7 +22,7 @@ const subtabs: SubtabConfig[] = [
   { id: "agents", labelKey: "settings.agentBehaviour.subtab.agents" },
   { id: "mcpServers", labelKey: "settings.agentBehaviour.subtab.mcpServers" },
   { id: "rules", labelKey: "settings.agentBehaviour.subtab.rules" },
-  { id: "workflows", labelKey: "settings.agentBehaviour.subtab.workflows" },
+  { id: "commands", labelKey: "settings.commands.title" },
   { id: "skills", labelKey: "settings.agentBehaviour.subtab.skills" },
 ]
 
@@ -59,21 +59,6 @@ const SettingRow: Component<SettingRowProps> = (props) => (
   </div>
 )
 
-const Placeholder: Component<{ text: string }> = (props) => (
-  <Card>
-    <p
-      style={{
-        "font-size": "12px",
-        color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
-        margin: 0,
-        "line-height": "1.5",
-      }}
-    >
-      <strong>Not yet implemented.</strong> {props.text}
-    </p>
-  </Card>
-)
-
 const AgentBehaviourTab: Component = () => {
   const language = useLanguage()
   const { config, updateConfig } = useConfig()
@@ -83,6 +68,10 @@ const AgentBehaviourTab: Component = () => {
   const [newSkillPath, setNewSkillPath] = createSignal("")
   const [newSkillUrl, setNewSkillUrl] = createSignal("")
   const [newInstruction, setNewInstruction] = createSignal("")
+  const [editingCommandKey, setEditingCommandKey] = createSignal<string | null>(null)
+  const [commandName, setCommandName] = createSignal("")
+  const [commandValue, setCommandValue] = createSignal("")
+  const [commandDescription, setCommandDescription] = createSignal("")
 
   const agentNames = createMemo(() => {
     const names = session.agents().map((a) => a.name)
@@ -185,6 +174,55 @@ const AgentBehaviourTab: Component = () => {
     const current = [...skillUrls()]
     current.splice(index, 1)
     updateConfig({ skills: { ...config().skills, urls: current } })
+  }
+
+  const commandEntries = createMemo(() => Object.entries(config().command ?? {}).sort(([a], [b]) => a.localeCompare(b)))
+
+  const resetCommandForm = () => {
+    setEditingCommandKey(null)
+    setCommandName("")
+    setCommandValue("")
+    setCommandDescription("")
+  }
+
+  const editCommand = (name: string, value: { command: string; description?: string }) => {
+    setEditingCommandKey(name)
+    setCommandName(name)
+    setCommandValue(value.command)
+    setCommandDescription(value.description ?? "")
+  }
+
+  const upsertCommand = () => {
+    const name = commandName().trim()
+    const command = commandValue().trim()
+    const description = commandDescription().trim()
+    if (!name || !command) {
+      return
+    }
+
+    const next = { ...(config().command ?? {}) }
+    const previous = editingCommandKey()
+    if (previous && previous !== name) {
+      delete next[previous]
+    }
+
+    next[name] = {
+      command,
+      description: description || undefined,
+    }
+
+    updateConfig({ command: next })
+    resetCommandForm()
+  }
+
+  const removeCommand = (name: string) => {
+    const next = { ...(config().command ?? {}) }
+    delete next[name]
+    updateConfig({ command: Object.keys(next).length > 0 ? next : undefined })
+
+    if (editingCommandKey() === name) {
+      resetCommandForm()
+    }
   }
 
   const renderAgentsSubtab = () => (
@@ -548,6 +586,130 @@ const AgentBehaviourTab: Component = () => {
     </div>
   )
 
+  const renderCommandsSubtab = () => (
+    <div>
+      <Card style={{ "margin-bottom": "16px" }}>
+        <div
+          style={{
+            "font-size": "12px",
+            color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+            "margin-bottom": "10px",
+          }}
+        >
+          Define reusable slash commands backed by CLI config keys like <code>command.fix-tests</code>.
+        </div>
+
+        <div style={{ display: "flex", "flex-direction": "column", gap: "8px" }}>
+          <TextField
+            value={commandName()}
+            placeholder="Command name (e.g. fix-tests)"
+            onChange={(value) => setCommandName(value)}
+          />
+          <TextField
+            value={commandValue()}
+            placeholder="Shell command (e.g. pnpm test --filter unit)"
+            onChange={(value) => setCommandValue(value)}
+          />
+          <TextField
+            value={commandDescription()}
+            placeholder="Description (optional)"
+            onChange={(value) => setCommandDescription(value)}
+          />
+        </div>
+
+        <div style={{ display: "flex", "justify-content": "flex-end", gap: "8px", "margin-top": "10px" }}>
+          <Show when={editingCommandKey()}>
+            <Button size="small" variant="ghost" onClick={resetCommandForm}>
+              Cancel
+            </Button>
+          </Show>
+          <Button size="small" onClick={upsertCommand} disabled={!commandName().trim() || !commandValue().trim()}>
+            {editingCommandKey() ? "Update Command" : "Add Command"}
+          </Button>
+        </div>
+      </Card>
+
+      <Show
+        when={commandEntries().length > 0}
+        fallback={
+          <Card>
+            <div
+              style={{
+                "font-size": "12px",
+                color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+              }}
+            >
+              No custom commands configured.
+            </div>
+          </Card>
+        }
+      >
+        <Card>
+          <For each={commandEntries()}>
+            {([name, value], index) => (
+              <div
+                style={{
+                  padding: "8px 0",
+                  "border-bottom": index() < commandEntries().length - 1 ? "1px solid var(--border-weak-base)" : "none",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    "align-items": "flex-start",
+                    "justify-content": "space-between",
+                    gap: "8px",
+                  }}
+                >
+                  <div style={{ flex: 1, "min-width": 0 }}>
+                    <div style={{ "font-weight": "500" }}>/{name}</div>
+                    <div
+                      style={{
+                        "font-size": "11px",
+                        color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+                        "margin-top": "2px",
+                        "font-family": "var(--vscode-editor-font-family, monospace)",
+                        "word-break": "break-word",
+                      }}
+                    >
+                      {value.command}
+                    </div>
+                    <Show when={value.description}>
+                      <div
+                        style={{
+                          "font-size": "11px",
+                          color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+                          "margin-top": "2px",
+                        }}
+                      >
+                        {value.description}
+                      </div>
+                    </Show>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    <Button size="small" variant="ghost" onClick={() => editCommand(name, value)}>
+                      Edit
+                    </Button>
+                    <Tooltip value={language.t("common.delete")} placement="top">
+                      <IconButton
+                        size="small"
+                        variant="ghost"
+                        icon="close"
+                        onClick={() => removeCommand(name)}
+                        aria-label={language.t("common.delete")}
+                      />
+                    </Tooltip>
+                  </div>
+                </div>
+              </div>
+            )}
+          </For>
+        </Card>
+      </Show>
+    </div>
+  )
+
   const renderSubtabContent = () => {
     switch (activeSubtab()) {
       case "agents":
@@ -556,8 +718,8 @@ const AgentBehaviourTab: Component = () => {
         return renderMcpSubtab()
       case "rules":
         return renderRulesSubtab()
-      case "workflows":
-        return <Placeholder text="Workflows are managed via workflow files in your workspace." />
+      case "commands":
+        return renderCommandsSubtab()
       case "skills":
         return renderSkillsSubtab()
       default:

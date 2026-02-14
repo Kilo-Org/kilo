@@ -24,6 +24,7 @@ Right-click/context actions and tooltip affordances throughout the chat UI.
 - Scroll-to-bottom chat control now has hover tooltip
 - Todo panel completed-items toggle now has hover tooltip
 - Icon-only remove actions in major settings tabs now have hover tooltips and aria labels
+- Question dock tabs/options and agent-behaviour subtab controls now expose hover labels/titles
 
 ## Remaining Gaps
 

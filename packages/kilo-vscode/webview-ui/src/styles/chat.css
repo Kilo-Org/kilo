@@ -192,8 +192,15 @@
 
 .tool-inline-actions {
   display: flex;
+  align-items: center;
+  gap: 6px;
   justify-content: flex-end;
   margin: 4px 0;
+}
+
+.tool-inline-actions-meta {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
 }
 
 /* ============================================

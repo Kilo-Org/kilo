@@ -4,13 +4,28 @@ Interactive UI for configuring and toggling auto-approval.
 
 ## Location
 
-The old `AutoApproveDropdown.tsx` and `AutoApproveMenu.tsx` components don't exist in the new extension. [`AutoApproveTab.tsx`](../../webview-ui/src/components/settings/AutoApproveTab.tsx) exists in settings but is currently a stub. Auto-approval configuration needs to be built as a new feature.
+- [`webview-ui/src/components/settings/AutoApproveTab.tsx`](../../webview-ui/src/components/settings/AutoApproveTab.tsx:1)
+
+## Status
+
+🔨 Partial
 
 ## Interactions
 
 - Auto-approval toggle to enable/disable
 - Scope selectors to configure which actions auto-approve
 - Timeout configuration for auto-approval delays
+
+## Current Progress
+
+- Auto-approval settings tab now supports per-tool permission levels (`allow` / `ask` / `deny`)
+- Supports global fallback (`*`) plus tool-level overrides
+- Includes quick presets (`Safe defaults`, `Full auto`, `Require prompts`)
+
+## Remaining Gaps
+
+- Timeout/countdown UX parity for temporary auto-approval windows
+- Richer scope semantics beyond static per-tool permissions
 
 ## Suggested migration
 

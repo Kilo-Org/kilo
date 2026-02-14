@@ -19,6 +19,21 @@ import type { FileAttachment } from "../../types/messages"
 const AUTOCOMPLETE_DEBOUNCE_MS = 500
 const MIN_TEXT_LENGTH = 3
 
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result)
+        return
+      }
+      reject(new Error("Failed to read file"))
+    }
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"))
+    reader.readAsDataURL(file)
+  })
+}
+
 export const PromptInput: Component = () => {
   const session = useSession()
   const server = useServer()
@@ -237,15 +252,40 @@ export const PromptInput: Component = () => {
 
   const handlePaste = (e: ClipboardEvent) => {
     if (!e.clipboardData) return
-    const hasFiles = Array.from(e.clipboardData.items).some((item) => item.kind === "file")
-    if (!hasFiles) return
+    const pastedFiles = Array.from(e.clipboardData.items)
+      .map((item) => (item.kind === "file" ? item.getAsFile() : null))
+      .filter((file): file is File => file !== null)
+    if (pastedFiles.length === 0) return
+
+    const supported = pastedFiles.filter((file) => file.type.startsWith("image/") || file.type === "application/pdf")
+    if (supported.length === 0) {
+      e.preventDefault()
+      showToast({
+        variant: "default",
+        title: language.t("prompt.toast.pasteUnsupported.title"),
+        description: language.t("prompt.toast.pasteUnsupported.description"),
+      })
+      return
+    }
 
     e.preventDefault()
-    showToast({
-      variant: "default",
-      title: language.t("prompt.toast.pasteUnsupported.title"),
-      description: language.t("prompt.toast.pasteUnsupported.description"),
-    })
+    void (async () => {
+      try {
+        const files = await Promise.all(
+          supported.map(async (file) => ({
+            mime: file.type || "application/octet-stream",
+            name: file.name || undefined,
+            dataUrl: await readFileAsDataUrl(file),
+          })),
+        )
+        vscode.postMessage({ type: "pasteAttachments", files })
+      } catch {
+        showToast({
+          variant: "error",
+          title: "Failed to paste attachment",
+        })
+      }
+    })()
   }
 
   const handleAbort = () => {

@@ -20,11 +20,13 @@ Inline affordances on tool messages to navigate, inspect, and track progress.
 ## Current Progress
 
 - Tool rows already show status/progress states via kilo-ui renderers
-- Read/write/edit tool rows now expose inline "Open file" actions in the webview
+- Read/write/edit/list/apply_patch tool rows now expose inline "Open file" actions in the webview
+- Tool rows with file metadata now expose inline "Copy path" actions
+- Multi-file tool metadata now surfaces an inline `+N more` hint for additional file targets
 
 ## Remaining Gaps
 
-- Expand jump-to-file/file-resource actions to additional tool types
+- Expand jump-to-file/file-resource actions to additional tool types beyond current file-centric tools
 - Parity polish for richer external-link/file-operation affordances
 
 ## Suggested migration

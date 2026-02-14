@@ -1,5 +1,8 @@
 import * as vscode from "vscode"
 import path from "node:path"
+import os from "node:os"
+import { randomUUID } from "node:crypto"
+import fs from "node:fs/promises"
 import { z } from "zod"
 import {
   type HttpClient,
@@ -24,6 +27,16 @@ const ATTACHMENT_EXT_TO_MIME: Record<string, string> = {
   ".svg": "image/svg+xml",
   ".pdf": "application/pdf",
 }
+const ATTACHMENT_MIME_TO_EXT: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+  "image/bmp": ".bmp",
+  "image/svg+xml": ".svg",
+  "application/pdf": ".pdf",
+}
+const MAX_PASTED_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
 type GitResource = { resourceUri: vscode.Uri }
 type GitRepository = {
@@ -57,6 +70,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   private unsubscribeEvent: (() => void) | null = null
   private unsubscribeState: (() => void) | null = null
   private webviewMessageDisposable: vscode.Disposable | null = null
+  private readonly attachmentTempDir = path.join(os.tmpdir(), "kilo-code-vscode-attachments")
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -260,6 +274,21 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             await this.handleOpenFilePath(message.path)
           }
           break
+        case "pasteAttachments": {
+          const files = z
+            .array(
+              z.object({
+                mime: z.string(),
+                name: z.string().optional(),
+                dataUrl: z.string().startsWith("data:"),
+              }),
+            )
+            .safeParse(message.files)
+          if (files.success) {
+            await this.handlePasteAttachments(files.data)
+          }
+          break
+        }
         case "selectFiles":
           await this.handleSelectFiles()
           break
@@ -444,6 +473,63 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     this.postMessage({
       type: "filesSelected",
       files,
+    })
+  }
+
+  private async handlePasteAttachments(
+    files: Array<{ mime: string; name?: string; dataUrl: string }>,
+  ): Promise<void> {
+    if (files.length === 0) {
+      return
+    }
+
+    await fs.mkdir(this.attachmentTempDir, { recursive: true })
+
+    type SelectedFile = { mime: string; url: string; name: string; previewUrl?: string }
+    const selectedFiles: SelectedFile[] = []
+
+    for (const file of files) {
+      const mime = file.mime.trim().toLowerCase()
+      if (!mime.startsWith("image/") && mime !== "application/pdf") {
+        continue
+      }
+
+      const bytes = this.decodeBase64DataUrl(file.dataUrl)
+      if (!bytes || bytes.length === 0 || bytes.length > MAX_PASTED_ATTACHMENT_BYTES) {
+        continue
+      }
+
+      const ext = this.getAttachmentExtensionForMime(mime, file.name)
+      const stem = this.sanitizeAttachmentStem(file.name)
+      const fileName = `${Date.now()}-${randomUUID()}-${stem}${ext}`
+      const filePath = path.join(this.attachmentTempDir, fileName)
+
+      try {
+        await fs.writeFile(filePath, bytes)
+      } catch (error) {
+        logger.error("[Kilo New] KiloProvider: Failed to persist pasted attachment:", error)
+        continue
+      }
+
+      const uri = vscode.Uri.file(filePath)
+      selectedFiles.push({
+        mime,
+        url: uri.toString(),
+        name: file.name || fileName,
+        previewUrl:
+          mime.startsWith("image/") && this.webview && this.canPreviewLocalResource(uri)
+            ? this.webview.asWebviewUri(uri).toString()
+            : undefined,
+      })
+    }
+
+    if (selectedFiles.length === 0) {
+      return
+    }
+
+    this.postMessage({
+      type: "filesSelected",
+      files: selectedFiles,
     })
   }
 
@@ -1558,17 +1644,51 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     return ATTACHMENT_EXT_TO_MIME[ext] ?? null
   }
 
+  private decodeBase64DataUrl(dataUrl: string): Buffer | null {
+    const match = /^data:[^;]+;base64,(.+)$/s.exec(dataUrl)
+    if (!match) {
+      return null
+    }
+    try {
+      return Buffer.from(match[1], "base64")
+    } catch {
+      return null
+    }
+  }
+
+  private getAttachmentExtensionForMime(mime: string, name?: string): string {
+    if (name) {
+      const ext = path.extname(name).toLowerCase()
+      if (ext && ATTACHMENT_EXT_TO_MIME[ext] === mime) {
+        return ext
+      }
+    }
+    return ATTACHMENT_MIME_TO_EXT[mime] ?? ""
+  }
+
+  private sanitizeAttachmentStem(name?: string): string {
+    const base = (name ? path.basename(name, path.extname(name)) : "pasted-attachment").trim()
+    const cleaned = base.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "")
+    return cleaned || "pasted-attachment"
+  }
+
   private canPreviewLocalResource(uri: vscode.Uri): boolean {
     if (uri.scheme !== "file") {
       return false
     }
-    return !!vscode.workspace.getWorkspaceFolder(uri)
+    if (vscode.workspace.getWorkspaceFolder(uri)) {
+      return true
+    }
+
+    const tempRoot = path.resolve(this.attachmentTempDir)
+    const target = path.resolve(uri.fsPath)
+    return target === tempRoot || target.startsWith(`${tempRoot}${path.sep}`)
   }
 
   private getLocalResourceRoots(): vscode.Uri[] {
     const roots = [this.extensionUri]
     const workspaceRoots = vscode.workspace.workspaceFolders?.map((folder) => folder.uri) ?? []
-    return [...roots, ...workspaceRoots]
+    return [...roots, ...workspaceRoots, vscode.Uri.file(this.attachmentTempDir)]
   }
 
   private getWorkspaceDirectory(): string {

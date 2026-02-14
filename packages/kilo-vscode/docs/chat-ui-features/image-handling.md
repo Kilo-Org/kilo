@@ -1,33 +1,29 @@
 # Image Handling
 
-Interactive image viewing and management for both full-size viewer and thumbnail strip.
+Interactive image attachment/viewing behavior across prompt input and chat surfaces.
+
+## Status
+
+🔨 Partial
 
 ## Location
 
-- [`webview-ui/src/components/common/ImageViewer.tsx`](../../webview-ui/src/components/common/ImageViewer.tsx:1)
-- [`webview-ui/src/components/chat/Thumbnails.tsx`](../../webview-ui/src/components/chat/Thumbnails.tsx:1)
+- [`webview-ui/src/components/chat/PromptInput.tsx`](../../webview-ui/src/components/chat/PromptInput.tsx:1)
+- [`src/KiloProvider.ts`](../../src/KiloProvider.ts:1)
 
-## Image Viewer
+## Current Progress
 
-### Interactions
+- Prompt input supports attaching images/PDFs through file picker
+- Attachment chips render image thumbnails when previewable
+- Attachment chips expose open/copy/remove actions (button + context menu)
+- Clipboard paste now supports image/PDF files and adds them as attachments
+- Extension host persists pasted attachments and returns them via the same `filesSelected` pipeline
 
-- Click to open in VS Code editor
-- Full-screen zoom modal with:
-  - Zoom in/out controls with continuous zoom levels
-  - Mouse wheel zoom support
-  - Drag to pan when zoomed
-  - Zoom percentage indicator
-- Copy image path to clipboard
-- Save image as file via VS Code API
-- Hover-activated action buttons
+## Remaining Gaps
 
-## Thumbnails
-
-### Interactions
-
-- Click to view full image in VS Code
-- Hover delete button (when in edit mode)
-- 34x34px previews with rounded corners
+- Dedicated full-size image viewer with zoom/pan controls
+- Rich inline image rendering for assistant/user message parts in chat history
+- Save/export affordances and richer image-specific action set
 
 ## Suggested migration
 

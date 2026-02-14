@@ -42,26 +42,42 @@ function getExitCode(value: unknown): number | undefined {
   return undefined
 }
 
-function getToolFilePath(props: ToolProps): string | undefined {
-  const inputPath = props.input?.filePath
-  if (typeof inputPath === "string" && inputPath.trim().length > 0) {
-    return inputPath
+function getToolFilePaths(props: ToolProps): string[] {
+  const values = new Set<string>()
+
+  const addPath = (value: unknown) => {
+    if (typeof value !== "string") {
+      return
+    }
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return
+    }
+    values.add(trimmed)
   }
+
+  addPath(props.input?.filePath)
+  addPath(props.input?.path)
 
   const filediff = props.metadata?.filediff
   if (filediff && typeof filediff === "object") {
-    const pathValue = (filediff as { path?: unknown; file?: unknown }).path
-    if (typeof pathValue === "string" && pathValue.trim().length > 0) {
-      return pathValue
-    }
+    addPath((filediff as { path?: unknown; file?: unknown }).path)
+    addPath((filediff as { path?: unknown; file?: unknown }).file)
+  }
 
-    const fileValue = (filediff as { path?: unknown; file?: unknown }).file
-    if (typeof fileValue === "string" && fileValue.trim().length > 0) {
-      return fileValue
+  const metadataFiles = props.metadata?.files
+  if (Array.isArray(metadataFiles)) {
+    for (const file of metadataFiles) {
+      if (!file || typeof file !== "object") {
+        continue
+      }
+      addPath((file as { filePath?: unknown; path?: unknown; relativePath?: unknown }).filePath)
+      addPath((file as { filePath?: unknown; path?: unknown; relativePath?: unknown }).path)
+      addPath((file as { filePath?: unknown; path?: unknown; relativePath?: unknown }).relativePath)
     }
   }
 
-  return undefined
+  return Array.from(values)
 }
 
 const BashTool: Component<ToolProps> = (props) => {
@@ -152,25 +168,52 @@ function registerOpenFileInlineAction(toolName: string) {
   const WrappedTool: Component<ToolProps> = (props) => {
     const language = useLanguage()
     const vscode = useVSCode()
-    const filePath = createMemo(() => getToolFilePath(props))
+    const filePaths = createMemo(() => getToolFilePaths(props))
+    const primaryPath = createMemo(() => filePaths()[0])
 
     const openFile = () => {
-      const path = filePath()
+      const path = primaryPath()
       if (!path) {
         return
       }
       vscode.postMessage({ type: "openFilePath", path })
     }
 
+    const copyPath = async () => {
+      const path = primaryPath()
+      if (!path) {
+        return
+      }
+      try {
+        await navigator.clipboard.writeText(path)
+        showToast({ variant: "success", title: "Path copied" })
+      } catch {
+        showToast({ variant: "error", title: "Failed to copy path" })
+      }
+    }
+
     return (
       <div class="tool-inline-actions-container">
-        <Show when={filePath()}>
+        <Show when={primaryPath()}>
           <div class="tool-inline-actions">
             <Tooltip value={language.t("command.file.open")} placement="top">
               <Button variant="ghost" size="small" onClick={openFile} aria-label={language.t("command.file.open")}>
                 {language.t("command.file.open")}
               </Button>
             </Tooltip>
+            <Tooltip value={language.t("session.header.open.copyPath")} placement="top">
+              <Button
+                variant="ghost"
+                size="small"
+                onClick={() => void copyPath()}
+                aria-label={language.t("session.header.open.copyPath")}
+              >
+                {language.t("session.header.open.copyPath")}
+              </Button>
+            </Tooltip>
+            <Show when={filePaths().length > 1}>
+              <span class="tool-inline-actions-meta">+{filePaths().length - 1} more</span>
+            </Show>
           </div>
         </Show>
         <Dynamic
@@ -198,6 +241,8 @@ function registerOpenFileInlineAction(toolName: string) {
 registerOpenFileInlineAction("read")
 registerOpenFileInlineAction("write")
 registerOpenFileInlineAction("edit")
+registerOpenFileInlineAction("list")
+registerOpenFileInlineAction("apply_patch")
 
 export const Message: Component<MessageProps> = (props) => {
   const session = useSession()

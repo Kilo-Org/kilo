@@ -2,15 +2,31 @@
 
 Checkpoint restore/navigation and task-level UX actions.
 
+## Status
+
+🔨 Partial
+
 ## Location
 
-- Various checkpoint components
+- [`webview-ui/src/components/chat/TaskHeader.tsx`](../../webview-ui/src/components/chat/TaskHeader.tsx:1)
+- [`src/KiloProvider.ts`](../../src/KiloProvider.ts:1)
 
 ## Interactions
 
 - Checkpoint restore dialogs
 - Checkpoint navigation menu
 - "See New Changes" buttons to view git diffs for completed tasks
+
+## Current Progress
+
+- Task header now includes a working **See New Changes** action
+- Extension host action opens Source Control and jumps to the first changed resource
+
+## Remaining Gaps
+
+- Checkpoint restore dialogs
+- Checkpoint navigation menu
+- Deeper undo/redo/fork parity with CLI session operations
 
 ## Suggested migration
 

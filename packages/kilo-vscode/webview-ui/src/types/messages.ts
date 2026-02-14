@@ -730,6 +730,15 @@ export interface OpenFilePathRequest {
   path: string
 }
 
+export interface PasteAttachmentsRequest {
+  type: "pasteAttachments"
+  files: Array<{
+    mime: string
+    name?: string
+    dataUrl: string
+  }>
+}
+
 export interface SeeNewChangesRequest {
   type: "seeNewChanges"
   sessionID?: string
@@ -772,6 +781,7 @@ export type WebviewMessage =
   | SelectFilesRequest
   | OpenFileAttachmentRequest
   | OpenFilePathRequest
+  | PasteAttachmentsRequest
   | SeeNewChangesRequest
 
 // ============================================

@@ -22,6 +22,7 @@ Content type rendering is now handled by kilo-ui's `<KiloMessage>` component whi
 - Open-markdown-preview action is available from assistant message actions/context menu
 - Reasoning parts render via kilo-ui reasoning renderer
 - Tool error rows now support detail expansion and copy-to-clipboard actions
+- DataProvider bridge now wires question/task callbacks (reply/reject, session navigation/sync) for richer interactive message-part behavior
 
 ## Remaining Gaps
 

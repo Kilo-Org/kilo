@@ -46,30 +46,68 @@ const DummyView: Component<{ title: string }> = (props) => {
 const DataBridge: Component<{ children: any }> = (props) => {
   const session = useSession()
 
-  const data = createMemo(() => ({
-    session: session.sessions().map((s) => ({ ...s, id: s.id, role: "user" as const })),
-    session_status: {} as Record<string, any>,
-    session_diff: {} as Record<string, any[]>,
-    message: {
-      [session.currentSessionID() ?? ""]: session.messages() as unknown as SDKMessage[],
-    },
-    part: Object.fromEntries(
-      session
-        .messages()
-        .map((msg) => [msg.id, session.getParts(msg.id) as unknown as SDKPart[]])
-        .filter(([, parts]) => (parts as SDKPart[]).length > 0),
-    ),
-    permission: {
-      [session.currentSessionID() ?? ""]: session.permissions() as unknown as any[],
-    },
-  }))
+  const data = createMemo(() => {
+    const sessions = session.sessions()
+    const currentId = session.currentSessionID()
+    const sessionIds = [...new Set([...sessions.map((s) => s.id), ...(currentId ? [currentId] : [])])]
+
+    const messageEntries = sessionIds.map((sessionID) => [
+      sessionID,
+      session.getSessionMessages(sessionID) as unknown as SDKMessage[],
+    ])
+
+    const partEntries = messageEntries
+      .flatMap(([, messages]) => messages)
+      .map((msg) => [msg.id, session.getParts(msg.id) as unknown as SDKPart[]] as const)
+      .filter(([, parts]) => parts.length > 0)
+
+    const permissionsBySession: Record<string, any[]> = {}
+    for (const permission of session.permissions()) {
+      const list = permissionsBySession[permission.sessionID] ?? []
+      list.push(permission as any)
+      permissionsBySession[permission.sessionID] = list
+    }
+
+    const questionsBySession: Record<string, any[]> = {}
+    for (const question of session.questions()) {
+      const list = questionsBySession[question.sessionID] ?? []
+      list.push(question as any)
+      questionsBySession[question.sessionID] = list
+    }
+
+    return {
+      session: sessions.map((s) => ({ ...s, id: s.id, role: "user" as const })),
+      session_status: currentId ? { [currentId]: { type: session.status() } } : ({} as Record<string, any>),
+      session_diff: {} as Record<string, any[]>,
+      message: Object.fromEntries(messageEntries),
+      part: Object.fromEntries(partEntries),
+      permission: permissionsBySession,
+      question: questionsBySession,
+    }
+  })
 
   const respond = (input: { sessionID: string; permissionID: string; response: "once" | "always" | "reject" }) => {
     session.respondToPermission(input.permissionID, input.response)
   }
 
+  const replyQuestion = (input: { requestID: string; answers: string[][] }) => {
+    session.replyToQuestion(input.requestID, input.answers)
+  }
+
+  const rejectQuestion = (input: { requestID: string }) => {
+    session.rejectQuestion(input.requestID)
+  }
+
   return (
-    <DataProvider data={data()} directory="" onPermissionRespond={respond}>
+    <DataProvider
+      data={data()}
+      directory=""
+      onPermissionRespond={respond}
+      onQuestionReply={replyQuestion}
+      onQuestionReject={rejectQuestion}
+      onNavigateToSession={(sessionID) => session.selectSession(sessionID)}
+      onSyncSession={(sessionID) => session.syncSession(sessionID)}
+    >
       {props.children}
     </DataProvider>
   )

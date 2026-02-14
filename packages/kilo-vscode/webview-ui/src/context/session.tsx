@@ -60,6 +60,7 @@ interface SessionContextValue {
 
   // Messages for current session
   messages: Accessor<Message[]>
+  getSessionMessages: (sessionID: string) => Message[]
   getSessionMetadata: (sessionID: string) => { durationMs: number; cost?: number; model?: string } | undefined
 
   // Parts for a specific message
@@ -102,6 +103,7 @@ interface SessionContextValue {
   clearCurrentSession: () => void
   loadSessions: () => void
   selectSession: (id: string) => void
+  syncSession: (id: string) => void
   deleteSession: (id: string) => void
   renameSession: (id: string, title: string) => void
 }
@@ -679,6 +681,16 @@ export const SessionProvider: ParentComponent = (props) => {
     vscode.postMessage({ type: "loadMessages", sessionID: id })
   }
 
+  function syncSession(id: string) {
+    if (!server.isConnected()) {
+      return
+    }
+    if (!id) {
+      return
+    }
+    vscode.postMessage({ type: "loadMessages", sessionID: id })
+  }
+
   function deleteSession(id: string) {
     if (!server.isConnected()) {
       console.warn("[Kilo New] Cannot delete session: not connected")
@@ -704,6 +716,10 @@ export const SessionProvider: ParentComponent = (props) => {
   const messages = () => {
     const id = currentSessionID()
     return id ? store.messages[id] || [] : []
+  }
+
+  const getSessionMessages = (sessionID: string) => {
+    return store.messages[sessionID] || []
   }
 
   const getSessionMetadata = (sessionID: string) => {
@@ -794,6 +810,7 @@ export const SessionProvider: ParentComponent = (props) => {
     status,
     loading,
     messages,
+    getSessionMessages,
     getSessionMetadata,
     getParts,
     todos,
@@ -820,6 +837,7 @@ export const SessionProvider: ParentComponent = (props) => {
     clearCurrentSession,
     loadSessions,
     selectSession,
+    syncSession,
     deleteSession,
     renameSession,
   }

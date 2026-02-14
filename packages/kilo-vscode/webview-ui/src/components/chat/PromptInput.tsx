@@ -105,6 +105,30 @@ export const PromptInput: Component = () => {
     }
   })
 
+  const prefillListener = (event: Event) => {
+    const custom = event as CustomEvent<{ text?: string }>
+    const textValue = custom.detail?.text
+    if (typeof textValue !== "string" || textValue.length === 0) {
+      return
+    }
+    setText(textValue)
+    setGhostText("")
+    requestAnimationFrame(() => {
+      if (!textareaRef) return
+      textareaRef.value = textValue
+      adjustHeight()
+      textareaRef.focus()
+      const end = textValue.length
+      textareaRef.setSelectionRange(end, end)
+    })
+  }
+
+  window.addEventListener("kilo:prompt-prefill", prefillListener as EventListener)
+
+  onCleanup(() => {
+    window.removeEventListener("kilo:prompt-prefill", prefillListener as EventListener)
+  })
+
   // Request autocomplete from the extension
   const requestAutocomplete = (currentText: string) => {
     if (currentText.length < MIN_TEXT_LENGTH || isDisabled()) {

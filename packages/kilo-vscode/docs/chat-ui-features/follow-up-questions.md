@@ -2,9 +2,14 @@
 
 Suggested replies presented as interactive chips/buttons.
 
+## Status
+
+🔨 Partial
+
 ## Location
 
 - [`webview-ui/src/components/chat/FollowUpSuggest.tsx`](../../webview-ui/src/components/chat/FollowUpSuggest.tsx:1)
+- [`webview-ui/src/components/chat/PromptInput.tsx`](../../webview-ui/src/components/chat/PromptInput.tsx:1)
 
 ## Interactions
 
@@ -13,6 +18,18 @@ Suggested replies presented as interactive chips/buttons.
 - Mode indicators for suggestions that switch modes
 - Auto-approval countdown timer (default 60s) for automatic selection
 - Timer cancellation on user interaction (pausing input or selecting suggestion)
+
+## Current Progress
+
+- Chat input now shows follow-up suggestion chips after assistant responses
+- Clicking a suggestion sends it immediately as the next prompt
+- `Shift+Click` or the `Edit` action pre-fills the suggestion into the prompt input for manual editing
+
+## Remaining Gaps
+
+- Suggestions are currently heuristic/static (not backend-generated from turn context)
+- No mode indicator/switch affordance on suggestion chips
+- No auto-approval countdown/timer behavior
 
 ## Suggested migration
 

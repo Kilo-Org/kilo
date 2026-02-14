@@ -49,6 +49,19 @@ function stripAnsi(input: string): string {
   return input.replace(/\u001b\[[0-9;]*m/g, "")
 }
 
+function extractMermaidBlocks(markdown: string): string[] {
+  const blocks: string[] = []
+  const pattern = /```mermaid\s*([\s\S]*?)```/gi
+  let match: RegExpExecArray | null = null
+  while ((match = pattern.exec(markdown)) !== null) {
+    const code = match[1]?.trim()
+    if (code) {
+      blocks.push(code)
+    }
+  }
+  return blocks
+}
+
 function getExitCode(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value
@@ -408,6 +421,28 @@ export const Message: Component<MessageProps> = (props) => {
     const content = props.message.content?.trim()
     return content ?? ""
   })
+  const mermaidBlocks = createMemo(() => extractMermaidBlocks(previewMarkdown()))
+
+  const openMermaidPreview = () => {
+    if (mermaidBlocks().length === 0) {
+      return
+    }
+    const markdown = mermaidBlocks().map((block) => `\`\`\`mermaid\n${block}\n\`\`\``).join("\n\n")
+    vscode.postMessage({ type: "openMarkdownPreview", text: markdown })
+  }
+
+  const copyMermaidCode = async () => {
+    if (mermaidBlocks().length === 0) {
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(mermaidBlocks()[0])
+      showToast({ variant: "success", title: "Mermaid code copied" })
+    } catch {
+      showToast({ variant: "error", title: "Failed to copy Mermaid code" })
+    }
+  }
+
   const copyMessage = async () => {
     const text = previewMarkdown()
     if (!text) {
@@ -470,6 +505,13 @@ export const Message: Component<MessageProps> = (props) => {
                   </Button>
                 </Tooltip>
               </Show>
+              <Show when={mermaidBlocks().length > 0}>
+                <Tooltip value="Open Mermaid preview in VS Code" placement="top">
+                  <Button variant="ghost" size="small" onClick={openMermaidPreview} aria-label="Open Mermaid preview">
+                    Mermaid
+                  </Button>
+                </Tooltip>
+              </Show>
             </div>
           </Show>
           <KiloMessage message={props.message as unknown as SDKMessage} parts={parts()} />
@@ -529,6 +571,14 @@ export const Message: Component<MessageProps> = (props) => {
                 onSelect={() => vscode.postMessage({ type: "openMarkdownPreview", text: previewMarkdown() })}
               >
                 <ContextMenu.ItemLabel>Open Markdown Preview</ContextMenu.ItemLabel>
+              </ContextMenu.Item>
+            </Show>
+            <Show when={mermaidBlocks().length > 0}>
+              <ContextMenu.Item onSelect={openMermaidPreview}>
+                <ContextMenu.ItemLabel>Open Mermaid Preview</ContextMenu.ItemLabel>
+              </ContextMenu.Item>
+              <ContextMenu.Item onSelect={() => void copyMermaidCode()}>
+                <ContextMenu.ItemLabel>Copy Mermaid Code</ContextMenu.ItemLabel>
               </ContextMenu.Item>
             </Show>
           </ContextMenu.Content>

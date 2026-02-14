@@ -6,6 +6,7 @@ Interactive actions around Mermaid diagram rendering, error handling, and AI-ass
 
 - [`webview-ui/src/components/common/MermaidBlock.tsx`](../../webview-ui/src/components/common/MermaidBlock.tsx:1)
 - [`webview-ui/src/components/common/MermaidButton.tsx`](../../webview-ui/src/components/common/MermaidButton.tsx:1)
+- [`webview-ui/src/components/chat/Message.tsx`](../../webview-ui/src/components/chat/Message.tsx:1)
 
 ## Interactions
 
@@ -25,3 +26,16 @@ Interactive actions around Mermaid diagram rendering, error handling, and AI-ass
   - either a dedicated Kilo CLI prompt/tool that returns corrected Mermaid source, or
   - a small Kilo-side helper that asks Kilo CLI to fix the snippet (so the button remains functional without the legacy Kilo orchestration loop).
 - Kilo CLI UI doesn’t appear to ship an equivalent Mermaid renderer/fixer (only a Mermaid file icon is present in [`packages/ui/src/components/file-icons/types.ts`](https://github.com/Kilo-Org/kilo/blob/main/packages/ui/src/components/file-icons/types.ts:1)).
+
+## Current Progress
+
+- Assistant markdown is now scanned for fenced Mermaid blocks in chat rows
+- Added quick actions to:
+  - open Mermaid blocks in VS Code markdown preview
+  - copy Mermaid source code from the first block
+
+## Remaining Gaps
+
+- No inline rendered Mermaid canvas in the webview
+- No "Fix with AI" mermaid syntax repair flow
+- No export/open-as-PNG integration

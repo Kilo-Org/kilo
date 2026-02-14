@@ -161,6 +161,48 @@
 }
 
 /* ============================================
+   Command Tool
+   ============================================ */
+
+.command-tool-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.command-tool-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+}
+
+.command-tool-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--vscode-descriptionForeground);
+}
+
+.command-tool-status[data-state="running"] .command-tool-status-dot {
+  background: var(--vscode-progressBar-background, #4daafc);
+}
+
+.command-tool-status[data-state="success"] .command-tool-status-dot {
+  background: var(--vscode-terminal-ansiGreen, #4ec9b0);
+}
+
+.command-tool-status[data-state="failure"] .command-tool-status-dot {
+  background: var(--vscode-errorForeground, #f14c4c);
+}
+
+.command-tool-status[data-state="unknown"] .command-tool-status-dot {
+  background: var(--vscode-descriptionForeground);
+}
+
+/* ============================================
    Prompt Input
    ============================================ */
 

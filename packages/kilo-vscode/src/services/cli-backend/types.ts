@@ -265,12 +265,42 @@ export interface AgentConfig {
   permission?: PermissionConfig
 }
 
-/** Custom provider configuration (OpenAI-compatible) */
-export interface ProviderConfig {
+/** Optional per-model override for custom providers */
+export interface ProviderModelConfig {
+  id?: string
   name?: string
+  status?: "active" | "alpha" | "beta" | "deprecated"
+  provider?: { npm?: string }
+  options?: Record<string, unknown>
+  headers?: Record<string, string>
+  variants?: Record<string, Record<string, unknown>>
+  [key: string]: unknown
+}
+
+/** Provider-level options passed to the underlying SDK provider */
+export interface ProviderOptionsConfig {
+  apiKey?: string
+  baseURL?: string
+  enterpriseUrl?: string
+  setCacheKey?: boolean
+  timeout?: number | false
+  [key: string]: unknown
+}
+
+/** Custom provider configuration (mirrors opencode Config.Provider shape) */
+export interface ProviderConfig {
+  id?: string
+  name?: string
+  api?: string
+  npm?: string
+  env?: string[]
+  whitelist?: string[]
+  blacklist?: string[]
+  options?: ProviderOptionsConfig
+  models?: Record<string, ProviderModelConfig>
+  // Legacy aliases still accepted by the webview and normalized before PATCH.
   api_key?: string
   base_url?: string
-  models?: Record<string, unknown>
 }
 
 /** MCP server configuration (backend config shape) */

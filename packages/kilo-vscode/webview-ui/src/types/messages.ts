@@ -249,11 +249,39 @@ export interface AgentConfig {
   permission?: PermissionConfig
 }
 
-export interface ProviderConfig {
+export interface ProviderModelConfig {
+  id?: string
   name?: string
+  status?: "active" | "alpha" | "beta" | "deprecated"
+  provider?: { npm?: string }
+  options?: Record<string, unknown>
+  headers?: Record<string, string>
+  variants?: Record<string, Record<string, unknown>>
+  [key: string]: unknown
+}
+
+export interface ProviderOptionsConfig {
+  apiKey?: string
+  baseURL?: string
+  enterpriseUrl?: string
+  setCacheKey?: boolean
+  timeout?: number | false
+  [key: string]: unknown
+}
+
+export interface ProviderConfig {
+  id?: string
+  name?: string
+  api?: string
+  npm?: string
+  env?: string[]
+  whitelist?: string[]
+  blacklist?: string[]
+  options?: ProviderOptionsConfig
+  models?: Record<string, ProviderModelConfig>
+  // Legacy aliases still accepted and normalized in the extension host.
   api_key?: string
   base_url?: string
-  models?: Record<string, unknown>
 }
 
 export interface McpConfig {

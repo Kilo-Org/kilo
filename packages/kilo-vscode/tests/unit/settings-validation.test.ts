@@ -87,6 +87,89 @@ describe("validateConfigPatch", () => {
 
     expect(result.ok).toBe(true)
   })
+
+  it("accepts opencode-style provider fields and preserves options", () => {
+    const result = validateConfigPatch({
+      provider: {
+        custom_provider: {
+          id: "custom_provider",
+          name: "Custom Provider",
+          api: "openai",
+          npm: "@ai-sdk/openai-compatible",
+          env: ["OPENAI_API_KEY", " OPENAI_API_KEY ", "OPENAI_BASE_URL"],
+          whitelist: ["provider/model-a", "provider/model-a", "provider/model-b"],
+          blacklist: ["provider/model-c"],
+          options: {
+            apiKey: "sk-live",
+            baseURL: "https://example.com/v1",
+            enterpriseUrl: "https://enterprise.example.com",
+            timeout: 60000,
+            setCacheKey: true,
+            customFlag: "on",
+          },
+          models: {
+            "provider/model-a": {
+              name: "Model A",
+              status: "active",
+              options: {
+                temperature: 0.2,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+
+    const provider = result.value.provider?.custom_provider
+    expect(provider?.env).toEqual(["OPENAI_API_KEY", "OPENAI_BASE_URL"])
+    expect(provider?.whitelist).toEqual(["provider/model-a", "provider/model-b"])
+    expect(provider?.options?.apiKey).toBe("sk-live")
+    expect(provider?.options?.customFlag).toBe("on")
+    expect(provider?.models?.["provider/model-a"]?.name).toBe("Model A")
+  })
+
+  it("normalizes legacy provider aliases into options", () => {
+    const result = validateConfigPatch({
+      provider: {
+        alias_provider: {
+          name: "Alias Provider",
+          api_key: "sk-legacy",
+          base_url: "https://legacy.example.com/v1",
+        },
+      },
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+
+    const provider = result.value.provider?.alias_provider
+    expect(provider?.api_key).toBeUndefined()
+    expect(provider?.base_url).toBeUndefined()
+    expect(provider?.options?.apiKey).toBe("sk-legacy")
+    expect(provider?.options?.baseURL).toBe("https://legacy.example.com/v1")
+  })
+
+  it("drops invalid provider timeout values during normalization", () => {
+    const result = validateConfigPatch({
+      provider: {
+        timeout_provider: {
+          options: {
+            timeout: -5,
+            apiKey: "sk-test",
+          },
+        },
+      },
+    })
+
+    expect(result.ok).toBe(false)
+  })
 })
 
 describe("validateSettingUpdate", () => {

@@ -1,5 +1,6 @@
 import { z } from "zod"
 import type { Config } from "../cli-backend/types"
+import { normalizeProviderConfigPatch } from "./provider-config-normalization"
 
 export interface SettingsValidationIssue {
   path: string
@@ -48,14 +49,51 @@ const agentConfigSchema = z
   })
   .strict()
 
+const providerStatusSchema = z.enum(["active", "alpha", "beta", "deprecated"])
+
+const providerModelConfigSchema = z
+  .object({
+    id: nonEmptyStringSchema.optional(),
+    name: nonEmptyStringSchema.optional(),
+    status: providerStatusSchema.optional(),
+    provider: z
+      .object({
+        npm: nonEmptyStringSchema.optional(),
+      })
+      .passthrough()
+      .optional(),
+    options: unknownRecordSchema.optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+    variants: z.record(z.string(), unknownRecordSchema).optional(),
+  })
+  .passthrough()
+
+const providerOptionsConfigSchema = z
+  .object({
+    apiKey: nonEmptyStringSchema.optional(),
+    baseURL: nonEmptyStringSchema.optional(),
+    enterpriseUrl: nonEmptyStringSchema.optional(),
+    setCacheKey: z.boolean().optional(),
+    timeout: z.union([z.number().finite().positive(), z.literal(false)]).optional(),
+  })
+  .passthrough()
+
 const providerConfigSchema = z
   .object({
+    id: nonEmptyStringSchema.optional(),
     name: nonEmptyStringSchema.optional(),
+    api: nonEmptyStringSchema.optional(),
+    npm: nonEmptyStringSchema.optional(),
+    env: stringArraySchema.optional(),
+    whitelist: stringArraySchema.optional(),
+    blacklist: stringArraySchema.optional(),
+    options: providerOptionsConfigSchema.optional(),
+    models: z.record(z.string(), providerModelConfigSchema).optional(),
+    // Legacy aliases still accepted and normalized post-parse.
     api_key: nonEmptyStringSchema.optional(),
     base_url: nonEmptyStringSchema.optional(),
-    models: unknownRecordSchema.optional(),
   })
-  .strict()
+  .passthrough()
 
 const mcpConfigSchema = z
   .object({
@@ -147,11 +185,7 @@ const settingSchemas: Record<ValidatedSettingKey, z.ZodTypeAny> = {
   "sounds.errors": soundSettingSchema,
 }
 
-const autocompleteKeySchema = z.enum([
-  "enableAutoTrigger",
-  "enableSmartInlineTaskKeybinding",
-  "enableChatAutocomplete",
-])
+const autocompleteKeySchema = z.enum(["enableAutoTrigger", "enableSmartInlineTaskKeybinding", "enableChatAutocomplete"])
 
 const autocompleteValueSchema = z.boolean()
 
@@ -197,9 +231,11 @@ export function validateConfigPatch(input: unknown): ValidationResult<Partial<Co
     return { ok: false, issues: toIssues(parsed.error) }
   }
 
+  const normalized = normalizeProviderConfigPatch(parsed.data as Partial<Config>)
+
   return {
     ok: true,
-    value: stripUndefinedDeep(parsed.data) as Partial<Config>,
+    value: stripUndefinedDeep(normalized) as Partial<Config>,
   }
 }
 

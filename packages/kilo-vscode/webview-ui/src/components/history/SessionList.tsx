@@ -56,6 +56,10 @@ function formatCost(cost: number): string {
   return `$${cost.toFixed(4)}`
 }
 
+function formatDiffSummary(additions: number, deletions: number): string {
+  return `+${additions.toLocaleString("en-US")} / -${deletions.toLocaleString("en-US")}`
+}
+
 interface SessionListProps {
   onSelectSession: (id: string) => void
 }
@@ -179,7 +183,9 @@ const SessionList: Component<SessionListProps> = (props) => {
                   <span data-slot="list-item-title" title={s.title || language.t("session.untitled")}>
                     {s.title || language.t("session.untitled")}
                   </span>
-                  <span data-slot="list-item-description">{formatRelativeDate(s.updatedAt)}</span>
+                  <span data-slot="list-item-description" title={new Date(s.updatedAt).toLocaleString()}>
+                    {formatRelativeDate(s.updatedAt)}
+                  </span>
                 </div>
                 <div class="session-list-item-meta">
                   <span class="session-meta-pill" title="Session duration">
@@ -201,9 +207,18 @@ const SessionList: Component<SessionListProps> = (props) => {
                   </Show>
                   <Show when={s.summary}>
                     {(summary) => (
-                      <span class="session-meta-pill" title="Changed files">
-                        {summary().files} files
-                      </span>
+                      <>
+                        <Show when={summary().files > 0}>
+                          <span class="session-meta-pill" title="Changed files">
+                            {summary().files} files
+                          </span>
+                        </Show>
+                        <Show when={summary().additions > 0 || summary().deletions > 0}>
+                          <span class="session-meta-pill" title="Line changes">
+                            {formatDiffSummary(summary().additions, summary().deletions)}
+                          </span>
+                        </Show>
+                      </>
                     )}
                   </Show>
                 </div>

@@ -19,6 +19,7 @@ import type { FileAttachment } from "../../types/messages"
 
 const AUTOCOMPLETE_DEBOUNCE_MS = 500
 const MIN_TEXT_LENGTH = 3
+const FOLLOW_UP_AUTO_APPROVE_PAUSE_EVENT = "kilo:followup-autoapprove-pause"
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -53,6 +54,10 @@ export const PromptInput: Component = () => {
   const isDisabled = () => !server.isConnected()
   const hasAttachments = () => attachments().length > 0
   const canSend = () => (text().trim().length > 0 || hasAttachments()) && !isBusy() && !isDisabled()
+
+  const setFollowUpAutoApprovePaused = (paused: boolean) => {
+    window.dispatchEvent(new CustomEvent(FOLLOW_UP_AUTO_APPROVE_PAUSE_EVENT, { detail: { paused } }))
+  }
 
   const getLastUserMessageText = () => {
     const messages = session.messages()
@@ -183,6 +188,7 @@ export const PromptInput: Component = () => {
   const handleInput = (e: InputEvent) => {
     const target = e.target as HTMLTextAreaElement
     setText(target.value)
+    setFollowUpAutoApprovePaused(target.value.trim().length > 0)
     adjustHeight()
 
     // Clear existing ghost text on new input
@@ -247,6 +253,7 @@ export const PromptInput: Component = () => {
     setText("")
     setGhostText("")
     setAttachments([])
+    setFollowUpAutoApprovePaused(false)
 
     // Reset textarea height
     if (textareaRef) {
@@ -391,6 +398,8 @@ export const PromptInput: Component = () => {
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
+            onFocus={() => setFollowUpAutoApprovePaused(true)}
+            onBlur={() => setFollowUpAutoApprovePaused(text().trim().length > 0)}
             disabled={isDisabled()}
             rows={1}
           />

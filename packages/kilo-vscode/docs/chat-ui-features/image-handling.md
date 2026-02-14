@@ -18,11 +18,10 @@ Interactive image attachment/viewing behavior across prompt input and chat surfa
 - Attachment chips expose open/copy/remove actions (button + context menu)
 - Clipboard paste now supports image/PDF files and adds them as attachments
 - Extension host persists pasted attachments and returns them via the same `filesSelected` pipeline
-- Prompt attachments now support an in-webview image preview modal with zoom controls and quick open/copy actions
+- Prompt attachments now support an in-webview image preview modal with zoom controls, drag-to-pan while zoomed, and quick open/copy actions
 
 ## Remaining Gaps
 
-- Full zoom+pan parity (current viewer supports zoom but not drag/pan controls)
 - Rich inline image rendering for assistant/user message parts in chat history
 - Save/export affordances and richer image-specific action set
 

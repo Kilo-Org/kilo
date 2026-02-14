@@ -20,13 +20,10 @@ Persist tasks so that users can continue prior tasks. This includes browsing pas
 
 Basic session history exists:
 
-- [`SessionList.tsx`](../../webview-ui/src/components/history/SessionList.tsx) — now uses kilo-ui `List` component with keyboard navigation and fuzzy search; lists sessions with relative dates
+- [`SessionList.tsx`](../../webview-ui/src/components/history/SessionList.tsx) — now uses kilo-ui `List` component with keyboard navigation and fuzzy search; lists sessions with relative dates, duration/cost/model pills, and diff summary metadata
 - [`session.tsx`](../../webview-ui/src/context/session.tsx) — create, list, select, load messages
 
 ## Gaps
 
 - Session list may not persist across restarts (depends on CLI session storage)
-- No search/filter on session history
-- No task metadata display (cost, duration, model)
-- No confirmation before deleting task history
 - Need to verify CLI session persistence behaviour

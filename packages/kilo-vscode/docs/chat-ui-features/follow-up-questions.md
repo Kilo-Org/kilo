@@ -24,12 +24,12 @@ Suggested replies presented as interactive chips/buttons.
 - Chat input now shows follow-up suggestion chips after assistant responses
 - Clicking a suggestion sends it immediately as the next prompt
 - `Shift+Click` or the `Edit` action pre-fills the suggestion into the prompt input for manual editing
+- Suggestions now support mode badges and mode switching when an available agent matches the suggestion intent
+- Added 60s auto-approval countdown for the first suggestion with cancellation on prompt interaction or manual suggestion selection
 
 ## Remaining Gaps
 
 - Suggestions are currently heuristic/static (not backend-generated from turn context)
-- No mode indicator/switch affordance on suggestion chips
-- No auto-approval countdown/timer behavior
 
 ## Suggested migration
 

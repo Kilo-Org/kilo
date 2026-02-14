@@ -1,11 +1,15 @@
-import { Component, For, Show, createMemo } from "solid-js"
+import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
 import { useSession } from "../../context/session"
 
 interface FollowUpSuggestion {
   id: string
   text: string
+  mode?: string
 }
+
+const AUTO_APPROVE_SECONDS = 60
+const FOLLOW_UP_AUTO_APPROVE_PAUSE_EVENT = "kilo:followup-autoapprove-pause"
 
 const BASE_SUGGESTIONS: FollowUpSuggestion[] = [
   { id: "summarize", text: "Summarize the last response in 3 bullet points." },
@@ -17,75 +21,181 @@ function prefillPrompt(text: string): void {
   window.dispatchEvent(new CustomEvent("kilo:prompt-prefill", { detail: { text } }))
 }
 
+function resolveMode(candidates: string[], availableAgents: Set<string>): string | undefined {
+  return candidates.find((name) => availableAgents.has(name))
+}
+
 export const FollowUpSuggest: Component = () => {
   const session = useSession()
+  const [secondsLeft, setSecondsLeft] = createSignal<number | null>(null)
+  const [cancelledMessageID, setCancelledMessageID] = createSignal<string | null>(null)
+
+  const lastAssistantMessage = createMemo(() => {
+    if (session.status() !== "idle") return undefined
+    const messages = session.messages()
+    if (messages.length === 0) return undefined
+    const last = messages[messages.length - 1]
+    return last.role === "assistant" ? last : undefined
+  })
 
   const shouldShow = createMemo(() => {
-    if (session.status() !== "idle") return false
-    const messages = session.messages()
-    if (messages.length === 0) return false
-    return messages[messages.length - 1]?.role === "assistant"
+    return !!lastAssistantMessage()
   })
 
   const suggestions = createMemo(() => {
-    const messages = session.messages()
-    const last = messages[messages.length - 1]
-    if (!last || last.role !== "assistant") {
+    const last = lastAssistantMessage()
+    if (!last) {
       return BASE_SUGGESTIONS
     }
 
+    const availableAgents = new Set(session.agents().map((agent) => agent.name))
     const lower = (last.content ?? "").toLowerCase()
     if (lower.includes("error") || lower.includes("failed")) {
       return [
-        { id: "debug", text: "Can you diagnose the likely root cause of the failure?" },
-        { id: "fix", text: "Propose a minimal fix and explain why it works." },
+        {
+          id: "debug",
+          text: "Can you diagnose the likely root cause of the failure?",
+          mode: resolveMode(["debug", "troubleshoot"], availableAgents),
+        },
+        {
+          id: "fix",
+          text: "Propose a minimal fix and explain why it works.",
+          mode: resolveMode(["debug", "code"], availableAgents),
+        },
         { id: "verify", text: "How should I verify the fix safely?" },
       ]
     }
 
     if (lower.includes("```") || lower.includes("diff")) {
       return [
-        { id: "walkthrough", text: "Walk me through the code changes step by step." },
+        {
+          id: "walkthrough",
+          text: "Walk me through the code changes step by step.",
+          mode: resolveMode(["review", "architect"], availableAgents),
+        },
         { id: "tests", text: "What tests should I run for these changes?" },
-        { id: "risks", text: "What risks or regressions should I watch for?" },
+        {
+          id: "risks",
+          text: "What risks or regressions should I watch for?",
+          mode: resolveMode(["review", "code"], availableAgents),
+        },
       ]
     }
 
     return BASE_SUGGESTIONS
   })
 
-  const sendSuggestion = (text: string) => {
-    const sel = session.selected()
-    session.sendMessage(text, sel?.providerID, sel?.modelID)
+  function cancelAutoApprove() {
+    const messageID = lastAssistantMessage()?.id
+    if (!messageID) return
+    setCancelledMessageID(messageID)
+    setSecondsLeft(null)
   }
 
-  const onSuggestionClick = (suggestion: string, event: MouseEvent) => {
+  const sendSuggestion = (suggestion: FollowUpSuggestion) => {
+    if (suggestion.mode && suggestion.mode !== session.selectedAgent()) {
+      session.selectAgent(suggestion.mode)
+    }
+    const sel = session.selected()
+    session.sendMessage(suggestion.text, sel?.providerID, sel?.modelID)
+  }
+
+  const onSuggestionClick = (suggestion: FollowUpSuggestion, event: MouseEvent) => {
+    cancelAutoApprove()
     if (event.shiftKey) {
-      prefillPrompt(suggestion)
+      prefillPrompt(suggestion.text)
       return
     }
     sendSuggestion(suggestion)
   }
 
+  const autoApprovePauseListener = (event: Event) => {
+    const custom = event as CustomEvent<{ paused?: boolean }>
+    if (custom.detail?.paused) {
+      cancelAutoApprove()
+    }
+  }
+
+  window.addEventListener(FOLLOW_UP_AUTO_APPROVE_PAUSE_EVENT, autoApprovePauseListener as EventListener)
+  onCleanup(() => {
+    window.removeEventListener(FOLLOW_UP_AUTO_APPROVE_PAUSE_EVENT, autoApprovePauseListener as EventListener)
+  })
+
+  createEffect(() => {
+    const messageID = lastAssistantMessage()?.id
+    if (!messageID) {
+      setCancelledMessageID(null)
+      return
+    }
+
+    const cancelled = cancelledMessageID()
+    if (cancelled && cancelled !== messageID) {
+      setCancelledMessageID(null)
+    }
+  })
+
+  createEffect(() => {
+    const assistant = lastAssistantMessage()
+    const items = suggestions()
+
+    if (!assistant || session.status() !== "idle" || items.length === 0 || cancelledMessageID() === assistant.id) {
+      setSecondsLeft(null)
+      return
+    }
+
+    let remaining = AUTO_APPROVE_SECONDS
+    setSecondsLeft(remaining)
+
+    const timer = setInterval(() => {
+      remaining -= 1
+      if (remaining <= 0) {
+        clearInterval(timer)
+        cancelAutoApprove()
+        sendSuggestion(items[0])
+        return
+      }
+      setSecondsLeft(remaining)
+    }, 1000)
+
+    return () => clearInterval(timer)
+  })
+
   return (
     <Show when={shouldShow()}>
       <div class="follow-up-suggest" aria-label="Follow-up suggestions">
         <For each={suggestions()}>
-          {(item) => (
-            <div class="follow-up-suggest-item">
-              <button
-                type="button"
-                class="follow-up-suggest-chip"
-                onClick={(event) => onSuggestionClick(item.text, event)}
-                title="Click to send, Shift+Click to draft"
-              >
-                {item.text}
-              </button>
-              <Button size="small" variant="ghost" onClick={() => prefillPrompt(item.text)}>
-                Edit
-              </Button>
-            </div>
-          )}
+          {(item, index) => {
+            const isAutoApproveItem = () => index() === 0 && secondsLeft() !== null
+
+            return (
+              <div class="follow-up-suggest-item">
+                <button
+                  type="button"
+                  class="follow-up-suggest-chip"
+                  onClick={(event) => onSuggestionClick(item, event)}
+                  title="Click to send, Shift+Click to draft"
+                >
+                  <span class="follow-up-suggest-chip-text">{item.text}</span>
+                  <Show when={item.mode}>
+                    {(mode) => <span class="follow-up-suggest-mode">→ {mode()}</span>}
+                  </Show>
+                </button>
+                <Button
+                  size="small"
+                  variant="ghost"
+                  onClick={() => {
+                    cancelAutoApprove()
+                    prefillPrompt(item.text)
+                  }}
+                >
+                  Edit
+                </Button>
+                <Show when={isAutoApproveItem()}>
+                  <span class="follow-up-suggest-countdown">Auto-select in {secondsLeft()}s</span>
+                </Show>
+              </div>
+            )
+          }}
         </For>
       </div>
     </Show>

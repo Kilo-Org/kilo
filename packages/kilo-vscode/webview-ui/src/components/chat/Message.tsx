@@ -8,7 +8,7 @@
  * format that these components expect.
  */
 
-import { Component, Show, createMemo } from "solid-js"
+import { Component, For, Show, createMemo, createSignal } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { Message as KiloMessage, ToolRegistry, type ToolProps } from "@kilocode/kilo-ui/message-part"
 import { BasicTool } from "@kilocode/kilo-ui/basic-tool"
@@ -22,7 +22,8 @@ import { showToast } from "@kilocode/kilo-ui/toast"
 import { useSession } from "../../context/session"
 import { useLanguage } from "../../context/language"
 import { useVSCode } from "../../context/vscode"
-import type { Message as MessageType } from "../../types/messages"
+import { ImageViewer } from "../common/ImageViewer"
+import type { FileAttachment, Message as MessageType } from "../../types/messages"
 import type { Message as SDKMessage, Part as SDKPart } from "@kilocode/sdk/v2"
 
 interface MessageProps {
@@ -33,6 +34,15 @@ interface DiffTarget {
   path?: string
   before: string
   after: string
+}
+
+interface ImagePart {
+  type: "file"
+  id: string
+  mime: string
+  url: string
+  originalUrl?: string
+  filename?: string
 }
 
 function stripAnsi(input: string): string {
@@ -346,6 +356,41 @@ export const Message: Component<MessageProps> = (props) => {
     return created.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   })
   const parts = () => session.getParts(props.message.id) as unknown as SDKPart[]
+  const [viewerFile, setViewerFile] = createSignal<FileAttachment | null>(null)
+  const imageParts = createMemo<ImagePart[]>(() =>
+    (parts() as unknown as ImagePart[]).filter(
+      (part): part is ImagePart => part.type === "file" && typeof part.mime === "string" && part.mime.startsWith("image/"),
+    ),
+  )
+  const openImageAttachment = (part: ImagePart) => {
+    const originalUrl = part.originalUrl ?? part.url
+    if (originalUrl.startsWith("file://")) {
+      vscode.postMessage({ type: "openFileAttachment", url: originalUrl })
+      return
+    }
+    if (originalUrl.startsWith("https://")) {
+      vscode.postMessage({ type: "openExternal", url: originalUrl })
+    }
+  }
+
+  const copyImagePath = async (part: ImagePart) => {
+    try {
+      await navigator.clipboard.writeText(part.originalUrl ?? part.url)
+      showToast({ variant: "success", title: "Path copied" })
+    } catch {
+      showToast({ variant: "error", title: "Failed to copy path" })
+    }
+  }
+
+  const previewImage = (part: ImagePart) => {
+    setViewerFile({
+      mime: part.mime,
+      url: part.originalUrl ?? part.url,
+      previewUrl: part.url,
+      name: part.filename,
+    })
+  }
+
   const previewMarkdown = createMemo(() => {
     if (props.message.role !== "assistant") {
       return ""
@@ -428,6 +473,38 @@ export const Message: Component<MessageProps> = (props) => {
             </div>
           </Show>
           <KiloMessage message={props.message as unknown as SDKMessage} parts={parts()} />
+          <Show when={imageParts().length > 0}>
+            <div class="message-image-gallery">
+              <For each={imageParts()}>
+                {(part) => (
+                  <ContextMenu>
+                    <ContextMenu.Trigger as="button" class="message-image-thumb" onClick={() => previewImage(part)}>
+                      <img src={part.url} alt={part.filename ?? "Image attachment"} loading="lazy" />
+                    </ContextMenu.Trigger>
+                    <ContextMenu.Portal>
+                      <ContextMenu.Content>
+                        <ContextMenu.Item onSelect={() => previewImage(part)}>
+                          <ContextMenu.ItemLabel>Preview</ContextMenu.ItemLabel>
+                        </ContextMenu.Item>
+                        <ContextMenu.Item onSelect={() => openImageAttachment(part)}>
+                          <ContextMenu.ItemLabel>{language.t("command.file.open")}</ContextMenu.ItemLabel>
+                        </ContextMenu.Item>
+                        <ContextMenu.Item onSelect={() => void copyImagePath(part)}>
+                          <ContextMenu.ItemLabel>{language.t("session.header.open.copyPath")}</ContextMenu.ItemLabel>
+                        </ContextMenu.Item>
+                      </ContextMenu.Content>
+                    </ContextMenu.Portal>
+                  </ContextMenu>
+                )}
+              </For>
+            </div>
+          </Show>
+          <ImageViewer
+            file={viewerFile()}
+            onClose={() => setViewerFile(null)}
+            onOpenFile={(url) => openImageAttachment({ type: "file", id: "", mime: "image/*", url })}
+            onCopyPath={async (url) => copyImagePath({ type: "file", id: "", mime: "image/*", url })}
+          />
         </ContextMenu.Trigger>
         <ContextMenu.Portal>
           <ContextMenu.Content>

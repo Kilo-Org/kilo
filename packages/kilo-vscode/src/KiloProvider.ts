@@ -1581,6 +1581,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       }
       return {
         ...part,
+        originalUrl: part.url,
         url: this.webview.asWebviewUri(uri).toString(),
       }
     } catch {

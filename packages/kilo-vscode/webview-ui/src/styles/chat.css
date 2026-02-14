@@ -203,6 +203,35 @@
   color: var(--vscode-descriptionForeground);
 }
 
+.message-image-gallery {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.message-image-thumb {
+  width: 110px;
+  height: 84px;
+  padding: 0;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--vscode-editor-background);
+  cursor: pointer;
+}
+
+.message-image-thumb:hover {
+  border-color: var(--vscode-focusBorder);
+}
+
+.message-image-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 /* ============================================
    Kilo Logo (empty state)
    ============================================ */

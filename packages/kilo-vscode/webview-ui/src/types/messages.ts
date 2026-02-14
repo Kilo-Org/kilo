@@ -43,6 +43,7 @@ export interface FilePart extends BasePart {
   type: "file"
   mime: string
   url: string
+  originalUrl?: string
   filename?: string
   source?: {
     text?: {

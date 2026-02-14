@@ -55,6 +55,21 @@ describe("validateConfigPatch", () => {
 
     expect(result.issues.some((issue) => issue.path === "experimental.mcp_timeout")).toBe(true)
   })
+
+  it("accepts MCP config entries with runtime metadata fields", () => {
+    const result = validateConfigPatch({
+      mcp: {
+        demo: {
+          type: "remote",
+          url: "https://example.com/mcp",
+          enabled: true,
+          timeout: 10000,
+        },
+      },
+    })
+
+    expect(result.ok).toBe(true)
+  })
 })
 
 describe("validateSettingUpdate", () => {

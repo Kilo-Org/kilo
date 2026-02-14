@@ -59,13 +59,16 @@ const providerConfigSchema = z
 
 const mcpConfigSchema = z
   .object({
-    command: nonEmptyStringSchema.optional(),
+    command: z.union([nonEmptyStringSchema, z.array(nonEmptyStringSchema).min(1)]).optional(),
     args: stringArraySchema.optional(),
     env: z.record(z.string(), z.string()).optional(),
     url: nonEmptyStringSchema.optional(),
     headers: z.record(z.string(), z.string()).optional(),
+    type: z.enum(["local", "remote"]).optional(),
+    enabled: z.boolean().optional(),
+    timeout: z.number().int().positive().optional(),
   })
-  .strict()
+  .passthrough()
 
 const commandConfigSchema = z
   .object({

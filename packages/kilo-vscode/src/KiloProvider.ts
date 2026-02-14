@@ -7,6 +7,7 @@ import { z } from "zod"
 import {
   type Config,
   type HttpClient,
+  type McpConfig,
   type SessionInfo,
   type SSEEvent,
   type KiloConnectionService,
@@ -353,6 +354,18 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           break
         case "requestConfig":
           await this.fetchAndSendConfig()
+          break
+        case "requestMcpStatus":
+          await this.fetchAndSendMcpStatus()
+          break
+        case "addMcpServer":
+          await this.handleAddMcpServer(message.name, message.config)
+          break
+        case "connectMcpServer":
+          await this.handleConnectMcpServer(message.name)
+          break
+        case "disconnectMcpServer":
+          await this.handleDisconnectMcpServer(message.name)
           break
         case "updateConfig": {
           const validated = validateConfigPatch(message.config)
@@ -1166,6 +1179,33 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Fetch MCP server status and send to webview.
+   */
+  private async fetchAndSendMcpStatus(): Promise<void> {
+    if (!this.httpClient) {
+      this.postMessage({
+        type: "mcpStatusLoaded",
+        status: {},
+      })
+      return
+    }
+
+    try {
+      const status = await this.httpClient.getMcpStatus()
+      this.postMessage({
+        type: "mcpStatusLoaded",
+        status,
+      })
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to fetch MCP status:", error)
+      this.postMessage({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to fetch MCP status",
+      })
+    }
+  }
+
+  /**
    * Read notification/sound settings from VS Code config and push to webview.
    */
   private sendNotificationSettings(): void {
@@ -1228,6 +1268,101 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       this.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Failed to update config",
+      })
+    }
+  }
+
+  private async handleAddMcpServer(name: unknown, config: unknown): Promise<void> {
+    if (!this.httpClient) {
+      this.postMessage({ type: "error", message: "Not connected to CLI backend" })
+      return
+    }
+
+    if (typeof name !== "string" || !name.trim()) {
+      this.postMessage({ type: "error", message: "Invalid MCP server name" })
+      return
+    }
+
+    const parsedConfig = z
+      .union([
+        z.object({
+          type: z.literal("local"),
+          command: z.array(z.string().trim().min(1)).min(1),
+          environment: z.record(z.string(), z.string()).optional(),
+          enabled: z.boolean().optional(),
+          timeout: z.number().int().positive().optional(),
+        }),
+        z.object({
+          type: z.literal("remote"),
+          url: z.string().trim().min(1),
+          headers: z.record(z.string(), z.string()).optional(),
+          enabled: z.boolean().optional(),
+          timeout: z.number().int().positive().optional(),
+        }),
+      ])
+      .safeParse(config)
+
+    if (!parsedConfig.success) {
+      this.postMessage({
+        type: "error",
+        message: parsedConfig.error.issues[0]?.message ?? "Invalid MCP server config",
+      })
+      return
+    }
+
+    try {
+      await this.httpClient.addMcpServer(name.trim(), parsedConfig.data as McpConfig)
+      await this.fetchAndSendConfig()
+      await this.fetchAndSendMcpStatus()
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to add MCP server:", error)
+      this.postMessage({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to add MCP server",
+      })
+    }
+  }
+
+  private async handleConnectMcpServer(name: unknown): Promise<void> {
+    if (!this.httpClient) {
+      this.postMessage({ type: "error", message: "Not connected to CLI backend" })
+      return
+    }
+    if (typeof name !== "string" || !name.trim()) {
+      this.postMessage({ type: "error", message: "Invalid MCP server name" })
+      return
+    }
+
+    try {
+      await this.httpClient.connectMcpServer(name.trim())
+      await this.fetchAndSendMcpStatus()
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to connect MCP server:", error)
+      this.postMessage({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to connect MCP server",
+      })
+    }
+  }
+
+  private async handleDisconnectMcpServer(name: unknown): Promise<void> {
+    if (!this.httpClient) {
+      this.postMessage({ type: "error", message: "Not connected to CLI backend" })
+      return
+    }
+    if (typeof name !== "string" || !name.trim()) {
+      this.postMessage({ type: "error", message: "Invalid MCP server name" })
+      return
+    }
+
+    try {
+      await this.httpClient.disconnectMcpServer(name.trim())
+      await this.fetchAndSendMcpStatus()
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to disconnect MCP server:", error)
+      this.postMessage({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to disconnect MCP server",
       })
     }
   }

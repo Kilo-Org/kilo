@@ -257,11 +257,14 @@ export interface ProviderConfig {
 }
 
 export interface McpConfig {
-  command?: string
+  command?: string | string[]
   args?: string[]
   env?: Record<string, string>
   url?: string
   headers?: Record<string, string>
+  type?: "local" | "remote"
+  enabled?: boolean
+  timeout?: number
 }
 
 export interface CommandConfig {
@@ -496,6 +499,18 @@ export interface ConfigUpdatedMessage {
   config: Config
 }
 
+export type McpStatus =
+  | { status: "connected" }
+  | { status: "disabled" }
+  | { status: "failed"; error: string }
+  | { status: "needs_auth" }
+  | { status: "needs_client_registration"; error: string }
+
+export interface McpStatusLoadedMessage {
+  type: "mcpStatusLoaded"
+  status: Record<string, McpStatus>
+}
+
 export interface ValidationIssue {
   path: string
   message: string
@@ -563,6 +578,7 @@ export type ExtensionMessage =
   | BrowserSettingsLoadedMessage
   | ConfigLoadedMessage
   | ConfigUpdatedMessage
+  | McpStatusLoadedMessage
   | ConfigValidationErrorMessage
   | SettingValidationErrorMessage
   | NotificationSettingsLoadedMessage
@@ -734,6 +750,42 @@ export interface UpdateConfigMessage {
   config: Partial<Config>
 }
 
+export type McpServerConfigInput =
+  | {
+      type: "local"
+      command: string[]
+      environment?: Record<string, string>
+      enabled?: boolean
+      timeout?: number
+    }
+  | {
+      type: "remote"
+      url: string
+      headers?: Record<string, string>
+      enabled?: boolean
+      timeout?: number
+    }
+
+export interface RequestMcpStatusMessage {
+  type: "requestMcpStatus"
+}
+
+export interface AddMcpServerMessage {
+  type: "addMcpServer"
+  name: string
+  config: McpServerConfigInput
+}
+
+export interface ConnectMcpServerMessage {
+  type: "connectMcpServer"
+  name: string
+}
+
+export interface DisconnectMcpServerMessage {
+  type: "disconnectMcpServer"
+  name: string
+}
+
 export interface RequestNotificationSettingsMessage {
   type: "requestNotificationSettings"
 }
@@ -849,6 +901,10 @@ export type WebviewMessage =
   | RequestBrowserSettingsMessage
   | RequestConfigMessage
   | UpdateConfigMessage
+  | RequestMcpStatusMessage
+  | AddMcpServerMessage
+  | ConnectMcpServerMessage
+  | DisconnectMcpServerMessage
   | RequestNotificationSettingsMessage
   | RetryConnectionRequest
   | SelectFilesRequest

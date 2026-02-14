@@ -29,7 +29,6 @@ Replicate the settings that are available in OpenCode (CLI) and allow users to c
 
 ## Gaps
 
-- No import/export settings functionality
 - Need to determine which CLI endpoints expose/accept configuration
 
 ## Recent Improvements
@@ -39,3 +38,5 @@ Replicate the settings that are available in OpenCode (CLI) and allow users to c
   - VS Code-backed settings updates (`updateSetting`)
   - autocomplete settings updates (`updateAutocompleteSetting`)
 - Invalid updates are now rejected with explicit validation error messages and webview rollback/re-sync behavior.
+- Added settings import/export controls (`AboutKiloCodeTab`) for JSON backup/restore workflows.
+- Added MCP server management UI in Agent Behaviour settings (add/update/remove + connect/disconnect + status refresh).

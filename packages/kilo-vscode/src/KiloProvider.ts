@@ -6,9 +6,12 @@ import { handleChatCompletionAccepted } from "./services/autocomplete/chat-autoc
 import { logger } from "./utils/logger"
 
 const ALLOWED_OPEN_EXTERNAL_SCHEMES = new Set(["https:", "vscode:"])
+const RETRY_ACTION_LABEL = "Retry"
+const NOTIFICATION_DEDUPE_MS = 10_000
 
 export class KiloProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "kilo-code.new.sidebarView"
+  private static readonly notificationTimestamps = new Map<string, number>()
 
   private webview: vscode.Webview | null = null
   private currentSession: SessionInfo | null = null
@@ -296,7 +299,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   private async openExternalFromWebview(rawUrl: unknown): Promise<void> {
     const parsedInput = z.string().trim().min(1).safeParse(rawUrl)
     if (!parsedInput.success) {
-      console.warn("[Kilo New] KiloProvider: Blocked openExternal request with invalid payload")
+      logger.warn("[Kilo New] KiloProvider: Blocked openExternal request with invalid payload")
       return
     }
 
@@ -304,12 +307,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     try {
       parsedUrl = new URL(parsedInput.data)
     } catch {
-      console.warn("[Kilo New] KiloProvider: Blocked openExternal request with malformed URL")
+      logger.warn("[Kilo New] KiloProvider: Blocked openExternal request with malformed URL")
       return
     }
 
     if (!ALLOWED_OPEN_EXTERNAL_SCHEMES.has(parsedUrl.protocol)) {
-      console.warn("[Kilo New] KiloProvider: Blocked openExternal request with unsupported scheme", {
+      logger.warn("[Kilo New] KiloProvider: Blocked openExternal request with unsupported scheme", {
         scheme: parsedUrl.protocol,
       })
       return
@@ -354,8 +357,13 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
       // Subscribe to connection state changes
       this.unsubscribeState = this.connectionService.onStateChange(async (state) => {
+        const previousState = this.connectionState
         this.connectionState = state
         this.postMessage({ type: "connectionState", state })
+
+        if (state === "reconnecting" && previousState !== "reconnecting") {
+          this.notifyConnectionLost()
+        }
 
         if (state === "connected") {
           try {
@@ -401,6 +409,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       logger.info("[Kilo New] KiloProvider: ✅ initializeConnection completed successfully")
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: ❌ Failed to initialize connection:", error)
+      this.notifyConnectionStartError(error)
       this.connectionState = "error"
       this.postMessage({
         type: "connectionState",
@@ -1249,6 +1258,48 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         })
         break
     }
+  }
+
+  private shouldShowNotification(key: string): boolean {
+    const now = Date.now()
+    const lastShown = KiloProvider.notificationTimestamps.get(key)
+    if (lastShown && now - lastShown < NOTIFICATION_DEDUPE_MS) {
+      return false
+    }
+    KiloProvider.notificationTimestamps.set(key, now)
+    return true
+  }
+
+  private notifyConnectionStartError(error: unknown): void {
+    if (!this.shouldShowNotification("connection-start-error")) {
+      return
+    }
+
+    const message =
+      error instanceof Error ? error.message : "Failed to start CLI server or connect to backend"
+    void vscode.window.showErrorMessage(`Kilo Code: ${message}`, RETRY_ACTION_LABEL).then((action) => {
+      if (action === RETRY_ACTION_LABEL) {
+        this.connectionState = "connecting"
+        this.postMessage({ type: "connectionState", state: "connecting" })
+        void this.initializeConnection()
+      }
+    })
+  }
+
+  private notifyConnectionLost(): void {
+    if (!this.shouldShowNotification("connection-lost")) {
+      return
+    }
+
+    void vscode.window
+      .showWarningMessage("Kilo Code lost connection to the CLI backend.", RETRY_ACTION_LABEL)
+      .then((action) => {
+        if (action === RETRY_ACTION_LABEL) {
+          this.connectionState = "connecting"
+          this.postMessage({ type: "connectionState", state: "connecting" })
+          void this.initializeConnection()
+        }
+      })
   }
 
   /**

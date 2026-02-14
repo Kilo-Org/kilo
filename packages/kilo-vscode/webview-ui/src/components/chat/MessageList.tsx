@@ -5,6 +5,7 @@
  */
 
 import { Component, For, Show, createSignal, createEffect, createMemo, onCleanup, JSX } from "solid-js"
+import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { useSession } from "../../context/session"
 import { useServer } from "../../context/server"
 import { useLanguage } from "../../context/language"
@@ -112,10 +113,12 @@ export const MessageList: Component<MessageListProps> = (props) => {
                 <span class="recent-sessions-label">{language.t("session.recent")}</span>
                 <For each={recent()}>
                   {(s) => (
-                    <button class="recent-session-item" onClick={() => props.onSelectSession?.(s.id)}>
-                      <span class="recent-session-title">{s.title || language.t("session.untitled")}</span>
-                      <span class="recent-session-date">{formatRelativeDate(s.updatedAt)}</span>
-                    </button>
+                    <Tooltip value={s.title || language.t("session.untitled")} placement="top">
+                      <button class="recent-session-item" onClick={() => props.onSelectSession?.(s.id)}>
+                        <span class="recent-session-title">{s.title || language.t("session.untitled")}</span>
+                        <span class="recent-session-date">{formatRelativeDate(s.updatedAt)}</span>
+                      </button>
+                    </Tooltip>
                   )}
                 </For>
               </div>
@@ -126,13 +129,15 @@ export const MessageList: Component<MessageListProps> = (props) => {
       </div>
 
       <Show when={showScrollButton()}>
-        <button
-          class="scroll-to-bottom-button"
-          onClick={scrollToBottom}
-          aria-label={language.t("session.messages.scrollToBottom")}
-        >
-          ↓
-        </button>
+        <Tooltip value={language.t("session.messages.scrollToBottom")} placement="top">
+          <button
+            class="scroll-to-bottom-button"
+            onClick={scrollToBottom}
+            aria-label={language.t("session.messages.scrollToBottom")}
+          >
+            ↓
+          </button>
+        </Tooltip>
       </Show>
     </div>
   )

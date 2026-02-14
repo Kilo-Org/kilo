@@ -1,4 +1,5 @@
 import { Component, For, Show, createMemo, createSignal } from "solid-js"
+import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { useSession } from "../../context/session"
 import { useLanguage } from "../../context/language"
 
@@ -25,8 +26,12 @@ export const TodoPanel: Component = () => {
     if (total() === 0) return 0
     return Math.round((completed() / total()) * 100)
   })
-  const visibleTodos = createMemo(() => (showCompleted() ? todos() : todos().filter((item) => item.status !== "completed")))
-  const hiddenCompleted = createMemo(() => Math.max(0, completed() - visibleTodos().filter((x) => x.status === "completed").length))
+  const visibleTodos = createMemo(() =>
+    showCompleted() ? todos() : todos().filter((item) => item.status !== "completed"),
+  )
+  const hiddenCompleted = createMemo(() =>
+    Math.max(0, completed() - visibleTodos().filter((x) => x.status === "completed").length),
+  )
 
   return (
     <Show when={total() > 0}>
@@ -38,7 +43,13 @@ export const TodoPanel: Component = () => {
           </span>
         </div>
 
-        <div class="todo-panel-progress-bar" role="progressbar" aria-valuenow={progress()} aria-valuemin={0} aria-valuemax={100}>
+        <div
+          class="todo-panel-progress-bar"
+          role="progressbar"
+          aria-valuenow={progress()}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
           <div class="todo-panel-progress-fill" style={{ width: `${progress()}%` }} />
         </div>
 
@@ -58,11 +69,20 @@ export const TodoPanel: Component = () => {
         </ul>
 
         <Show when={completed() > 0}>
-          <button class="todo-panel-toggle" onClick={() => setShowCompleted((prev) => !prev)}>
-            {showCompleted()
-              ? language.t("todo.completed.hide")
-              : language.t("todo.completed.show", { count: hiddenCompleted() || completed() })}
-          </button>
+          <Tooltip
+            value={
+              showCompleted()
+                ? language.t("todo.completed.hide")
+                : language.t("todo.completed.show", { count: hiddenCompleted() || completed() })
+            }
+            placement="top"
+          >
+            <button class="todo-panel-toggle" onClick={() => setShowCompleted((prev) => !prev)}>
+              {showCompleted()
+                ? language.t("todo.completed.hide")
+                : language.t("todo.completed.show", { count: hiddenCompleted() || completed() })}
+            </button>
+          </Tooltip>
         </Show>
       </div>
     </Show>

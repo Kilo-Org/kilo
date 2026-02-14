@@ -13,7 +13,9 @@ import { Message as KiloMessage, ToolRegistry, type ToolProps } from "@kilocode/
 import { BasicTool } from "@kilocode/kilo-ui/basic-tool"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
+import { ContextMenu } from "@kilocode/kilo-ui/context-menu"
 import { Markdown } from "@kilocode/kilo-ui/markdown"
+import { showToast } from "@kilocode/kilo-ui/toast"
 import { useSession } from "../../context/session"
 import { useLanguage } from "../../context/language"
 import { useVSCode } from "../../context/vscode"
@@ -120,6 +122,7 @@ ToolRegistry.register({
 
 export const Message: Component<MessageProps> = (props) => {
   const session = useSession()
+  const language = useLanguage()
   const vscode = useVSCode()
   const parts = () => session.getParts(props.message.id) as unknown as SDKPart[]
   const previewMarkdown = createMemo(() => {
@@ -139,26 +142,56 @@ export const Message: Component<MessageProps> = (props) => {
     const content = props.message.content?.trim()
     return content ?? ""
   })
+  const copyMessage = async () => {
+    const text = previewMarkdown()
+    if (!text) {
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(text)
+      showToast({ variant: "success", title: "Message copied" })
+    } catch {
+      showToast({ variant: "error", title: "Failed to copy message" })
+    }
+  }
 
   return (
     <Show when={parts().length > 0 || props.message.content}>
-      <div class="message-block">
-        <Show when={previewMarkdown().length > 0}>
-          <div class="message-actions">
-            <Tooltip value="Open markdown preview in VS Code" placement="top">
-              <Button
-                variant="ghost"
-                size="small"
-                onClick={() => vscode.postMessage({ type: "openMarkdownPreview", text: previewMarkdown() })}
-                aria-label="Open markdown preview in VS Code"
+      <ContextMenu>
+        <ContextMenu.Trigger as="div" class="message-block">
+          <Show when={previewMarkdown().length > 0}>
+            <div class="message-actions">
+              <Tooltip value="Open markdown preview in VS Code" placement="top">
+                <Button
+                  variant="ghost"
+                  size="small"
+                  onClick={() => vscode.postMessage({ type: "openMarkdownPreview", text: previewMarkdown() })}
+                  aria-label="Open markdown preview in VS Code"
+                >
+                  Preview
+                </Button>
+              </Tooltip>
+            </div>
+          </Show>
+          <KiloMessage message={props.message as unknown as SDKMessage} parts={parts()} />
+        </ContextMenu.Trigger>
+        <ContextMenu.Portal>
+          <ContextMenu.Content>
+            <ContextMenu.Item onSelect={() => void copyMessage()}>
+              <ContextMenu.ItemLabel>{language.t("common.copy")}</ContextMenu.ItemLabel>
+            </ContextMenu.Item>
+            <Show when={previewMarkdown().length > 0}>
+              <ContextMenu.Separator />
+              <ContextMenu.Item
+                onSelect={() => vscode.postMessage({ type: "openMarkdownPreview", text: previewMarkdown() })}
               >
-                Preview
-              </Button>
-            </Tooltip>
-          </div>
-        </Show>
-        <KiloMessage message={props.message as unknown as SDKMessage} parts={parts()} />
-      </div>
+                <ContextMenu.ItemLabel>Open Markdown Preview</ContextMenu.ItemLabel>
+              </ContextMenu.Item>
+            </Show>
+          </ContextMenu.Content>
+        </ContextMenu.Portal>
+      </ContextMenu>
     </Show>
   )
 }

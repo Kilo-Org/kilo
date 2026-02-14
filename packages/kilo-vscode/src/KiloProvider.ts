@@ -795,6 +795,24 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         sessionID,
         messages,
       })
+
+      try {
+        const todos = await this.httpClient.getTodos(sessionID, workspaceDir)
+        this.postMessage({
+          type: "todoUpdated",
+          sessionID,
+          items: todos.map((todo) => ({
+            id: todo.id,
+            content: todo.content,
+            status:
+              todo.status === "in_progress" || todo.status === "completed" || todo.status === "pending"
+                ? todo.status
+                : "pending",
+          })),
+        })
+      } catch (error) {
+        logger.debug("[Kilo New] KiloProvider: No todos loaded for session", { sessionID, error })
+      }
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to load messages:", error)
       this.postMessage({

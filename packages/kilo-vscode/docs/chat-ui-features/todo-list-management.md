@@ -1,26 +1,34 @@
 # Todo List Management
 
-Interactive editing for todo lists surfaced by the agent/tool messages.
+Interactive todo tracking surfaced from CLI session state.
+
+## Status
+
+🔨 Partial
 
 ## Location
 
-Todo list data flows through the SSE pipeline: `todo.updated` events are handled by KiloProvider → webview message → session store with `todos()` accessor. No rendering UI component exists yet. The old `UpdateTodoListToolBlock.tsx` is not present in the new extension.
+- [`webview-ui/src/components/chat/TodoPanel.tsx`](../../webview-ui/src/components/chat/TodoPanel.tsx:1)
+- [`webview-ui/src/context/session.tsx`](../../webview-ui/src/context/session.tsx:1)
+- [`src/KiloProvider.ts`](../../src/KiloProvider.ts:1)
 
-## Interactions
+## Current Progress
 
-- Edit/Done mode toggle button
-- Inline editing of todo items
-- Status dropdown to change status (Not Started → In Progress → Completed)
-- Add new todo items with Enter key support
-- Delete individual todos with confirmation dialog
-- Color-coded status indicators
-- Auto-save - changes immediately notify parent component
+- `todo.updated` SSE events are wired from extension host to webview store
+- Todo items render in chat with status badges and progress bar
+- Completed-items visibility toggle is available
+- Todo rows support context-menu copy actions
+- Session load now fetches `/session/{id}/todo` so historical sessions populate todo state immediately
+
+## Remaining Gaps
+
+- Inline edit/add/delete flows in the webview
+- Write-back/update interactions for todo changes from UI to backend
+- Richer management UX parity (status dropdown editing, confirmation flows)
 
 ## Suggested migration
 
-**Reimplement?** Likely yes (Kilo-specific tool/UI).
+**Reimplement?** Partial.
 
-- This is driven by a Kilo tool message (`UpdateTodoListToolBlock`). Unless Kilo CLI provides an equivalent “todo list” tool/event, you will need to:
-  - either keep a Kilo-side todo-state feature (maintained by the extension host and surfaced to the webview), or
-  - add an Kilo CLI tool/plugin that emits todo-list state changes as events.
-- Recommended: treat as optional until Phase 3+ in [`docs/opencode-core/opencode-migration-plan.md`](docs/opencode-core/opencode-migration-plan.md:1), unless todo tracking is considered core UX.
+- Keep current event-driven todo rendering.
+- Add explicit backend write API support (or tool-bridged update flow) before implementing full inline todo editing in the webview.

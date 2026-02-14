@@ -293,6 +293,18 @@ export class HttpClient {
     )
   }
 
+  /**
+   * Get todo items for a session.
+   */
+  async getTodos(sessionId: string, directory: string): Promise<Array<{ id: string; content: string; status: string }>> {
+    return this.request<Array<{ id: string; content: string; status: string }>>(
+      "GET",
+      `/session/${sessionId}/todo`,
+      undefined,
+      { directory },
+    )
+  }
+
   // ============================================
   // Control Methods
   // ============================================

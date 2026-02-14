@@ -97,7 +97,7 @@ export type SSEEvent =
       type: "permission.replied"
       properties: { sessionID: string; requestID: string; reply: "once" | "always" | "reject" }
     }
-  | { type: "todo.updated"; properties: { sessionID: string; items: TodoItem[] } }
+  | { type: "todo.updated"; properties: { sessionID: string; items?: TodoItem[]; todos?: TodoItem[] } }
   | { type: "question.asked"; properties: QuestionRequest }
   | { type: "question.replied"; properties: { sessionID: string; requestID: string; answers: string[][] } }
   | { type: "question.rejected"; properties: { sessionID: string; requestID: string } }
@@ -105,7 +105,8 @@ export type SSEEvent =
 export interface TodoItem {
   id: string
   content: string
-  status: "pending" | "in_progress" | "completed"
+  status: "pending" | "in_progress" | "completed" | "cancelled"
+  priority?: "high" | "medium" | "low"
 }
 
 // Question types from Question module
@@ -335,6 +336,7 @@ export interface Config {
   lsp?: false | Record<string, unknown>
   compaction?: CompactionConfig
   tools?: Record<string, boolean>
+  keybinds?: Record<string, string>
   layout?: "auto" | "stretch"
   experimental?: ExperimentalConfig
 }

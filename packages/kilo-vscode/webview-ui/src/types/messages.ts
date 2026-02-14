@@ -134,7 +134,8 @@ export interface PermissionRequest {
 export interface TodoItem {
   id: string
   content: string
-  status: "pending" | "in_progress" | "completed"
+  status: "pending" | "in_progress" | "completed" | "cancelled"
+  priority?: "high" | "medium" | "low"
 }
 
 // Question types
@@ -311,6 +312,7 @@ export interface Config {
   lsp?: false | Record<string, unknown>
   compaction?: CompactionConfig
   tools?: Record<string, boolean>
+  keybinds?: Record<string, string>
   layout?: "auto" | "stretch"
   experimental?: ExperimentalConfig
 }
@@ -771,6 +773,29 @@ export interface SeeNewChangesRequest {
   sessionID?: string
 }
 
+export interface CreateTodoRequest {
+  type: "createTodo"
+  sessionID?: string
+  content: string
+  status?: "pending" | "in_progress" | "completed" | "cancelled"
+  priority?: "high" | "medium" | "low"
+}
+
+export interface UpdateTodoRequest {
+  type: "updateTodo"
+  sessionID?: string
+  todoID: string
+  content?: string
+  status?: "pending" | "in_progress" | "completed" | "cancelled"
+  priority?: "high" | "medium" | "low"
+}
+
+export interface DeleteTodoRequest {
+  type: "deleteTodo"
+  sessionID?: string
+  todoID: string
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -814,6 +839,9 @@ export type WebviewMessage =
   | OpenForkSessionPickerRequest
   | PasteAttachmentsRequest
   | SeeNewChangesRequest
+  | CreateTodoRequest
+  | UpdateTodoRequest
+  | DeleteTodoRequest
 
 // ============================================
 // VS Code API type

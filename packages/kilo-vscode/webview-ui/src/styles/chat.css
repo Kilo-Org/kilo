@@ -84,10 +84,42 @@
   overflow-y: auto;
 }
 
+.todo-panel-create {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.todo-panel-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 4px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-size: 12px;
+  font-family: var(--vscode-font-family);
+}
+
+.todo-panel-input:focus {
+  border-color: var(--vscode-focusBorder);
+  outline: none;
+}
+
 .todo-panel-item {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+
+.todo-panel-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
   min-width: 0;
 }
 

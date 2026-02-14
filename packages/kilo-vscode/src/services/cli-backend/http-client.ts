@@ -303,13 +303,56 @@ export class HttpClient {
   /**
    * Get todo items for a session.
    */
-  async getTodos(sessionId: string, directory: string): Promise<Array<{ id: string; content: string; status: string }>> {
-    return this.request<Array<{ id: string; content: string; status: string }>>(
+  async getTodos(
+    sessionId: string,
+    directory: string,
+  ): Promise<Array<{ id: string; content: string; status: string; priority?: string }>> {
+    return this.request<Array<{ id: string; content: string; status: string; priority?: string }>>(
       "GET",
       `/session/${sessionId}/todo`,
       undefined,
       { directory },
     )
+  }
+
+  /**
+   * Create a todo item in a session.
+   */
+  async createTodo(
+    sessionId: string,
+    todo: { content: string; status?: "pending" | "in_progress" | "completed" | "cancelled"; priority?: "high" | "medium" | "low" },
+    directory: string,
+  ): Promise<{ id: string; content: string; status: string; priority?: string }> {
+    return this.request<{ id: string; content: string; status: string; priority?: string }>(
+      "POST",
+      `/session/${sessionId}/todo`,
+      todo,
+      { directory },
+    )
+  }
+
+  /**
+   * Update an existing todo item in a session.
+   */
+  async updateTodo(
+    sessionId: string,
+    todoId: string,
+    changes: { content?: string; status?: "pending" | "in_progress" | "completed" | "cancelled"; priority?: "high" | "medium" | "low" },
+    directory: string,
+  ): Promise<{ id: string; content: string; status: string; priority?: string }> {
+    return this.request<{ id: string; content: string; status: string; priority?: string }>(
+      "PATCH",
+      `/session/${sessionId}/todo/${todoId}`,
+      changes,
+      { directory },
+    )
+  }
+
+  /**
+   * Delete a todo item from a session.
+   */
+  async deleteTodo(sessionId: string, todoId: string, directory: string): Promise<void> {
+    await this.request<void>("DELETE", `/session/${sessionId}/todo/${todoId}`, undefined, { directory, allowEmpty: true })
   }
 
   // ============================================

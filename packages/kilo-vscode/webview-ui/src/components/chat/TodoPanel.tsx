@@ -1,16 +1,19 @@
 import { Component, For, Show, createMemo, createSignal } from "solid-js"
+import { Button } from "@kilocode/kilo-ui/button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { ContextMenu } from "@kilocode/kilo-ui/context-menu"
 import { showToast } from "@kilocode/kilo-ui/toast"
 import { useSession } from "../../context/session"
 import { useLanguage } from "../../context/language"
 
-function statusLabel(status: "pending" | "in_progress" | "completed", t: (key: string) => string): string {
+function statusLabel(status: "pending" | "in_progress" | "completed" | "cancelled", t: (key: string) => string): string {
   switch (status) {
     case "in_progress":
       return t("todo.status.inProgress")
     case "completed":
       return t("todo.status.completed")
+    case "cancelled":
+      return "Cancelled"
     default:
       return t("todo.status.pending")
   }
@@ -20,6 +23,9 @@ export const TodoPanel: Component = () => {
   const session = useSession()
   const language = useLanguage()
   const [showCompleted, setShowCompleted] = createSignal(false)
+  const [newTodoText, setNewTodoText] = createSignal("")
+  const [editingTodoID, setEditingTodoID] = createSignal<string | null>(null)
+  const [editingText, setEditingText] = createSignal("")
 
   const todos = createMemo(() => session.todos())
   const total = createMemo(() => todos().length)
@@ -29,11 +35,14 @@ export const TodoPanel: Component = () => {
     return Math.round((completed() / total()) * 100)
   })
   const visibleTodos = createMemo(() =>
-    showCompleted() ? todos() : todos().filter((item) => item.status !== "completed"),
+    showCompleted() ? todos() : todos().filter((item) => item.status !== "completed" && item.status !== "cancelled"),
   )
-  const hiddenCompleted = createMemo(() =>
-    Math.max(0, completed() - visibleTodos().filter((x) => x.status === "completed").length),
-  )
+  const hiddenCompleted = createMemo(() => {
+    if (showCompleted()) {
+      return 0
+    }
+    return todos().filter((x) => x.status === "completed" || x.status === "cancelled").length
+  })
   const copyTodo = async (content: string) => {
     try {
       await navigator.clipboard.writeText(content)
@@ -43,8 +52,32 @@ export const TodoPanel: Component = () => {
     }
   }
 
+  const addTodo = () => {
+    const content = newTodoText().trim()
+    if (!content) {
+      return
+    }
+    session.createTodo(content, "pending")
+    setNewTodoText("")
+  }
+
+  const startEdit = (todoID: string, content: string) => {
+    setEditingTodoID(todoID)
+    setEditingText(content)
+  }
+
+  const saveEdit = (todoID: string) => {
+    const content = editingText().trim()
+    if (!content) {
+      return
+    }
+    session.updateTodo(todoID, { content })
+    setEditingTodoID(null)
+    setEditingText("")
+  }
+
   return (
-    <Show when={total() > 0}>
+    <Show when={session.currentSessionID()}>
       <div class="todo-panel">
         <div class="todo-panel-header">
           <span class="todo-panel-title">{language.t("todo.title")}</span>
@@ -63,6 +96,25 @@ export const TodoPanel: Component = () => {
           <div class="todo-panel-progress-fill" style={{ width: `${progress()}%` }} />
         </div>
 
+        <div class="todo-panel-create">
+          <input
+            type="text"
+            class="todo-panel-input"
+            value={newTodoText()}
+            onInput={(event) => setNewTodoText(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault()
+                addTodo()
+              }
+            }}
+            placeholder="Add a todo item..."
+          />
+          <Button size="small" variant="secondary" onClick={addTodo} disabled={newTodoText().trim().length === 0}>
+            Add
+          </Button>
+        </div>
+
         <ul class="todo-panel-list">
           <For each={visibleTodos()}>
             {(item) => (
@@ -71,14 +123,69 @@ export const TodoPanel: Component = () => {
                   <span class="todo-panel-status" data-status={item.status}>
                     {statusLabel(item.status, language.t)}
                   </span>
-                  <span class="todo-panel-content" data-status={item.status}>
-                    {item.content}
-                  </span>
+                  <Show
+                    when={editingTodoID() === item.id}
+                    fallback={
+                      <span class="todo-panel-content" data-status={item.status} onDblClick={() => startEdit(item.id, item.content)}>
+                        {item.content}
+                      </span>
+                    }
+                  >
+                    <div class="todo-panel-edit-row">
+                      <input
+                        type="text"
+                        class="todo-panel-input"
+                        value={editingText()}
+                        onInput={(event) => setEditingText(event.currentTarget.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault()
+                            saveEdit(item.id)
+                          }
+                          if (event.key === "Escape") {
+                            event.preventDefault()
+                            setEditingTodoID(null)
+                            setEditingText("")
+                          }
+                        }}
+                      />
+                      <Button size="small" variant="ghost" onClick={() => saveEdit(item.id)}>
+                        Save
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingTodoID(null)
+                          setEditingText("")
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </Show>
                 </ContextMenu.Trigger>
                 <ContextMenu.Portal>
                   <ContextMenu.Content>
                     <ContextMenu.Item onSelect={() => void copyTodo(item.content)}>
                       <ContextMenu.ItemLabel>{language.t("common.copy")}</ContextMenu.ItemLabel>
+                    </ContextMenu.Item>
+                    <ContextMenu.Separator />
+                    <ContextMenu.Item onSelect={() => session.updateTodo(item.id, { status: "pending" })}>
+                      <ContextMenu.ItemLabel>{language.t("todo.status.pending")}</ContextMenu.ItemLabel>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item onSelect={() => session.updateTodo(item.id, { status: "in_progress" })}>
+                      <ContextMenu.ItemLabel>{language.t("todo.status.inProgress")}</ContextMenu.ItemLabel>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item onSelect={() => session.updateTodo(item.id, { status: "completed" })}>
+                      <ContextMenu.ItemLabel>{language.t("todo.status.completed")}</ContextMenu.ItemLabel>
+                    </ContextMenu.Item>
+                    <ContextMenu.Separator />
+                    <ContextMenu.Item onSelect={() => startEdit(item.id, item.content)}>
+                      <ContextMenu.ItemLabel>Edit</ContextMenu.ItemLabel>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item onSelect={() => session.deleteTodo(item.id)}>
+                      <ContextMenu.ItemLabel>Delete</ContextMenu.ItemLabel>
                     </ContextMenu.Item>
                   </ContextMenu.Content>
                 </ContextMenu.Portal>

@@ -183,6 +183,110 @@ export const SessionRoutes = lazy(() =>
       },
     )
     .post(
+      "/:sessionID/todo",
+      describeRoute({
+        summary: "Create session todo",
+        description: "Create a new todo item in the specified session.",
+        operationId: "session.todo.create",
+        responses: {
+          200: {
+            description: "Created todo",
+            content: {
+              "application/json": {
+                schema: resolver(Todo.Info),
+              },
+            },
+          },
+          ...errors(400, 404),
+        },
+      }),
+      validator(
+        "param",
+        z.object({
+          sessionID: z.string().meta({ description: "Session ID" }),
+        }),
+      ),
+      validator("json", Todo.CreateInput),
+      async (c) => {
+        const sessionID = c.req.valid("param").sessionID
+        const todo = c.req.valid("json")
+        const created = await Todo.create({ sessionID, todo })
+        return c.json(created)
+      },
+    )
+    .patch(
+      "/:sessionID/todo/:todoID",
+      describeRoute({
+        summary: "Update session todo",
+        description: "Update one or more fields on an existing todo item.",
+        operationId: "session.todo.update",
+        responses: {
+          200: {
+            description: "Updated todo",
+            content: {
+              "application/json": {
+                schema: resolver(Todo.Info),
+              },
+            },
+          },
+          ...errors(400, 404),
+        },
+      }),
+      validator(
+        "param",
+        z.object({
+          sessionID: z.string().meta({ description: "Session ID" }),
+          todoID: z.string().meta({ description: "Todo ID" }),
+        }),
+      ),
+      validator("json", Todo.UpdateInput),
+      async (c) => {
+        const { sessionID, todoID } = c.req.valid("param")
+        const changes = c.req.valid("json")
+        const updated = await Todo.patch({ sessionID, todoID, changes })
+        if (!updated) {
+          c.status(404)
+          return c.json({ error: "Todo not found" })
+        }
+        return c.json(updated)
+      },
+    )
+    .delete(
+      "/:sessionID/todo/:todoID",
+      describeRoute({
+        summary: "Delete session todo",
+        description: "Delete a todo item from the specified session.",
+        operationId: "session.todo.delete",
+        responses: {
+          200: {
+            description: "Todo deleted",
+            content: {
+              "application/json": {
+                schema: resolver(z.boolean()),
+              },
+            },
+          },
+          ...errors(400, 404),
+        },
+      }),
+      validator(
+        "param",
+        z.object({
+          sessionID: z.string().meta({ description: "Session ID" }),
+          todoID: z.string().meta({ description: "Todo ID" }),
+        }),
+      ),
+      async (c) => {
+        const { sessionID, todoID } = c.req.valid("param")
+        const removed = await Todo.remove({ sessionID, todoID })
+        if (!removed) {
+          c.status(404)
+          return c.json({ error: "Todo not found" })
+        }
+        return c.json(removed)
+      },
+    )
+    .post(
       "/",
       describeRoute({
         summary: "Create session",

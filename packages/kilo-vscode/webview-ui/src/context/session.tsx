@@ -94,6 +94,16 @@ interface SessionContextValue {
   abort: () => void
   compact: () => void
   seeNewChanges: () => void
+  createTodo: (content: string, status?: "pending" | "in_progress" | "completed" | "cancelled") => void
+  updateTodo: (
+    todoID: string,
+    patch: {
+      content?: string
+      status?: "pending" | "in_progress" | "completed" | "cancelled"
+      priority?: "high" | "medium" | "low"
+    },
+  ) => void
+  deleteTodo: (todoID: string) => void
   openForkSessionPicker: () => void
   revertMessage: (messageID: string) => void
   forkSession: (messageID?: string) => void
@@ -559,6 +569,67 @@ export const SessionProvider: ParentComponent = (props) => {
     })
   }
 
+  function createTodo(content: string, status?: "pending" | "in_progress" | "completed" | "cancelled") {
+    if (!server.isConnected()) {
+      return
+    }
+    const trimmed = content.trim()
+    if (!trimmed) {
+      return
+    }
+    vscode.postMessage({
+      type: "createTodo",
+      sessionID: currentSessionID(),
+      content: trimmed,
+      status,
+    })
+  }
+
+  function updateTodo(
+    todoID: string,
+    patch: {
+      content?: string
+      status?: "pending" | "in_progress" | "completed" | "cancelled"
+      priority?: "high" | "medium" | "low"
+    },
+  ) {
+    if (!server.isConnected()) {
+      return
+    }
+    if (!todoID) {
+      return
+    }
+    const payload: typeof patch = { ...patch }
+    if (typeof payload.content === "string") {
+      const trimmed = payload.content.trim()
+      if (!trimmed) {
+        delete payload.content
+      } else {
+        payload.content = trimmed
+      }
+    }
+    if (Object.keys(payload).length === 0) {
+      return
+    }
+    vscode.postMessage({
+      type: "updateTodo",
+      sessionID: currentSessionID(),
+      todoID,
+      ...payload,
+    })
+  }
+
+  function deleteTodo(todoID: string) {
+    if (!server.isConnected() || !todoID) {
+      return
+    }
+    vscode.postMessage({
+      type: "deleteTodo",
+      sessionID: currentSessionID(),
+      todoID,
+    })
+  }
+
   function openForkSessionPicker() {
     if (!server.isConnected()) {
       return
@@ -839,6 +910,9 @@ export const SessionProvider: ParentComponent = (props) => {
     abort,
     compact,
     seeNewChanges,
+    createTodo,
+    updateTodo,
+    deleteTodo,
     openForkSessionPicker,
     revertMessage,
     forkSession,

@@ -233,6 +233,27 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         case "loadMessages":
           await this.handleLoadMessages(message.sessionID)
           break
+        case "createTodo":
+          if (typeof message.content === "string") {
+            await this.handleCreateTodo(message.sessionID, message.content, message.status, message.priority)
+          }
+          break
+        case "updateTodo":
+          if (typeof message.todoID === "string") {
+            await this.handleUpdateTodo(
+              message.sessionID,
+              message.todoID,
+              typeof message.content === "string" ? message.content : undefined,
+              message.status,
+              message.priority,
+            )
+          }
+          break
+        case "deleteTodo":
+          if (typeof message.todoID === "string") {
+            await this.handleDeleteTodo(message.sessionID, message.todoID)
+          }
+          break
         case "loadSessions":
           await this.handleLoadSessions()
           break
@@ -815,23 +836,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         messages,
       })
 
-      try {
-        const todos = await this.httpClient.getTodos(sessionID, workspaceDir)
-        this.postMessage({
-          type: "todoUpdated",
-          sessionID,
-          items: todos.map((todo) => ({
-            id: todo.id,
-            content: todo.content,
-            status:
-              todo.status === "in_progress" || todo.status === "completed" || todo.status === "pending"
-                ? todo.status
-                : "pending",
-          })),
-        })
-      } catch (error) {
-        logger.debug("[Kilo New] KiloProvider: No todos loaded for session", { sessionID, error })
-      }
+      await this.refreshTodosForSession(sessionID, workspaceDir)
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to load messages:", error)
       this.postMessage({
@@ -839,6 +844,106 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         message: error instanceof Error ? error.message : "Failed to load messages",
       })
     }
+  }
+
+  private mapTodoStatus(status: string): "pending" | "in_progress" | "completed" | "cancelled" {
+    if (status === "in_progress" || status === "completed" || status === "cancelled" || status === "pending") {
+      return status
+    }
+    return "pending"
+  }
+
+  private async refreshTodosForSession(sessionID: string, workspaceDir: string): Promise<void> {
+    if (!this.httpClient) {
+      return
+    }
+    try {
+      const todos = await this.httpClient.getTodos(sessionID, workspaceDir)
+      this.postMessage({
+        type: "todoUpdated",
+        sessionID,
+        items: todos.map((todo) => ({
+          id: todo.id,
+          content: todo.content,
+          status: this.mapTodoStatus(todo.status),
+          priority: todo.priority === "high" || todo.priority === "low" || todo.priority === "medium" ? todo.priority : undefined,
+        })),
+      })
+    } catch (error) {
+      logger.debug("[Kilo New] KiloProvider: No todos loaded for session", { sessionID, error })
+    }
+  }
+
+  private async handleCreateTodo(
+    sessionID: string | undefined,
+    content: string,
+    status?: "pending" | "in_progress" | "completed" | "cancelled",
+    priority?: "high" | "medium" | "low",
+  ): Promise<void> {
+    if (!this.httpClient) {
+      return
+    }
+    const targetSessionID = sessionID || this.currentSession?.id
+    if (!targetSessionID) {
+      return
+    }
+    const trimmed = content.trim()
+    if (!trimmed) {
+      return
+    }
+    const workspaceDir = this.getWorkspaceDirectory()
+    await this.httpClient.createTodo(targetSessionID, { content: trimmed, status, priority }, workspaceDir)
+    await this.refreshTodosForSession(targetSessionID, workspaceDir)
+  }
+
+  private async handleUpdateTodo(
+    sessionID: string | undefined,
+    todoID: string,
+    content?: string,
+    status?: "pending" | "in_progress" | "completed" | "cancelled",
+    priority?: "high" | "medium" | "low",
+  ): Promise<void> {
+    if (!this.httpClient) {
+      return
+    }
+    const targetSessionID = sessionID || this.currentSession?.id
+    if (!targetSessionID) {
+      return
+    }
+
+    const changes: { content?: string; status?: "pending" | "in_progress" | "completed" | "cancelled"; priority?: "high" | "medium" | "low" } = {}
+    if (typeof content === "string") {
+      const trimmed = content.trim()
+      if (trimmed.length > 0) {
+        changes.content = trimmed
+      }
+    }
+    if (status) {
+      changes.status = status
+    }
+    if (priority) {
+      changes.priority = priority
+    }
+    if (Object.keys(changes).length === 0) {
+      return
+    }
+
+    const workspaceDir = this.getWorkspaceDirectory()
+    await this.httpClient.updateTodo(targetSessionID, todoID, changes, workspaceDir)
+    await this.refreshTodosForSession(targetSessionID, workspaceDir)
+  }
+
+  private async handleDeleteTodo(sessionID: string | undefined, todoID: string): Promise<void> {
+    if (!this.httpClient) {
+      return
+    }
+    const targetSessionID = sessionID || this.currentSession?.id
+    if (!targetSessionID) {
+      return
+    }
+    const workspaceDir = this.getWorkspaceDirectory()
+    await this.httpClient.deleteTodo(targetSessionID, todoID, workspaceDir)
+    await this.refreshTodosForSession(targetSessionID, workspaceDir)
   }
 
   /**
@@ -1667,13 +1772,21 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         })
         break
 
-      case "todo.updated":
+      case "todo.updated": {
+        // Opencode emits "todos"; older adapters may emit "items".
+        const todoItems = event.properties.items ?? event.properties.todos ?? []
         this.postMessage({
           type: "todoUpdated",
           sessionID: event.properties.sessionID,
-          items: event.properties.items,
+          items: todoItems.map((todo) => ({
+            id: todo.id,
+            content: todo.content,
+            status: this.mapTodoStatus(todo.status),
+            priority: todo.priority === "high" || todo.priority === "low" || todo.priority === "medium" ? todo.priority : undefined,
+          })),
         })
         break
+      }
 
       case "question.asked":
         this.postMessage({

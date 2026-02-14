@@ -172,6 +172,8 @@ export const QuestionDock: Component<{ request: QuestionRequest }> = (props) => 
                     data-answered={answered()}
                     disabled={store.sending}
                     onClick={() => selectTab(index())}
+                    aria-label={q.header}
+                    title={q.header}
                   >
                     {q.header}
                   </button>
@@ -183,6 +185,8 @@ export const QuestionDock: Component<{ request: QuestionRequest }> = (props) => 
               data-active={confirm()}
               disabled={store.sending}
               onClick={() => selectTab(questions().length)}
+              aria-label={language.t("ui.common.confirm")}
+              title={language.t("ui.common.confirm")}
             >
               {language.t("ui.common.confirm")}
             </button>
@@ -205,6 +209,8 @@ export const QuestionDock: Component<{ request: QuestionRequest }> = (props) => 
                       data-picked={picked()}
                       disabled={store.sending}
                       onClick={() => selectOption(i())}
+                      aria-label={opt.label}
+                      title={opt.description ? `${opt.label}: ${opt.description}` : opt.label}
                     >
                       <span data-slot="option-label">{opt.label}</span>
                       <Show when={opt.description}>
@@ -223,6 +229,8 @@ export const QuestionDock: Component<{ request: QuestionRequest }> = (props) => 
                   data-picked={customPicked()}
                   disabled={store.sending}
                   onClick={() => selectOption(options().length)}
+                  aria-label={language.t("ui.messagePart.option.typeOwnAnswer")}
+                  title={language.t("ui.messagePart.option.typeOwnAnswer")}
                 >
                   <span data-slot="option-label">{language.t("ui.messagePart.option.typeOwnAnswer")}</span>
                   <Show when={!store.editing && input()}>

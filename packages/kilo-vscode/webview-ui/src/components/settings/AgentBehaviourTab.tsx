@@ -580,6 +580,8 @@ const AgentBehaviourTab: Component = () => {
           {(subtab) => (
             <button
               onClick={() => setActiveSubtab(subtab.id)}
+              aria-label={language.t(subtab.labelKey)}
+              title={language.t(subtab.labelKey)}
               style={{
                 padding: "8px 16px",
                 border: "none",

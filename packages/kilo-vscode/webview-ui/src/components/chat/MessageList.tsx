@@ -114,7 +114,12 @@ export const MessageList: Component<MessageListProps> = (props) => {
                 <For each={recent()}>
                   {(s) => (
                     <Tooltip value={s.title || language.t("session.untitled")} placement="top">
-                      <button class="recent-session-item" onClick={() => props.onSelectSession?.(s.id)}>
+                      <button
+                        class="recent-session-item"
+                        onClick={() => props.onSelectSession?.(s.id)}
+                        aria-label={s.title || language.t("session.untitled")}
+                        title={s.title || language.t("session.untitled")}
+                      >
                         <span class="recent-session-title">{s.title || language.t("session.untitled")}</span>
                         <span class="recent-session-date">{formatRelativeDate(s.updatedAt)}</span>
                       </button>

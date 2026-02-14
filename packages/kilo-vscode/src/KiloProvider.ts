@@ -255,6 +255,11 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           }
           break
         }
+        case "openFilePath":
+          if (typeof message.path === "string") {
+            await this.handleOpenFilePath(message.path)
+          }
+          break
         case "selectFiles":
           await this.handleSelectFiles()
           break
@@ -360,7 +365,11 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     try {
       const doc = await vscode.workspace.openTextDocument({ language: "markdown", content })
-      await vscode.window.showTextDocument(doc, { preview: true, preserveFocus: false, viewColumn: vscode.ViewColumn.Beside })
+      await vscode.window.showTextDocument(doc, {
+        preview: true,
+        preserveFocus: false,
+        viewColumn: vscode.ViewColumn.Beside,
+      })
       await vscode.commands.executeCommand("markdown.showPreviewToSide", doc.uri)
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to open markdown preview:", error)
@@ -372,6 +381,26 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       await vscode.commands.executeCommand("vscode.open", vscode.Uri.parse(fileUrl))
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to open file attachment:", error)
+    }
+  }
+
+  private async handleOpenFilePath(rawPath: string): Promise<void> {
+    const value = rawPath.trim()
+    if (!value) {
+      return
+    }
+
+    try {
+      const uri = value.startsWith("file://")
+        ? vscode.Uri.parse(value)
+        : vscode.Uri.file(
+            path.isAbsolute(value)
+              ? value
+              : path.join(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd(), value),
+          )
+      await vscode.commands.executeCommand("vscode.open", uri)
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to open file path:", { path: value, error })
     }
   }
 
@@ -1458,8 +1487,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       return
     }
 
-    const message =
-      error instanceof Error ? error.message : "Failed to start CLI server or connect to backend"
+    const message = error instanceof Error ? error.message : "Failed to start CLI server or connect to backend"
     void vscode.window.showErrorMessage(`Kilo Code: ${message}`, RETRY_ACTION_LABEL).then((action) => {
       if (action === RETRY_ACTION_LABEL) {
         this.connectionState = "connecting"

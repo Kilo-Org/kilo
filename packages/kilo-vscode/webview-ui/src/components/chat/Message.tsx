@@ -9,6 +9,7 @@
  */
 
 import { Component, Show, createMemo } from "solid-js"
+import { Dynamic } from "solid-js/web"
 import { Message as KiloMessage, ToolRegistry, type ToolProps } from "@kilocode/kilo-ui/message-part"
 import { BasicTool } from "@kilocode/kilo-ui/basic-tool"
 import { Button } from "@kilocode/kilo-ui/button"
@@ -38,6 +39,28 @@ function getExitCode(value: unknown): number | undefined {
     const parsed = Number(value)
     if (Number.isFinite(parsed)) return parsed
   }
+  return undefined
+}
+
+function getToolFilePath(props: ToolProps): string | undefined {
+  const inputPath = props.input?.filePath
+  if (typeof inputPath === "string" && inputPath.trim().length > 0) {
+    return inputPath
+  }
+
+  const filediff = props.metadata?.filediff
+  if (filediff && typeof filediff === "object") {
+    const pathValue = (filediff as { path?: unknown; file?: unknown }).path
+    if (typeof pathValue === "string" && pathValue.trim().length > 0) {
+      return pathValue
+    }
+
+    const fileValue = (filediff as { path?: unknown; file?: unknown }).file
+    if (typeof fileValue === "string" && fileValue.trim().length > 0) {
+      return fileValue
+    }
+  }
+
   return undefined
 }
 
@@ -119,6 +142,62 @@ ToolRegistry.register({
   name: "bash",
   render: BashTool,
 })
+
+function registerOpenFileInlineAction(toolName: string) {
+  const baseRender = ToolRegistry.render(toolName)
+  if (!baseRender) {
+    return
+  }
+
+  const WrappedTool: Component<ToolProps> = (props) => {
+    const language = useLanguage()
+    const vscode = useVSCode()
+    const filePath = createMemo(() => getToolFilePath(props))
+
+    const openFile = () => {
+      const path = filePath()
+      if (!path) {
+        return
+      }
+      vscode.postMessage({ type: "openFilePath", path })
+    }
+
+    return (
+      <div class="tool-inline-actions-container">
+        <Show when={filePath()}>
+          <div class="tool-inline-actions">
+            <Tooltip value={language.t("command.file.open")} placement="top">
+              <Button variant="ghost" size="small" onClick={openFile} aria-label={language.t("command.file.open")}>
+                {language.t("command.file.open")}
+              </Button>
+            </Tooltip>
+          </div>
+        </Show>
+        <Dynamic
+          component={baseRender}
+          input={props.input}
+          tool={props.tool}
+          metadata={props.metadata}
+          output={props.output}
+          status={props.status}
+          hideDetails={props.hideDetails}
+          forceOpen={props.forceOpen}
+          locked={props.locked}
+          defaultOpen={props.defaultOpen}
+        />
+      </div>
+    )
+  }
+
+  ToolRegistry.register({
+    name: toolName,
+    render: WrappedTool,
+  })
+}
+
+registerOpenFileInlineAction("read")
+registerOpenFileInlineAction("write")
+registerOpenFileInlineAction("edit")
 
 export const Message: Component<MessageProps> = (props) => {
   const session = useSession()

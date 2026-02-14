@@ -725,6 +725,11 @@ export interface OpenFileAttachmentRequest {
   url: string
 }
 
+export interface OpenFilePathRequest {
+  type: "openFilePath"
+  path: string
+}
+
 export interface SeeNewChangesRequest {
   type: "seeNewChanges"
   sessionID?: string
@@ -766,6 +771,7 @@ export type WebviewMessage =
   | RetryConnectionRequest
   | SelectFilesRequest
   | OpenFileAttachmentRequest
+  | OpenFilePathRequest
   | SeeNewChangesRequest
 
 // ============================================

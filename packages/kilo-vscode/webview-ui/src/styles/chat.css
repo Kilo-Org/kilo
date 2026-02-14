@@ -190,6 +190,12 @@
   color: var(--vscode-descriptionForeground);
 }
 
+.tool-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 4px 0;
+}
+
 /* ============================================
    Kilo Logo (empty state)
    ============================================ */

@@ -2,6 +2,10 @@
 
 Inline affordances on tool messages to navigate, inspect, and track progress.
 
+## Status
+
+🔨 Partial
+
 ## Location
 
 - Various tool message components
@@ -12,6 +16,16 @@ Inline affordances on tool messages to navigate, inspect, and track progress.
 - **Jump to File**: Opens files directly from file operation messages
 - **External Link Icons**: Navigate to related files/resources
 - **Progress Indicators**: Real-time status for long-running operations
+
+## Current Progress
+
+- Tool rows already show status/progress states via kilo-ui renderers
+- Read/write/edit tool rows now expose inline "Open file" actions in the webview
+
+## Remaining Gaps
+
+- Expand jump-to-file/file-resource actions to additional tool types
+- Parity polish for richer external-link/file-operation affordances
 
 ## Suggested migration
 

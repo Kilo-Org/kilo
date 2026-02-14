@@ -11,6 +11,7 @@ import type {
   McpConfig,
   Config,
 } from "./types"
+import { logger } from "../../utils/logger"
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 10_000
 const DEFAULT_REQUEST_TIMEOUT_MS = 60_000
@@ -39,7 +40,7 @@ export class HttpClient {
     this.authHeader = `Basic ${Buffer.from(`${this.authUsername}:${config.password}`).toString("base64")}`
 
     // Safe debug logging: no secrets.
-    console.log("[Kilo New] HTTP: 🔐 Auth configured", {
+    logger.info("[Kilo New] HTTP: 🔐 Auth configured", {
       username: this.authUsername,
       passwordLength: config.password.length,
     })
@@ -105,7 +106,7 @@ export class HttpClient {
           }
         }
 
-        console.error("[Kilo New] HTTP: ❌ Request failed", {
+        logger.error("[Kilo New] HTTP: ❌ Request failed", {
           method,
           path,
           status: response.status,
@@ -122,7 +123,7 @@ export class HttpClient {
           return undefined as T
         }
 
-        console.error("[Kilo New] HTTP: ❌ Empty response body", {
+        logger.error("[Kilo New] HTTP: ❌ Empty response body", {
           method,
           path,
           status: response.status,
@@ -133,7 +134,7 @@ export class HttpClient {
       try {
         return JSON.parse(rawText) as T
       } catch (error) {
-        console.error("[Kilo New] HTTP: ❌ Invalid JSON response", {
+        logger.error("[Kilo New] HTTP: ❌ Invalid JSON response", {
           method,
           path,
           status: response.status,

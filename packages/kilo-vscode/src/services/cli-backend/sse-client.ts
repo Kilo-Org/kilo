@@ -1,5 +1,6 @@
 import EventSource from "eventsource"
 import type { ServerConfig, SSEEvent } from "./types"
+import { logger } from "../../utils/logger"
 
 // Type definitions for handlers
 export type SSEEventHandler = (event: SSEEvent) => void
@@ -32,7 +33,7 @@ export class SSEClient {
    * @param directory - The workspace directory to subscribe to events for
    */
   connect(directory: string): void {
-    console.log("[Kilo New] SSE: 🔌 connect() called with directory:", directory)
+    logger.info("[Kilo New] SSE: 🔌 connect() called with directory:", directory)
 
     this.shouldReconnect = true
     this.directory = directory
@@ -42,7 +43,7 @@ export class SSEClient {
     this.closeEventSource()
 
     // Notify connecting state
-    console.log('[Kilo New] SSE: 🔄 Setting state to "connecting"')
+    logger.info('[Kilo New] SSE: 🔄 Setting state to "connecting"')
     this.notifyState("connecting")
 
     this.createEventSource()
@@ -55,17 +56,17 @@ export class SSEClient {
 
     // Build URL with directory parameter
     const url = `${this.config.baseUrl}/event?directory=${encodeURIComponent(this.directory)}`
-    console.log("[Kilo New] SSE: 🌐 Connecting to URL:", url)
+    logger.info("[Kilo New] SSE: 🌐 Connecting to URL:", url)
 
     // Create auth header
     const authHeader = `Basic ${Buffer.from(`${this.authUsername}:${this.config.password}`).toString("base64")}`
-    console.log("[Kilo New] SSE: 🔑 Auth header created", {
+    logger.info("[Kilo New] SSE: 🔑 Auth header created", {
       username: this.authUsername,
       passwordLength: this.config.password.length,
     })
 
     // Create EventSource with headers
-    console.log("[Kilo New] SSE: 🎬 Creating EventSource...")
+    logger.info("[Kilo New] SSE: 🎬 Creating EventSource...")
     const currentEventSource = new EventSource(url, {
       headers: {
         Authorization: authHeader,
@@ -78,7 +79,7 @@ export class SSEClient {
       if (this.eventSource !== currentEventSource) {
         return
       }
-      console.log("[Kilo New] SSE: ✅ EventSource opened successfully")
+      logger.info("[Kilo New] SSE: ✅ EventSource opened successfully")
       this.hasConnected = true
       this.reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
       this.notifyState("connected")
@@ -89,13 +90,13 @@ export class SSEClient {
       if (this.eventSource !== currentEventSource) {
         return
       }
-      console.log("[Kilo New] SSE: 📨 Received message event:", messageEvent.data)
+      logger.info("[Kilo New] SSE: 📨 Received message event:", messageEvent.data)
       try {
         const event = JSON.parse(messageEvent.data) as SSEEvent
-        console.log("[Kilo New] SSE: 📦 Parsed event type:", event.type)
+        logger.info("[Kilo New] SSE: 📦 Parsed event type:", event.type)
         this.notifyEvent(event)
       } catch (error) {
-        console.error("[Kilo New] SSE: ❌ Failed to parse event:", error)
+        logger.error("[Kilo New] SSE: ❌ Failed to parse event:", error)
         this.notifyError(error instanceof Error ? error : new Error(String(error)))
       }
     }
@@ -105,7 +106,7 @@ export class SSEClient {
       if (this.eventSource !== currentEventSource) {
         return
       }
-      console.error("[Kilo New] SSE: ❌ EventSource error:", errorEvent)
+      logger.error("[Kilo New] SSE: ❌ EventSource error:", errorEvent)
       this.closeEventSource()
 
       if (!this.shouldReconnect || !this.directory) {
@@ -216,7 +217,7 @@ export class SSEClient {
       try {
         handler(event)
       } catch (error) {
-        console.error("[Kilo New] SSE: Error in event handler:", error)
+        logger.error("[Kilo New] SSE: Error in event handler:", error)
       }
     }
   }
@@ -229,7 +230,7 @@ export class SSEClient {
       try {
         handler(error)
       } catch (err) {
-        console.error("[Kilo New] SSE: Error in error handler:", err)
+        logger.error("[Kilo New] SSE: Error in error handler:", err)
       }
     }
   }
@@ -242,7 +243,7 @@ export class SSEClient {
       try {
         handler(state)
       } catch (error) {
-        console.error("[Kilo New] SSE: Error in state handler:", error)
+        logger.error("[Kilo New] SSE: Error in state handler:", error)
       }
     }
   }

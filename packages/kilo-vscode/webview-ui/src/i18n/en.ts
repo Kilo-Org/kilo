@@ -734,6 +734,14 @@ export const dict = {
   "session.search.placeholder": "Search sessions...",
   "session.empty": "No sessions yet. Click + to start a new conversation.",
 
+  "todo.title": "To-do List",
+  "todo.progress": "{{completed}}/{{total}} complete ({{percent}}%)",
+  "todo.status.pending": "Pending",
+  "todo.status.inProgress": "In progress",
+  "todo.status.completed": "Completed",
+  "todo.completed.show": "Show completed ({{count}})",
+  "todo.completed.hide": "Hide completed",
+
   "workspace.new": "New workspace",
   "workspace.type.local": "local",
   "workspace.type.sandbox": "sandbox",

@@ -5,6 +5,7 @@
 
 import { Component, Show } from "solid-js"
 import { TaskHeader } from "./TaskHeader"
+import { TodoPanel } from "./TodoPanel"
 import { MessageList } from "./MessageList"
 import { PromptInput } from "./PromptInput"
 import { QuestionDock } from "./QuestionDock"
@@ -27,6 +28,7 @@ export const ChatView: Component<ChatViewProps> = (props) => {
   return (
     <div class="chat-view">
       <TaskHeader />
+      <TodoPanel />
       <div class="chat-messages">
         <MessageList onSelectSession={props.onSelectSession} />
       </div>

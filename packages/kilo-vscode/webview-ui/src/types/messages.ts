@@ -39,6 +39,20 @@ export interface ReasoningPart extends BasePart {
   text: string
 }
 
+export interface FilePart extends BasePart {
+  type: "file"
+  mime: string
+  url: string
+  filename?: string
+  source?: {
+    text?: {
+      start: number
+      end: number
+      content?: string
+    }
+  }
+}
+
 // Step parts from the backend
 export interface StepStartPart extends BasePart {
   type: "step-start"
@@ -56,7 +70,7 @@ export interface StepFinishPart extends BasePart {
   }
 }
 
-export type Part = TextPart | ToolPart | ReasoningPart | StepStartPart | StepFinishPart
+export type Part = TextPart | ToolPart | ReasoningPart | FilePart | StepStartPart | StepFinishPart
 
 // Part delta for streaming updates
 export interface PartDelta {
@@ -482,6 +496,11 @@ export interface NotificationSettingsLoadedMessage {
   }
 }
 
+export interface FilesSelectedMessage {
+  type: "filesSelected"
+  files: FileAttachment[]
+}
+
 export type ExtensionMessage =
   | ReadyMessage
   | ConnectionStateMessage
@@ -514,6 +533,7 @@ export type ExtensionMessage =
   | ConfigLoadedMessage
   | ConfigUpdatedMessage
   | NotificationSettingsLoadedMessage
+  | FilesSelectedMessage
 
 // ============================================
 // Messages FROM webview TO extension
@@ -522,6 +542,8 @@ export type ExtensionMessage =
 export interface FileAttachment {
   mime: string
   url: string
+  name?: string
+  previewUrl?: string
 }
 
 export interface SendMessageRequest {
@@ -682,6 +704,20 @@ export interface RetryConnectionRequest {
   type: "retryConnection"
 }
 
+export interface SelectFilesRequest {
+  type: "selectFiles"
+}
+
+export interface OpenFileAttachmentRequest {
+  type: "openFileAttachment"
+  url: string
+}
+
+export interface SeeNewChangesRequest {
+  type: "seeNewChanges"
+  sessionID?: string
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -715,6 +751,9 @@ export type WebviewMessage =
   | UpdateConfigMessage
   | RequestNotificationSettingsMessage
   | RetryConnectionRequest
+  | SelectFilesRequest
+  | OpenFileAttachmentRequest
+  | SeeNewChangesRequest
 
 // ============================================
 // VS Code API type

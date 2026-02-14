@@ -44,6 +44,7 @@ export interface MessageInfo {
 export type MessagePart =
   | { type: "text"; id: string; text: string }
   | { type: "tool"; id: string; tool: string; state: ToolState }
+  | { type: "file"; id: string; mime: string; url: string; filename?: string; source?: Record<string, unknown> }
   | { type: "reasoning"; id: string; text: string }
 
 export type ToolState =

@@ -3,15 +3,17 @@
  * Text input with send/abort buttons and ghost-text autocomplete for the chat interface
  */
 
-import { Component, createSignal, onCleanup, Show } from "solid-js"
+import { Component, For, createSignal, onCleanup, Show } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
+import { showToast } from "@kilocode/kilo-ui/toast"
 import { useSession } from "../../context/session"
 import { useServer } from "../../context/server"
 import { useLanguage } from "../../context/language"
 import { useVSCode } from "../../context/vscode"
 import { ModelSelector } from "./ModelSelector"
 import { ModeSwitcher } from "./ModeSwitcher"
+import type { FileAttachment } from "../../types/messages"
 
 const AUTOCOMPLETE_DEBOUNCE_MS = 500
 const MIN_TEXT_LENGTH = 3
@@ -24,13 +26,15 @@ export const PromptInput: Component = () => {
 
   const [text, setText] = createSignal("")
   const [ghostText, setGhostText] = createSignal("")
+  const [attachments, setAttachments] = createSignal<FileAttachment[]>([])
   let textareaRef: HTMLTextAreaElement | undefined
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
   let requestCounter = 0
 
   const isBusy = () => session.status() === "busy"
   const isDisabled = () => !server.isConnected()
-  const canSend = () => text().trim().length > 0 && !isBusy() && !isDisabled()
+  const hasAttachments = () => attachments().length > 0
+  const canSend = () => (text().trim().length > 0 || hasAttachments()) && !isBusy() && !isDisabled()
 
   // Listen for chat completion results from the extension
   const unsubscribe = vscode.onMessage((message) => {
@@ -41,6 +45,23 @@ export const PromptInput: Component = () => {
       if (result.requestId === expectedId && result.text) {
         setGhostText(result.text)
       }
+      return
+    }
+
+    if (message.type === "filesSelected") {
+      const incoming = Array.isArray(message.files) ? message.files : []
+      if (incoming.length === 0) return
+      setAttachments((prev) => {
+        const existing = new Set(prev.map((file) => file.url))
+        const merged = [...prev]
+        for (const file of incoming) {
+          if (!existing.has(file.url)) {
+            existing.add(file.url)
+            merged.push(file)
+          }
+        }
+        return merged
+      })
     }
   })
 
@@ -144,17 +165,44 @@ export const PromptInput: Component = () => {
 
   const handleSend = () => {
     const message = text().trim()
-    if (!message || isBusy() || isDisabled()) return
+    if ((!message && !hasAttachments()) || isBusy() || isDisabled()) return
 
     const sel = session.selected()
-    session.sendMessage(message, sel?.providerID, sel?.modelID)
+    session.sendMessage(message, sel?.providerID, sel?.modelID, attachments())
     setText("")
     setGhostText("")
+    setAttachments([])
 
     // Reset textarea height
     if (textareaRef) {
       textareaRef.style.height = "auto"
     }
+  }
+
+  const handleAttachFiles = () => {
+    if (isBusy() || isDisabled()) return
+    vscode.postMessage({ type: "selectFiles" })
+  }
+
+  const handleRemoveAttachment = (url: string) => {
+    setAttachments((prev) => prev.filter((file) => file.url !== url))
+  }
+
+  const handleOpenAttachment = (url: string) => {
+    vscode.postMessage({ type: "openFileAttachment", url })
+  }
+
+  const handlePaste = (e: ClipboardEvent) => {
+    if (!e.clipboardData) return
+    const hasFiles = Array.from(e.clipboardData.items).some((item) => item.kind === "file")
+    if (!hasFiles) return
+
+    e.preventDefault()
+    showToast({
+      variant: "default",
+      title: language.t("prompt.toast.pasteUnsupported.title"),
+      description: language.t("prompt.toast.pasteUnsupported.description"),
+    })
   }
 
   const handleAbort = () => {
@@ -163,6 +211,39 @@ export const PromptInput: Component = () => {
 
   return (
     <div class="prompt-input-container">
+      <Show when={attachments().length > 0}>
+        <div class="prompt-attachments" aria-label={language.t("common.attachment")}>
+          <For each={attachments()}>
+            {(file) => (
+              <div class="prompt-attachment">
+                <button
+                  type="button"
+                  class="prompt-attachment-preview"
+                  onClick={() => handleOpenAttachment(file.url)}
+                  title={file.name ?? file.url}
+                >
+                  <Show
+                    when={file.mime.startsWith("image/") && file.previewUrl}
+                    fallback={<span class="prompt-attachment-icon">{file.mime === "application/pdf" ? "PDF" : "FILE"}</span>}
+                  >
+                    <img src={file.previewUrl!} alt={file.name ?? language.t("common.attachment")} />
+                  </Show>
+                </button>
+                <span class="prompt-attachment-name">{file.name ?? language.t("common.attachment")}</span>
+                <button
+                  type="button"
+                  class="prompt-attachment-remove"
+                  onClick={() => handleRemoveAttachment(file.url)}
+                  aria-label={language.t("prompt.attachment.remove")}
+                  title={language.t("prompt.attachment.remove")}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
       <div class="prompt-input-wrapper">
         <div class="prompt-input-ghost-wrapper">
           <textarea
@@ -174,6 +255,7 @@ export const PromptInput: Component = () => {
             value={text()}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             disabled={isDisabled()}
             rows={1}
           />
@@ -188,19 +270,34 @@ export const PromptInput: Component = () => {
           <Show
             when={isBusy()}
             fallback={
-              <Tooltip value={language.t("prompt.action.send")} placement="top">
-                <Button
-                  variant="primary"
-                  size="small"
-                  onClick={handleSend}
-                  disabled={!canSend()}
-                  aria-label={language.t("prompt.action.send")}
-                >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M1.5 1.5L14.5 8L1.5 14.5V9L10 8L1.5 7V1.5Z" />
-                  </svg>
-                </Button>
-              </Tooltip>
+              <>
+                <Tooltip value={language.t("prompt.action.attachFile")} placement="top">
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    onClick={handleAttachFiles}
+                    disabled={isDisabled()}
+                    aria-label={language.t("prompt.action.attachFile")}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M9.5 2.5C7.84 2.5 6.5 3.84 6.5 5.5V11C6.5 11.83 7.17 12.5 8 12.5C8.83 12.5 9.5 11.83 9.5 11V5.5H11V11C11 12.66 9.66 14 8 14C6.34 14 5 12.66 5 11V5.5C5 3.01 7.01 1 9.5 1C11.99 1 14 3.01 14 5.5V10.5C14 13.54 11.54 16 8.5 16H8V14.5H8.5C10.71 14.5 12.5 12.71 12.5 10.5V5.5C12.5 3.84 11.16 2.5 9.5 2.5Z" />
+                    </svg>
+                  </Button>
+                </Tooltip>
+                <Tooltip value={language.t("prompt.action.send")} placement="top">
+                  <Button
+                    variant="primary"
+                    size="small"
+                    onClick={handleSend}
+                    disabled={!canSend()}
+                    aria-label={language.t("prompt.action.send")}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M1.5 1.5L14.5 8L1.5 14.5V9L10 8L1.5 7V1.5Z" />
+                    </svg>
+                  </Button>
+                </Tooltip>
+              </>
             }
           >
             <Tooltip value={language.t("prompt.action.stop")} placement="top">

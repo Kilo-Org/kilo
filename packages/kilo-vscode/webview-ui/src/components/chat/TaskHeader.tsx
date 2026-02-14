@@ -6,6 +6,7 @@
 
 import { Component, Show, createMemo } from "solid-js"
 import { IconButton } from "@kilocode/kilo-ui/icon-button"
+import { Button } from "@kilocode/kilo-ui/button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { useSession } from "../../context/session"
 import { useLanguage } from "../../context/language"
@@ -18,6 +19,7 @@ export const TaskHeader: Component = () => {
   const hasMessages = createMemo(() => session.messages().length > 0)
   const busy = createMemo(() => session.status() === "busy")
   const canCompact = createMemo(() => !busy() && hasMessages() && !!session.selected())
+  const canSeeChanges = createMemo(() => !busy() && hasMessages())
 
   const cost = createMemo(() => {
     const total = session.totalCost()
@@ -43,6 +45,11 @@ export const TaskHeader: Component = () => {
           {title()}
         </div>
         <div data-slot="task-header-stats">
+          <Tooltip value="Open Source Control changes" placement="bottom">
+            <Button size="small" variant="ghost" disabled={!canSeeChanges()} onClick={() => session.seeNewChanges()}>
+              See New Changes
+            </Button>
+          </Tooltip>
           <Show when={cost()}>
             {(c) => (
               <Tooltip value={language.t("context.usage.sessionCost")} placement="bottom">

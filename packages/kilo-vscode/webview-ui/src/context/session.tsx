@@ -91,6 +91,7 @@ interface SessionContextValue {
   sendMessage: (text: string, providerID?: string, modelID?: string, files?: FileAttachment[]) => void
   abort: () => void
   compact: () => void
+  seeNewChanges: () => void
   respondToPermission: (permissionId: string, response: "once" | "always" | "reject") => void
   replyToQuestion: (requestID: string, answers: string[][]) => void
   rejectQuestion: (requestID: string) => void
@@ -545,6 +546,13 @@ export const SessionProvider: ParentComponent = (props) => {
     })
   }
 
+  function seeNewChanges() {
+    vscode.postMessage({
+      type: "seeNewChanges",
+      sessionID: currentSessionID(),
+    })
+  }
+
   function respondToPermission(permissionId: string, response: "once" | "always" | "reject") {
     // Resolve sessionID from the stored permission request
     const permission = permissions().find((p) => p.id === permissionId)
@@ -720,6 +728,7 @@ export const SessionProvider: ParentComponent = (props) => {
     sendMessage,
     abort,
     compact,
+    seeNewChanges,
     respondToPermission,
     replyToQuestion,
     rejectQuestion,

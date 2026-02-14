@@ -323,6 +323,81 @@
   padding: 12px;
 }
 
+.prompt-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.prompt-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+  padding: 3px 6px 3px 3px;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 6px;
+  background: var(--vscode-input-background);
+}
+
+.prompt-attachment-preview {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--vscode-editorWidget-background, var(--vscode-input-background));
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.prompt-attachment-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.prompt-attachment-icon {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.prompt-attachment-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--vscode-foreground);
+}
+
+.prompt-attachment-remove {
+  border: 0;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.prompt-attachment-remove:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
+}
+
 .prompt-input-wrapper {
   display: flex;
   gap: 8px;

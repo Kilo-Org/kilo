@@ -1,12 +1,41 @@
 import * as vscode from "vscode"
+import path from "node:path"
 import { z } from "zod"
-import { type HttpClient, type SessionInfo, type SSEEvent, type KiloConnectionService } from "./services/cli-backend"
+import {
+  type HttpClient,
+  type SessionInfo,
+  type SSEEvent,
+  type KiloConnectionService,
+  type MessagePart,
+} from "./services/cli-backend"
 import { handleChatCompletionRequest } from "./services/autocomplete/chat-autocomplete/handleChatCompletionRequest"
 import { handleChatCompletionAccepted } from "./services/autocomplete/chat-autocomplete/handleChatCompletionAccepted"
 import { logger } from "./utils/logger"
 import { parseAllowedOpenExternalUrl } from "./utils/open-external"
 const RETRY_ACTION_LABEL = "Retry"
 const NOTIFICATION_DEDUPE_MS = 10_000
+const ATTACHMENT_EXT_TO_MIME: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".bmp": "image/bmp",
+  ".svg": "image/svg+xml",
+  ".pdf": "application/pdf",
+}
+
+type GitResource = { resourceUri: vscode.Uri }
+type GitRepository = {
+  rootUri: vscode.Uri
+  state: {
+    indexChanges: GitResource[]
+    workingTreeChanges: GitResource[]
+    mergeChanges: GitResource[]
+  }
+}
+type GitApi = { repositories: GitRepository[] }
+type GitExtensionExports = { getAPI(version: 1): GitApi }
 
 export class KiloProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "kilo-code.new.sidebarView"
@@ -111,7 +140,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     // Set up webview options
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [this.extensionUri],
+      localResourceRoots: this.getLocalResourceRoots(),
     }
 
     // Set HTML content
@@ -134,7 +163,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     panel.webview.options = {
       enableScripts: true,
-      localResourceRoots: [this.extensionUri],
+      localResourceRoots: this.getLocalResourceRoots(),
     }
 
     panel.webview.html = this._getHtmlForWebview(panel.webview)
@@ -214,6 +243,16 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         case "openExternal":
           await this.openExternalFromWebview(message.url)
           break
+        case "openFileAttachment": {
+          const url = z.string().startsWith("file://").safeParse(message.url)
+          if (url.success) {
+            await this.handleOpenFileAttachment(url.data)
+          }
+          break
+        }
+        case "selectFiles":
+          await this.handleSelectFiles()
+          break
         case "requestProviders":
           await this.fetchAndSendProviders()
           break
@@ -282,6 +321,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         case "requestNotificationSettings":
           this.sendNotificationSettings()
           break
+        case "seeNewChanges":
+          await this.handleSeeNewChanges(message.sessionID)
+          break
         case "retryConnection":
           this.connectionState = "connecting"
           this.postMessage({ type: "connectionState", state: "connecting" })
@@ -303,6 +345,115 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     await vscode.env.openExternal(vscode.Uri.parse(safeUrl))
+  }
+
+  private async handleOpenFileAttachment(fileUrl: string): Promise<void> {
+    try {
+      await vscode.commands.executeCommand("vscode.open", vscode.Uri.parse(fileUrl))
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to open file attachment:", error)
+    }
+  }
+
+  private async handleSelectFiles(): Promise<void> {
+    const fileUris = await vscode.window.showOpenDialog({
+      canSelectMany: true,
+      openLabel: "Attach",
+      filters: {
+        "Images and PDFs": ["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg", "pdf"],
+        Images: ["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"],
+        PDFs: ["pdf"],
+      },
+    })
+
+    if (!fileUris || fileUris.length === 0) {
+      return
+    }
+
+    type SelectedFile = { mime: string; url: string; name: string; previewUrl?: string }
+    const files = fileUris
+      .map<SelectedFile | null>((uri) => {
+        const mime = this.getAttachmentMime(uri)
+        if (!mime) return null
+        const previewUrl =
+          mime.startsWith("image/") && this.webview && this.canPreviewLocalResource(uri)
+            ? this.webview.asWebviewUri(uri).toString()
+            : undefined
+        return {
+          mime,
+          url: uri.toString(),
+          name: path.basename(uri.fsPath),
+          previewUrl,
+        }
+      })
+      .filter((file): file is SelectedFile => file !== null)
+
+    if (files.length === 0) {
+      return
+    }
+
+    this.postMessage({
+      type: "filesSelected",
+      files,
+    })
+  }
+
+  private async handleSeeNewChanges(_sessionID?: string): Promise<void> {
+    const git = await this.getGitApi()
+    if (!git) {
+      void vscode.window.showWarningMessage("Git integration is unavailable.")
+      return
+    }
+
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
+    if (!workspaceFolder) {
+      void vscode.window.showInformationMessage("Open a workspace folder to review changes.")
+      return
+    }
+
+    const repo = git.repositories
+      .filter(
+        (candidate) =>
+          workspaceFolder.uri.fsPath.startsWith(candidate.rootUri.fsPath) ||
+          candidate.rootUri.fsPath.startsWith(workspaceFolder.uri.fsPath),
+      )
+      .sort((a, b) => b.rootUri.fsPath.length - a.rootUri.fsPath.length)[0]
+
+    if (!repo) {
+      void vscode.window.showInformationMessage("No Git repository found for this workspace.")
+      return
+    }
+
+    const changes = [...repo.state.workingTreeChanges, ...repo.state.indexChanges, ...repo.state.mergeChanges]
+    if (changes.length === 0) {
+      void vscode.window.showInformationMessage("No new changes to review.")
+      return
+    }
+
+    await vscode.commands.executeCommand("workbench.view.scm")
+    const first = changes[0]
+    if (!first?.resourceUri) {
+      return
+    }
+
+    try {
+      await vscode.commands.executeCommand("git.openChange", first.resourceUri)
+    } catch {
+      await vscode.commands.executeCommand("vscode.open", first.resourceUri)
+    }
+  }
+
+  private async getGitApi(): Promise<GitApi | undefined> {
+    const gitExtension = vscode.extensions.getExtension<GitExtensionExports>("vscode.git")
+    if (!gitExtension) {
+      return undefined
+    }
+
+    if (!gitExtension.isActive) {
+      await gitExtension.activate()
+    }
+
+    return gitExtension.exports?.getAPI(1)
   }
 
   /**
@@ -483,7 +634,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         id: m.info.id,
         sessionID: m.info.sessionID,
         role: m.info.role,
-        parts: m.parts,
+        parts: m.parts.map((part) => this.mapPartForWebview(part)),
         createdAt: new Date(m.info.time.created).toISOString(),
         cost: m.info.cost,
         tokens: m.info.tokens,
@@ -1108,6 +1259,29 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     return this.connectionService.resolveEventSessionId(event)
   }
 
+  private mapPartForWebview(part: MessagePart): MessagePart {
+    if (part.type !== "file") {
+      return part
+    }
+
+    if (!this.webview || !part.url.startsWith("file://")) {
+      return part
+    }
+
+    try {
+      const uri = vscode.Uri.parse(part.url)
+      if (!this.canPreviewLocalResource(uri)) {
+        return part
+      }
+      return {
+        ...part,
+        url: this.webview.asWebviewUri(uri).toString(),
+      }
+    } catch {
+      return part
+    }
+  }
+
   /**
    * Handle SSE events from the CLI backend.
    * Filters events by tracked session IDs so each webview only sees its own sessions.
@@ -1141,7 +1315,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           type: "partUpdated",
           sessionID: resolvedSessionID,
           messageID,
-          part: event.properties.part,
+          part: this.mapPartForWebview(event.properties.part),
           delta: event.properties.delta ? { type: "text-delta", textDelta: event.properties.delta } : undefined,
         })
         break
@@ -1326,6 +1500,24 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   /**
    * Get the workspace directory.
    */
+  private getAttachmentMime(uri: vscode.Uri): string | null {
+    const ext = path.extname(uri.fsPath).toLowerCase()
+    return ATTACHMENT_EXT_TO_MIME[ext] ?? null
+  }
+
+  private canPreviewLocalResource(uri: vscode.Uri): boolean {
+    if (uri.scheme !== "file") {
+      return false
+    }
+    return !!vscode.workspace.getWorkspaceFolder(uri)
+  }
+
+  private getLocalResourceRoots(): vscode.Uri[] {
+    const roots = [this.extensionUri]
+    const workspaceRoots = vscode.workspace.workspaceFolders?.map((folder) => folder.uri) ?? []
+    return [...roots, ...workspaceRoots]
+  }
+
   private getWorkspaceDirectory(): string {
     const workspaceFolders = vscode.workspace.workspaceFolders
     if (workspaceFolders && workspaceFolders.length > 0) {

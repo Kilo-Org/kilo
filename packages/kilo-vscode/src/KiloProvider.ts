@@ -82,7 +82,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    */
   private async syncWebviewState(reason: string): Promise<void> {
     const serverInfo = this.connectionService.getServerInfo()
-    logger.info("[Kilo New] KiloProvider: 🔄 syncWebviewState()", {
+    logger.debug("[Kilo New] KiloProvider: 🔄 syncWebviewState()", {
       reason,
       isWebviewReady: this.isWebviewReady,
       connectionState: this.connectionState,
@@ -91,7 +91,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     })
 
     if (!this.isWebviewReady) {
-      logger.info("[Kilo New] KiloProvider: ⏭️ syncWebviewState skipped (webview not ready)")
+      logger.debug("[Kilo New] KiloProvider: ⏭️ syncWebviewState skipped (webview not ready)")
       return
     }
 
@@ -114,10 +114,10 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     // Always attempt to fetch+push profile when connected.
     if (this.connectionState === "connected" && this.httpClient) {
-      logger.info("[Kilo New] KiloProvider: 👤 syncWebviewState fetching profile...")
+      logger.debug("[Kilo New] KiloProvider: 👤 syncWebviewState fetching profile...")
       try {
         const profileData = await this.httpClient.getProfile()
-        logger.info("[Kilo New] KiloProvider: 👤 syncWebviewState profile:", profileData ? "received" : "null")
+        logger.debug("[Kilo New] KiloProvider: 👤 syncWebviewState profile:", profileData ? "received" : "null")
         this.postMessage({
           type: "profileData",
           data: profileData,
@@ -183,7 +183,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     this.webviewMessageDisposable = webview.onDidReceiveMessage(async (message) => {
       switch (message.type) {
         case "webviewReady":
-          logger.info("[Kilo New] KiloProvider: ✅ webviewReady received")
+          logger.debug("[Kilo New] KiloProvider: ✅ webviewReady received")
           this.isWebviewReady = true
           await this.syncWebviewState("webviewReady")
           break
@@ -481,7 +481,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Subscribes to the shared KiloConnectionService.
    */
   private async initializeConnection(): Promise<void> {
-    logger.info("[Kilo New] KiloProvider: 🔧 Starting initializeConnection...")
+    logger.debug("[Kilo New] KiloProvider: 🔧 Starting initializeConnection...")
 
     // Clean up any existing subscriptions (e.g., sidebar re-shown)
     this.unsubscribeEvent?.()
@@ -561,7 +561,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       await this.fetchAndSendConfig()
       this.sendNotificationSettings()
 
-      logger.info("[Kilo New] KiloProvider: ✅ initializeConnection completed successfully")
+      logger.debug("[Kilo New] KiloProvider: ✅ initializeConnection completed successfully")
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: ❌ Failed to initialize connection:", error)
       this.notifyConnectionStartError(error)
@@ -1125,14 +1125,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     const attempt = ++this.loginAttempt
 
-    logger.info("[Kilo New] KiloProvider: 🔐 Starting login flow...")
+    logger.debug("[Kilo New] KiloProvider: 🔐 Starting login flow...")
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
 
       // Step 1: Initiate OAuth authorization
       const auth = await this.httpClient.oauthAuthorize("kilo", 0, workspaceDir)
-      logger.info("[Kilo New] KiloProvider: 🔐 Got auth URL:", auth.url)
+      logger.debug("[Kilo New] KiloProvider: 🔐 Got auth URL:", auth.url)
 
       // Parse code from instructions (format: "Open URL and enter code: ABCD-1234")
       const codeMatch = auth.instructions?.match(/code:\s*(\S+)/i)
@@ -1157,7 +1157,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         return
       }
 
-      logger.info("[Kilo New] KiloProvider: 🔐 Login successful")
+      logger.debug("[Kilo New] KiloProvider: 🔐 Login successful")
 
       // Step 4: Fetch profile and push to webview
       const profileData = await this.httpClient.getProfile()
@@ -1189,7 +1189,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       return
     }
 
-    logger.info("[Kilo New] KiloProvider: Switching organization:", organizationId ?? "personal")
+    logger.debug("[Kilo New] KiloProvider: Switching organization:", organizationId ?? "personal")
     try {
       await client.setOrganization(organizationId)
     } catch (error) {
@@ -1222,9 +1222,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       return
     }
 
-    logger.info("[Kilo New] KiloProvider: 🚪 Logging out...")
+    logger.debug("[Kilo New] KiloProvider: 🚪 Logging out...")
     await this.httpClient.removeAuth("kilo")
-    logger.info("[Kilo New] KiloProvider: 🚪 Logged out successfully")
+    logger.debug("[Kilo New] KiloProvider: 🚪 Logged out successfully")
     this.postMessage({
       type: "profileData",
       data: null,
@@ -1239,7 +1239,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       return
     }
 
-    logger.info("[Kilo New] KiloProvider: 🔄 Refreshing profile...")
+    logger.debug("[Kilo New] KiloProvider: 🔄 Refreshing profile...")
     const profileData = await this.httpClient.getProfile()
     this.postMessage({
       type: "profileData",

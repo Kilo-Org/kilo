@@ -40,7 +40,7 @@ export class HttpClient {
     this.authHeader = `Basic ${Buffer.from(`${this.authUsername}:${config.password}`).toString("base64")}`
 
     // Safe debug logging: no secrets.
-    logger.info("[Kilo New] HTTP: 🔐 Auth configured", {
+    logger.debug("[Kilo New] HTTP: 🔐 Auth configured", {
       username: this.authUsername,
       passwordLength: config.password.length,
     })

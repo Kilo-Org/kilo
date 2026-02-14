@@ -4,9 +4,14 @@ import { inspect } from "node:util"
 type LogLevel = "debug" | "info" | "warn" | "error"
 
 let outputChannel: vscode.OutputChannel | undefined
+let debugEnabled = false
 
 export function initializeLogger(channel: vscode.OutputChannel): void {
   outputChannel = channel
+}
+
+export function setLoggerDebugEnabled(enabled: boolean): void {
+  debugEnabled = enabled
 }
 
 function formatArg(value: unknown): string {
@@ -29,6 +34,9 @@ function consoleMethod(level: LogLevel): (...data: unknown[]) => void {
 
 function write(level: LogLevel, ...args: unknown[]): void {
   if (args.length === 0) {
+    return
+  }
+  if (level === "debug" && !debugEnabled) {
     return
   }
 

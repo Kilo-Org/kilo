@@ -5,12 +5,13 @@ import { EXTENSION_DISPLAY_NAME } from "./constants"
 import { KiloConnectionService } from "./services/cli-backend"
 import { registerAutocompleteProvider } from "./services/autocomplete"
 import { BrowserAutomationService } from "./services/browser-automation"
-import { initializeLogger, logger } from "./utils/logger"
+import { initializeLogger, logger, setLoggerDebugEnabled } from "./utils/logger"
 
 export function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel("Kilo Code")
   context.subscriptions.push(outputChannel)
   initializeLogger(outputChannel)
+  setLoggerDebugEnabled(context.extensionMode !== vscode.ExtensionMode.Production)
   logger.info("Kilo Code extension is now active")
 
   // Create shared connection service (one server for all webviews)

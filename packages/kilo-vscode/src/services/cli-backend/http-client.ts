@@ -12,6 +12,16 @@ import type {
   Config,
 } from "./types"
 
+const DEFAULT_CONNECT_TIMEOUT_MS = 10_000
+const DEFAULT_REQUEST_TIMEOUT_MS = 60_000
+
+interface RequestOptions {
+  directory?: string
+  allowEmpty?: boolean
+  connectTimeoutMs?: number
+  requestTimeoutMs?: number
+}
+
 /**
  * HTTP Client for communicating with the CLI backend server.
  * Handles all REST API calls for session management, messaging, and permissions.
@@ -42,9 +52,17 @@ export class HttpClient {
     method: string,
     path: string,
     body?: unknown,
-    options?: { directory?: string; allowEmpty?: boolean },
+    options?: RequestOptions,
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`
+    const connectTimeoutMs = options?.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS
+    const requestTimeoutMs = options?.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
+    const controller = new AbortController()
+    let connectTimeout: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      controller.abort()
+    }, connectTimeoutMs)
+    let requestTimeout: ReturnType<typeof setTimeout> | null = null
+    let timeoutPhase: "connect" | "request" = "connect"
 
     const headers: Record<string, string> = {
       Authorization: this.authHeader,
@@ -55,63 +73,104 @@ export class HttpClient {
       headers["x-opencode-directory"] = options.directory
     }
 
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    })
-
-    // Read the raw response first so we can produce useful errors when JSON is empty/truncated.
-    const rawText = await response.text()
-
-    // Non-2xx: try to extract an error message from JSON, otherwise fall back to raw text.
-    if (!response.ok) {
-      let errorMessage = response.statusText
-      if (rawText.trim().length > 0) {
-        try {
-          const errorJson = JSON.parse(rawText) as { error?: string; message?: string }
-          errorMessage = errorJson.error || errorJson.message || errorMessage
-        } catch {
-          errorMessage = rawText
-        }
-      }
-
-      console.error("[Kilo New] HTTP: ❌ Request failed", {
-        method,
-        path,
-        status: response.status,
-        errorMessage,
-      })
-
-      throw new Error(`HTTP ${response.status}: ${errorMessage}`)
-    }
-
-    // 2xx but empty body: return undefined (cast to T). Some endpoints like
-    // POST /session/{id}/message can return 200 with no body; results arrive via SSE.
-    if (rawText.trim().length === 0) {
-      if (options?.allowEmpty) {
-        return undefined as T
-      }
-
-      console.error("[Kilo New] HTTP: ❌ Empty response body", {
-        method,
-        path,
-        status: response.status,
-      })
-      throw new Error(`HTTP ${response.status}: Empty response body`)
-    }
-
     try {
-      return JSON.parse(rawText) as T
-    } catch (error) {
-      console.error("[Kilo New] HTTP: ❌ Invalid JSON response", {
+      const response = await fetch(url, {
         method,
-        path,
-        status: response.status,
-        rawSnippet: rawText.slice(0, 400),
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
       })
+
+      if (connectTimeout) {
+        clearTimeout(connectTimeout)
+        connectTimeout = null
+      }
+      timeoutPhase = "request"
+      requestTimeout = setTimeout(() => {
+        controller.abort()
+      }, requestTimeoutMs)
+
+      // Read the raw response first so we can produce useful errors when JSON is empty/truncated.
+      const rawText = await response.text()
+
+      // Non-2xx: try to extract an error message from JSON, otherwise fall back to raw text.
+      if (!response.ok) {
+        let errorMessage = response.statusText
+        if (rawText.trim().length > 0) {
+          try {
+            const errorJson = JSON.parse(rawText) as { error?: string; message?: string }
+            errorMessage = errorJson.error || errorJson.message || errorMessage
+          } catch {
+            errorMessage = rawText
+          }
+        }
+
+        console.error("[Kilo New] HTTP: ❌ Request failed", {
+          method,
+          path,
+          status: response.status,
+          errorMessage,
+        })
+
+        throw new Error(`HTTP ${response.status}: ${errorMessage}`)
+      }
+
+      // 2xx but empty body: return undefined (cast to T). Some endpoints like
+      // POST /session/{id}/message can return 200 with no body; results arrive via SSE.
+      if (rawText.trim().length === 0) {
+        if (options?.allowEmpty) {
+          return undefined as T
+        }
+
+        console.error("[Kilo New] HTTP: ❌ Empty response body", {
+          method,
+          path,
+          status: response.status,
+        })
+        throw new Error(`HTTP ${response.status}: Empty response body`)
+      }
+
+      try {
+        return JSON.parse(rawText) as T
+      } catch (error) {
+        console.error("[Kilo New] HTTP: ❌ Invalid JSON response", {
+          method,
+          path,
+          status: response.status,
+          rawSnippet: rawText.slice(0, 400),
+        })
+        throw error
+      }
+    } catch (error) {
+      if (this.isAbortError(error)) {
+        const timeoutMs = timeoutPhase === "connect" ? connectTimeoutMs : requestTimeoutMs
+        throw new Error(this.makeTimeoutErrorMessage(`HTTP ${method} ${path}`, timeoutPhase, timeoutMs))
+      }
+
       throw error
+    } finally {
+      if (connectTimeout) {
+        clearTimeout(connectTimeout)
+      }
+      if (requestTimeout) {
+        clearTimeout(requestTimeout)
+      }
     }
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return (
+      (typeof DOMException !== "undefined" && error instanceof DOMException && error.name === "AbortError") ||
+      (typeof error === "object" &&
+        error !== null &&
+        "name" in error &&
+        typeof (error as { name?: unknown }).name === "string" &&
+        (error as { name: string }).name === "AbortError")
+    )
+  }
+
+  private makeTimeoutErrorMessage(prefix: string, phase: "connect" | "request", timeoutMs: number): string {
+    return `${prefix} ${phase} timeout after ${Math.round(timeoutMs / 1000)}s`
   }
 
   // ============================================
@@ -339,92 +398,131 @@ export class HttpClient {
     prefix: string,
     suffix: string,
     onChunk: (text: string) => void,
-    options?: { model?: string; maxTokens?: number; temperature?: number },
+    options?: {
+      model?: string
+      maxTokens?: number
+      temperature?: number
+      connectTimeoutMs?: number
+      requestTimeoutMs?: number
+    },
   ): Promise<{ cost: number; inputTokens: number; outputTokens: number }> {
     const url = `${this.baseUrl}/kilo/fim`
+    const connectTimeoutMs = options?.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS
+    const requestTimeoutMs = options?.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
+    const controller = new AbortController()
+    let connectTimeout: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      controller.abort()
+    }, connectTimeoutMs)
+    let requestTimeout: ReturnType<typeof setTimeout> | null = null
+    let timeoutPhase: "connect" | "request" = "connect"
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: this.authHeader,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        prefix,
-        suffix,
-        model: options?.model,
-        maxTokens: options?.maxTokens,
-        temperature: options?.temperature,
-      }),
-    })
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: this.authHeader,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prefix,
+          suffix,
+          model: options?.model,
+          maxTokens: options?.maxTokens,
+          temperature: options?.temperature,
+        }),
+        signal: controller.signal,
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`FIM request failed: ${response.status} ${errorText}`)
-    }
+      if (connectTimeout) {
+        clearTimeout(connectTimeout)
+        connectTimeout = null
+      }
+      timeoutPhase = "request"
+      requestTimeout = setTimeout(() => {
+        controller.abort()
+      }, requestTimeoutMs)
 
-    if (!response.body) {
-      throw new Error("FIM response has no body")
-    }
-
-    let cost = 0
-    let inputTokens = 0
-    let outputTokens = 0
-
-    // Parse SSE stream
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ""
-
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) {
-        break
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`FIM request failed: ${response.status} ${errorText}`)
       }
 
-      buffer += decoder.decode(value, { stream: true })
+      if (!response.body) {
+        throw new Error("FIM response has no body")
+      }
 
-      // Process complete SSE lines
-      const lines = buffer.split("\n")
-      buffer = lines.pop() ?? "" // Keep incomplete line in buffer
+      let cost = 0
+      let inputTokens = 0
+      let outputTokens = 0
 
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) {
-          continue
+      // Parse SSE stream
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) {
+          break
         }
 
-        const data = line.slice(6).trim()
-        if (data === "[DONE]") {
-          continue
-        }
+        buffer += decoder.decode(value, { stream: true })
 
-        try {
-          const parsed = JSON.parse(data) as {
-            choices?: Array<{ delta?: { content?: string } }>
-            usage?: { prompt_tokens?: number; completion_tokens?: number }
-            cost?: number
+        // Process complete SSE lines
+        const lines = buffer.split("\n")
+        buffer = lines.pop() ?? "" // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) {
+            continue
           }
 
-          const content = parsed.choices?.[0]?.delta?.content
-          if (content) {
-            onChunk(content)
+          const data = line.slice(6).trim()
+          if (data === "[DONE]") {
+            continue
           }
 
-          if (parsed.usage) {
-            inputTokens = parsed.usage.prompt_tokens ?? 0
-            outputTokens = parsed.usage.completion_tokens ?? 0
-          }
+          try {
+            const parsed = JSON.parse(data) as {
+              choices?: Array<{ delta?: { content?: string } }>
+              usage?: { prompt_tokens?: number; completion_tokens?: number }
+              cost?: number
+            }
 
-          if (parsed.cost !== undefined) {
-            cost = parsed.cost
+            const content = parsed.choices?.[0]?.delta?.content
+            if (content) {
+              onChunk(content)
+            }
+
+            if (parsed.usage) {
+              inputTokens = parsed.usage.prompt_tokens ?? 0
+              outputTokens = parsed.usage.completion_tokens ?? 0
+            }
+
+            if (parsed.cost !== undefined) {
+              cost = parsed.cost
+            }
+          } catch {
+            // Skip malformed JSON lines
           }
-        } catch {
-          // Skip malformed JSON lines
         }
       }
-    }
 
-    return { cost, inputTokens, outputTokens }
+      return { cost, inputTokens, outputTokens }
+    } catch (error) {
+      if (this.isAbortError(error)) {
+        const timeoutMs = timeoutPhase === "connect" ? connectTimeoutMs : requestTimeoutMs
+        throw new Error(this.makeTimeoutErrorMessage("FIM", timeoutPhase, timeoutMs))
+      }
+      throw error
+    } finally {
+      if (connectTimeout) {
+        clearTimeout(connectTimeout)
+      }
+      if (requestTimeout) {
+        clearTimeout(requestTimeout)
+      }
+    }
   }
 
   // ============================================

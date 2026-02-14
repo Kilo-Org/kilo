@@ -14,6 +14,7 @@ import { useLanguage } from "../../context/language"
 import { useVSCode } from "../../context/vscode"
 import { ModelSelector } from "./ModelSelector"
 import { ModeSwitcher } from "./ModeSwitcher"
+import { ImageViewer } from "../common/ImageViewer"
 import type { FileAttachment } from "../../types/messages"
 
 const AUTOCOMPLETE_DEBOUNCE_MS = 500
@@ -43,6 +44,7 @@ export const PromptInput: Component = () => {
   const [text, setText] = createSignal("")
   const [ghostText, setGhostText] = createSignal("")
   const [attachments, setAttachments] = createSignal<FileAttachment[]>([])
+  const [viewerFile, setViewerFile] = createSignal<FileAttachment | null>(null)
   let textareaRef: HTMLTextAreaElement | undefined
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
   let requestCounter = 0
@@ -250,6 +252,14 @@ export const PromptInput: Component = () => {
     }
   }
 
+  const handlePreviewAttachment = (file: FileAttachment) => {
+    if (file.mime.startsWith("image/") && (file.previewUrl || file.url)) {
+      setViewerFile(file)
+      return
+    }
+    handleOpenAttachment(file.url)
+  }
+
   const handlePaste = (e: ClipboardEvent) => {
     if (!e.clipboardData) return
     const pastedFiles = Array.from(e.clipboardData.items)
@@ -303,7 +313,7 @@ export const PromptInput: Component = () => {
                   <button
                     type="button"
                     class="prompt-attachment-preview"
-                    onClick={() => handleOpenAttachment(file.url)}
+                    onClick={() => handlePreviewAttachment(file)}
                     title={file.name ?? file.url}
                   >
                     <Show
@@ -418,6 +428,12 @@ export const PromptInput: Component = () => {
           <span>{language.t("prompt.hint.sendShortcut")}</span>
         </Show>
       </div>
+      <ImageViewer
+        file={viewerFile()}
+        onClose={() => setViewerFile(null)}
+        onOpenFile={handleOpenAttachment}
+        onCopyPath={handleCopyAttachmentPath}
+      />
     </div>
   )
 }

@@ -175,6 +175,14 @@
     gap: 8px;
   }
 
+  [data-slot="message-part-tool-error-body"] {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
   [data-slot="message-part-tool-error-title"] {
     font-family: var(--font-family-sans);
     font-size: var(--font-size-base);
@@ -191,6 +199,25 @@
     max-height: 240px;
     overflow-y: auto;
     word-break: break-word;
+  }
+
+  [data-slot="message-part-tool-error-details"] {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-base);
+    color: var(--text-on-critical-weak);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  [data-slot="message-part-tool-error-actions"] {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
   }
 }
 

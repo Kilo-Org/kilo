@@ -2,6 +2,10 @@
 
 Interactive elements for specialized message content beyond plain markdown/code.
 
+## Status
+
+🔨 Partial
+
 ## Location
 
 Content type rendering is now handled by kilo-ui's `<KiloMessage>` component which includes renderers for reasoning blocks, tool results, and other part types. The old standalone components (`ReasoningBlock`, `OpenMarkdownPreviewButton`, etc.) don't exist in the new extension.
@@ -12,6 +16,16 @@ Content type rendering is now handled by kilo-ui's `<KiloMessage>` component whi
 - **ReasoningBlock**: Collapsible AI reasoning display
 - **MCP Tool/Resource Rows**: Interactive MCP server tool execution
 - **Error Rows**: Expandable error details with copy functionality
+
+## Current Progress
+
+- Open-markdown-preview action is available from assistant message actions/context menu
+- Reasoning parts render via kilo-ui reasoning renderer
+- Tool error rows now support detail expansion and copy-to-clipboard actions
+
+## Remaining Gaps
+
+- MCP tool/resource row parity and richer resource-specific affordances
 
 ## Suggested migration
 

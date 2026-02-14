@@ -532,6 +532,80 @@ export const ToolRegistry = {
   render: getTool,
 }
 
+const ToolErrorCard: Component<{ error: string }> = (props) => {
+  const i18n = useI18n()
+  const cleaned = createMemo(() => props.error.replace("Error: ", "").trim())
+  const [copied, setCopied] = createSignal(false)
+  const [expanded, setExpanded] = createSignal(false)
+
+  const split = createMemo(() => {
+    const value = cleaned()
+    const [title, ...rest] = value.split(": ")
+    if (title && title.length < 30 && rest.length > 0) {
+      return { title, message: rest.join(": ") }
+    }
+    return { title: "", message: value }
+  })
+
+  const canExpand = createMemo(() => cleaned().includes("\n") || cleaned().length > 160)
+  const compactMessage = createMemo(() => {
+    const value = split().message
+    if (expanded() || !canExpand()) {
+      return value
+    }
+    return value.length > 160 ? `${value.slice(0, 160)}...` : value
+  })
+
+  const handleCopy = async () => {
+    const value = cleaned()
+    if (!value) return
+    await navigator.clipboard.writeText(value)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <Card variant="error">
+      <div data-component="tool-error">
+        <Icon name="circle-ban-sign" size="small" />
+        <div data-slot="message-part-tool-error-body">
+          <Show
+            when={split().title}
+            fallback={<span data-slot="message-part-tool-error-message">{compactMessage()}</span>}
+          >
+            {(title) => (
+              <div data-slot="message-part-tool-error-content">
+                <div data-slot="message-part-tool-error-title">{title()}</div>
+                <span data-slot="message-part-tool-error-message">{compactMessage()}</span>
+              </div>
+            )}
+          </Show>
+          <Show when={expanded() && canExpand()}>
+            <pre data-slot="message-part-tool-error-details">{cleaned()}</pre>
+          </Show>
+        </div>
+        <div data-slot="message-part-tool-error-actions">
+          <Show when={canExpand()}>
+            <Button variant="ghost" size="small" onClick={() => setExpanded((value) => !value)}>
+              {expanded() ? i18n.t("ui.sessionTurn.steps.hide") : i18n.t("ui.sessionTurn.steps.show")}
+            </Button>
+          </Show>
+          <Tooltip value={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copy")} placement="top" gutter={8}>
+            <IconButton
+              icon={copied() ? "check" : "copy"}
+              size="small"
+              variant="secondary"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleCopy}
+              aria-label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copy")}
+            />
+          </Tooltip>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
 PART_MAPPING["tool"] = function ToolPartDisplay(props) {
   const data = useData()
   const i18n = useI18n()
@@ -607,28 +681,7 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
     <div data-component="tool-part-wrapper" data-permission={showPermission()} data-question={showQuestion()}>
       <Switch>
         <Match when={part.state.status === "error" && part.state.error}>
-          {(error) => {
-            const cleaned = error().replace("Error: ", "")
-            const [title, ...rest] = cleaned.split(": ")
-            return (
-              <Card variant="error">
-                <div data-component="tool-error">
-                  <Icon name="circle-ban-sign" size="small" />
-                  <Switch>
-                    <Match when={title && title.length < 30}>
-                      <div data-slot="message-part-tool-error-content">
-                        <div data-slot="message-part-tool-error-title">{title}</div>
-                        <span data-slot="message-part-tool-error-message">{rest.join(": ")}</span>
-                      </div>
-                    </Match>
-                    <Match when={true}>
-                      <span data-slot="message-part-tool-error-message">{cleaned}</span>
-                    </Match>
-                  </Switch>
-                </div>
-              </Card>
-            )
-          }}
+          {(error) => <ToolErrorCard error={error()} />}
         </Match>
         <Match when={true}>
           <Dynamic

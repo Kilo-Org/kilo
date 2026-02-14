@@ -17,6 +17,7 @@ interface ProviderContextValue {
   defaultSelection: Accessor<ModelSelection>
   models: Accessor<EnrichedModel[]>
   findModel: (selection: ModelSelection | null) => EnrichedModel | undefined
+  refresh: () => void
 }
 
 const KILO_AUTO: ModelSelection = { providerID: "kilo", modelID: "kilo/auto" }
@@ -99,6 +100,7 @@ export const ProviderProvider: ParentComponent = (props) => {
     defaultSelection,
     models,
     findModel,
+    refresh: () => vscode.postMessage({ type: "requestProviders" }),
   }
 
   return <ProviderContext.Provider value={value}>{props.children}</ProviderContext.Provider>

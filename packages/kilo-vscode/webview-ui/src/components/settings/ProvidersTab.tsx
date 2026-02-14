@@ -5,6 +5,7 @@ import { Button } from "@kilocode/kilo-ui/button"
 import { IconButton } from "@kilocode/kilo-ui/icon-button"
 import { useConfig } from "../../context/config"
 import { useProvider } from "../../context/provider"
+import { useLanguage } from "../../context/language"
 import { ModelSelectorBase } from "../chat/ModelSelector"
 import type { ModelSelection } from "../../types/messages"
 
@@ -49,6 +50,7 @@ const SettingsRow: Component<{ label: string; description: string; last?: boolea
 const ProvidersTab: Component = () => {
   const { config, updateConfig } = useConfig()
   const provider = useProvider()
+  const language = useLanguage()
 
   const providerOptions = createMemo<ProviderOption[]>(() =>
     Object.keys(provider.providers())
@@ -61,6 +63,27 @@ const ProvidersTab: Component = () => {
 
   const disabledProviders = () => config().disabled_providers ?? []
   const enabledProviders = () => config().enabled_providers ?? []
+
+  const providerCatalog = createMemo(() => {
+    const providers = provider.providers()
+    const connected = new Set(provider.connected())
+    const defaults = provider.defaults()
+
+    return Object.values(providers)
+      .map((entry) => {
+        const modelCount = Object.keys(entry.models ?? {}).length
+        const defaultModelID = defaults[entry.id]
+        const defaultModelName = defaultModelID ? (entry.models?.[defaultModelID]?.name ?? defaultModelID) : undefined
+        return {
+          id: entry.id,
+          name: entry.name,
+          connected: connected.has(entry.id),
+          modelCount,
+          defaultModelName,
+        }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+  })
 
   const addToList = (key: "disabled_providers" | "enabled_providers", value: string) => {
     const current = key === "disabled_providers" ? [...disabledProviders()] : [...enabledProviders()]
@@ -88,8 +111,77 @@ const ProvidersTab: Component = () => {
 
   return (
     <div>
-      {/* Model selection */}
+      {/* Provider catalog */}
       <Card>
+        <div
+          style={{
+            display: "flex",
+            "align-items": "center",
+            "justify-content": "space-between",
+            gap: "8px",
+            "padding-bottom": "8px",
+            "border-bottom": providerCatalog().length > 0 ? "1px solid var(--border-weak-base)" : "none",
+          }}
+        >
+          <div style={{ "font-weight": "500" }}>{language.t("settings.providers.section.connected")}</div>
+          <Button variant="ghost" size="small" onClick={() => provider.refresh()}>
+            {language.t("common.refresh")}
+          </Button>
+        </div>
+
+        <For each={providerCatalog()}>
+          {(item, index) => (
+            <div
+              style={{
+                display: "flex",
+                "align-items": "center",
+                "justify-content": "space-between",
+                gap: "12px",
+                padding: "8px 0",
+                "border-bottom":
+                  index() < providerCatalog().length - 1 ? "1px solid var(--border-weak-base)" : "none",
+              }}
+            >
+              <div style={{ flex: 1, "min-width": 0 }}>
+                <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
+                  <span style={{ "font-weight": "500" }}>{item.name}</span>
+                  <span style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>{item.id}</span>
+                </div>
+                <div style={{ "font-size": "11px", color: "var(--text-weak-base, var(--vscode-descriptionForeground))" }}>
+                  {item.modelCount} models
+                  {item.defaultModelName ? ` · default: ${item.defaultModelName}` : ""}
+                </div>
+              </div>
+
+              <span
+                style={{
+                  "font-size": "11px",
+                  "font-weight": "500",
+                  color: item.connected
+                    ? "var(--vscode-testing-iconPassed, #89d185)"
+                    : "var(--vscode-descriptionForeground)",
+                  "text-transform": "capitalize",
+                }}
+              >
+                {item.connected
+                  ? language.t("settings.aboutKiloCode.status.connected")
+                  : language.t("settings.aboutKiloCode.status.disconnected")}
+              </span>
+            </div>
+          )}
+        </For>
+
+        <For each={providerCatalog().length === 0 ? [0] : []}>
+          {() => (
+            <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)", padding: "8px 0 0" }}>
+              {language.t("settings.providers.connected.empty")}
+            </div>
+          )}
+        </For>
+      </Card>
+
+      {/* Model selection */}
+      <Card style={{ "margin-top": "16px" }}>
         <SettingsRow label="Default Model" description="Primary model for conversations">
           <ModelSelectorBase
             value={parseModelConfig(config().model)}

@@ -200,6 +200,13 @@ export class HttpClient {
   }
 
   /**
+   * List child sessions that were forked from a parent session.
+   */
+  async listSessionChildren(sessionId: string, directory: string): Promise<SessionInfo[]> {
+    return this.request<SessionInfo[]>("GET", `/session/${sessionId}/children`, undefined, { directory })
+  }
+
+  /**
    * Delete a session permanently.
    */
   async deleteSession(sessionId: string, directory: string): Promise<void> {

@@ -19,6 +19,7 @@ Right-click/context actions and tooltip affordances throughout the chat UI.
 ## Current Progress
 
 - Chat message rows now support right-click context actions (copy message, open markdown preview)
+- Chat message rows now support session actions (fork from message, open fork picker, confirmed undo on user messages)
 - Prompt attachment chips now support right-click actions (open file, copy path, remove attachment)
 - Todo rows now support right-click copy actions
 - Recent session quick-resume entries now have hover tooltips

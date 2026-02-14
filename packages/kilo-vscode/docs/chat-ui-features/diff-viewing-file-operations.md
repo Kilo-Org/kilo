@@ -1,26 +1,32 @@
 # Diff Viewing & File Operations
 
-Interactive diff viewing, navigation, and batch approvals for file changes.
+Interactive diff viewing and file navigation actions for tool-generated file changes.
+
+## Status
+
+🔨 Partial
 
 ## Location
 
-- [`webview-ui/src/components/common/CodeAccordian.tsx`](../../webview-ui/src/components/common/CodeAccordian.tsx:1)
-- [`webview-ui/src/components/common/DiffView.tsx`](../../webview-ui/src/components/common/DiffView.tsx:1)
+- [`webview-ui/src/components/chat/Message.tsx`](../../webview-ui/src/components/chat/Message.tsx:1)
+- [`src/KiloProvider.ts`](../../src/KiloProvider.ts:1)
 
-## Interactions
+## Current Progress
 
-- Expand/collapse individual file diffs
-- Diff statistics display (+added/-removed line counts)
-- Jump to file in editor button (external link icon)
-- Syntax-highlighted diffs with color-coded additions/removals
-- Batch diff approval interface (`BatchDiffApproval.tsx`)
-- Progress status indicators for tool execution
+- Tool rows already expose file actions (`Open file`, `Copy path`)
+- Added `Open Diff` inline action for tool outputs that include before/after content (`edit`, `write`, `apply_patch`)
+- `Open Diff` routes through extension host and opens native VS Code side-by-side diff preview (`vscode.diff`)
+
+## Remaining Gaps
+
+- Inline diff rendering directly in chat rows
+- Rich file-change statistics UI (+/- line summaries) at chat level
+- Batch approval/review workflow parity for multi-file operations
+- Broader syntax-highlighted diff visualization in webview itself
 
 ## Suggested migration
 
-**Reimplement?** No for UI, but **yes/adapter work** to source diffs from Kilo CLI.
+**Reimplement?** Partial.
 
-- Kilo CLI has first-class diff support (e.g. `GET /session/:id/diff` as referenced in [`docs/opencode-core/opencode-migration-plan.md`](docs/opencode-core/opencode-migration-plan.md:1)).
-- Implement mapping from Kilo CLI diff payloads/events into the existing Kilo diff message format so [`webview-ui/src/components/common/DiffView.tsx`](../../webview-ui/src/components/common/DiffView.tsx:1) can continue to render.
-- Kilo CLI UI reference: diff presentation exists in [`packages/ui/src/components/session-turn.tsx`](https://github.com/Kilo-Org/kilo/blob/main/packages/ui/src/components/session-turn.tsx:1) and diff rendering components ([`packages/ui/src/components/diff.tsx`](https://github.com/Kilo-Org/kilo/blob/main/packages/ui/src/components/diff.tsx:1)).
-- “Jump to file in editor” remains extension-host responsibility.
+- Keep native VS Code diff opening in extension host for editor-quality review.
+- Add richer in-webview diff summaries/rendering where parity expects chat-native review flows.

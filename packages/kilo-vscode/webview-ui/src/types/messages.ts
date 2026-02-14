@@ -730,6 +730,13 @@ export interface OpenFilePathRequest {
   path: string
 }
 
+export interface OpenDiffPreviewRequest {
+  type: "openDiffPreview"
+  path?: string
+  before: string
+  after: string
+}
+
 export interface RevertMessageRequest {
   type: "revertMessage"
   sessionID?: string
@@ -740,6 +747,11 @@ export interface ForkSessionRequest {
   type: "forkSession"
   sessionID?: string
   messageID?: string
+}
+
+export interface OpenForkSessionPickerRequest {
+  type: "openForkSessionPicker"
+  sessionID?: string
 }
 
 export interface PasteAttachmentsRequest {
@@ -793,8 +805,10 @@ export type WebviewMessage =
   | SelectFilesRequest
   | OpenFileAttachmentRequest
   | OpenFilePathRequest
+  | OpenDiffPreviewRequest
   | RevertMessageRequest
   | ForkSessionRequest
+  | OpenForkSessionPickerRequest
   | PasteAttachmentsRequest
   | SeeNewChangesRequest
 

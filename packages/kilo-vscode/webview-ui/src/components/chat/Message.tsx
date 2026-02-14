@@ -15,6 +15,8 @@ import { BasicTool } from "@kilocode/kilo-ui/basic-tool"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { ContextMenu } from "@kilocode/kilo-ui/context-menu"
+import { Dialog } from "@kilocode/kilo-ui/dialog"
+import { useDialog } from "@kilocode/kilo-ui/context/dialog"
 import { Markdown } from "@kilocode/kilo-ui/markdown"
 import { showToast } from "@kilocode/kilo-ui/toast"
 import { useSession } from "../../context/session"
@@ -25,6 +27,12 @@ import type { Message as SDKMessage, Part as SDKPart } from "@kilocode/sdk/v2"
 
 interface MessageProps {
   message: MessageType
+}
+
+interface DiffTarget {
+  path?: string
+  before: string
+  after: string
 }
 
 function stripAnsi(input: string): string {
@@ -78,6 +86,64 @@ function getToolFilePaths(props: ToolProps): string[] {
   }
 
   return Array.from(values)
+}
+
+function getToolDiffTargets(props: ToolProps): DiffTarget[] {
+  const targets: DiffTarget[] = []
+
+  const addTarget = (path: unknown, before: unknown, after: unknown) => {
+    if (typeof before !== "string" || typeof after !== "string") {
+      return
+    }
+    if (before === after) {
+      return
+    }
+    targets.push({
+      path: typeof path === "string" && path.trim().length > 0 ? path : undefined,
+      before,
+      after,
+    })
+  }
+
+  if (props.tool === "edit") {
+    const filediff = props.metadata?.filediff as { path?: unknown; file?: unknown; before?: unknown; after?: unknown } | undefined
+    addTarget(
+      filediff?.path ?? filediff?.file ?? props.input?.filePath,
+      filediff?.before ?? props.input?.oldString ?? "",
+      filediff?.after ?? props.input?.newString ?? "",
+    )
+    return targets
+  }
+
+  if (props.tool === "write") {
+    const filediff = props.metadata?.filediff as { path?: unknown; file?: unknown; before?: unknown; after?: unknown } | undefined
+    addTarget(
+      filediff?.path ?? filediff?.file ?? props.input?.filePath,
+      filediff?.before ?? "",
+      filediff?.after ?? props.input?.content ?? "",
+    )
+    return targets
+  }
+
+  if (props.tool === "apply_patch") {
+    const metadataFiles = props.metadata?.files
+    if (Array.isArray(metadataFiles)) {
+      for (const file of metadataFiles) {
+        if (!file || typeof file !== "object") {
+          continue
+        }
+        addTarget(
+          (file as { filePath?: unknown; path?: unknown; relativePath?: unknown }).filePath ??
+            (file as { filePath?: unknown; path?: unknown; relativePath?: unknown }).path ??
+            (file as { filePath?: unknown; path?: unknown; relativePath?: unknown }).relativePath,
+          (file as { before?: unknown }).before ?? "",
+          (file as { after?: unknown }).after ?? "",
+        )
+      }
+    }
+  }
+
+  return targets
 }
 
 const BashTool: Component<ToolProps> = (props) => {
@@ -169,6 +235,7 @@ function registerOpenFileInlineAction(toolName: string) {
     const language = useLanguage()
     const vscode = useVSCode()
     const filePaths = createMemo(() => getToolFilePaths(props))
+    const diffTargets = createMemo(() => getToolDiffTargets(props))
     const primaryPath = createMemo(() => filePaths()[0])
 
     const openFile = () => {
@@ -192,25 +259,47 @@ function registerOpenFileInlineAction(toolName: string) {
       }
     }
 
+    const openDiff = () => {
+      const target = diffTargets()[0]
+      if (!target) {
+        return
+      }
+      vscode.postMessage({
+        type: "openDiffPreview",
+        path: target.path,
+        before: target.before,
+        after: target.after,
+      })
+    }
+
     return (
       <div class="tool-inline-actions-container">
-        <Show when={primaryPath()}>
+        <Show when={primaryPath() || diffTargets().length > 0}>
           <div class="tool-inline-actions">
-            <Tooltip value={language.t("command.file.open")} placement="top">
-              <Button variant="ghost" size="small" onClick={openFile} aria-label={language.t("command.file.open")}>
-                {language.t("command.file.open")}
-              </Button>
-            </Tooltip>
-            <Tooltip value={language.t("session.header.open.copyPath")} placement="top">
-              <Button
-                variant="ghost"
-                size="small"
-                onClick={() => void copyPath()}
-                aria-label={language.t("session.header.open.copyPath")}
-              >
-                {language.t("session.header.open.copyPath")}
-              </Button>
-            </Tooltip>
+            <Show when={primaryPath()}>
+              <Tooltip value={language.t("command.file.open")} placement="top">
+                <Button variant="ghost" size="small" onClick={openFile} aria-label={language.t("command.file.open")}>
+                  {language.t("command.file.open")}
+                </Button>
+              </Tooltip>
+              <Tooltip value={language.t("session.header.open.copyPath")} placement="top">
+                <Button
+                  variant="ghost"
+                  size="small"
+                  onClick={() => void copyPath()}
+                  aria-label={language.t("session.header.open.copyPath")}
+                >
+                  {language.t("session.header.open.copyPath")}
+                </Button>
+              </Tooltip>
+            </Show>
+            <Show when={diffTargets().length > 0}>
+              <Tooltip value="Open Diff" placement="top">
+                <Button variant="ghost" size="small" onClick={openDiff} aria-label="Open Diff">
+                  Open Diff
+                </Button>
+              </Tooltip>
+            </Show>
             <Show when={filePaths().length > 1}>
               <span class="tool-inline-actions-meta">+{filePaths().length - 1} more</span>
             </Show>
@@ -248,6 +337,7 @@ export const Message: Component<MessageProps> = (props) => {
   const session = useSession()
   const language = useLanguage()
   const vscode = useVSCode()
+  const dialog = useDialog()
   const messageTime = createMemo(() => {
     const created = new Date(props.message.createdAt)
     if (Number.isNaN(created.getTime())) {
@@ -287,6 +377,31 @@ export const Message: Component<MessageProps> = (props) => {
     }
   }
 
+  const confirmRevertMessage = () => {
+    dialog.show(() => (
+      <Dialog title="Undo message?" fit>
+        <div class="dialog-confirm-body">
+          <span>Revert the session to this message and remove later messages?</span>
+          <div class="dialog-confirm-actions">
+            <Button variant="ghost" size="large" onClick={() => dialog.close()}>
+              {language.t("common.cancel")}
+            </Button>
+            <Button
+              variant="primary"
+              size="large"
+              onClick={() => {
+                session.revertMessage(props.message.id)
+                dialog.close()
+              }}
+            >
+              {language.t("command.session.undo")}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    ))
+  }
+
   return (
     <Show when={parts().length > 0 || props.message.content}>
       <ContextMenu>
@@ -323,8 +438,11 @@ export const Message: Component<MessageProps> = (props) => {
             <ContextMenu.Item onSelect={() => session.forkSession(props.message.id)}>
               <ContextMenu.ItemLabel>{language.t("command.session.fork")}</ContextMenu.ItemLabel>
             </ContextMenu.Item>
+            <ContextMenu.Item onSelect={() => session.openForkSessionPicker()}>
+              <ContextMenu.ItemLabel>Open Forks</ContextMenu.ItemLabel>
+            </ContextMenu.Item>
             <Show when={props.message.role === "user"}>
-              <ContextMenu.Item onSelect={() => session.revertMessage(props.message.id)}>
+              <ContextMenu.Item onSelect={() => confirmRevertMessage()}>
                 <ContextMenu.ItemLabel>{language.t("command.session.undo")}</ContextMenu.ItemLabel>
               </ContextMenu.Item>
             </Show>

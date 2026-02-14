@@ -22,6 +22,7 @@ Inline affordances on tool messages to navigate, inspect, and track progress.
 - Tool rows already show status/progress states via kilo-ui renderers
 - Read/write/edit/list/apply_patch tool rows now expose inline "Open file" actions in the webview
 - Tool rows with file metadata now expose inline "Copy path" actions
+- Tool rows with before/after metadata now expose inline "Open Diff" actions (native VS Code diff preview)
 - Multi-file tool metadata now surfaces an inline `+N more` hint for additional file targets
 
 ## Remaining Gaps

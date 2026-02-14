@@ -274,6 +274,11 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             await this.handleOpenFilePath(message.path)
           }
           break
+        case "openDiffPreview":
+          if (typeof message.before === "string" && typeof message.after === "string") {
+            await this.handleOpenDiffPreview(typeof message.path === "string" ? message.path : undefined, message.before, message.after)
+          }
+          break
         case "revertMessage":
           if (typeof message.messageID === "string") {
             await this.handleRevertMessage(message.sessionID, message.messageID)
@@ -281,6 +286,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           break
         case "forkSession":
           await this.handleForkSession(message.sessionID, message.messageID)
+          break
+        case "openForkSessionPicker":
+          await this.handleOpenForkSessionPicker(message.sessionID)
           break
         case "pasteAttachments": {
           const files = z
@@ -438,6 +446,17 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       await vscode.commands.executeCommand("vscode.open", uri)
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to open file path:", { path: value, error })
+    }
+  }
+
+  private async handleOpenDiffPreview(rawPath: string | undefined, before: string, after: string): Promise<void> {
+    try {
+      const left = await vscode.workspace.openTextDocument({ content: before })
+      const right = await vscode.workspace.openTextDocument({ content: after })
+      const title = rawPath?.trim() ? `${path.basename(rawPath)} (before ↔ after)` : "Diff Preview"
+      await vscode.commands.executeCommand("vscode.diff", left.uri, right.uri, title, { preview: true })
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to open diff preview:", error)
     }
   }
 
@@ -1259,6 +1278,60 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       this.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Failed to fork session",
+      })
+    }
+  }
+
+  private async handleOpenForkSessionPicker(sessionID?: string): Promise<void> {
+    if (!this.httpClient) {
+      this.postMessage({
+        type: "error",
+        message: "Not connected to CLI backend",
+      })
+      return
+    }
+
+    const targetSessionID = sessionID || this.currentSession?.id
+    if (!targetSessionID) {
+      return
+    }
+
+    try {
+      const workspaceDir = this.getWorkspaceDirectory()
+      const children = await this.httpClient.listSessionChildren(targetSessionID, workspaceDir)
+      if (children.length === 0) {
+        void vscode.window.showInformationMessage("No forked child sessions found.")
+        return
+      }
+
+      const picks = children
+        .sort((a, b) => b.time.updated - a.time.updated)
+        .map((child) => ({
+          label: child.title || "Untitled",
+          description: new Date(child.time.updated).toLocaleString(),
+          detail: child.id,
+          session: child,
+        }))
+
+      const choice = await vscode.window.showQuickPick(picks, {
+        placeHolder: "Select a forked session",
+      })
+      if (!choice) {
+        return
+      }
+
+      this.currentSession = choice.session
+      this.trackedSessionIds.add(choice.session.id)
+      this.postMessage({
+        type: "sessionCreated",
+        session: this.sessionToWebview(choice.session),
+      })
+      await this.handleLoadMessages(choice.session.id)
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to open fork session picker:", error)
+      this.postMessage({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to load fork sessions",
       })
     }
   }

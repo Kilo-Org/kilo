@@ -27,7 +27,7 @@ Interactive editing and message management for user-authored messages.
 - Up-arrow on an empty prompt restores the previous user message text
 - Message context menus now include session-management actions:
   - **Fork from message** (create a new session from that point)
-  - **Undo** on user messages (revert session to that message point)
+  - **Undo** on user messages (revert session to that message point) with confirmation dialog
 
 ## Remaining Gaps
 

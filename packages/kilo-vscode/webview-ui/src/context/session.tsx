@@ -94,6 +94,7 @@ interface SessionContextValue {
   abort: () => void
   compact: () => void
   seeNewChanges: () => void
+  openForkSessionPicker: () => void
   revertMessage: (messageID: string) => void
   forkSession: (messageID?: string) => void
   respondToPermission: (permissionId: string, response: "once" | "always" | "reject") => void
@@ -558,6 +559,16 @@ export const SessionProvider: ParentComponent = (props) => {
     })
   }
 
+  function openForkSessionPicker() {
+    if (!server.isConnected()) {
+      return
+    }
+    vscode.postMessage({
+      type: "openForkSessionPicker",
+      sessionID: currentSessionID(),
+    })
+  }
+
   function revertMessage(messageID: string) {
     if (!server.isConnected()) {
       console.warn("[Kilo New] Cannot revert message: not connected")
@@ -828,6 +839,7 @@ export const SessionProvider: ParentComponent = (props) => {
     abort,
     compact,
     seeNewChanges,
+    openForkSessionPicker,
     revertMessage,
     forkSession,
     respondToPermission,

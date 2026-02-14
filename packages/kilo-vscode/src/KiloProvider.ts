@@ -15,6 +15,11 @@ import {
 } from "./services/cli-backend"
 import { handleChatCompletionRequest } from "./services/autocomplete/chat-autocomplete/handleChatCompletionRequest"
 import { handleChatCompletionAccepted } from "./services/autocomplete/chat-autocomplete/handleChatCompletionAccepted"
+import {
+  readSettingsActiveTab,
+  writeLastProviderAuth,
+  writeSettingsActiveTab,
+} from "./services/settings-sync"
 import { logger } from "./utils/logger"
 import { parseAllowedOpenExternalUrl } from "./utils/open-external"
 import {
@@ -81,6 +86,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   private readonly attachmentTempDir = path.join(os.tmpdir(), "kilo-code-vscode-attachments")
 
   constructor(
+    private readonly extensionContext: vscode.ExtensionContext,
     private readonly extensionUri: vscode.Uri,
     private readonly connectionService: KiloConnectionService,
   ) {}
@@ -133,6 +139,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         languageOverride: langConfig.get<string>("language"),
       })
     }
+    this.sendSettingsUiState()
 
     // Always attempt to fetch+push profile when connected.
     if (this.connectionState === "connected" && this.httpClient) {
@@ -339,6 +346,18 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           break
         case "requestProviders":
           await this.fetchAndSendProviders()
+          break
+        case "requestSettingsUiState":
+          this.sendSettingsUiState()
+          break
+        case "settingsTabChanged":
+          await writeSettingsActiveTab(this.extensionContext, message.tab)
+          break
+        case "connectProviderAuth":
+          await this.handleConnectProviderAuth(message.providerID)
+          break
+        case "disconnectProviderAuth":
+          await this.handleDisconnectProviderAuth(message.providerID)
           break
         case "compact":
           await this.handleCompact(message.sessionID, message.providerID, message.modelID)
@@ -1113,6 +1132,13 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private sendSettingsUiState(): void {
+    this.postMessage({
+      type: "settingsUiStateLoaded",
+      activeTab: readSettingsActiveTab(this.extensionContext),
+    })
+  }
+
   /**
    * Fetch agents (modes) from the backend and send to webview.
    */
@@ -1747,6 +1773,75 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         type: "deviceAuthFailed",
         error: error instanceof Error ? error.message : "Login failed",
       })
+    }
+  }
+
+  private async handleConnectProviderAuth(providerID: unknown): Promise<void> {
+    if (!this.httpClient) {
+      this.postMessage({ type: "error", message: "Not connected to CLI backend" })
+      return
+    }
+    if (typeof providerID !== "string" || providerID.trim().length === 0) {
+      this.postMessage({ type: "error", message: "Invalid provider ID" })
+      return
+    }
+
+    const id = providerID.trim()
+    try {
+      const workspaceDir = this.getWorkspaceDirectory()
+      const auth = await this.httpClient.oauthAuthorize(id, 0, workspaceDir)
+      await vscode.env.openExternal(vscode.Uri.parse(auth.url))
+      await this.httpClient.oauthCallback(id, 0, workspaceDir)
+      await writeLastProviderAuth(this.extensionContext, id)
+      await this.fetchAndSendProviders()
+      if (id === "kilo") {
+        await this.handleRefreshProfile()
+      }
+      this.postMessage({ type: "providerAuthResult", providerID: id, action: "connect", success: true })
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed provider OAuth connect:", { providerID: id, error })
+      const message = error instanceof Error ? error.message : "Failed to connect provider"
+      this.postMessage({
+        type: "providerAuthResult",
+        providerID: id,
+        action: "connect",
+        success: false,
+        message,
+      })
+      this.postMessage({ type: "error", message })
+    }
+  }
+
+  private async handleDisconnectProviderAuth(providerID: unknown): Promise<void> {
+    if (!this.httpClient) {
+      this.postMessage({ type: "error", message: "Not connected to CLI backend" })
+      return
+    }
+    if (typeof providerID !== "string" || providerID.trim().length === 0) {
+      this.postMessage({ type: "error", message: "Invalid provider ID" })
+      return
+    }
+
+    const id = providerID.trim()
+    try {
+      await this.httpClient.removeAuth(id)
+      await writeLastProviderAuth(this.extensionContext, id)
+      await this.fetchAndSendProviders()
+      if (id === "kilo") {
+        this.postMessage({ type: "profileData", data: null })
+      }
+      this.postMessage({ type: "providerAuthResult", providerID: id, action: "disconnect", success: true })
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed provider disconnect:", { providerID: id, error })
+      const message = error instanceof Error ? error.message : "Failed to disconnect provider"
+      this.postMessage({
+        type: "providerAuthResult",
+        providerID: id,
+        action: "disconnect",
+        success: false,
+        message,
+      })
+      this.postMessage({ type: "error", message })
     }
   }
 

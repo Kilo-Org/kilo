@@ -5,6 +5,7 @@ import { EXTENSION_DISPLAY_NAME } from "./constants"
 import { KiloConnectionService } from "./services/cli-backend"
 import { registerAutocompleteProvider } from "./services/autocomplete"
 import { BrowserAutomationService } from "./services/browser-automation"
+import { initializeSettingsSync } from "./services/settings-sync"
 import { initializeLogger, logger, setLoggerDebugEnabled } from "./utils/logger"
 
 export function activate(context: vscode.ExtensionContext) {
@@ -13,6 +14,7 @@ export function activate(context: vscode.ExtensionContext) {
   initializeLogger(outputChannel)
   setLoggerDebugEnabled(context.extensionMode !== vscode.ExtensionMode.Production)
   logger.info("Kilo Code extension is now active")
+  initializeSettingsSync(context)
 
   // Create shared connection service (one server for all webviews)
   const connectionService = new KiloConnectionService(context)
@@ -29,7 +31,7 @@ export function activate(context: vscode.ExtensionContext) {
   })
 
   // Create the provider with shared service
-  const provider = new KiloProvider(context.extensionUri, connectionService)
+  const provider = new KiloProvider(context, context.extensionUri, connectionService)
 
   // Register the webview view provider for the sidebar
   context.subscriptions.push(vscode.window.registerWebviewViewProvider(KiloProvider.viewType, provider))
@@ -100,7 +102,7 @@ async function openKiloInNewTab(context: vscode.ExtensionContext, connectionServ
     dark: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "kilo-dark.svg"),
   }
 
-  const tabProvider = new KiloProvider(context.extensionUri, connectionService)
+  const tabProvider = new KiloProvider(context, context.extensionUri, connectionService)
   tabProvider.resolveWebviewPanel(panel)
 
   // Wait for the new panel to become active before locking the editor group.

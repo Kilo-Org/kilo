@@ -70,6 +70,23 @@ describe("validateConfigPatch", () => {
 
     expect(result.ok).toBe(true)
   })
+
+  it("accepts provider config patches with auth fields", () => {
+    const result = validateConfigPatch({
+      provider: {
+        custom_openai: {
+          name: "Custom OpenAI",
+          api_key: "sk-test",
+          base_url: "https://api.example.com/v1",
+          models: {
+            "custom/model": { name: "Custom Model" },
+          },
+        },
+      },
+    })
+
+    expect(result.ok).toBe(true)
+  })
 })
 
 describe("validateSettingUpdate", () => {

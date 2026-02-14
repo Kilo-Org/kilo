@@ -93,8 +93,12 @@ const AgentBehaviourTab: Component = () => {
   const [mcpHeadersJson, setMcpHeadersJson] = createSignal("")
   const [mcpTimeoutMs, setMcpTimeoutMs] = createSignal("")
   const [mcpEnabled, setMcpEnabled] = createSignal(true)
+  const [mcpToolName, setMcpToolName] = createSignal("")
+  const [mcpToolEnabled, setMcpToolEnabled] = createSignal(true)
+  const [mcpStatusRefreshedAt, setMcpStatusRefreshedAt] = createSignal<number | null>(null)
 
   const mcpEntries = createMemo(() => Object.entries(config().mcp ?? {}).sort(([a], [b]) => a.localeCompare(b)))
+  const mcpToolEntries = createMemo(() => Object.entries(config().tools ?? {}).sort(([a], [b]) => a.localeCompare(b)))
 
   const parseRecordJson = (value: string, label: string): Record<string, string> | null => {
     const trimmed = value.trim()
@@ -316,9 +320,29 @@ const AgentBehaviourTab: Component = () => {
     vscode.postMessage({ type: "requestMcpStatus" })
   }
 
+  const upsertMcpToolPolicy = () => {
+    const name = mcpToolName().trim()
+    if (!name) {
+      showToast({ variant: "error", title: "Tool name is required" })
+      return
+    }
+    const next = { ...(config().tools ?? {}), [name]: mcpToolEnabled() }
+    updateConfig({ tools: next })
+    setMcpToolName("")
+    setMcpToolEnabled(true)
+    showToast({ variant: "success", title: "Tool policy updated", description: `${name} → ${next[name] ? "allow" : "deny"}` })
+  }
+
+  const removeMcpToolPolicy = (name: string) => {
+    const next = { ...(config().tools ?? {}) }
+    delete next[name]
+    updateConfig({ tools: Object.keys(next).length > 0 ? next : undefined })
+  }
+
   const unsubscribe = vscode.onMessage((message: ExtensionMessage) => {
     if (message.type === "mcpStatusLoaded") {
       setMcpStatus(message.status)
+      setMcpStatusRefreshedAt(Date.now())
     }
   })
 
@@ -682,7 +706,16 @@ const AgentBehaviourTab: Component = () => {
 
         <Card>
           <div style={{ display: "flex", "justify-content": "space-between", "align-items": "center", "margin-bottom": "8px" }}>
-            <div style={{ "font-weight": "500" }}>Configured MCP Servers</div>
+            <div>
+              <div style={{ "font-weight": "500" }}>Configured MCP Servers</div>
+              <Show when={mcpStatusRefreshedAt()}>
+                {(value) => (
+                  <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
+                    Last refreshed: {new Date(value()).toLocaleTimeString()}
+                  </div>
+                )}
+              </Show>
+            </div>
             <Button size="small" variant="ghost" onClick={requestMcpStatus}>
               Refresh status
             </Button>
@@ -794,6 +827,83 @@ const AgentBehaviourTab: Component = () => {
               }}
             </For>
           </Show>
+        </Card>
+
+        <h4 style={{ "margin-top": "16px", "margin-bottom": "8px" }}>MCP Tool Allowlist / Disablement</h4>
+        <Card>
+          <div
+            style={{
+              "font-size": "11px",
+              color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+              "padding-bottom": "8px",
+              "border-bottom": "1px solid var(--border-weak-base)",
+            }}
+          >
+            Manage `config.tools` entries to explicitly allow (`true`) or disable (`false`) tools.
+          </div>
+          <div style={{ display: "flex", gap: "8px", "align-items": "center", padding: "8px 0" }}>
+            <div style={{ flex: 1 }}>
+              <TextField value={mcpToolName()} placeholder="Tool name (e.g. mcp.playwright.navigate)" onChange={setMcpToolName} />
+            </div>
+            <label style={{ display: "flex", "align-items": "center", gap: "6px", "font-size": "12px" }}>
+              <input
+                type="checkbox"
+                checked={mcpToolEnabled()}
+                onChange={(event) => setMcpToolEnabled((event.currentTarget as HTMLInputElement).checked)}
+              />
+              Allow
+            </label>
+            <Button size="small" onClick={upsertMcpToolPolicy}>
+              Save
+            </Button>
+          </div>
+
+          <For each={mcpToolEntries()}>
+            {([toolName, enabled], index) => (
+              <div
+                style={{
+                  display: "flex",
+                  "align-items": "center",
+                  "justify-content": "space-between",
+                  padding: "6px 0",
+                  "border-top": "1px solid var(--border-weak-base)",
+                  "border-bottom": index() < mcpToolEntries().length - 1 ? "1px solid transparent" : "none",
+                  gap: "8px",
+                }}
+              >
+                <span
+                  style={{
+                    "font-family": "var(--vscode-editor-font-family, monospace)",
+                    "font-size": "12px",
+                    flex: 1,
+                    "min-width": 0,
+                    "word-break": "break-word",
+                  }}
+                >
+                  {toolName}
+                </span>
+                <span
+                  style={{
+                    "font-size": "11px",
+                    "font-weight": "500",
+                    color: enabled ? "var(--vscode-testing-iconPassed, #89d185)" : "var(--vscode-testing-iconFailed, #f14c4c)",
+                    "text-transform": "uppercase",
+                  }}
+                >
+                  {enabled ? "ALLOW" : "DENY"}
+                </span>
+                <Tooltip value={language.t("common.delete")} placement="top">
+                  <IconButton
+                    size="small"
+                    variant="ghost"
+                    icon="close"
+                    onClick={() => removeMcpToolPolicy(toolName)}
+                    aria-label={language.t("common.delete")}
+                  />
+                </Tooltip>
+              </div>
+            )}
+          </For>
         </Card>
       </div>
     )

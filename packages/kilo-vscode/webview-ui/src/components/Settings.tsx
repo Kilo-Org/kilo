@@ -1,4 +1,4 @@
-import { Component } from "solid-js"
+import { Component, createSignal, onCleanup } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Icon } from "@kilocode/kilo-ui/icon"
 import { Tabs } from "@kilocode/kilo-ui/tabs"
@@ -19,6 +19,7 @@ import ExperimentalTab from "./settings/ExperimentalTab"
 import LanguageTab from "./settings/LanguageTab"
 import AboutKiloCodeTab from "./settings/AboutKiloCodeTab"
 import { useServer } from "../context/server"
+import { useVSCode } from "../context/vscode"
 
 export interface SettingsProps {
   onBack?: () => void
@@ -27,6 +28,21 @@ export interface SettingsProps {
 const Settings: Component<SettingsProps> = (props) => {
   const server = useServer()
   const language = useLanguage()
+  const vscode = useVSCode()
+  const [activeTab, setActiveTab] = createSignal("providers")
+
+  const unsubscribe = vscode.onMessage((message) => {
+    if (message.type === "settingsUiStateLoaded" && typeof message.activeTab === "string") {
+      setActiveTab(message.activeTab)
+    }
+  })
+  onCleanup(unsubscribe)
+  vscode.postMessage({ type: "requestSettingsUiState" })
+
+  const handleTabChange = (nextTab: string) => {
+    setActiveTab(nextTab)
+    vscode.postMessage({ type: "settingsTabChanged", tab: nextTab })
+  }
 
   return (
     <div style={{ display: "flex", "flex-direction": "column", height: "100%" }}>
@@ -49,7 +65,13 @@ const Settings: Component<SettingsProps> = (props) => {
       </div>
 
       {/* Settings tabs */}
-      <Tabs orientation="vertical" variant="settings" defaultValue="providers" style={{ flex: 1, overflow: "hidden" }}>
+      <Tabs
+        orientation="vertical"
+        variant="settings"
+        value={activeTab()}
+        onChange={handleTabChange}
+        style={{ flex: 1, overflow: "hidden" }}
+      >
         <Tabs.List>
           <Tabs.SectionTitle>{language.t("settings.section.configuration")}</Tabs.SectionTitle>
           <Tabs.Trigger value="providers">

@@ -511,6 +511,19 @@ export interface McpStatusLoadedMessage {
   status: Record<string, McpStatus>
 }
 
+export interface SettingsUiStateLoadedMessage {
+  type: "settingsUiStateLoaded"
+  activeTab: string
+}
+
+export interface ProviderAuthResultMessage {
+  type: "providerAuthResult"
+  providerID: string
+  action: "connect" | "disconnect"
+  success: boolean
+  message?: string
+}
+
 export interface ValidationIssue {
   path: string
   message: string
@@ -579,6 +592,8 @@ export type ExtensionMessage =
   | ConfigLoadedMessage
   | ConfigUpdatedMessage
   | McpStatusLoadedMessage
+  | SettingsUiStateLoadedMessage
+  | ProviderAuthResultMessage
   | ConfigValidationErrorMessage
   | SettingValidationErrorMessage
   | NotificationSettingsLoadedMessage
@@ -770,10 +785,29 @@ export interface RequestMcpStatusMessage {
   type: "requestMcpStatus"
 }
 
+export interface RequestSettingsUiStateMessage {
+  type: "requestSettingsUiState"
+}
+
+export interface SettingsTabChangedMessage {
+  type: "settingsTabChanged"
+  tab: string
+}
+
 export interface AddMcpServerMessage {
   type: "addMcpServer"
   name: string
   config: McpServerConfigInput
+}
+
+export interface ConnectProviderAuthMessage {
+  type: "connectProviderAuth"
+  providerID: string
+}
+
+export interface DisconnectProviderAuthMessage {
+  type: "disconnectProviderAuth"
+  providerID: string
 }
 
 export interface ConnectMcpServerMessage {
@@ -902,9 +936,13 @@ export type WebviewMessage =
   | RequestConfigMessage
   | UpdateConfigMessage
   | RequestMcpStatusMessage
+  | RequestSettingsUiStateMessage
+  | SettingsTabChangedMessage
   | AddMcpServerMessage
   | ConnectMcpServerMessage
   | DisconnectMcpServerMessage
+  | ConnectProviderAuthMessage
+  | DisconnectProviderAuthMessage
   | RequestNotificationSettingsMessage
   | RetryConnectionRequest
   | SelectFilesRequest

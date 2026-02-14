@@ -1,14 +1,17 @@
-import { Component, For, createSignal, createMemo } from "solid-js"
+import { Component, For, createMemo, createSignal, onCleanup } from "solid-js"
 import { Select } from "@kilocode/kilo-ui/select"
 import { Card } from "@kilocode/kilo-ui/card"
 import { Button } from "@kilocode/kilo-ui/button"
 import { IconButton } from "@kilocode/kilo-ui/icon-button"
+import { TextField } from "@kilocode/kilo-ui/text-field"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
+import { showToast } from "@kilocode/kilo-ui/toast"
 import { useConfig } from "../../context/config"
 import { useProvider } from "../../context/provider"
 import { useLanguage } from "../../context/language"
+import { useVSCode } from "../../context/vscode"
 import { ModelSelectorBase } from "../chat/ModelSelector"
-import type { ModelSelection } from "../../types/messages"
+import type { ExtensionMessage, ModelSelection, ProviderConfig } from "../../types/messages"
 
 interface ProviderOption {
   value: string
@@ -52,6 +55,7 @@ const ProvidersTab: Component = () => {
   const { config, updateConfig } = useConfig()
   const provider = useProvider()
   const language = useLanguage()
+  const vscode = useVSCode()
 
   const providerOptions = createMemo<ProviderOption[]>(() =>
     Object.keys(provider.providers())
@@ -61,9 +65,131 @@ const ProvidersTab: Component = () => {
 
   const [newDisabled, setNewDisabled] = createSignal<ProviderOption | undefined>()
   const [newEnabled, setNewEnabled] = createSignal<ProviderOption | undefined>()
+  const [editingProviderID, setEditingProviderID] = createSignal<string | null>(null)
+  const [providerIDInput, setProviderIDInput] = createSignal("")
+  const [providerNameInput, setProviderNameInput] = createSignal("")
+  const [providerApiKeyInput, setProviderApiKeyInput] = createSignal("")
+  const [providerBaseUrlInput, setProviderBaseUrlInput] = createSignal("")
+  const [providerModelsJsonInput, setProviderModelsJsonInput] = createSignal("")
 
   const disabledProviders = () => config().disabled_providers ?? []
   const enabledProviders = () => config().enabled_providers ?? []
+  const customProviders = createMemo(() => Object.entries(config().provider ?? {}).sort(([a], [b]) => a.localeCompare(b)))
+
+  const unsubscribe = vscode.onMessage((message: ExtensionMessage) => {
+    if (message.type !== "providerAuthResult") {
+      return
+    }
+    if (message.success) {
+      showToast({
+        variant: "success",
+        title: message.action === "connect" ? "Provider connected" : "Provider disconnected",
+        description: message.providerID,
+      })
+      provider.refresh()
+      return
+    }
+    showToast({
+      variant: "error",
+      title: message.action === "connect" ? "Provider connect failed" : "Provider disconnect failed",
+      description: message.message ?? message.providerID,
+    })
+  })
+  onCleanup(unsubscribe)
+
+  const resetProviderForm = () => {
+    setEditingProviderID(null)
+    setProviderIDInput("")
+    setProviderNameInput("")
+    setProviderApiKeyInput("")
+    setProviderBaseUrlInput("")
+    setProviderModelsJsonInput("")
+  }
+
+  const formatModelsJson = (models: Record<string, unknown> | undefined) => {
+    if (!models || Object.keys(models).length === 0) {
+      return ""
+    }
+    return JSON.stringify(models, null, 2)
+  }
+
+  const editCustomProvider = (id: string, providerConfig: ProviderConfig) => {
+    setEditingProviderID(id)
+    setProviderIDInput(id)
+    setProviderNameInput(providerConfig.name ?? "")
+    setProviderApiKeyInput(providerConfig.api_key ?? "")
+    setProviderBaseUrlInput(providerConfig.base_url ?? "")
+    setProviderModelsJsonInput(formatModelsJson(providerConfig.models))
+  }
+
+  const parseModelsJson = (): Record<string, unknown> | undefined | null => {
+    const raw = providerModelsJsonInput().trim()
+    if (!raw) {
+      return undefined
+    }
+    try {
+      const parsed = JSON.parse(raw)
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Models JSON must be an object")
+      }
+      return parsed as Record<string, unknown>
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: "Invalid models JSON",
+        description: error instanceof Error ? error.message : "Expected a JSON object.",
+      })
+      return null
+    }
+  }
+
+  const upsertCustomProvider = () => {
+    const id = providerIDInput().trim()
+    if (!id) {
+      showToast({ variant: "error", title: "Provider ID is required" })
+      return
+    }
+
+    const models = parseModelsJson()
+    if (models === null) {
+      return
+    }
+
+    const nextProviders = { ...(config().provider ?? {}) }
+    const previousID = editingProviderID()
+    if (previousID && previousID !== id) {
+      delete nextProviders[previousID]
+    }
+
+    nextProviders[id] = {
+      name: providerNameInput().trim() || undefined,
+      api_key: providerApiKeyInput().trim() || undefined,
+      base_url: providerBaseUrlInput().trim() || undefined,
+      models,
+    }
+
+    updateConfig({ provider: nextProviders })
+    showToast({ variant: "success", title: previousID ? "Provider updated" : "Provider added", description: id })
+    resetProviderForm()
+  }
+
+  const removeCustomProvider = (id: string) => {
+    const nextProviders = { ...(config().provider ?? {}) }
+    delete nextProviders[id]
+    updateConfig({ provider: Object.keys(nextProviders).length > 0 ? nextProviders : undefined })
+    if (editingProviderID() === id) {
+      resetProviderForm()
+    }
+    showToast({ variant: "success", title: "Provider removed", description: id })
+  }
+
+  const connectProvider = (providerID: string) => {
+    vscode.postMessage({ type: "connectProviderAuth", providerID })
+  }
+
+  const disconnectProvider = (providerID: string) => {
+    vscode.postMessage({ type: "disconnectProviderAuth", providerID })
+  }
 
   const providerCatalog = createMemo(() => {
     const providers = provider.providers()
@@ -155,20 +281,29 @@ const ProvidersTab: Component = () => {
                 </div>
               </div>
 
-              <span
-                style={{
-                  "font-size": "11px",
-                  "font-weight": "500",
-                  color: item.connected
-                    ? "var(--vscode-testing-iconPassed, #89d185)"
-                    : "var(--vscode-descriptionForeground)",
-                  "text-transform": "capitalize",
-                }}
-              >
-                {item.connected
-                  ? language.t("settings.aboutKiloCode.status.connected")
-                  : language.t("settings.aboutKiloCode.status.disconnected")}
-              </span>
+              <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
+                <span
+                  style={{
+                    "font-size": "11px",
+                    "font-weight": "500",
+                    color: item.connected
+                      ? "var(--vscode-testing-iconPassed, #89d185)"
+                      : "var(--vscode-descriptionForeground)",
+                    "text-transform": "capitalize",
+                  }}
+                >
+                  {item.connected
+                    ? language.t("settings.aboutKiloCode.status.connected")
+                    : language.t("settings.aboutKiloCode.status.disconnected")}
+                </span>
+                <Button
+                  size="small"
+                  variant="ghost"
+                  onClick={() => (item.connected ? disconnectProvider(item.id) : connectProvider(item.id))}
+                >
+                  {item.connected ? "Disconnect" : "Connect"}
+                </Button>
+              </div>
             </div>
           )}
         </For>
@@ -206,6 +341,100 @@ const ProvidersTab: Component = () => {
             clearLabel="Not set (use server default)"
           />
         </SettingsRow>
+      </Card>
+
+      {/* Custom provider config */}
+      <h4 style={{ "margin-top": "16px", "margin-bottom": "8px" }}>Custom Provider Configuration</h4>
+      <Card>
+        <div
+          style={{
+            "font-size": "11px",
+            color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+            "padding-bottom": "8px",
+            "border-bottom": "1px solid var(--border-weak-base)",
+          }}
+        >
+          Add or edit OpenAI-compatible provider entries in global config (`config.provider`).
+        </div>
+
+        <div style={{ display: "flex", "flex-direction": "column", gap: "8px", padding: "8px 0" }}>
+          <TextField value={providerIDInput()} placeholder="Provider ID (required)" onChange={(value) => setProviderIDInput(value)} />
+          <TextField value={providerNameInput()} placeholder="Display name (optional)" onChange={(value) => setProviderNameInput(value)} />
+          <TextField
+            value={providerApiKeyInput()}
+            placeholder="API key (optional)"
+            onChange={(value) => setProviderApiKeyInput(value)}
+          />
+          <TextField
+            value={providerBaseUrlInput()}
+            placeholder="Base URL (optional)"
+            onChange={(value) => setProviderBaseUrlInput(value)}
+          />
+          <TextField
+            value={providerModelsJsonInput()}
+            placeholder='Models JSON (optional, object)'
+            multiline
+            onChange={(value) => setProviderModelsJsonInput(value)}
+          />
+        </div>
+
+        <div style={{ display: "flex", "justify-content": "flex-end", gap: "8px", "padding-bottom": "8px" }}>
+          {editingProviderID() ? (
+            <Button size="small" variant="ghost" onClick={resetProviderForm}>
+              Cancel
+            </Button>
+          ) : null}
+          <Button size="small" onClick={upsertCustomProvider} disabled={!providerIDInput().trim()}>
+            {editingProviderID() ? "Update Provider" : "Add Provider"}
+          </Button>
+        </div>
+
+        <For each={customProviders()}>
+          {([id, providerConfig], index) => (
+            <div
+              style={{
+                display: "flex",
+                "align-items": "flex-start",
+                "justify-content": "space-between",
+                padding: "8px 0",
+                "border-top": "1px solid var(--border-weak-base)",
+                "border-bottom": index() < customProviders().length - 1 ? "1px solid transparent" : "none",
+                gap: "8px",
+              }}
+            >
+              <div style={{ flex: 1, "min-width": 0 }}>
+                <div style={{ "font-weight": "500" }}>{id}</div>
+                <div
+                  style={{
+                    "font-size": "11px",
+                    color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+                    "margin-top": "2px",
+                    "font-family": "var(--vscode-editor-font-family, monospace)",
+                    "word-break": "break-word",
+                  }}
+                >
+                  {providerConfig.name ? `name: ${providerConfig.name}` : ""}
+                  {providerConfig.base_url ? `${providerConfig.name ? " · " : ""}base: ${providerConfig.base_url}` : ""}
+                  {providerConfig.api_key ? " · api_key: *****" : ""}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "4px" }}>
+                <Button size="small" variant="ghost" onClick={() => editCustomProvider(id, providerConfig)}>
+                  Edit
+                </Button>
+                <Tooltip value={language.t("common.delete")} placement="top">
+                  <IconButton
+                    size="small"
+                    variant="ghost"
+                    icon="close"
+                    onClick={() => removeCustomProvider(id)}
+                    aria-label={language.t("common.delete")}
+                  />
+                </Tooltip>
+              </div>
+            </div>
+          )}
+        </For>
       </Card>
 
       {/* Disabled providers */}

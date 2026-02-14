@@ -4,6 +4,7 @@ import { TextField } from "@kilocode/kilo-ui/text-field"
 import { Card } from "@kilocode/kilo-ui/card"
 import { Button } from "@kilocode/kilo-ui/button"
 import { IconButton } from "@kilocode/kilo-ui/icon-button"
+import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 
 import { useConfig } from "../../context/config"
 import { useSession } from "../../context/session"
@@ -390,7 +391,15 @@ const AgentBehaviourTab: Component = () => {
               >
                 {path}
               </span>
-              <IconButton size="small" variant="ghost" icon="close" onClick={() => removeSkillPath(index())} />
+              <Tooltip value={language.t("common.delete")} placement="top">
+                <IconButton
+                  size="small"
+                  variant="ghost"
+                  icon="close"
+                  onClick={() => removeSkillPath(index())}
+                  aria-label={language.t("common.delete")}
+                />
+              </Tooltip>
             </div>
           )}
         </For>
@@ -441,7 +450,15 @@ const AgentBehaviourTab: Component = () => {
               >
                 {url}
               </span>
-              <IconButton size="small" variant="ghost" icon="close" onClick={() => removeSkillUrl(index())} />
+              <Tooltip value={language.t("common.delete")} placement="top">
+                <IconButton
+                  size="small"
+                  variant="ghost"
+                  icon="close"
+                  onClick={() => removeSkillUrl(index())}
+                  aria-label={language.t("common.delete")}
+                />
+              </Tooltip>
             </div>
           )}
         </For>
@@ -515,7 +532,15 @@ const AgentBehaviourTab: Component = () => {
               >
                 {path}
               </span>
-              <IconButton size="small" variant="ghost" icon="close" onClick={() => removeInstruction(index())} />
+              <Tooltip value={language.t("common.delete")} placement="top">
+                <IconButton
+                  size="small"
+                  variant="ghost"
+                  icon="close"
+                  onClick={() => removeInstruction(index())}
+                  aria-label={language.t("common.delete")}
+                />
+              </Tooltip>
             </div>
           )}
         </For>

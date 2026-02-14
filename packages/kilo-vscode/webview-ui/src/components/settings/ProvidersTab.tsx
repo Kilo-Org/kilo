@@ -3,6 +3,7 @@ import { Select } from "@kilocode/kilo-ui/select"
 import { Card } from "@kilocode/kilo-ui/card"
 import { Button } from "@kilocode/kilo-ui/button"
 import { IconButton } from "@kilocode/kilo-ui/icon-button"
+import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { useConfig } from "../../context/config"
 import { useProvider } from "../../context/provider"
 import { useLanguage } from "../../context/language"
@@ -138,8 +139,7 @@ const ProvidersTab: Component = () => {
                 "justify-content": "space-between",
                 gap: "12px",
                 padding: "8px 0",
-                "border-bottom":
-                  index() < providerCatalog().length - 1 ? "1px solid var(--border-weak-base)" : "none",
+                "border-bottom": index() < providerCatalog().length - 1 ? "1px solid var(--border-weak-base)" : "none",
               }}
             >
               <div style={{ flex: 1, "min-width": 0 }}>
@@ -147,7 +147,9 @@ const ProvidersTab: Component = () => {
                   <span style={{ "font-weight": "500" }}>{item.name}</span>
                   <span style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>{item.id}</span>
                 </div>
-                <div style={{ "font-size": "11px", color: "var(--text-weak-base, var(--vscode-descriptionForeground))" }}>
+                <div
+                  style={{ "font-size": "11px", color: "var(--text-weak-base, var(--vscode-descriptionForeground))" }}
+                >
                   {item.modelCount} models
                   {item.defaultModelName ? ` · default: ${item.defaultModelName}` : ""}
                 </div>
@@ -266,12 +268,15 @@ const ProvidersTab: Component = () => {
               }}
             >
               <span style={{ "font-size": "12px" }}>{id}</span>
-              <IconButton
-                size="small"
-                variant="ghost"
-                icon="close"
-                onClick={() => removeFromList("disabled_providers", index())}
-              />
+              <Tooltip value={language.t("common.delete")} placement="top">
+                <IconButton
+                  size="small"
+                  variant="ghost"
+                  icon="close"
+                  onClick={() => removeFromList("disabled_providers", index())}
+                  aria-label={language.t("common.delete")}
+                />
+              </Tooltip>
             </div>
           )}
         </For>
@@ -336,12 +341,15 @@ const ProvidersTab: Component = () => {
               }}
             >
               <span style={{ "font-size": "12px" }}>{id}</span>
-              <IconButton
-                size="small"
-                variant="ghost"
-                icon="close"
-                onClick={() => removeFromList("enabled_providers", index())}
-              />
+              <Tooltip value={language.t("common.delete")} placement="top">
+                <IconButton
+                  size="small"
+                  variant="ghost"
+                  icon="close"
+                  onClick={() => removeFromList("enabled_providers", index())}
+                  aria-label={language.t("common.delete")}
+                />
+              </Tooltip>
             </div>
           )}
         </For>

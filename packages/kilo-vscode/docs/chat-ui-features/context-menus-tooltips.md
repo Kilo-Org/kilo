@@ -19,9 +19,11 @@ Right-click/context actions and tooltip affordances throughout the chat UI.
 ## Current Progress
 
 - Chat message rows now support right-click context actions (copy message, open markdown preview)
+- Prompt attachment chips now support right-click actions (open file, copy path, remove attachment)
 - Recent session quick-resume entries now have hover tooltips
 - Scroll-to-bottom chat control now has hover tooltip
 - Todo panel completed-items toggle now has hover tooltip
+- Icon-only remove actions in major settings tabs now have hover tooltips and aria labels
 
 ## Remaining Gaps
 

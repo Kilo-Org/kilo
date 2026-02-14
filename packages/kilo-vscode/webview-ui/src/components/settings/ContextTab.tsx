@@ -4,8 +4,10 @@ import { TextField } from "@kilocode/kilo-ui/text-field"
 import { Card } from "@kilocode/kilo-ui/card"
 import { Button } from "@kilocode/kilo-ui/button"
 import { IconButton } from "@kilocode/kilo-ui/icon-button"
+import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 
 import { useConfig } from "../../context/config"
+import { useLanguage } from "../../context/language"
 
 const SettingsRow: Component<{ label: string; description: string; last?: boolean; children: any }> = (props) => (
   <div
@@ -30,6 +32,7 @@ const SettingsRow: Component<{ label: string; description: string; last?: boolea
 
 const ContextTab: Component = () => {
   const { config, updateConfig } = useConfig()
+  const language = useLanguage()
   const [newPattern, setNewPattern] = createSignal("")
 
   const patterns = () => config().watcher?.ignore ?? []
@@ -134,7 +137,15 @@ const ContextTab: Component = () => {
               >
                 {pattern}
               </span>
-              <IconButton size="small" variant="ghost" icon="close" onClick={() => removePattern(index())} />
+              <Tooltip value={language.t("common.delete")} placement="top">
+                <IconButton
+                  size="small"
+                  variant="ghost"
+                  icon="close"
+                  onClick={() => removePattern(index())}
+                  aria-label={language.t("common.delete")}
+                />
+              </Tooltip>
             </div>
           )}
         </For>

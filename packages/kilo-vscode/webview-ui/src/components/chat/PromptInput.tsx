@@ -6,6 +6,7 @@
 import { Component, For, createSignal, onCleanup, Show } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
+import { ContextMenu } from "@kilocode/kilo-ui/context-menu"
 import { showToast } from "@kilocode/kilo-ui/toast"
 import { useSession } from "../../context/session"
 import { useServer } from "../../context/server"
@@ -192,6 +193,15 @@ export const PromptInput: Component = () => {
     vscode.postMessage({ type: "openFileAttachment", url })
   }
 
+  const handleCopyAttachmentPath = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      showToast({ variant: "success", title: "Attachment path copied" })
+    } catch {
+      showToast({ variant: "error", title: "Failed to copy attachment path" })
+    }
+  }
+
   const handlePaste = (e: ClipboardEvent) => {
     if (!e.clipboardData) return
     const hasFiles = Array.from(e.clipboardData.items).some((item) => item.kind === "file")
@@ -215,31 +225,49 @@ export const PromptInput: Component = () => {
         <div class="prompt-attachments" aria-label={language.t("common.attachment")}>
           <For each={attachments()}>
             {(file) => (
-              <div class="prompt-attachment">
-                <button
-                  type="button"
-                  class="prompt-attachment-preview"
-                  onClick={() => handleOpenAttachment(file.url)}
-                  title={file.name ?? file.url}
-                >
-                  <Show
-                    when={file.mime.startsWith("image/") && file.previewUrl}
-                    fallback={<span class="prompt-attachment-icon">{file.mime === "application/pdf" ? "PDF" : "FILE"}</span>}
+              <ContextMenu>
+                <ContextMenu.Trigger as="div" class="prompt-attachment">
+                  <button
+                    type="button"
+                    class="prompt-attachment-preview"
+                    onClick={() => handleOpenAttachment(file.url)}
+                    title={file.name ?? file.url}
                   >
-                    <img src={file.previewUrl!} alt={file.name ?? language.t("common.attachment")} />
-                  </Show>
-                </button>
-                <span class="prompt-attachment-name">{file.name ?? language.t("common.attachment")}</span>
-                <button
-                  type="button"
-                  class="prompt-attachment-remove"
-                  onClick={() => handleRemoveAttachment(file.url)}
-                  aria-label={language.t("prompt.attachment.remove")}
-                  title={language.t("prompt.attachment.remove")}
-                >
-                  ×
-                </button>
-              </div>
+                    <Show
+                      when={file.mime.startsWith("image/") && file.previewUrl}
+                      fallback={
+                        <span class="prompt-attachment-icon">{file.mime === "application/pdf" ? "PDF" : "FILE"}</span>
+                      }
+                    >
+                      <img src={file.previewUrl!} alt={file.name ?? language.t("common.attachment")} />
+                    </Show>
+                  </button>
+                  <span class="prompt-attachment-name">{file.name ?? language.t("common.attachment")}</span>
+                  <button
+                    type="button"
+                    class="prompt-attachment-remove"
+                    onClick={() => handleRemoveAttachment(file.url)}
+                    aria-label={language.t("prompt.attachment.remove")}
+                    title={language.t("prompt.attachment.remove")}
+                  >
+                    ×
+                  </button>
+                </ContextMenu.Trigger>
+                <ContextMenu.Portal>
+                  <ContextMenu.Content>
+                    <ContextMenu.Item onSelect={() => handleOpenAttachment(file.url)}>
+                      <ContextMenu.ItemLabel>{language.t("command.file.open")}</ContextMenu.ItemLabel>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item onSelect={() => void handleCopyAttachmentPath(file.url)}>
+                      <ContextMenu.ItemLabel>{language.t("session.header.open.copyPath")}</ContextMenu.ItemLabel>
+                    </ContextMenu.Item>
+                    <ContextMenu.Separator />
+                    <ContextMenu.Item onSelect={() => handleRemoveAttachment(file.url)}>
+                      <ContextMenu.ItemLabel>{language.t("prompt.attachment.remove")}</ContextMenu.ItemLabel>
+                    </ContextMenu.Item>
+                  </ContextMenu.Content>
+                </ContextMenu.Portal>
+              </ContextMenu>
             )}
           </For>
         </div>

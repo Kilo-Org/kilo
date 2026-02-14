@@ -1,30 +1,82 @@
-import { Component } from "solid-js"
+import { Component, createEffect, createMemo, createSignal } from "solid-js"
+import { Button } from "@kilocode/kilo-ui/button"
+import { Card } from "@kilocode/kilo-ui/card"
+import { showToast } from "@kilocode/kilo-ui/toast"
+import { useConfig } from "../../context/config"
 
 const PromptsTab: Component = () => {
+  const { config, updateConfig } = useConfig()
+  const [draft, setDraft] = createSignal("")
+
+  const serialized = createMemo(() => (config().instructions ?? []).join("\n"))
+  const hasChanges = createMemo(() => draft().trim() !== serialized().trim())
+  const instructionCount = createMemo(() =>
+    draft()
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0).length,
+  )
+
+  createEffect(() => {
+    setDraft(serialized())
+  })
+
+  const save = () => {
+    const next = draft()
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+    updateConfig({ instructions: next })
+    showToast({ variant: "success", title: "Prompts updated" })
+  }
+
+  const reset = () => setDraft(serialized())
+
   return (
     <div>
-      <div
-        style={{
-          background: "var(--vscode-editor-background)",
-          border: "1px solid var(--vscode-panel-border)",
-          "border-radius": "4px",
-          padding: "16px",
-        }}
-      >
-        <p
+      <Card>
+        <div style={{ display: "flex", "justify-content": "space-between", "align-items": "center", gap: "12px" }}>
+          <div>
+            <div style={{ "font-weight": "600" }}>Global Instructions</div>
+            <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)", "margin-top": "2px" }}>
+              One instruction per line. These are appended to agent context for all sessions.
+            </div>
+          </div>
+          <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
+            {instructionCount()} active
+          </div>
+        </div>
+
+        <textarea
+          value={draft()}
+          onInput={(event) => setDraft(event.currentTarget.value)}
+          rows={8}
           style={{
+            width: "100%",
+            "margin-top": "10px",
+            padding: "8px 10px",
+            "font-family": "var(--vscode-editor-font-family, monospace)",
             "font-size": "12px",
-            color: "var(--vscode-descriptionForeground)",
-            margin: 0,
-            "line-height": "1.5",
+            "line-height": "1.4",
+            color: "var(--vscode-input-foreground)",
+            background: "var(--vscode-input-background)",
+            border: "1px solid var(--vscode-input-border)",
+            "border-radius": "6px",
+            resize: "vertical",
+            "min-height": "120px",
           }}
-        >
-          <strong style={{ color: "var(--vscode-foreground)" }}>This section is not implemented yet.</strong> It will
-          contain configuration options and explanatory text related to the selected settings category. During
-          reimplementation, use this space to validate layout, spacing, scrolling behavior, and navigation state before
-          wiring up real controls.
-        </p>
-      </div>
+          placeholder="Prefer minimal diffs&#10;Run tests after code edits&#10;Use existing project conventions"
+        />
+
+        <div style={{ display: "flex", "justify-content": "flex-end", gap: "8px", "margin-top": "10px" }}>
+          <Button size="small" variant="ghost" disabled={!hasChanges()} onClick={reset}>
+            Reset
+          </Button>
+          <Button size="small" variant="primary" disabled={!hasChanges()} onClick={save}>
+            Save
+          </Button>
+        </div>
+      </Card>
     </div>
   )
 }

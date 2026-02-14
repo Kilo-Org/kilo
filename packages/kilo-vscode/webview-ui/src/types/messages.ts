@@ -496,6 +496,25 @@ export interface ConfigUpdatedMessage {
   config: Config
 }
 
+export interface ValidationIssue {
+  path: string
+  message: string
+  code: string
+}
+
+export interface ConfigValidationErrorMessage {
+  type: "configValidationError"
+  message: string
+  issues: ValidationIssue[]
+}
+
+export interface SettingValidationErrorMessage {
+  type: "settingValidationError"
+  key?: string
+  message: string
+  issues: ValidationIssue[]
+}
+
 export interface NotificationSettingsLoadedMessage {
   type: "notificationSettingsLoaded"
   settings: {
@@ -544,6 +563,8 @@ export type ExtensionMessage =
   | BrowserSettingsLoadedMessage
   | ConfigLoadedMessage
   | ConfigUpdatedMessage
+  | ConfigValidationErrorMessage
+  | SettingValidationErrorMessage
   | NotificationSettingsLoadedMessage
   | FilesSelectedMessage
 

@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto"
 import fs from "node:fs/promises"
 import { z } from "zod"
 import {
+  type Config,
   type HttpClient,
   type SessionInfo,
   type SSEEvent,
@@ -15,6 +16,12 @@ import { handleChatCompletionRequest } from "./services/autocomplete/chat-autoco
 import { handleChatCompletionAccepted } from "./services/autocomplete/chat-autocomplete/handleChatCompletionAccepted"
 import { logger } from "./utils/logger"
 import { parseAllowedOpenExternalUrl } from "./utils/open-external"
+import {
+  validateAutocompleteSettingUpdate,
+  validateConfigPatch,
+  validateSettingUpdate,
+  type SettingsValidationIssue,
+} from "./services/settings/validation"
 const RETRY_ACTION_LABEL = "Retry"
 const NOTIFICATION_DEDUPE_MS = 10_000
 const ATTACHMENT_EXT_TO_MIME: Record<string, string> = {
@@ -347,9 +354,16 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         case "requestConfig":
           await this.fetchAndSendConfig()
           break
-        case "updateConfig":
-          await this.handleUpdateConfig(message.config)
+        case "updateConfig": {
+          const validated = validateConfigPatch(message.config)
+          if (!validated.ok) {
+            this.postConfigValidationError(validated.issues)
+            await this.fetchAndSendConfig()
+            break
+          }
+          await this.handleUpdateConfig(validated.value)
           break
+        }
         case "setLanguage":
           await vscode.workspace
             .getConfiguration("kilo-code.new")
@@ -359,17 +373,17 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           this.sendAutocompleteSettings()
           break
         case "updateAutocompleteSetting": {
-          const allowedKeys = new Set([
-            "enableAutoTrigger",
-            "enableSmartInlineTaskKeybinding",
-            "enableChatAutocomplete",
-          ])
-          if (allowedKeys.has(message.key)) {
-            await vscode.workspace
-              .getConfiguration("kilo-code.new.autocomplete")
-              .update(message.key, message.value, vscode.ConfigurationTarget.Global)
+          const validated = validateAutocompleteSettingUpdate(message.key, message.value)
+          if (!validated.ok) {
+            this.postSettingValidationError(typeof message.key === "string" ? message.key : undefined, validated.issues)
             this.sendAutocompleteSettings()
+            break
           }
+
+          await vscode.workspace
+            .getConfiguration("kilo-code.new.autocomplete")
+            .update(validated.value.key, validated.value.value, vscode.ConfigurationTarget.Global)
+          this.sendAutocompleteSettings()
           break
         }
         case "requestChatCompletion":
@@ -388,9 +402,24 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         case "renameSession":
           await this.handleRenameSession(message.sessionID, message.title)
           break
-        case "updateSetting":
-          await this.handleUpdateSetting(message.key, message.value)
+        case "updateSetting": {
+          const validated = validateSettingUpdate(message.key, message.value)
+          if (!validated.ok) {
+            this.postSettingValidationError(typeof message.key === "string" ? message.key : undefined, validated.issues)
+            this.sendBrowserSettings()
+            this.sendNotificationSettings()
+            break
+          }
+
+          await this.handleUpdateSetting(validated.value.key, validated.value.value)
+          if (validated.value.key.startsWith("browserAutomation.")) {
+            this.sendBrowserSettings()
+          }
+          if (validated.value.key.startsWith("notifications.") || validated.value.key.startsWith("sounds.")) {
+            this.sendNotificationSettings()
+          }
           break
+        }
         case "requestBrowserSettings":
           this.sendBrowserSettings()
           break
@@ -1155,12 +1184,31 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     })
   }
 
+  private postConfigValidationError(issues: SettingsValidationIssue[]): void {
+    logger.warn("[Kilo New] KiloProvider: Rejected invalid config update", { issues })
+    this.postMessage({
+      type: "configValidationError",
+      message: "Invalid configuration update",
+      issues,
+    })
+  }
+
+  private postSettingValidationError(key: string | undefined, issues: SettingsValidationIssue[]): void {
+    logger.warn("[Kilo New] KiloProvider: Rejected invalid setting update", { key, issues })
+    this.postMessage({
+      type: "settingValidationError",
+      key,
+      message: "Invalid setting update",
+      issues,
+    })
+  }
+
   /**
    * Handle config update request from the webview.
    * Applies a partial config update via the global config endpoint, then pushes
    * the full merged config back to the webview.
    */
-  private async handleUpdateConfig(partial: Record<string, unknown>): Promise<void> {
+  private async handleUpdateConfig(partial: Partial<Config>): Promise<void> {
     if (!this.httpClient) {
       this.postMessage({ type: "error", message: "Not connected to CLI backend" })
       return

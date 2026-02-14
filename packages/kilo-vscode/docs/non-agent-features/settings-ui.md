@@ -29,6 +29,13 @@ Replicate the settings that are available in OpenCode (CLI) and allow users to c
 
 ## Gaps
 
-- No settings validation
-- Need to determine which CLI endpoints expose/accept configuration
 - No import/export settings functionality
+- Need to determine which CLI endpoints expose/accept configuration
+
+## Recent Improvements
+
+- Added centralized settings validation in extension host (`src/services/settings/validation.ts`) for:
+  - config patch updates (`updateConfig`)
+  - VS Code-backed settings updates (`updateSetting`)
+  - autocomplete settings updates (`updateAutocompleteSetting`)
+- Invalid updates are now rejected with explicit validation error messages and webview rollback/re-sync behavior.

@@ -5,12 +5,14 @@
  */
 
 import { createContext, useContext, createSignal, onCleanup, ParentComponent, Accessor } from "solid-js"
+import { showToast } from "@kilocode/kilo-ui/toast"
 import { useVSCode } from "./vscode"
-import type { Config, ExtensionMessage } from "../types/messages"
+import type { Config, ExtensionMessage, ValidationIssue } from "../types/messages"
 
 interface ConfigContextValue {
   config: Accessor<Config>
   loading: Accessor<boolean>
+  validationErrors: Accessor<Record<string, string>>
   updateConfig: (partial: Partial<Config>) => void
 }
 
@@ -21,6 +23,17 @@ export const ConfigProvider: ParentComponent = (props) => {
 
   const [config, setConfig] = createSignal<Config>({})
   const [loading, setLoading] = createSignal(true)
+  const [validationErrors, setValidationErrors] = createSignal<Record<string, string>>({})
+
+  const issuesToMap = (issues: ValidationIssue[]) => Object.fromEntries(issues.map((issue) => [issue.path, issue.message]))
+
+  const firstIssueSummary = (issues: ValidationIssue[]) => {
+    if (issues.length === 0) {
+      return undefined
+    }
+    const first = issues[0]
+    return `${first.path}: ${first.message}`
+  }
 
   // Register handler immediately (not in onMount) so we never miss
   // a configLoaded message that arrives before the DOM mount.
@@ -28,10 +41,34 @@ export const ConfigProvider: ParentComponent = (props) => {
     if (message.type === "configLoaded") {
       setConfig(message.config)
       setLoading(false)
+      setValidationErrors({})
       return
     }
     if (message.type === "configUpdated") {
       setConfig(message.config)
+      setValidationErrors({})
+      return
+    }
+    if (message.type === "configValidationError") {
+      setValidationErrors(issuesToMap(message.issues))
+      showToast({
+        variant: "error",
+        title: "Invalid configuration update",
+        description: firstIssueSummary(message.issues) ?? message.message,
+      })
+      setLoading(true)
+      vscode.postMessage({ type: "requestConfig" })
+      return
+    }
+    if (message.type === "settingValidationError") {
+      if (message.issues.length > 0) {
+        setValidationErrors(issuesToMap(message.issues))
+      }
+      showToast({
+        variant: "error",
+        title: message.key ? `Invalid setting: ${message.key}` : "Invalid setting update",
+        description: firstIssueSummary(message.issues) ?? message.message,
+      })
       return
     }
   })
@@ -68,6 +105,7 @@ export const ConfigProvider: ParentComponent = (props) => {
   const value: ConfigContextValue = {
     config,
     loading,
+    validationErrors,
     updateConfig,
   }
 

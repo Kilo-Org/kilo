@@ -172,6 +172,17 @@
   margin: 0;
 }
 
+.message-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.message-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* ============================================
    Kilo Logo (empty state)
    ============================================ */
@@ -667,6 +678,32 @@
   margin-left: 8px;
   font-size: 12px;
   color: var(--text-weak, var(--vscode-descriptionForeground));
+  white-space: nowrap;
+}
+
+.session-list-item-main {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+}
+
+.session-list-item-meta {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.session-meta-pill {
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 6px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 999px;
+  color: var(--vscode-descriptionForeground);
+  background: var(--vscode-editorWidget-background, transparent);
   white-space: nowrap;
 }
 

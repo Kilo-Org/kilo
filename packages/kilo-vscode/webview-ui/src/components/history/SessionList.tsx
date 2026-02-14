@@ -34,6 +34,28 @@ function dateGroupKey(iso: string): (typeof DATE_GROUP_KEYS)[number] {
   return DATE_GROUP_KEYS[4]
 }
 
+function formatDuration(durationMs: number): string {
+  const totalSeconds = Math.floor(durationMs / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  const hours = Math.floor(minutes / 60)
+  const remMinutes = minutes % 60
+
+  if (hours > 0) {
+    return `${hours}h ${remMinutes}m`
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`
+  }
+  return `${seconds}s`
+}
+
+function formatCost(cost: number): string {
+  if (cost >= 1) return `$${cost.toFixed(2)}`
+  if (cost >= 0.01) return `$${cost.toFixed(3)}`
+  return `$${cost.toFixed(4)}`
+}
+
 interface SessionListProps {
   onSelectSession: (id: string) => void
 }
@@ -115,11 +137,11 @@ const SessionList: Component<SessionListProps> = (props) => {
         <ContextMenu.Portal>
           <ContextMenu.Content>
             <ContextMenu.Item onSelect={() => startRename(item)}>
-              <ContextMenu.ItemLabel>{language.t("common.rename")}</ContextMenu.ItemLabel>
+              <ContextMenu.ItemLabel title="Rename session">{language.t("common.rename")}</ContextMenu.ItemLabel>
             </ContextMenu.Item>
             <ContextMenu.Separator />
             <ContextMenu.Item onSelect={() => confirmDelete(item)}>
-              <ContextMenu.ItemLabel>{language.t("common.delete")}</ContextMenu.ItemLabel>
+              <ContextMenu.ItemLabel title="Delete session">{language.t("common.delete")}</ContextMenu.ItemLabel>
             </ContextMenu.Item>
           </ContextMenu.Content>
         </ContextMenu.Portal>
@@ -153,8 +175,38 @@ const SessionList: Component<SessionListProps> = (props) => {
             when={renamingId() === s.id}
             fallback={
               <>
-                <span data-slot="list-item-title">{s.title || language.t("session.untitled")}</span>
-                <span data-slot="list-item-description">{formatRelativeDate(s.updatedAt)}</span>
+                <div class="session-list-item-main">
+                  <span data-slot="list-item-title" title={s.title || language.t("session.untitled")}>
+                    {s.title || language.t("session.untitled")}
+                  </span>
+                  <span data-slot="list-item-description">{formatRelativeDate(s.updatedAt)}</span>
+                </div>
+                <div class="session-list-item-meta">
+                  <span class="session-meta-pill" title="Session duration">
+                    {formatDuration(session.getSessionMetadata(s.id)?.durationMs ?? 0)}
+                  </span>
+                  <Show when={session.getSessionMetadata(s.id)?.cost}>
+                    {(cost) => (
+                      <span class="session-meta-pill" title="Session cost">
+                        {formatCost(cost())}
+                      </span>
+                    )}
+                  </Show>
+                  <Show when={session.getSessionMetadata(s.id)?.model}>
+                    {(model) => (
+                      <span class="session-meta-pill" title={model()}>
+                        {model()}
+                      </span>
+                    )}
+                  </Show>
+                  <Show when={s.summary}>
+                    {(summary) => (
+                      <span class="session-meta-pill" title="Changed files">
+                        {summary().files} files
+                      </span>
+                    )}
+                  </Show>
+                </div>
               </>
             }
           >

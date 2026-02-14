@@ -60,6 +60,7 @@ interface SessionContextValue {
 
   // Messages for current session
   messages: Accessor<Message[]>
+  getSessionMetadata: (sessionID: string) => { durationMs: number; cost?: number; model?: string } | undefined
 
   // Parts for a specific message
   getParts: (messageID: string) => Part[]
@@ -665,6 +666,46 @@ export const SessionProvider: ParentComponent = (props) => {
     return id ? store.messages[id] || [] : []
   }
 
+  const getSessionMetadata = (sessionID: string) => {
+    const info = store.sessions[sessionID]
+    if (!info) {
+      return undefined
+    }
+
+    const created = new Date(info.createdAt).getTime()
+    const updated = new Date(info.updatedAt).getTime()
+    const durationMs = Math.max(0, updated - created)
+
+    const sessionMessages = store.messages[sessionID] || []
+    let totalCost = 0
+    let model: string | undefined
+
+    for (const msg of sessionMessages) {
+      if (msg.role === "assistant") {
+        totalCost += msg.cost ?? 0
+      }
+    }
+
+    for (let i = sessionMessages.length - 1; i >= 0; i--) {
+      const msg = sessionMessages[i]
+      if (msg.role !== "assistant") continue
+      if (msg.providerID && msg.modelID) {
+        model = `${msg.providerID}/${msg.modelID}`
+        break
+      }
+      if (msg.modelID) {
+        model = msg.modelID
+        break
+      }
+    }
+
+    return {
+      durationMs,
+      cost: totalCost > 0 ? totalCost : undefined,
+      model,
+    }
+  }
+
   const getParts = (messageID: string) => {
     return store.parts[messageID] || []
   }
@@ -713,6 +754,7 @@ export const SessionProvider: ParentComponent = (props) => {
     status,
     loading,
     messages,
+    getSessionMetadata,
     getParts,
     todos,
     permissions,

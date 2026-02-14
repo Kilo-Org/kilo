@@ -16,6 +16,7 @@ import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { Markdown } from "@kilocode/kilo-ui/markdown"
 import { useSession } from "../../context/session"
 import { useLanguage } from "../../context/language"
+import { useVSCode } from "../../context/vscode"
 import type { Message as MessageType } from "../../types/messages"
 import type { Message as SDKMessage, Part as SDKPart } from "@kilocode/sdk/v2"
 
@@ -119,11 +120,45 @@ ToolRegistry.register({
 
 export const Message: Component<MessageProps> = (props) => {
   const session = useSession()
+  const vscode = useVSCode()
   const parts = () => session.getParts(props.message.id) as unknown as SDKPart[]
+  const previewMarkdown = createMemo(() => {
+    if (props.message.role !== "assistant") {
+      return ""
+    }
+
+    const textParts = (parts() as Array<{ type?: string; text?: string }>)
+      .filter((part) => part.type === "text" && typeof part.text === "string")
+      .map((part) => part.text?.trim())
+      .filter((text): text is string => !!text)
+
+    if (textParts.length > 0) {
+      return textParts.join("\n\n")
+    }
+
+    const content = props.message.content?.trim()
+    return content ?? ""
+  })
 
   return (
     <Show when={parts().length > 0 || props.message.content}>
-      <KiloMessage message={props.message as unknown as SDKMessage} parts={parts()} />
+      <div class="message-block">
+        <Show when={previewMarkdown().length > 0}>
+          <div class="message-actions">
+            <Tooltip value="Open markdown preview in VS Code" placement="top">
+              <Button
+                variant="ghost"
+                size="small"
+                onClick={() => vscode.postMessage({ type: "openMarkdownPreview", text: previewMarkdown() })}
+                aria-label="Open markdown preview in VS Code"
+              >
+                Preview
+              </Button>
+            </Tooltip>
+          </div>
+        </Show>
+        <KiloMessage message={props.message as unknown as SDKMessage} parts={parts()} />
+      </div>
     </Show>
   )
 }

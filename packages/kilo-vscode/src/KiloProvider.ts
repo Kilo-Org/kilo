@@ -243,6 +243,11 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         case "openExternal":
           await this.openExternalFromWebview(message.url)
           break
+        case "openMarkdownPreview":
+          if (typeof message.text === "string") {
+            await this.handleOpenMarkdownPreview(message.text)
+          }
+          break
         case "openFileAttachment": {
           const url = z.string().startsWith("file://").safeParse(message.url)
           if (url.success) {
@@ -345,6 +350,21 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     await vscode.env.openExternal(vscode.Uri.parse(safeUrl))
+  }
+
+  private async handleOpenMarkdownPreview(markdown: string): Promise<void> {
+    const content = markdown.trim()
+    if (!content) {
+      return
+    }
+
+    try {
+      const doc = await vscode.workspace.openTextDocument({ language: "markdown", content })
+      await vscode.window.showTextDocument(doc, { preview: true, preserveFocus: false, viewColumn: vscode.ViewColumn.Beside })
+      await vscode.commands.executeCommand("markdown.showPreviewToSide", doc.uri)
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to open markdown preview:", error)
+    }
   }
 
   private async handleOpenFileAttachment(fileUrl: string): Promise<void> {
@@ -563,6 +583,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       title: session.title,
       createdAt: new Date(session.time.created).toISOString(),
       updatedAt: new Date(session.time.updated).toISOString(),
+      summary: session.summary,
     }
   }
 
@@ -636,6 +657,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         role: m.info.role,
         parts: m.parts.map((part) => this.mapPartForWebview(part)),
         createdAt: new Date(m.info.time.created).toISOString(),
+        providerID: m.info.providerID,
+        modelID: m.info.modelID,
         cost: m.info.cost,
         tokens: m.info.tokens,
       }))
@@ -1330,6 +1353,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             sessionID: event.properties.info.sessionID,
             role: event.properties.info.role,
             createdAt: new Date(event.properties.info.time.created).toISOString(),
+            providerID: event.properties.info.providerID,
+            modelID: event.properties.info.modelID,
             cost: event.properties.info.cost,
             tokens: event.properties.info.tokens,
           },

@@ -5,6 +5,11 @@ export interface SessionInfo {
   directory: string
   parentID?: string
   share?: string
+  summary?: {
+    additions: number
+    deletions: number
+    files: number
+  }
   time: {
     created: number
     updated: number
@@ -31,6 +36,8 @@ export interface MessageInfo {
   id: string
   sessionID: string
   role: "user" | "assistant"
+  providerID?: string
+  modelID?: string
   time: {
     created: number
     completed?: number

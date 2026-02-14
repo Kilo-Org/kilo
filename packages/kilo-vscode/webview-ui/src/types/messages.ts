@@ -100,6 +100,8 @@ export interface Message {
   content?: string
   parts?: Part[]
   createdAt: string
+  providerID?: string
+  modelID?: string
   cost?: number
   tokens?: TokenUsage
 }
@@ -110,6 +112,11 @@ export interface SessionInfo {
   title?: string
   createdAt: string
   updatedAt: string
+  summary?: {
+    additions: number
+    deletions: number
+    files: number
+  }
 }
 
 // Permission request
@@ -602,6 +609,11 @@ export interface OpenExternalRequest {
   url: string
 }
 
+export interface OpenMarkdownPreviewRequest {
+  type: "openMarkdownPreview"
+  text: string
+}
+
 export interface CancelLoginRequest {
   type: "cancelLogin"
 }
@@ -730,6 +742,7 @@ export type WebviewMessage =
   | LogoutRequest
   | RefreshProfileRequest
   | OpenExternalRequest
+  | OpenMarkdownPreviewRequest
   | CancelLoginRequest
   | SetOrganizationRequest
   | WebviewReadyRequest

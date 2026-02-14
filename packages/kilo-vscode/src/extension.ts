@@ -5,9 +5,13 @@ import { EXTENSION_DISPLAY_NAME } from "./constants"
 import { KiloConnectionService } from "./services/cli-backend"
 import { registerAutocompleteProvider } from "./services/autocomplete"
 import { BrowserAutomationService } from "./services/browser-automation"
+import { initializeLogger, logger } from "./utils/logger"
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log("Kilo Code extension is now active")
+  const outputChannel = vscode.window.createOutputChannel("Kilo Code")
+  context.subscriptions.push(outputChannel)
+  initializeLogger(outputChannel)
+  logger.info("Kilo Code extension is now active")
 
   // Create shared connection service (one server for all webviews)
   const connectionService = new KiloConnectionService(context)
@@ -105,7 +109,7 @@ async function openKiloInNewTab(context: vscode.ExtensionContext, connectionServ
 
   panel.onDidDispose(
     () => {
-      console.log("[Kilo New] Tab panel disposed")
+      logger.info("[Kilo New] Tab panel disposed")
       tabProvider.dispose()
     },
     null,

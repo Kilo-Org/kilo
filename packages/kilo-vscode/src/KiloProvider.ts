@@ -3,6 +3,7 @@ import { z } from "zod"
 import { type HttpClient, type SessionInfo, type SSEEvent, type KiloConnectionService } from "./services/cli-backend"
 import { handleChatCompletionRequest } from "./services/autocomplete/chat-autocomplete/handleChatCompletionRequest"
 import { handleChatCompletionAccepted } from "./services/autocomplete/chat-autocomplete/handleChatCompletionAccepted"
+import { logger } from "./utils/logger"
 
 export class KiloProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "kilo-code.new.sidebarView"
@@ -48,7 +49,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    */
   private async syncWebviewState(reason: string): Promise<void> {
     const serverInfo = this.connectionService.getServerInfo()
-    console.log("[Kilo New] KiloProvider: 🔄 syncWebviewState()", {
+    logger.info("[Kilo New] KiloProvider: 🔄 syncWebviewState()", {
       reason,
       isWebviewReady: this.isWebviewReady,
       connectionState: this.connectionState,
@@ -57,7 +58,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     })
 
     if (!this.isWebviewReady) {
-      console.log("[Kilo New] KiloProvider: ⏭️ syncWebviewState skipped (webview not ready)")
+      logger.info("[Kilo New] KiloProvider: ⏭️ syncWebviewState skipped (webview not ready)")
       return
     }
 
@@ -80,16 +81,16 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     // Always attempt to fetch+push profile when connected.
     if (this.connectionState === "connected" && this.httpClient) {
-      console.log("[Kilo New] KiloProvider: 👤 syncWebviewState fetching profile...")
+      logger.info("[Kilo New] KiloProvider: 👤 syncWebviewState fetching profile...")
       try {
         const profileData = await this.httpClient.getProfile()
-        console.log("[Kilo New] KiloProvider: 👤 syncWebviewState profile:", profileData ? "received" : "null")
+        logger.info("[Kilo New] KiloProvider: 👤 syncWebviewState profile:", profileData ? "received" : "null")
         this.postMessage({
           type: "profileData",
           data: profileData,
         })
       } catch (error) {
-        console.error("[Kilo New] KiloProvider: ❌ syncWebviewState failed to fetch profile:", error)
+        logger.error("[Kilo New] KiloProvider: ❌ syncWebviewState failed to fetch profile:", error)
       }
     }
   }
@@ -149,7 +150,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     this.webviewMessageDisposable = webview.onDidReceiveMessage(async (message) => {
       switch (message.type) {
         case "webviewReady":
-          console.log("[Kilo New] KiloProvider: ✅ webviewReady received")
+          logger.info("[Kilo New] KiloProvider: ✅ webviewReady received")
           this.isWebviewReady = true
           await this.syncWebviewState("webviewReady")
           break
@@ -293,7 +294,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Subscribes to the shared KiloConnectionService.
    */
   private async initializeConnection(): Promise<void> {
-    console.log("[Kilo New] KiloProvider: 🔧 Starting initializeConnection...")
+    logger.info("[Kilo New] KiloProvider: 🔧 Starting initializeConnection...")
 
     // Clean up any existing subscriptions (e.g., sidebar re-shown)
     this.unsubscribeEvent?.()
@@ -336,7 +337,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             }
             await this.syncWebviewState("sse-connected")
           } catch (error) {
-            console.error("[Kilo New] KiloProvider: ❌ Failed during connected state handling:", error)
+            logger.error("[Kilo New] KiloProvider: ❌ Failed during connected state handling:", error)
             this.postMessage({
               type: "error",
               message: error instanceof Error ? error.message : "Failed to sync after connecting",
@@ -368,9 +369,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       await this.fetchAndSendConfig()
       this.sendNotificationSettings()
 
-      console.log("[Kilo New] KiloProvider: ✅ initializeConnection completed successfully")
+      logger.info("[Kilo New] KiloProvider: ✅ initializeConnection completed successfully")
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: ❌ Failed to initialize connection:", error)
+      logger.error("[Kilo New] KiloProvider: ❌ Failed to initialize connection:", error)
       this.connectionState = "error"
       this.postMessage({
         type: "connectionState",
@@ -416,7 +417,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         session: this.sessionToWebview(session),
       })
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to create session:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to create session:", error)
       this.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Failed to create session",
@@ -453,7 +454,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             this.currentSession = session
           }
         })
-        .catch((err) => console.error("[Kilo New] KiloProvider: Failed to fetch session for tracking:", err))
+        .catch((err) => logger.error("[Kilo New] KiloProvider: Failed to fetch session for tracking:", err))
 
       // Convert to webview format, including cost/tokens for assistant messages
       const messages = messagesData.map((m) => ({
@@ -476,7 +477,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         messages,
       })
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to load messages:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to load messages:", error)
       this.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Failed to load messages",
@@ -505,7 +506,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         sessions: sessions.map((s) => this.sessionToWebview(s)),
       })
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to load sessions:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to load sessions:", error)
       this.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Failed to load sessions",
@@ -531,7 +532,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       }
       this.postMessage({ type: "sessionDeleted", sessionID })
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to delete session:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to delete session:", error)
       this.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Failed to delete session",
@@ -556,7 +557,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       }
       this.postMessage({ type: "sessionUpdated", session: this.sessionToWebview(updated) })
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to rename session:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to rename session:", error)
       this.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Failed to rename session",
@@ -605,7 +606,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       this.cachedProvidersMessage = message
       this.postMessage(message)
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to fetch providers:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to fetch providers:", error)
     }
   }
 
@@ -644,7 +645,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       this.cachedAgentsMessage = message
       this.postMessage(message)
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to fetch agents:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to fetch agents:", error)
     }
   }
 
@@ -670,7 +671,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       this.cachedConfigMessage = message
       this.postMessage(message)
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to fetch config:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to fetch config:", error)
     }
   }
 
@@ -714,7 +715,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       this.cachedConfigMessage = { type: "configLoaded", config: updated }
       this.postMessage(message)
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to update config:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to update config:", error)
       this.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Failed to update config",
@@ -788,7 +789,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         agent,
       })
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to send message:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to send message:", error)
       this.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Failed to send message",
@@ -813,7 +814,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       const workspaceDir = this.getWorkspaceDirectory()
       await this.httpClient.abortSession(targetSessionID, workspaceDir)
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to abort session:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to abort session:", error)
     }
   }
 
@@ -831,12 +832,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     const target = sessionID || this.currentSession?.id
     if (!target) {
-      console.error("[Kilo New] KiloProvider: No sessionID for compact")
+      logger.error("[Kilo New] KiloProvider: No sessionID for compact")
       return
     }
 
     if (!providerID || !modelID) {
-      console.error("[Kilo New] KiloProvider: No model selected for compact")
+      logger.error("[Kilo New] KiloProvider: No model selected for compact")
       this.postMessage({
         type: "error",
         message: "No model selected. Connect a provider to compact this session.",
@@ -848,7 +849,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       const workspaceDir = this.getWorkspaceDirectory()
       await this.httpClient.summarize(target, providerID, modelID, workspaceDir)
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to compact session:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to compact session:", error)
       this.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Failed to compact session",
@@ -870,7 +871,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     const targetSessionID = sessionID || this.currentSession?.id
     if (!targetSessionID) {
-      console.error("[Kilo New] KiloProvider: No sessionID for permission response")
+      logger.error("[Kilo New] KiloProvider: No sessionID for permission response")
       return
     }
 
@@ -878,7 +879,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       const workspaceDir = this.getWorkspaceDirectory()
       await this.httpClient.respondToPermission(targetSessionID, permissionId, response, workspaceDir)
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to respond to permission:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to respond to permission:", error)
     }
   }
 
@@ -894,7 +895,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     try {
       await this.httpClient.replyToQuestion(requestID, answers, this.getWorkspaceDirectory())
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to reply to question:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to reply to question:", error)
       this.postMessage({ type: "questionError", requestID })
     }
   }
@@ -911,7 +912,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     try {
       await this.httpClient.rejectQuestion(requestID, this.getWorkspaceDirectory())
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to reject question:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to reject question:", error)
       this.postMessage({ type: "questionError", requestID })
     }
   }
@@ -928,14 +929,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     const attempt = ++this.loginAttempt
 
-    console.log("[Kilo New] KiloProvider: 🔐 Starting login flow...")
+    logger.info("[Kilo New] KiloProvider: 🔐 Starting login flow...")
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
 
       // Step 1: Initiate OAuth authorization
       const auth = await this.httpClient.oauthAuthorize("kilo", 0, workspaceDir)
-      console.log("[Kilo New] KiloProvider: 🔐 Got auth URL:", auth.url)
+      logger.info("[Kilo New] KiloProvider: 🔐 Got auth URL:", auth.url)
 
       // Parse code from instructions (format: "Open URL and enter code: ABCD-1234")
       const codeMatch = auth.instructions?.match(/code:\s*(\S+)/i)
@@ -960,7 +961,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         return
       }
 
-      console.log("[Kilo New] KiloProvider: 🔐 Login successful")
+      logger.info("[Kilo New] KiloProvider: 🔐 Login successful")
 
       // Step 4: Fetch profile and push to webview
       const profileData = await this.httpClient.getProfile()
@@ -992,11 +993,11 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       return
     }
 
-    console.log("[Kilo New] KiloProvider: Switching organization:", organizationId ?? "personal")
+    logger.info("[Kilo New] KiloProvider: Switching organization:", organizationId ?? "personal")
     try {
       await client.setOrganization(organizationId)
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to switch organization:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to switch organization:", error)
       // Re-fetch current profile to reset webview state (clears switching indicator)
       const profileData = await client.getProfile()
       this.postMessage({ type: "profileData", data: profileData })
@@ -1008,12 +1009,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       const profileData = await client.getProfile()
       this.postMessage({ type: "profileData", data: profileData })
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to refresh profile after org switch:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to refresh profile after org switch:", error)
     }
     try {
       await this.fetchAndSendProviders()
     } catch (error) {
-      console.error("[Kilo New] KiloProvider: Failed to refresh providers after org switch:", error)
+      logger.error("[Kilo New] KiloProvider: Failed to refresh providers after org switch:", error)
     }
   }
 
@@ -1025,9 +1026,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       return
     }
 
-    console.log("[Kilo New] KiloProvider: 🚪 Logging out...")
+    logger.info("[Kilo New] KiloProvider: 🚪 Logging out...")
     await this.httpClient.removeAuth("kilo")
-    console.log("[Kilo New] KiloProvider: 🚪 Logged out successfully")
+    logger.info("[Kilo New] KiloProvider: 🚪 Logged out successfully")
     this.postMessage({
       type: "profileData",
       data: null,
@@ -1042,7 +1043,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       return
     }
 
-    console.log("[Kilo New] KiloProvider: 🔄 Refreshing profile...")
+    logger.info("[Kilo New] KiloProvider: 🔄 Refreshing profile...")
     const profileData = await this.httpClient.getProfile()
     this.postMessage({
       type: "profileData",
@@ -1249,12 +1250,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         typeof (message as { type?: unknown }).type === "string"
           ? (message as { type: string }).type
           : "<unknown>"
-      console.warn("[Kilo New] KiloProvider: ⚠️ postMessage dropped (no webview)", { type })
+      logger.warn("[Kilo New] KiloProvider: ⚠️ postMessage dropped (no webview)", { type })
       return
     }
 
     void this.webview.postMessage(message).then(undefined, (error) => {
-      console.error("[Kilo New] KiloProvider: ❌ postMessage failed", error)
+      logger.error("[Kilo New] KiloProvider: ❌ postMessage failed", error)
     })
   }
 

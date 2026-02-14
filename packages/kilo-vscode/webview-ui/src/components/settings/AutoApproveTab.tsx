@@ -2,6 +2,7 @@ import { Component, For, createMemo } from "solid-js"
 import { Select } from "@kilocode/kilo-ui/select"
 import { Card } from "@kilocode/kilo-ui/card"
 import { Button } from "@kilocode/kilo-ui/button"
+import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { useConfig } from "../../context/config"
 import { useLanguage } from "../../context/language"
 import type { PermissionLevel } from "../../types/messages"
@@ -96,15 +97,21 @@ const AutoApproveTab: Component = () => {
       <Card>
         <div style={{ "font-weight": "600", "margin-bottom": "8px" }}>{language.t("settings.permissions.title")}</div>
         <div style={{ display: "flex", gap: "8px", "flex-wrap": "wrap" }}>
-          <Button size="small" variant="secondary" onClick={setSafePreset}>
-            Safe defaults
-          </Button>
-          <Button size="small" variant="secondary" onClick={() => setAll("allow")}>
-            Full auto
-          </Button>
-          <Button size="small" variant="secondary" onClick={() => setAll("ask")}>
-            Require prompts
-          </Button>
+          <Tooltip value="Allow low-risk tools and keep sensitive tools in ask mode" placement="top">
+            <Button size="small" variant="secondary" onClick={setSafePreset}>
+              Safe defaults
+            </Button>
+          </Tooltip>
+          <Tooltip value="Allow all configured tools without prompts" placement="top">
+            <Button size="small" variant="secondary" onClick={() => setAll("allow")}>
+              Full auto
+            </Button>
+          </Tooltip>
+          <Tooltip value="Require approval prompts for all tools" placement="top">
+            <Button size="small" variant="secondary" onClick={() => setAll("ask")}>
+              Require prompts
+            </Button>
+          </Tooltip>
         </div>
       </Card>
 

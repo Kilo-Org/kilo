@@ -398,31 +398,35 @@ export const PromptInput: Component = () => {
             {(file) => (
               <ContextMenu>
                 <ContextMenu.Trigger as="div" class="prompt-attachment">
-                  <button
-                    type="button"
-                    class="prompt-attachment-preview"
-                    onClick={() => handlePreviewAttachment(file)}
-                    title={file.name ?? file.url}
-                  >
-                    <Show
-                      when={file.mime.startsWith("image/") && file.previewUrl}
-                      fallback={
-                        <span class="prompt-attachment-icon">{file.mime === "application/pdf" ? "PDF" : "FILE"}</span>
-                      }
+                  <Tooltip value={file.name ?? language.t("common.attachment")} placement="top">
+                    <button
+                      type="button"
+                      class="prompt-attachment-preview"
+                      onClick={() => handlePreviewAttachment(file)}
+                      title={file.name ?? file.url}
                     >
-                      <img src={file.previewUrl!} alt={file.name ?? language.t("common.attachment")} />
-                    </Show>
-                  </button>
+                      <Show
+                        when={file.mime.startsWith("image/") && file.previewUrl}
+                        fallback={
+                          <span class="prompt-attachment-icon">{file.mime === "application/pdf" ? "PDF" : "FILE"}</span>
+                        }
+                      >
+                        <img src={file.previewUrl!} alt={file.name ?? language.t("common.attachment")} />
+                      </Show>
+                    </button>
+                  </Tooltip>
                   <span class="prompt-attachment-name">{file.name ?? language.t("common.attachment")}</span>
-                  <button
-                    type="button"
-                    class="prompt-attachment-remove"
-                    onClick={() => handleRemoveAttachment(file.url)}
-                    aria-label={language.t("prompt.attachment.remove")}
-                    title={language.t("prompt.attachment.remove")}
-                  >
-                    ×
-                  </button>
+                  <Tooltip value={language.t("prompt.attachment.remove")} placement="top">
+                    <button
+                      type="button"
+                      class="prompt-attachment-remove"
+                      onClick={() => handleRemoveAttachment(file.url)}
+                      aria-label={language.t("prompt.attachment.remove")}
+                      title={language.t("prompt.attachment.remove")}
+                    >
+                      ×
+                    </button>
+                  </Tooltip>
                 </ContextMenu.Trigger>
                 <ContextMenu.Portal>
                   <ContextMenu.Content>

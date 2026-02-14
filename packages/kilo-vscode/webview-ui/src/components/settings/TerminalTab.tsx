@@ -2,6 +2,7 @@ import { Component, createMemo } from "solid-js"
 import { Card } from "@kilocode/kilo-ui/card"
 import { TextField } from "@kilocode/kilo-ui/text-field"
 import { Button } from "@kilocode/kilo-ui/button"
+import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { useConfig } from "../../context/config"
 
 const DEFAULT_TERMINAL_KEYBINDS = {
@@ -75,10 +76,7 @@ const TerminalTab: Component = () => {
       <h4 style={{ "margin-top": "16px", "margin-bottom": "8px" }}>Terminal Keybinds</h4>
 
       <Card>
-        <SettingsRow
-          label="Suspend Terminal"
-          description="Keybind used by the CLI terminal to suspend the process."
-        >
+        <SettingsRow label="Suspend Terminal" description="Keybind used by the CLI terminal to suspend the process.">
           <div style={{ width: "180px" }}>
             <TextField
               value={keybinds().terminal_suspend ?? DEFAULT_TERMINAL_KEYBINDS.terminal_suspend}
@@ -104,9 +102,11 @@ const TerminalTab: Component = () => {
       </Card>
 
       <div style={{ "margin-top": "12px", display: "flex", "justify-content": "flex-end" }}>
-        <Button size="small" variant="secondary" onClick={resetDefaults}>
-          Reset terminal keybinds
-        </Button>
+        <Tooltip value="Restore terminal keybind overrides to defaults" placement="top">
+          <Button size="small" variant="secondary" onClick={resetDefaults}>
+            Reset terminal keybinds
+          </Button>
+        </Tooltip>
       </div>
     </div>
   )

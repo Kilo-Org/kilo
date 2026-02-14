@@ -1,5 +1,6 @@
 import { Component } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
+import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { showToast } from "@kilocode/kilo-ui/toast"
 import { useLanguage } from "../../context/language"
 import { useConfig } from "../../context/config"
@@ -244,12 +245,16 @@ const AboutKiloCodeTab: Component<AboutKiloCodeTabProps> = (props) => {
           Export settings to JSON or import a previously exported file.
         </p>
         <div style={{ display: "flex", gap: "8px" }}>
-          <Button size="small" variant="secondary" onClick={exportSettings} disabled={loading()}>
-            Export JSON
-          </Button>
-          <Button size="small" variant="secondary" onClick={triggerImport} disabled={loading()}>
-            Import JSON
-          </Button>
+          <Tooltip value="Download current extension settings as JSON" placement="top">
+            <Button size="small" variant="secondary" onClick={exportSettings} disabled={loading()}>
+              Export JSON
+            </Button>
+          </Tooltip>
+          <Tooltip value="Import settings from a JSON backup file" placement="top">
+            <Button size="small" variant="secondary" onClick={triggerImport} disabled={loading()}>
+              Import JSON
+            </Button>
+          </Tooltip>
         </div>
         <input
           ref={fileInputRef}

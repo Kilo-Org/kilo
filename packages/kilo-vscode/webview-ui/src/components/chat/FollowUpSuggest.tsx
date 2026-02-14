@@ -1,5 +1,8 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
+import { Tooltip } from "@kilocode/kilo-ui/tooltip"
+import { ContextMenu } from "@kilocode/kilo-ui/context-menu"
+import { showToast } from "@kilocode/kilo-ui/toast"
 import { useSession } from "../../context/session"
 
 interface FollowUpSuggestion {
@@ -100,13 +103,32 @@ export const FollowUpSuggest: Component = () => {
     session.sendMessage(suggestion.text, sel?.providerID, sel?.modelID)
   }
 
+  const sendSuggestionNow = (suggestion: FollowUpSuggestion) => {
+    cancelAutoApprove()
+    sendSuggestion(suggestion)
+  }
+
+  const draftSuggestion = (suggestion: FollowUpSuggestion) => {
+    cancelAutoApprove()
+    prefillPrompt(suggestion.text)
+  }
+
+  const copySuggestion = async (suggestion: FollowUpSuggestion) => {
+    try {
+      await navigator.clipboard.writeText(suggestion.text)
+      showToast({ variant: "success", title: "Suggestion copied" })
+    } catch {
+      showToast({ variant: "error", title: "Failed to copy suggestion" })
+    }
+  }
+
   const onSuggestionClick = (suggestion: FollowUpSuggestion, event: MouseEvent) => {
     cancelAutoApprove()
     if (event.shiftKey) {
       prefillPrompt(suggestion.text)
       return
     }
-    sendSuggestion(suggestion)
+    sendSuggestionNow(suggestion)
   }
 
   const autoApprovePauseListener = (event: Event) => {
@@ -169,27 +191,36 @@ export const FollowUpSuggest: Component = () => {
 
             return (
               <div class="follow-up-suggest-item">
-                <button
-                  type="button"
-                  class="follow-up-suggest-chip"
-                  onClick={(event) => onSuggestionClick(item, event)}
-                  title="Click to send, Shift+Click to draft"
-                >
-                  <span class="follow-up-suggest-chip-text">{item.text}</span>
-                  <Show when={item.mode}>
-                    {(mode) => <span class="follow-up-suggest-mode">→ {mode()}</span>}
-                  </Show>
-                </button>
-                <Button
-                  size="small"
-                  variant="ghost"
-                  onClick={() => {
-                    cancelAutoApprove()
-                    prefillPrompt(item.text)
-                  }}
-                >
-                  Edit
-                </Button>
+                <ContextMenu>
+                  <ContextMenu.Trigger
+                    as="button"
+                    type="button"
+                    class="follow-up-suggest-chip"
+                    onClick={(event) => onSuggestionClick(item, event as MouseEvent)}
+                    title="Click to send, Shift+Click to draft"
+                  >
+                    <span class="follow-up-suggest-chip-text">{item.text}</span>
+                    <Show when={item.mode}>{(mode) => <span class="follow-up-suggest-mode">→ {mode()}</span>}</Show>
+                  </ContextMenu.Trigger>
+                  <ContextMenu.Portal>
+                    <ContextMenu.Content>
+                      <ContextMenu.Item onSelect={() => sendSuggestionNow(item)}>
+                        <ContextMenu.ItemLabel>Send now</ContextMenu.ItemLabel>
+                      </ContextMenu.Item>
+                      <ContextMenu.Item onSelect={() => draftSuggestion(item)}>
+                        <ContextMenu.ItemLabel>Draft in input</ContextMenu.ItemLabel>
+                      </ContextMenu.Item>
+                      <ContextMenu.Item onSelect={() => void copySuggestion(item)}>
+                        <ContextMenu.ItemLabel>Copy suggestion</ContextMenu.ItemLabel>
+                      </ContextMenu.Item>
+                    </ContextMenu.Content>
+                  </ContextMenu.Portal>
+                </ContextMenu>
+                <Tooltip value="Draft suggestion into prompt input" placement="top">
+                  <Button size="small" variant="ghost" onClick={() => draftSuggestion(item)}>
+                    Edit
+                  </Button>
+                </Tooltip>
                 <Show when={isAutoApproveItem()}>
                   <span class="follow-up-suggest-countdown">Auto-select in {secondsLeft()}s</span>
                 </Show>

@@ -196,13 +196,17 @@ const CustomProvidersSection: Component<CustomProvidersSectionProps> = (props) =
 
         <div style={{ display: "flex", "justify-content": "flex-end", gap: "8px", "padding-bottom": "8px" }}>
           {editingProviderID() ? (
-            <Button size="small" variant="ghost" onClick={resetDraft}>
-              Cancel
-            </Button>
+            <Tooltip value="Cancel provider editing" placement="top">
+              <Button size="small" variant="ghost" onClick={resetDraft}>
+                Cancel
+              </Button>
+            </Tooltip>
           ) : null}
-          <Button size="small" onClick={upsertProvider} disabled={!draft().id.trim()}>
-            {editingProviderID() ? "Update Provider" : "Add Provider"}
-          </Button>
+          <Tooltip value={editingProviderID() ? "Save provider changes" : "Add custom provider"} placement="top">
+            <Button size="small" onClick={upsertProvider} disabled={!draft().id.trim()}>
+              {editingProviderID() ? "Update Provider" : "Add Provider"}
+            </Button>
+          </Tooltip>
         </div>
 
         <For each={customProviders()}>
@@ -233,9 +237,11 @@ const CustomProvidersSection: Component<CustomProvidersSectionProps> = (props) =
                 </div>
               </div>
               <div style={{ display: "flex", gap: "4px" }}>
-                <Button size="small" variant="ghost" onClick={() => editProvider(id, providerConfig)}>
-                  Edit
-                </Button>
+                <Tooltip value="Edit provider" placement="top">
+                  <Button size="small" variant="ghost" onClick={() => editProvider(id, providerConfig)}>
+                    Edit
+                  </Button>
+                </Tooltip>
                 <Tooltip value="Delete" placement="top">
                   <IconButton
                     size="small"

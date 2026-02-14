@@ -9,6 +9,7 @@ import { createStore } from "solid-js/store"
 import { Button } from "@kilocode/kilo-ui/button"
 import { BasicTool } from "@kilocode/kilo-ui/basic-tool"
 import { Icon } from "@kilocode/kilo-ui/icon"
+import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { useSession } from "../../context/session"
 import { useLanguage } from "../../context/language"
 import type { QuestionRequest } from "../../types/messages"
@@ -255,18 +256,25 @@ export const QuestionDock: Component<{ request: QuestionRequest }> = (props) => 
                         setStore("custom", inputs)
                       }}
                     />
-                    <Button type="submit" variant="primary" size="small" disabled={store.sending}>
-                      {multi() ? language.t("ui.common.add") : language.t("ui.common.submit")}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="small"
-                      disabled={store.sending}
-                      onClick={() => setStore("editing", false)}
+                    <Tooltip
+                      value={multi() ? language.t("ui.common.add") : language.t("ui.common.submit")}
+                      placement="top"
                     >
-                      {language.t("ui.common.cancel")}
-                    </Button>
+                      <Button type="submit" variant="primary" size="small" disabled={store.sending}>
+                        {multi() ? language.t("ui.common.add") : language.t("ui.common.submit")}
+                      </Button>
+                    </Tooltip>
+                    <Tooltip value={language.t("ui.common.cancel")} placement="top">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="small"
+                        disabled={store.sending}
+                        onClick={() => setStore("editing", false)}
+                      >
+                        {language.t("ui.common.cancel")}
+                      </Button>
+                    </Tooltip>
                   </form>
                 </Show>
               </Show>
@@ -295,24 +303,30 @@ export const QuestionDock: Component<{ request: QuestionRequest }> = (props) => 
         </Show>
 
         <div data-slot="question-actions">
-          <Button variant="ghost" size="small" onClick={reject} disabled={store.sending}>
-            {language.t("ui.common.dismiss")}
-          </Button>
+          <Tooltip value={language.t("ui.common.dismiss")} placement="top">
+            <Button variant="ghost" size="small" onClick={reject} disabled={store.sending}>
+              {language.t("ui.common.dismiss")}
+            </Button>
+          </Tooltip>
           <Show when={!single()}>
             <Show when={confirm()}>
-              <Button variant="primary" size="small" onClick={submit} disabled={store.sending}>
-                {language.t("ui.common.submit")}
-              </Button>
+              <Tooltip value={language.t("ui.common.submit")} placement="top">
+                <Button variant="primary" size="small" onClick={submit} disabled={store.sending}>
+                  {language.t("ui.common.submit")}
+                </Button>
+              </Tooltip>
             </Show>
             <Show when={!confirm() && multi()}>
-              <Button
-                variant="secondary"
-                size="small"
-                onClick={() => selectTab(store.tab + 1)}
-                disabled={store.sending || (store.answers[store.tab]?.length ?? 0) === 0}
-              >
-                {language.t("ui.common.next")}
-              </Button>
+              <Tooltip value={language.t("ui.common.next")} placement="top">
+                <Button
+                  variant="secondary"
+                  size="small"
+                  onClick={() => selectTab(store.tab + 1)}
+                  disabled={store.sending || (store.answers[store.tab]?.length ?? 0) === 0}
+                >
+                  {language.t("ui.common.next")}
+                </Button>
+              </Tooltip>
             </Show>
           </Show>
         </div>

@@ -308,20 +308,22 @@ const ProvidersTab: Component = () => {
           description="Pin startup model to the backend default model for Kilo Gateway"
           last
         >
-          <Button
-            size="small"
-            variant="ghost"
-            disabled={!gatewayDefault()}
-            onClick={() => {
-              const selection = gatewayDefault()
-              if (!selection) {
-                return
-              }
-              updateStartupSelection(selection)
-            }}
-          >
-            {gatewayDefaultButtonLabel()}
-          </Button>
+          <Tooltip value="Use the default model exposed by the Kilo Gateway provider" placement="top">
+            <Button
+              size="small"
+              variant="ghost"
+              disabled={!gatewayDefault()}
+              onClick={() => {
+                const selection = gatewayDefault()
+                if (!selection) {
+                  return
+                }
+                updateStartupSelection(selection)
+              }}
+            >
+              {gatewayDefaultButtonLabel()}
+            </Button>
+          </Tooltip>
         </SettingsRow>
       </Card>
 
@@ -365,17 +367,19 @@ const ProvidersTab: Component = () => {
               placeholder="Select provider…"
             />
           </div>
-          <Button
-            size="small"
-            onClick={() => {
-              if (newDisabled()) {
-                addToList("disabled_providers", newDisabled()!.value)
-                setNewDisabled(undefined)
-              }
-            }}
-          >
-            Add
-          </Button>
+          <Tooltip value="Add selected provider to hidden list" placement="top">
+            <Button
+              size="small"
+              onClick={() => {
+                if (newDisabled()) {
+                  addToList("disabled_providers", newDisabled()!.value)
+                  setNewDisabled(undefined)
+                }
+              }}
+            >
+              Add
+            </Button>
+          </Tooltip>
         </div>
         <For each={disabledProviders()}>
           {(id, index) => (
@@ -439,17 +443,19 @@ const ProvidersTab: Component = () => {
               placeholder="Select provider…"
             />
           </div>
-          <Button
-            size="small"
-            onClick={() => {
-              if (newEnabled()) {
-                addToList("enabled_providers", newEnabled()!.value)
-                setNewEnabled(undefined)
-              }
-            }}
-          >
-            Add
-          </Button>
+          <Tooltip value="Add selected provider to allowlist" placement="top">
+            <Button
+              size="small"
+              onClick={() => {
+                if (newEnabled()) {
+                  addToList("enabled_providers", newEnabled()!.value)
+                  setNewEnabled(undefined)
+                }
+              }}
+            >
+              Add
+            </Button>
+          </Tooltip>
         </div>
         <For each={enabledProviders()}>
           {(id, index) => (

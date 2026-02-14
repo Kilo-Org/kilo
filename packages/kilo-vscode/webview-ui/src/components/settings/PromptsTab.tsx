@@ -1,6 +1,7 @@
 import { Component, createEffect, createMemo, createSignal } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Card } from "@kilocode/kilo-ui/card"
+import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { showToast } from "@kilocode/kilo-ui/toast"
 import { useConfig } from "../../context/config"
 
@@ -10,11 +11,12 @@ const PromptsTab: Component = () => {
 
   const serialized = createMemo(() => (config().instructions ?? []).join("\n"))
   const hasChanges = createMemo(() => draft().trim() !== serialized().trim())
-  const instructionCount = createMemo(() =>
-    draft()
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0).length,
+  const instructionCount = createMemo(
+    () =>
+      draft()
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0).length,
   )
 
   createEffect(() => {
@@ -69,12 +71,16 @@ const PromptsTab: Component = () => {
         />
 
         <div style={{ display: "flex", "justify-content": "flex-end", gap: "8px", "margin-top": "10px" }}>
-          <Button size="small" variant="ghost" disabled={!hasChanges()} onClick={reset}>
-            Reset
-          </Button>
-          <Button size="small" variant="primary" disabled={!hasChanges()} onClick={save}>
-            Save
-          </Button>
+          <Tooltip value="Discard unsaved prompt changes" placement="top">
+            <Button size="small" variant="ghost" disabled={!hasChanges()} onClick={reset}>
+              Reset
+            </Button>
+          </Tooltip>
+          <Tooltip value="Save global instructions to settings" placement="top">
+            <Button size="small" variant="primary" disabled={!hasChanges()} onClick={save}>
+              Save
+            </Button>
+          </Tooltip>
         </div>
       </Card>
     </div>

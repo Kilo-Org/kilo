@@ -23,11 +23,11 @@ Interactive editing and message management for user-authored messages.
 ## Current Progress
 
 - Chat rows now display message timestamps from message creation time
+- Up-arrow on an empty prompt restores the previous user message text
 
 ## Remaining Gaps
 
 - Inline edit and delete actions for user-authored messages
-- Redo previous message shortcut (up-arrow)
 - Edit flow parity with session undo/fork semantics
 
 ## Suggested migration

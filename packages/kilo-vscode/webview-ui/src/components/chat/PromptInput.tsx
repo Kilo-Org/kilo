@@ -37,6 +37,21 @@ export const PromptInput: Component = () => {
   const hasAttachments = () => attachments().length > 0
   const canSend = () => (text().trim().length > 0 || hasAttachments()) && !isBusy() && !isDisabled()
 
+  const getLastUserMessageText = () => {
+    const messages = session.messages()
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i]
+      if (message.role !== "user") {
+        continue
+      }
+      const content = message.content?.trim()
+      if (content) {
+        return content
+      }
+    }
+    return ""
+  }
+
   // Listen for chat completion results from the extension
   const unsubscribe = vscode.onMessage((message) => {
     if (message.type === "chatCompletionResult") {
@@ -153,6 +168,24 @@ export const PromptInput: Component = () => {
     if (e.key === "Escape" && ghostText()) {
       e.preventDefault()
       dismissSuggestion()
+      return
+    }
+
+    // Up-arrow on empty input restores the previous user prompt
+    if (e.key === "ArrowUp" && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && text().length === 0) {
+      const previous = getLastUserMessageText()
+      if (previous) {
+        e.preventDefault()
+        setText(previous)
+        setGhostText("")
+        requestAnimationFrame(() => {
+          if (!textareaRef) return
+          textareaRef.value = previous
+          adjustHeight()
+          const end = previous.length
+          textareaRef.setSelectionRange(end, end)
+        })
+      }
       return
     }
 

@@ -1354,6 +1354,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "dist", "webview.js"))
     const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "dist", "webview.css"))
     const iconsBaseUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "assets", "icons"))
+    const serverInfo = this.connectionService.getServerInfo()
+    const port = serverInfo?.port
+    const connectSrc =
+      typeof port === "number"
+        ? `connect-src http://127.0.0.1:${port} http://localhost:${port} ws://127.0.0.1:${port} ws://localhost:${port}`
+        : "connect-src http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*"
 
     const nonce = getNonce()
 
@@ -1368,7 +1374,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       `style-src 'unsafe-inline' ${webview.cspSource}`,
       `script-src 'nonce-${nonce}' 'wasm-unsafe-eval'`,
       `font-src ${webview.cspSource}`,
-      "connect-src http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*",
+      connectSrc,
       `img-src ${webview.cspSource} data: https:`,
     ].join("; ")
 

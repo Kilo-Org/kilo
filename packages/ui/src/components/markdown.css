@@ -125,6 +125,18 @@
     position: relative;
   }
 
+  [data-component="markdown-code"][data-can-expand="true"]:not([data-expanded="true"])::after {
+    content: "";
+    position: absolute;
+    left: 1px;
+    right: 1px;
+    bottom: 1px;
+    height: 48px;
+    border-radius: 0 0 4px 4px;
+    pointer-events: none;
+    background: linear-gradient(to bottom, transparent, var(--surface-base));
+  }
+
   [data-slot="markdown-copy-button"] {
     position: absolute;
     top: 8px;
@@ -136,6 +148,43 @@
 
   [data-component="markdown-code"]:hover [data-slot="markdown-copy-button"] {
     opacity: 1;
+  }
+
+  [data-slot="markdown-expand-button"] {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    z-index: 2;
+    border: 1px solid var(--border-weak-base);
+    border-radius: 4px;
+    background: var(--surface-panel);
+    color: var(--text-base);
+    font-size: 11px;
+    line-height: 1;
+    padding: 4px 8px;
+    cursor: pointer;
+  }
+
+  [data-slot="markdown-expand-button"]:hover {
+    background: var(--surface-base);
+  }
+
+  [data-component="markdown-code"][data-can-expand="true"][data-expanded="true"] [data-slot="markdown-expand-button"] {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  [data-component="markdown-code"][data-can-expand="true"][data-expanded="true"]:hover [data-slot="markdown-expand-button"] {
+    opacity: 1;
+  }
+
+  [data-component="markdown-code"][data-can-expand="false"] [data-slot="markdown-expand-button"] {
+    display: none;
+  }
+
+  [data-component="markdown-code"][data-can-expand="true"]:not([data-expanded="true"]) pre {
+    max-height: 500px;
+    overflow: auto;
   }
 
   [data-slot="markdown-copy-button"] [data-slot="check-icon"] {

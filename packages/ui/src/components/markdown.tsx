@@ -38,6 +38,7 @@ const iconPaths = {
   copy: '<path d="M6.2513 6.24935V2.91602H17.0846V13.7493H13.7513M13.7513 6.24935V17.0827H2.91797V6.24935H13.7513Z" stroke="currentColor" stroke-linecap="round"/>',
   check: '<path d="M5 11.9657L8.37838 14.7529L15 5.83398" stroke="currentColor" stroke-linecap="square"/>',
 }
+const CODE_COLLAPSE_THRESHOLD_PX = 500
 
 function sanitize(html: string) {
   if (!DOMPurify.isSupported) return ""
@@ -47,6 +48,11 @@ function sanitize(html: string) {
 type CopyLabels = {
   copy: string
   copied: string
+}
+
+type CodeLabels = CopyLabels & {
+  expand: string
+  collapse: string
 }
 
 function createIcon(path: string, slot: string) {
@@ -78,6 +84,16 @@ function createCopyButton(labels: CopyLabels) {
   return button
 }
 
+function createExpandButton(labels: CodeLabels) {
+  const button = document.createElement("button")
+  button.type = "button"
+  button.setAttribute("data-slot", "markdown-expand-button")
+  button.setAttribute("aria-label", labels.expand)
+  button.setAttribute("title", labels.expand)
+  button.textContent = labels.expand
+  return button
+}
+
 function setCopyState(button: HTMLButtonElement, labels: CopyLabels, copied: boolean) {
   if (copied) {
     button.setAttribute("data-copied", "true")
@@ -90,7 +106,15 @@ function setCopyState(button: HTMLButtonElement, labels: CopyLabels, copied: boo
   button.setAttribute("title", labels.copy)
 }
 
-function setupCodeCopy(root: HTMLDivElement, labels: CopyLabels) {
+function setExpandState(wrapper: HTMLDivElement, button: HTMLButtonElement, labels: CodeLabels, expanded: boolean) {
+  wrapper.setAttribute("data-expanded", expanded ? "true" : "false")
+  const label = expanded ? labels.collapse : labels.expand
+  button.setAttribute("aria-label", label)
+  button.setAttribute("title", label)
+  button.textContent = label
+}
+
+function setupCodeInteractions(root: HTMLDivElement, labels: CodeLabels) {
   const timeouts = new Map<HTMLButtonElement, ReturnType<typeof setTimeout>>()
 
   const updateLabel = (button: HTMLButtonElement) => {
@@ -100,19 +124,55 @@ function setupCodeCopy(root: HTMLDivElement, labels: CopyLabels) {
 
   const ensureWrapper = (block: HTMLPreElement) => {
     const parent = block.parentElement
-    if (!parent) return
+    if (!parent) return null
     const wrapped = parent.getAttribute("data-component") === "markdown-code"
-    if (wrapped) return
+    if (wrapped) return parent as HTMLDivElement
     const wrapper = document.createElement("div")
     wrapper.setAttribute("data-component", "markdown-code")
     parent.replaceChild(wrapper, block)
     wrapper.appendChild(block)
     wrapper.appendChild(createCopyButton(labels))
+    wrapper.appendChild(createExpandButton(labels))
+    return wrapper
+  }
+
+  const configureExpansion = (wrapper: HTMLDivElement) => {
+    const pre = wrapper.querySelector("pre")
+    const expandButton = wrapper.querySelector('[data-slot="markdown-expand-button"]')
+    if (!(pre instanceof HTMLPreElement) || !(expandButton instanceof HTMLButtonElement)) {
+      return
+    }
+
+    const canExpand = pre.scrollHeight > CODE_COLLAPSE_THRESHOLD_PX
+    wrapper.setAttribute("data-can-expand", canExpand ? "true" : "false")
+
+    if (!canExpand) {
+      wrapper.removeAttribute("data-expanded")
+      expandButton.setAttribute("aria-label", labels.expand)
+      expandButton.setAttribute("title", labels.expand)
+      expandButton.textContent = labels.expand
+      return
+    }
+
+    const current = wrapper.getAttribute("data-expanded")
+    const expanded = current === "true"
+    setExpandState(wrapper, expandButton, labels, expanded)
   }
 
   const handleClick = async (event: MouseEvent) => {
     const target = event.target
     if (!(target instanceof Element)) return
+
+    const expandButton = target.closest('[data-slot="markdown-expand-button"]')
+    if (expandButton instanceof HTMLButtonElement) {
+      const wrapper = expandButton.closest('[data-component="markdown-code"]')
+      if (!(wrapper instanceof HTMLDivElement)) return
+      if (wrapper.getAttribute("data-can-expand") !== "true") return
+      const expanded = wrapper.getAttribute("data-expanded") === "true"
+      setExpandState(wrapper, expandButton, labels, !expanded)
+      return
+    }
+
     const button = target.closest('[data-slot="markdown-copy-button"]')
     if (!(button instanceof HTMLButtonElement)) return
     const code = button.closest('[data-component="markdown-code"]')?.querySelector("code")
@@ -130,7 +190,10 @@ function setupCodeCopy(root: HTMLDivElement, labels: CopyLabels) {
 
   const blocks = Array.from(root.querySelectorAll("pre"))
   for (const block of blocks) {
-    ensureWrapper(block)
+    const wrapper = ensureWrapper(block)
+    if (wrapper) {
+      configureExpansion(wrapper)
+    }
   }
 
   const buttons = Array.from(root.querySelectorAll('[data-slot="markdown-copy-button"]'))
@@ -238,9 +301,11 @@ export function Markdown(
     if (copySetupTimer) clearTimeout(copySetupTimer)
     copySetupTimer = setTimeout(() => {
       if (copyCleanup) copyCleanup()
-      copyCleanup = setupCodeCopy(container, {
+      copyCleanup = setupCodeInteractions(container, {
         copy: i18n.t("ui.message.copy"),
         copied: i18n.t("ui.message.copied"),
+        expand: i18n.t("ui.message.expand"),
+        collapse: i18n.t("ui.message.collapse"),
       })
     }, 150)
   })

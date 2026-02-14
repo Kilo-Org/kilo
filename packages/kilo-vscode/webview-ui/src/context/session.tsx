@@ -93,6 +93,8 @@ interface SessionContextValue {
   abort: () => void
   compact: () => void
   seeNewChanges: () => void
+  revertMessage: (messageID: string) => void
+  forkSession: (messageID?: string) => void
   respondToPermission: (permissionId: string, response: "once" | "always" | "reject") => void
   replyToQuestion: (requestID: string, answers: string[][]) => void
   rejectQuestion: (requestID: string) => void
@@ -554,6 +556,44 @@ export const SessionProvider: ParentComponent = (props) => {
     })
   }
 
+  function revertMessage(messageID: string) {
+    if (!server.isConnected()) {
+      console.warn("[Kilo New] Cannot revert message: not connected")
+      return
+    }
+
+    const sessionID = currentSessionID()
+    if (!sessionID) {
+      console.warn("[Kilo New] Cannot revert message: no current session")
+      return
+    }
+
+    vscode.postMessage({
+      type: "revertMessage",
+      sessionID,
+      messageID,
+    })
+  }
+
+  function forkSession(messageID?: string) {
+    if (!server.isConnected()) {
+      console.warn("[Kilo New] Cannot fork session: not connected")
+      return
+    }
+
+    const sessionID = currentSessionID()
+    if (!sessionID) {
+      console.warn("[Kilo New] Cannot fork session: no current session")
+      return
+    }
+
+    vscode.postMessage({
+      type: "forkSession",
+      sessionID,
+      messageID,
+    })
+  }
+
   function respondToPermission(permissionId: string, response: "once" | "always" | "reject") {
     // Resolve sessionID from the stored permission request
     const permission = permissions().find((p) => p.id === permissionId)
@@ -771,6 +811,8 @@ export const SessionProvider: ParentComponent = (props) => {
     abort,
     compact,
     seeNewChanges,
+    revertMessage,
+    forkSession,
     respondToPermission,
     replyToQuestion,
     rejectQuestion,

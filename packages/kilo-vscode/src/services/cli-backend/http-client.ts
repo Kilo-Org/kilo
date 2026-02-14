@@ -317,6 +317,20 @@ export class HttpClient {
     )
   }
 
+  /**
+   * Revert a session to a specific message point.
+   */
+  async revertSession(sessionId: string, messageID: string, directory: string): Promise<SessionInfo> {
+    return this.request<SessionInfo>("POST", `/session/${sessionId}/revert`, { messageID }, { directory })
+  }
+
+  /**
+   * Create a new session forked from an existing session/message.
+   */
+  async forkSession(sessionId: string, directory: string, messageID?: string): Promise<SessionInfo> {
+    return this.request<SessionInfo>("POST", `/session/${sessionId}/fork`, { messageID }, { directory })
+  }
+
   // ============================================
   // Question Methods
   // ============================================

@@ -319,6 +319,15 @@ export const Message: Component<MessageProps> = (props) => {
             <ContextMenu.Item onSelect={() => void copyMessage()}>
               <ContextMenu.ItemLabel>{language.t("common.copy")}</ContextMenu.ItemLabel>
             </ContextMenu.Item>
+            <ContextMenu.Separator />
+            <ContextMenu.Item onSelect={() => session.forkSession(props.message.id)}>
+              <ContextMenu.ItemLabel>{language.t("command.session.fork")}</ContextMenu.ItemLabel>
+            </ContextMenu.Item>
+            <Show when={props.message.role === "user"}>
+              <ContextMenu.Item onSelect={() => session.revertMessage(props.message.id)}>
+                <ContextMenu.ItemLabel>{language.t("command.session.undo")}</ContextMenu.ItemLabel>
+              </ContextMenu.Item>
+            </Show>
             <Show when={previewMarkdown().length > 0}>
               <ContextMenu.Separator />
               <ContextMenu.Item

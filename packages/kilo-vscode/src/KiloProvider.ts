@@ -274,6 +274,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             await this.handleOpenFilePath(message.path)
           }
           break
+        case "revertMessage":
+          if (typeof message.messageID === "string") {
+            await this.handleRevertMessage(message.sessionID, message.messageID)
+          }
+          break
+        case "forkSession":
+          await this.handleForkSession(message.sessionID, message.messageID)
+          break
         case "pasteAttachments": {
           const files = z
             .array(
@@ -1164,6 +1172,75 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       this.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Failed to compact session",
+      })
+    }
+  }
+
+  private async handleRevertMessage(sessionID: string | undefined, messageID: string): Promise<void> {
+    if (!this.httpClient) {
+      this.postMessage({
+        type: "error",
+        message: "Not connected to CLI backend",
+      })
+      return
+    }
+
+    const targetSessionID = sessionID || this.currentSession?.id
+    if (!targetSessionID) {
+      logger.error("[Kilo New] KiloProvider: No sessionID for revert")
+      return
+    }
+
+    try {
+      const workspaceDir = this.getWorkspaceDirectory()
+      const updated = await this.httpClient.revertSession(targetSessionID, messageID, workspaceDir)
+      if (this.currentSession?.id === updated.id) {
+        this.currentSession = updated
+      }
+      this.postMessage({
+        type: "sessionUpdated",
+        session: this.sessionToWebview(updated),
+      })
+      await this.handleLoadMessages(updated.id)
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to revert session message:", error)
+      this.postMessage({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to revert message",
+      })
+    }
+  }
+
+  private async handleForkSession(sessionID?: string, messageID?: string): Promise<void> {
+    if (!this.httpClient) {
+      this.postMessage({
+        type: "error",
+        message: "Not connected to CLI backend",
+      })
+      return
+    }
+
+    const targetSessionID = sessionID || this.currentSession?.id
+    if (!targetSessionID) {
+      logger.error("[Kilo New] KiloProvider: No sessionID for fork")
+      return
+    }
+
+    try {
+      const workspaceDir = this.getWorkspaceDirectory()
+      const forked = await this.httpClient.forkSession(targetSessionID, workspaceDir, messageID)
+      this.currentSession = forked
+      this.trackedSessionIds.add(forked.id)
+      this.postMessage({
+        type: "sessionCreated",
+        session: this.sessionToWebview(forked),
+      })
+      await this.handleLoadMessages(forked.id)
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to fork session:", error)
+      this.postMessage({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to fork session",
       })
     }
   }

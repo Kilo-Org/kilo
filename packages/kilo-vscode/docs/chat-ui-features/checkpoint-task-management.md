@@ -21,12 +21,13 @@ Checkpoint restore/navigation and task-level UX actions.
 
 - Task header now includes a working **See New Changes** action
 - Extension host action opens Source Control and jumps to the first changed resource
+- Chat message context menu now includes **Fork from message** backed by CLI session fork endpoint
 
 ## Remaining Gaps
 
 - Checkpoint restore dialogs
 - Checkpoint navigation menu
-- Deeper undo/redo/fork parity with CLI session operations
+- Deeper undo/redo parity and checkpoint-specific restore affordances
 
 ## Suggested migration
 

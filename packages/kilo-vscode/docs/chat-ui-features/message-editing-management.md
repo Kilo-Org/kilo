@@ -8,7 +8,8 @@ Interactive editing and message management for user-authored messages.
 
 ## Location
 
-- [`webview-ui/src/components/chat/ChatRow.tsx`](../../webview-ui/src/components/chat/ChatRow.tsx:1)
+- [`webview-ui/src/components/chat/Message.tsx`](../../webview-ui/src/components/chat/Message.tsx:1)
+- [`webview-ui/src/components/chat/PromptInput.tsx`](../../webview-ui/src/components/chat/PromptInput.tsx:1)
 
 ## Interactions
 
@@ -24,11 +25,14 @@ Interactive editing and message management for user-authored messages.
 
 - Chat rows now display message timestamps from message creation time
 - Up-arrow on an empty prompt restores the previous user message text
+- Message context menus now include session-management actions:
+  - **Fork from message** (create a new session from that point)
+  - **Undo** on user messages (revert session to that message point)
 
 ## Remaining Gaps
 
-- Inline edit and delete actions for user-authored messages
-- Edit flow parity with session undo/fork semantics
+- Inline edit and delete actions that directly modify user-authored message text
+- Full in-place edit flow parity (edit controls inside the message row, attachments/mode controls) instead of session-level fork/revert actions
 
 ## Suggested migration
 

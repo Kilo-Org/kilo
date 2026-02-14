@@ -730,6 +730,18 @@ export interface OpenFilePathRequest {
   path: string
 }
 
+export interface RevertMessageRequest {
+  type: "revertMessage"
+  sessionID?: string
+  messageID: string
+}
+
+export interface ForkSessionRequest {
+  type: "forkSession"
+  sessionID?: string
+  messageID?: string
+}
+
 export interface PasteAttachmentsRequest {
   type: "pasteAttachments"
   files: Array<{
@@ -781,6 +793,8 @@ export type WebviewMessage =
   | SelectFilesRequest
   | OpenFileAttachmentRequest
   | OpenFilePathRequest
+  | RevertMessageRequest
+  | ForkSessionRequest
   | PasteAttachmentsRequest
   | SeeNewChangesRequest
 

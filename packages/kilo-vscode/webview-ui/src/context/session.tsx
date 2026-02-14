@@ -53,6 +53,9 @@ interface SessionContextValue {
 
   // All sessions (sorted most recent first)
   sessions: Accessor<SessionInfo[]>
+  sessionsLoading: Accessor<boolean>
+  sessionsLoadedAt: Accessor<number | null>
+  sessionsLoadError: Accessor<string | null>
 
   // Session status
   status: Accessor<SessionStatus>
@@ -132,6 +135,9 @@ export const SessionProvider: ParentComponent = (props) => {
   // Session status
   const [status, setStatus] = createSignal<SessionStatus>("idle")
   const [loading, setLoading] = createSignal(false)
+  const [sessionsLoading, setSessionsLoading] = createSignal(false)
+  const [sessionsLoadedAt, setSessionsLoadedAt] = createSignal<number | null>(null)
+  const [sessionsLoadError, setSessionsLoadError] = createSignal<string | null>(null)
 
   // Pending permissions
   const [permissions, setPermissions] = createSignal<PermissionRequest[]>([])
@@ -298,6 +304,13 @@ export const SessionProvider: ParentComponent = (props) => {
 
         case "error":
           setLoading(false)
+          if (
+            typeof message.message === "string" &&
+            /load sessions|session list|session history/i.test(message.message)
+          ) {
+            setSessionsLoading(false)
+            setSessionsLoadError(message.message)
+          }
           break
       }
     })
@@ -442,6 +455,9 @@ export const SessionProvider: ParentComponent = (props) => {
       for (const s of loaded) {
         setStore("sessions", s.id, s)
       }
+      setSessionsLoading(false)
+      setSessionsLoadError(null)
+      setSessionsLoadedAt(Date.now())
     })
   }
 
@@ -747,8 +763,12 @@ export const SessionProvider: ParentComponent = (props) => {
   function loadSessions() {
     if (!server.isConnected()) {
       console.warn("[Kilo New] Cannot load sessions: not connected")
+      setSessionsLoading(false)
+      setSessionsLoadError("Not connected to CLI backend")
       return
     }
+    setSessionsLoading(true)
+    setSessionsLoadError(null)
     vscode.postMessage({ type: "loadSessions" })
   }
 
@@ -889,6 +909,9 @@ export const SessionProvider: ParentComponent = (props) => {
     currentSession,
     setCurrentSessionID,
     sessions,
+    sessionsLoading,
+    sessionsLoadedAt,
+    sessionsLoadError,
     status,
     loading,
     messages,

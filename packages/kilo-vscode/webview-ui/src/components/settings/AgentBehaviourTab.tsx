@@ -96,6 +96,7 @@ const AgentBehaviourTab: Component = () => {
   const [mcpToolName, setMcpToolName] = createSignal("")
   const [mcpToolEnabled, setMcpToolEnabled] = createSignal(true)
   const [mcpStatusRefreshedAt, setMcpStatusRefreshedAt] = createSignal<number | null>(null)
+  const [showOnlyMcpIssues, setShowOnlyMcpIssues] = createSignal(false)
 
   const mcpEntries = createMemo(() => Object.entries(config().mcp ?? {}).sort(([a], [b]) => a.localeCompare(b)))
   const mcpToolEntries = createMemo(() => Object.entries(config().tools ?? {}).sort(([a], [b]) => a.localeCompare(b)))
@@ -232,6 +233,71 @@ const AgentBehaviourTab: Component = () => {
     }
   }
 
+  const mcpServerType = (mcp: McpConfig): McpType => (mcp.url ? "remote" : "local")
+
+  const mcpDiagnosticsText = (name: string, mcp: McpConfig): string => {
+    const summary = statusSummary(name)
+    const commandData = getCommandAndArgs(mcp)
+    const lines: string[] = [
+      `name: ${name}`,
+      `status: ${summary.label}`,
+      `type: ${mcpServerType(mcp)}`,
+      `enabled: ${mcp.enabled ?? true}`,
+      `timeout: ${typeof mcp.timeout === "number" ? mcp.timeout : "default"}`,
+    ]
+
+    if (summary.detail) {
+      lines.push(`detail: ${summary.detail}`)
+    }
+
+    if (mcp.url) {
+      lines.push(`url: ${mcp.url}`)
+      lines.push(`headers: ${Object.keys(mcp.headers ?? {}).length}`)
+    } else {
+      lines.push(`command: ${commandData.command || "(missing)"}`)
+      lines.push(`args: ${commandData.args.join(" ") || "(none)"}`)
+      lines.push(`env: ${Object.keys(mcp.env ?? {}).length}`)
+    }
+
+    if (mcpStatusRefreshedAt()) {
+      lines.push(`refreshedAt: ${new Date(mcpStatusRefreshedAt()!).toISOString()}`)
+    }
+
+    return lines.join("\n")
+  }
+
+  const copyMcpDiagnostics = async (name: string, mcp: McpConfig) => {
+    try {
+      await navigator.clipboard.writeText(mcpDiagnosticsText(name, mcp))
+      showToast({ variant: "success", title: "Diagnostics copied", description: name })
+    } catch {
+      showToast({ variant: "error", title: "Failed to copy diagnostics" })
+    }
+  }
+
+  const copyAllMcpDiagnostics = async () => {
+    try {
+      const payload = mcpEntries()
+        .map(([name, mcp]) => mcpDiagnosticsText(name, mcp))
+        .join("\n\n---\n\n")
+      await navigator.clipboard.writeText(payload || "No MCP servers configured")
+      showToast({ variant: "success", title: "MCP diagnostics copied" })
+    } catch {
+      showToast({ variant: "error", title: "Failed to copy MCP diagnostics" })
+    }
+  }
+
+  const visibleMcpEntries = createMemo(() => {
+    const all = mcpEntries()
+    if (!showOnlyMcpIssues()) {
+      return all
+    }
+    return all.filter(([name]) => {
+      const status = statusSummary(name)
+      return status.label !== "Connected"
+    })
+  })
+
   const submitMcpServer = () => {
     const name = mcpName().trim()
     if (!name) {
@@ -330,7 +396,11 @@ const AgentBehaviourTab: Component = () => {
     updateConfig({ tools: next })
     setMcpToolName("")
     setMcpToolEnabled(true)
-    showToast({ variant: "success", title: "Tool policy updated", description: `${name} → ${next[name] ? "allow" : "deny"}` })
+    showToast({
+      variant: "success",
+      title: "Tool policy updated",
+      description: `${name} → ${next[name] ? "allow" : "deny"}`,
+    })
   }
 
   const removeMcpToolPolicy = (name: string) => {
@@ -622,7 +692,11 @@ const AgentBehaviourTab: Component = () => {
           </div>
 
           <div style={{ display: "flex", "flex-direction": "column", gap: "8px" }}>
-            <TextField value={mcpName()} placeholder="Server name (e.g. playwright)" onChange={(value) => setMcpName(value)} />
+            <TextField
+              value={mcpName()}
+              placeholder="Server name (e.g. playwright)"
+              onChange={(value) => setMcpName(value)}
+            />
 
             <Select
               options={MCP_TYPE_OPTIONS}
@@ -705,7 +779,14 @@ const AgentBehaviourTab: Component = () => {
         </Card>
 
         <Card>
-          <div style={{ display: "flex", "justify-content": "space-between", "align-items": "center", "margin-bottom": "8px" }}>
+          <div
+            style={{
+              display: "flex",
+              "justify-content": "space-between",
+              "align-items": "center",
+              "margin-bottom": "8px",
+            }}
+          >
             <div>
               <div style={{ "font-weight": "500" }}>Configured MCP Servers</div>
               <Show when={mcpStatusRefreshedAt()}>
@@ -716,13 +797,30 @@ const AgentBehaviourTab: Component = () => {
                 )}
               </Show>
             </div>
-            <Button size="small" variant="ghost" onClick={requestMcpStatus}>
-              Refresh status
-            </Button>
+            <div style={{ display: "flex", gap: "6px", "align-items": "center" }}>
+              <Tooltip
+                value={showOnlyMcpIssues() ? "Show all servers" : "Show only servers with issues"}
+                placement="top"
+              >
+                <Button size="small" variant="ghost" onClick={() => setShowOnlyMcpIssues((prev) => !prev)}>
+                  {showOnlyMcpIssues() ? "Show all" : "Show issues"}
+                </Button>
+              </Tooltip>
+              <Tooltip value="Copy diagnostics for all MCP servers" placement="top">
+                <Button size="small" variant="ghost" onClick={() => void copyAllMcpDiagnostics()}>
+                  Copy diagnostics
+                </Button>
+              </Tooltip>
+              <Tooltip value="Refresh MCP status from backend" placement="top">
+                <Button size="small" variant="ghost" onClick={requestMcpStatus}>
+                  Refresh status
+                </Button>
+              </Tooltip>
+            </div>
           </div>
 
           <Show
-            when={mcpEntries().length > 0}
+            when={visibleMcpEntries().length > 0}
             fallback={
               <div
                 style={{
@@ -730,18 +828,21 @@ const AgentBehaviourTab: Component = () => {
                   color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
                 }}
               >
-                No MCP servers configured yet.
+                {mcpEntries().length === 0
+                  ? "No MCP servers configured yet."
+                  : "No MCP servers match the current filter."}
               </div>
             }
           >
-            <For each={mcpEntries()}>
+            <For each={visibleMcpEntries()}>
               {([name, mcp], index) => {
                 const status = () => statusSummary(name)
                 return (
                   <div
                     style={{
                       padding: "8px 0",
-                      "border-bottom": index() < mcpEntries().length - 1 ? "1px solid var(--border-weak-base)" : "none",
+                      "border-bottom":
+                        index() < visibleMcpEntries().length - 1 ? "1px solid var(--border-weak-base)" : "none",
                     }}
                   >
                     <div
@@ -775,6 +876,33 @@ const AgentBehaviourTab: Component = () => {
                             {status().detail}
                           </div>
                         </Show>
+                        <details style={{ "margin-top": "4px" }}>
+                          <summary
+                            style={{
+                              cursor: "pointer",
+                              "font-size": "11px",
+                              color: "var(--vscode-descriptionForeground)",
+                              "user-select": "none",
+                            }}
+                          >
+                            Diagnostics
+                          </summary>
+                          <pre
+                            style={{
+                              margin: "4px 0 0",
+                              padding: "6px",
+                              "border-radius": "4px",
+                              border: "1px solid var(--border-weak-base)",
+                              background: "var(--vscode-editor-background)",
+                              "font-size": "11px",
+                              "font-family": "var(--vscode-editor-font-family, monospace)",
+                              "white-space": "pre-wrap",
+                              "word-break": "break-word",
+                            }}
+                          >
+                            {mcpDiagnosticsText(name, mcp)}
+                          </pre>
+                        </details>
                         <div
                           style={{
                             "font-size": "11px",
@@ -796,21 +924,33 @@ const AgentBehaviourTab: Component = () => {
                       </div>
 
                       <div style={{ display: "flex", gap: "4px", "align-items": "center" }}>
-                        <Button size="small" variant="ghost" onClick={() => editMcpServer(name, mcp)}>
-                          Edit
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="ghost"
-                          onClick={() =>
-                            vscode.postMessage({
-                              type: status().connected ? "disconnectMcpServer" : "connectMcpServer",
-                              name,
-                            })
-                          }
+                        <Tooltip value="Copy diagnostics" placement="top">
+                          <Button size="small" variant="ghost" onClick={() => void copyMcpDiagnostics(name, mcp)}>
+                            Copy
+                          </Button>
+                        </Tooltip>
+                        <Tooltip value={language.t("common.edit")} placement="top">
+                          <Button size="small" variant="ghost" onClick={() => editMcpServer(name, mcp)}>
+                            Edit
+                          </Button>
+                        </Tooltip>
+                        <Tooltip
+                          value={status().connected ? "Disconnect MCP server" : "Connect MCP server"}
+                          placement="top"
                         >
-                          {status().connected ? "Disconnect" : "Connect"}
-                        </Button>
+                          <Button
+                            size="small"
+                            variant="ghost"
+                            onClick={() =>
+                              vscode.postMessage({
+                                type: status().connected ? "disconnectMcpServer" : "connectMcpServer",
+                                name,
+                              })
+                            }
+                          >
+                            {status().connected ? "Disconnect" : "Connect"}
+                          </Button>
+                        </Tooltip>
                         <Tooltip value={language.t("common.delete")} placement="top">
                           <IconButton
                             size="small"
@@ -843,7 +983,11 @@ const AgentBehaviourTab: Component = () => {
           </div>
           <div style={{ display: "flex", gap: "8px", "align-items": "center", padding: "8px 0" }}>
             <div style={{ flex: 1 }}>
-              <TextField value={mcpToolName()} placeholder="Tool name (e.g. mcp.playwright.navigate)" onChange={setMcpToolName} />
+              <TextField
+                value={mcpToolName()}
+                placeholder="Tool name (e.g. mcp.playwright.navigate)"
+                onChange={setMcpToolName}
+              />
             </div>
             <label style={{ display: "flex", "align-items": "center", gap: "6px", "font-size": "12px" }}>
               <input
@@ -886,7 +1030,9 @@ const AgentBehaviourTab: Component = () => {
                   style={{
                     "font-size": "11px",
                     "font-weight": "500",
-                    color: enabled ? "var(--vscode-testing-iconPassed, #89d185)" : "var(--vscode-testing-iconFailed, #f14c4c)",
+                    color: enabled
+                      ? "var(--vscode-testing-iconPassed, #89d185)"
+                      : "var(--vscode-testing-iconFailed, #f14c4c)",
                     "text-transform": "uppercase",
                   }}
                 >

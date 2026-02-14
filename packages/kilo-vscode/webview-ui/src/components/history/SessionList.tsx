@@ -4,13 +4,15 @@
  * Uses kilo-ui List component for keyboard navigation and accessibility.
  */
 
-import { Component, Show, createSignal, onMount, type JSX } from "solid-js"
+import { Component, Show, createMemo, createSignal, onMount, type JSX } from "solid-js"
 import { List } from "@kilocode/kilo-ui/list"
 import { ContextMenu } from "@kilocode/kilo-ui/context-menu"
 import { Dialog } from "@kilocode/kilo-ui/dialog"
 import { Button } from "@kilocode/kilo-ui/button"
+import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { InlineInput } from "@kilocode/kilo-ui/inline-input"
 import { useDialog } from "@kilocode/kilo-ui/context/dialog"
+import { showToast } from "@kilocode/kilo-ui/toast"
 import { useSession } from "../../context/session"
 import { useLanguage } from "../../context/language"
 import { formatRelativeDate } from "../../utils/date"
@@ -77,6 +79,38 @@ const SessionList: Component<SessionListProps> = (props) => {
     session.loadSessions()
   })
 
+  const historyStatus = createMemo(() => {
+    if (session.sessionsLoading()) {
+      return "Refreshing session history from CLI storage..."
+    }
+
+    if (session.sessionsLoadError()) {
+      return `History refresh error: ${session.sessionsLoadError()}`
+    }
+
+    if (session.sessionsLoadedAt()) {
+      return `History synced at ${new Date(session.sessionsLoadedAt()!).toLocaleTimeString()}`
+    }
+
+    return "Session history is sourced from the CLI backend."
+  })
+
+  const emptyHistoryMessage = createMemo(() => {
+    if (session.sessionsLoadedAt()) {
+      return "No sessions returned by CLI storage yet. If you expected prior history after restart, click Refresh."
+    }
+    return language.t("session.empty")
+  })
+
+  const copySessionId = async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(id)
+      showToast({ variant: "success", title: "Session ID copied" })
+    } catch {
+      showToast({ variant: "error", title: "Failed to copy session ID" })
+    }
+  }
+
   const currentSession = (): SessionInfo | undefined => {
     const id = session.currentSessionID()
     return session.sessions().find((s) => s.id === id)
@@ -140,6 +174,13 @@ const SessionList: Component<SessionListProps> = (props) => {
         </ContextMenu.Trigger>
         <ContextMenu.Portal>
           <ContextMenu.Content>
+            <ContextMenu.Item onSelect={() => props.onSelectSession(item.id)}>
+              <ContextMenu.ItemLabel title="Resume session">Resume</ContextMenu.ItemLabel>
+            </ContextMenu.Item>
+            <ContextMenu.Item onSelect={() => void copySessionId(item.id)}>
+              <ContextMenu.ItemLabel title="Copy session ID">Copy Session ID</ContextMenu.ItemLabel>
+            </ContextMenu.Item>
+            <ContextMenu.Separator />
             <ContextMenu.Item onSelect={() => startRename(item)}>
               <ContextMenu.ItemLabel title="Rename session">{language.t("common.rename")}</ContextMenu.ItemLabel>
             </ContextMenu.Item>
@@ -155,6 +196,27 @@ const SessionList: Component<SessionListProps> = (props) => {
 
   return (
     <div class="session-list">
+      <div
+        style={{
+          display: "flex",
+          "align-items": "center",
+          "justify-content": "space-between",
+          gap: "8px",
+          padding: "8px 0",
+        }}
+      >
+        <span style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>{historyStatus()}</span>
+        <Tooltip value={language.t("common.refresh")} placement="top">
+          <Button
+            size="small"
+            variant="ghost"
+            onClick={() => session.loadSessions()}
+            disabled={session.sessionsLoading()}
+          >
+            {language.t("common.refresh")}
+          </Button>
+        </Tooltip>
+      </div>
       <List<SessionInfo>
         items={session.sessions()}
         key={(s) => s.id}
@@ -166,7 +228,7 @@ const SessionList: Component<SessionListProps> = (props) => {
           }
         }}
         search={{ placeholder: language.t("session.search.placeholder"), autofocus: false }}
-        emptyMessage={language.t("session.empty")}
+        emptyMessage={emptyHistoryMessage()}
         groupBy={(s) => language.t(dateGroupKey(s.updatedAt))}
         sortGroupsBy={(a, b) => {
           const rank = Object.fromEntries(DATE_GROUP_KEYS.map((k, i) => [language.t(k), i]))

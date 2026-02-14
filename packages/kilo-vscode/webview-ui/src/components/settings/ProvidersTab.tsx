@@ -190,9 +190,11 @@ const ProvidersTab: Component = () => {
           }}
         >
           <div style={{ "font-weight": "500" }}>{language.t("settings.providers.section.connected")}</div>
-          <Button variant="ghost" size="small" onClick={() => provider.refresh()}>
-            {language.t("common.refresh")}
-          </Button>
+          <Tooltip value={language.t("common.refresh")} placement="top">
+            <Button variant="ghost" size="small" onClick={() => provider.refresh()}>
+              {language.t("common.refresh")}
+            </Button>
+          </Tooltip>
         </div>
 
         <For each={providerCatalog()}>
@@ -235,13 +237,15 @@ const ProvidersTab: Component = () => {
                     ? language.t("settings.aboutKiloCode.status.connected")
                     : language.t("settings.aboutKiloCode.status.disconnected")}
                 </span>
-                <Button
-                  size="small"
-                  variant="ghost"
-                  onClick={() => (item.connected ? disconnectProvider(item.id) : connectProvider(item.id))}
-                >
-                  {item.connected ? "Disconnect" : "Connect"}
-                </Button>
+                <Tooltip value={item.connected ? "Disconnect provider" : "Connect provider"} placement="top">
+                  <Button
+                    size="small"
+                    variant="ghost"
+                    onClick={() => (item.connected ? disconnectProvider(item.id) : connectProvider(item.id))}
+                  >
+                    {item.connected ? "Disconnect" : "Connect"}
+                  </Button>
+                </Tooltip>
               </div>
             </div>
           )}

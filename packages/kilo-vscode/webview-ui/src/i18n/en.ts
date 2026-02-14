@@ -182,6 +182,12 @@ export const dict = {
   "common.saving": "Saving...",
   "common.default": "Default",
   "common.attachment": "attachment",
+  "connection.state.initializing": "Initializing Kilo...",
+  "connection.state.connecting": "Connecting to Kilo...",
+  "connection.state.reconnecting": "Reconnecting to Kilo...",
+  "connection.state.disconnected": "Disconnected from Kilo.",
+  "connection.error.title": "Connection Error",
+  "connection.error.defaultMessage": "Failed to connect to Kilo.",
 
   "prompt.placeholder.shell": "Enter shell command...",
   "prompt.placeholder.normal": 'Ask anything... "{{example}}"',
@@ -822,6 +828,7 @@ export const dict = {
 
   "settings.aboutKiloCode.status.connected": "Connected",
   "settings.aboutKiloCode.status.connecting": "Connecting...",
+  "settings.aboutKiloCode.status.reconnecting": "Reconnecting...",
   "settings.aboutKiloCode.status.disconnected": "Disconnected",
   "settings.aboutKiloCode.status.error": "Error",
   "settings.aboutKiloCode.cliServer": "CLI Server",

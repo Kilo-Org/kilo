@@ -9,7 +9,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
   private webview: vscode.Webview | null = null
   private currentSession: SessionInfo | null = null
-  private connectionState: "connecting" | "connected" | "disconnected" | "error" = "connecting"
+  private connectionState: "connecting" | "connected" | "reconnecting" | "disconnected" | "error" = "connecting"
   private loginAttempt = 0
   private isWebviewReady = false
   /** Cached providersLoaded payload so requestProviders can be served before httpClient is ready */
@@ -278,6 +278,11 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           break
         case "requestNotificationSettings":
           this.sendNotificationSettings()
+          break
+        case "retryConnection":
+          this.connectionState = "connecting"
+          this.postMessage({ type: "connectionState", state: "connecting" })
+          await this.initializeConnection()
           break
       }
     })

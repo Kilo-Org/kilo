@@ -12,6 +12,7 @@ interface ServerContextValue {
   serverInfo: Accessor<ServerInfo | undefined>
   error: Accessor<string | undefined>
   isConnected: Accessor<boolean>
+  retryConnection: () => void
   profileData: Accessor<ProfileData | null>
   deviceAuth: Accessor<DeviceAuthState>
   startLogin: () => void
@@ -112,11 +113,18 @@ export const ServerProvider: ParentComponent = (props) => {
     vscode.postMessage({ type: "login" })
   }
 
+  const retryConnection = () => {
+    setConnectionState("connecting")
+    setError(undefined)
+    vscode.postMessage({ type: "retryConnection" })
+  }
+
   const value: ServerContextValue = {
     connectionState,
     serverInfo,
     error,
     isConnected: () => connectionState() === "connected",
+    retryConnection,
     profileData,
     deviceAuth,
     startLogin,

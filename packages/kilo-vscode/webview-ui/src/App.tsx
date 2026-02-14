@@ -6,12 +6,14 @@ import { DataProvider } from "@kilocode/kilo-ui/context/data"
 import { Toast } from "@kilocode/kilo-ui/toast"
 import Settings from "./components/Settings"
 import ProfileView from "./components/ProfileView"
+import LoadingPanel from "./components/LoadingPanel"
+import ErrorPanel from "./components/ErrorPanel"
 import { VSCodeProvider } from "./context/vscode"
 import { ServerProvider, useServer } from "./context/server"
 import { ProviderProvider } from "./context/provider"
 import { ConfigProvider } from "./context/config"
 import { SessionProvider, useSession } from "./context/session"
-import { LanguageProvider } from "./context/language"
+import { LanguageProvider, useLanguage } from "./context/language"
 import { ChatView } from "./components/chat"
 import SessionList from "./components/history/SessionList"
 import type { Message as SDKMessage, Part as SDKPart } from "@kilocode/sdk/v2"
@@ -91,6 +93,7 @@ const AppContent: Component = () => {
   const [currentView, setCurrentView] = createSignal<ViewType>("newTask")
   const session = useSession()
   const server = useServer()
+  const language = useLanguage()
 
   const handleViewAction = (action: string) => {
     switch (action) {
@@ -138,7 +141,27 @@ const AppContent: Component = () => {
     <div class="container">
       <Switch fallback={<ChatView />}>
         <Match when={currentView() === "newTask"}>
-          <ChatView onSelectSession={handleSelectSession} />
+          <Switch fallback={<LoadingPanel message={language.t("connection.state.connecting")} />}>
+            <Match when={server.connectionState() === "connected"}>
+              <ChatView onSelectSession={handleSelectSession} />
+            </Match>
+            <Match when={server.connectionState() === "connecting"}>
+              <LoadingPanel
+                message={
+                  server.serverInfo() ? language.t("connection.state.connecting") : language.t("connection.state.initializing")
+                }
+              />
+            </Match>
+            <Match when={server.connectionState() === "reconnecting"}>
+              <LoadingPanel message={language.t("connection.state.reconnecting")} />
+            </Match>
+            <Match when={server.connectionState() === "error"}>
+              <ErrorPanel message={server.error()} onRetry={server.retryConnection} />
+            </Match>
+            <Match when={server.connectionState() === "disconnected"}>
+              <ErrorPanel message={language.t("connection.state.disconnected")} onRetry={server.retryConnection} />
+            </Match>
+          </Switch>
         </Match>
         <Match when={currentView() === "marketplace"}>
           <DummyView title="Marketplace" />

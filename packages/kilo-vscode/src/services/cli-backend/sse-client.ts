@@ -4,7 +4,10 @@ import type { ServerConfig, SSEEvent } from "./types"
 // Type definitions for handlers
 export type SSEEventHandler = (event: SSEEvent) => void
 export type SSEErrorHandler = (error: Error) => void
-export type SSEStateHandler = (state: "connecting" | "connected" | "disconnected") => void
+export type SSEStateHandler = (state: "connecting" | "connected" | "reconnecting" | "disconnected") => void
+
+const INITIAL_RECONNECT_DELAY_MS = 2_000
+const MAX_RECONNECT_DELAY_MS = 30_000
 
 /**
  * SSE Client for receiving real-time events from the CLI backend.
@@ -16,6 +19,11 @@ export class SSEClient {
   private errorHandlers: Set<SSEErrorHandler> = new Set()
   private stateHandlers: Set<SSEStateHandler> = new Set()
   private readonly authUsername = "opencode"
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null
+  private reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
+  private shouldReconnect = false
+  private directory: string | null = null
+  private hasConnected = false
 
   constructor(private readonly config: ServerConfig) {}
 
@@ -26,18 +34,27 @@ export class SSEClient {
   connect(directory: string): void {
     console.log("[Kilo New] SSE: 🔌 connect() called with directory:", directory)
 
-    // Return early if already connected
-    if (this.eventSource) {
-      console.log("[Kilo New] SSE: ⚠️ Already connected, skipping")
-      return
-    }
+    this.shouldReconnect = true
+    this.directory = directory
+    this.hasConnected = false
+    this.reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
+    this.clearReconnectTimeout()
+    this.closeEventSource()
 
     // Notify connecting state
     console.log('[Kilo New] SSE: 🔄 Setting state to "connecting"')
     this.notifyState("connecting")
 
+    this.createEventSource()
+  }
+
+  private createEventSource(): void {
+    if (!this.directory) {
+      return
+    }
+
     // Build URL with directory parameter
-    const url = `${this.config.baseUrl}/event?directory=${encodeURIComponent(directory)}`
+    const url = `${this.config.baseUrl}/event?directory=${encodeURIComponent(this.directory)}`
     console.log("[Kilo New] SSE: 🌐 Connecting to URL:", url)
 
     // Create auth header
@@ -49,20 +66,29 @@ export class SSEClient {
 
     // Create EventSource with headers
     console.log("[Kilo New] SSE: 🎬 Creating EventSource...")
-    this.eventSource = new EventSource(url, {
+    const currentEventSource = new EventSource(url, {
       headers: {
         Authorization: authHeader,
       },
     })
+    this.eventSource = currentEventSource
 
     // Set up onopen handler
-    this.eventSource.onopen = () => {
+    currentEventSource.onopen = () => {
+      if (this.eventSource !== currentEventSource) {
+        return
+      }
       console.log("[Kilo New] SSE: ✅ EventSource opened successfully")
+      this.hasConnected = true
+      this.reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
       this.notifyState("connected")
     }
 
     // Set up onmessage handler
-    this.eventSource.onmessage = (messageEvent) => {
+    currentEventSource.onmessage = (messageEvent) => {
+      if (this.eventSource !== currentEventSource) {
+        return
+      }
       console.log("[Kilo New] SSE: 📨 Received message event:", messageEvent.data)
       try {
         const event = JSON.parse(messageEvent.data) as SSEEvent
@@ -75,21 +101,74 @@ export class SSEClient {
     }
 
     // Set up onerror handler
-    this.eventSource.onerror = (errorEvent) => {
+    currentEventSource.onerror = (errorEvent) => {
+      if (this.eventSource !== currentEventSource) {
+        return
+      }
       console.error("[Kilo New] SSE: ❌ EventSource error:", errorEvent)
-      this.notifyError(new Error("EventSource connection error"))
-      this.notifyState("disconnected")
+      this.closeEventSource()
+
+      if (!this.shouldReconnect || !this.directory) {
+        this.notifyState("disconnected")
+        return
+      }
+
+      // Initial connect failed before we ever established a stream.
+      if (!this.hasConnected) {
+        this.notifyError(new Error("EventSource connection error"))
+        this.notifyState("disconnected")
+        return
+      }
+
+      this.scheduleReconnect()
     }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimeout) {
+      return
+    }
+
+    const delayMs = this.reconnectDelayMs
+    this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, MAX_RECONNECT_DELAY_MS)
+    this.notifyState("reconnecting")
+
+    this.reconnectTimeout = setTimeout(() => {
+      this.reconnectTimeout = null
+      if (!this.shouldReconnect || !this.directory) {
+        return
+      }
+
+      this.createEventSource()
+    }, delayMs)
+  }
+
+  private clearReconnectTimeout(): void {
+    if (!this.reconnectTimeout) {
+      return
+    }
+    clearTimeout(this.reconnectTimeout)
+    this.reconnectTimeout = null
+  }
+
+  private closeEventSource(): void {
+    if (!this.eventSource) {
+      return
+    }
+    this.eventSource.close()
+    this.eventSource = null
   }
 
   /**
    * Disconnect from the SSE endpoint.
    */
   disconnect(): void {
-    if (this.eventSource) {
-      this.eventSource.close()
-      this.eventSource = null
-    }
+    this.shouldReconnect = false
+    this.directory = null
+    this.hasConnected = false
+    this.reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
+    this.clearReconnectTimeout()
+    this.closeEventSource()
     this.notifyState("disconnected")
   }
 
@@ -158,7 +237,7 @@ export class SSEClient {
   /**
    * Notify all state handlers of a state change.
    */
-  private notifyState(state: "connecting" | "connected" | "disconnected"): void {
+  private notifyState(state: "connecting" | "connected" | "reconnecting" | "disconnected"): void {
     for (const handler of this.stateHandlers) {
       try {
         handler(state)

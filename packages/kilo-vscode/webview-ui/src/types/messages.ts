@@ -3,7 +3,7 @@
  */
 
 // Connection states
-export type ConnectionState = "connecting" | "connected" | "disconnected" | "error"
+export type ConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected" | "error"
 
 // Session status (simplified from backend)
 export type SessionStatus = "idle" | "busy" | "retry"
@@ -678,6 +678,10 @@ export interface RequestNotificationSettingsMessage {
   type: "requestNotificationSettings"
 }
 
+export interface RetryConnectionRequest {
+  type: "retryConnection"
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -710,6 +714,7 @@ export type WebviewMessage =
   | RequestConfigMessage
   | UpdateConfigMessage
   | RequestNotificationSettingsMessage
+  | RetryConnectionRequest
 
 // ============================================
 // VS Code API type

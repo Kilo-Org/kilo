@@ -4,7 +4,7 @@ import { HttpClient } from "./http-client"
 import { SSEClient } from "./sse-client"
 import type { ServerConfig, SSEEvent } from "./types"
 
-export type ConnectionState = "connecting" | "connected" | "disconnected" | "error"
+export type ConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected" | "error"
 type SSEEventListener = (event: SSEEvent) => void
 type StateListener = (state: ConnectionState) => void
 type SSEEventFilter = (event: SSEEvent) => boolean

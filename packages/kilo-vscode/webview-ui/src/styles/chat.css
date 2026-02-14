@@ -439,3 +439,54 @@
   color: var(--text-weak, var(--vscode-descriptionForeground));
   white-space: nowrap;
 }
+
+/* ============================================
+   Connection State Panels
+   ============================================ */
+
+.connection-state-panel {
+  height: 100%;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  text-align: center;
+}
+
+.connection-state-panel-error {
+  gap: 10px;
+}
+
+.connection-state-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--vscode-errorForeground);
+}
+
+.connection-state-message {
+  margin: 0;
+  font-size: 13px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.connection-state-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--vscode-progressBar-background);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: connection-state-spin 0.8s linear infinite;
+}
+
+@keyframes connection-state-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

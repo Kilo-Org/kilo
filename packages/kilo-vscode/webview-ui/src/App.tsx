@@ -16,7 +16,14 @@ import { SessionProvider, useSession } from "./context/session"
 import { LanguageProvider, useLanguage } from "./context/language"
 import { ChatView } from "./components/chat"
 import SessionList from "./components/history/SessionList"
-import type { Message as SDKMessage, Part as SDKPart } from "@kilocode/sdk/v2"
+import type {
+  Message as SDKMessage,
+  Part as SDKPart,
+  Session as SDKSession,
+  SessionStatus as SDKSessionStatus,
+  PermissionRequest as SDKPermissionRequest,
+  QuestionRequest as SDKQuestionRequest,
+} from "@kilocode/sdk/v2"
 import "./styles/chat.css"
 
 type ViewType = "newTask" | "marketplace" | "history" | "profile" | "settings"
@@ -46,39 +53,66 @@ const DummyView: Component<{ title: string }> = (props) => {
 const DataBridge: Component<{ children: any }> = (props) => {
   const session = useSession()
 
+  const toEpoch = (value: string): number => {
+    const parsed = Date.parse(value)
+    return Number.isFinite(parsed) ? parsed : Date.now()
+  }
+
+  const toSDKSessionStatus = (status: "idle" | "busy" | "retry"): SDKSessionStatus => {
+    if (status === "idle") {
+      return { type: "idle" }
+    }
+    // Current webview session status is simplified and does not carry retry metadata.
+    return { type: "busy" }
+  }
+
   const data = createMemo(() => {
     const sessions = session.sessions()
     const currentId = session.currentSessionID()
     const sessionIds = [...new Set([...sessions.map((s) => s.id), ...(currentId ? [currentId] : [])])]
 
-    const messageEntries = sessionIds.map((sessionID) => [
+    const messageEntries: Array<[string, SDKMessage[]]> = sessionIds.map((sessionID) => [
       sessionID,
       session.getSessionMessages(sessionID) as unknown as SDKMessage[],
     ])
 
-    const partEntries = messageEntries
+    const partEntries: Array<[string, SDKPart[]]> = messageEntries
       .flatMap(([, messages]) => messages)
-      .map((msg) => [msg.id, session.getParts(msg.id) as unknown as SDKPart[]] as const)
+      .map((msg) => [msg.id, session.getParts(msg.id) as unknown as SDKPart[]] as [string, SDKPart[]])
       .filter(([, parts]) => parts.length > 0)
 
-    const permissionsBySession: Record<string, any[]> = {}
+    const permissionsBySession: Record<string, SDKPermissionRequest[]> = {}
     for (const permission of session.permissions()) {
       const list = permissionsBySession[permission.sessionID] ?? []
-      list.push(permission as any)
+      list.push(permission as unknown as SDKPermissionRequest)
       permissionsBySession[permission.sessionID] = list
     }
 
-    const questionsBySession: Record<string, any[]> = {}
+    const questionsBySession: Record<string, SDKQuestionRequest[]> = {}
     for (const question of session.questions()) {
       const list = questionsBySession[question.sessionID] ?? []
-      list.push(question as any)
+      list.push(question as unknown as SDKQuestionRequest)
       questionsBySession[question.sessionID] = list
     }
 
+    const sdkSessions: SDKSession[] = sessions.map((s) => ({
+      id: s.id,
+      slug: s.id,
+      projectID: "vscode",
+      directory: "",
+      title: s.title ?? "Untitled",
+      version: "0",
+      time: {
+        created: toEpoch(s.createdAt),
+        updated: toEpoch(s.updatedAt),
+      },
+      summary: s.summary,
+    }))
+
     return {
-      session: sessions.map((s) => ({ ...s, id: s.id, role: "user" as const })),
-      session_status: currentId ? { [currentId]: { type: session.status() } } : ({} as Record<string, any>),
-      session_diff: {} as Record<string, any[]>,
+      session: sdkSessions,
+      session_status: currentId ? { [currentId]: toSDKSessionStatus(session.status()) } : ({} as Record<string, SDKSessionStatus>),
+      session_diff: {},
       message: Object.fromEntries(messageEntries),
       part: Object.fromEntries(partEntries),
       permission: permissionsBySession,

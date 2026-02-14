@@ -180,7 +180,14 @@
 
 .message-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.message-timestamp {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
 }
 
 /* ============================================

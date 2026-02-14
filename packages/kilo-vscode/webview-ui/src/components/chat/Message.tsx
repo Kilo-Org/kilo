@@ -124,6 +124,13 @@ export const Message: Component<MessageProps> = (props) => {
   const session = useSession()
   const language = useLanguage()
   const vscode = useVSCode()
+  const messageTime = createMemo(() => {
+    const created = new Date(props.message.createdAt)
+    if (Number.isNaN(created.getTime())) {
+      return ""
+    }
+    return created.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  })
   const parts = () => session.getParts(props.message.id) as unknown as SDKPart[]
   const previewMarkdown = createMemo(() => {
     if (props.message.role !== "assistant") {
@@ -160,18 +167,25 @@ export const Message: Component<MessageProps> = (props) => {
     <Show when={parts().length > 0 || props.message.content}>
       <ContextMenu>
         <ContextMenu.Trigger as="div" class="message-block">
-          <Show when={previewMarkdown().length > 0}>
+          <Show when={messageTime() || previewMarkdown().length > 0}>
             <div class="message-actions">
-              <Tooltip value="Open markdown preview in VS Code" placement="top">
-                <Button
-                  variant="ghost"
-                  size="small"
-                  onClick={() => vscode.postMessage({ type: "openMarkdownPreview", text: previewMarkdown() })}
-                  aria-label="Open markdown preview in VS Code"
-                >
-                  Preview
-                </Button>
-              </Tooltip>
+              <Show when={messageTime()}>
+                <span class="message-timestamp" title={new Date(props.message.createdAt).toLocaleString()}>
+                  {messageTime()}
+                </span>
+              </Show>
+              <Show when={previewMarkdown().length > 0}>
+                <Tooltip value="Open markdown preview in VS Code" placement="top">
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    onClick={() => vscode.postMessage({ type: "openMarkdownPreview", text: previewMarkdown() })}
+                    aria-label="Open markdown preview in VS Code"
+                  >
+                    Preview
+                  </Button>
+                </Tooltip>
+              </Show>
             </div>
           </Show>
           <KiloMessage message={props.message as unknown as SDKMessage} parts={parts()} />

@@ -2,6 +2,10 @@
 
 Interactive editing and message management for user-authored messages.
 
+## Status
+
+🔨 Partial
+
 ## Location
 
 - [`webview-ui/src/components/chat/ChatRow.tsx`](../../webview-ui/src/components/chat/ChatRow.tsx:1)
@@ -15,6 +19,16 @@ Interactive editing and message management for user-authored messages.
 - Image attachment support during edit
 - Cancel/Save actions
 - Optional timestamp display
+
+## Current Progress
+
+- Chat rows now display message timestamps from message creation time
+
+## Remaining Gaps
+
+- Inline edit and delete actions for user-authored messages
+- Redo previous message shortcut (up-arrow)
+- Edit flow parity with session undo/fork semantics
 
 ## Suggested migration
 

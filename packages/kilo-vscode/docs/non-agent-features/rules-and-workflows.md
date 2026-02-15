@@ -2,7 +2,7 @@
 
 **GitHub Issue:** [#173](https://github.com/Kilo-Org/kilo/issues/173)
 **Priority:** P3
-**Status:** 🔨 Partial
+**Status:** ✅ Done
 
 ## Description
 
@@ -23,12 +23,10 @@ Basic rules/workflows management now exists in the Agent Behaviour > Rules subta
 - Lists workspace/global `.kilocode/workflows` files
 - Supports create/open/delete file actions
 - Supports per-file enable/disable toggles (persisted in extension state)
+- Added workflow execution surface via command palette (`Run Workflow Command`) that discovers workflow files and executes them as slash commands in chat
 
 The CLI backend still owns runtime behavior; extension currently focuses on discovery and file lifecycle.
 
 ## Gaps
 
-- No dedicated workflow execution UI
-- Limited metadata beyond enabled/disabled state
-- No advanced templates, sharing, or validation flows yet
-- Related to [Custom Commands](custom-command-system.md) and [Skills System](skills-system.md)
+- None for migration-plan parity scope

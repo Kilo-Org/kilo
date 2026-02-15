@@ -200,7 +200,9 @@ export class RulesWorkflowsService {
   private async ensurePathInsideScope(candidatePath: string, input: RulePathInput): Promise<void> {
     const baseDirectory = path.resolve(this.getDirectory(input))
     const resolved = path.resolve(candidatePath)
-    const relative = path.relative(baseDirectory, resolved)
+    const baseCanonical = await this.realpathOrResolved(baseDirectory)
+    const candidateCanonical = await this.realpathOrResolved(resolved)
+    const relative = path.relative(baseCanonical, candidateCanonical)
     if (relative.startsWith("..") || path.isAbsolute(relative)) {
       throw new Error("Requested file path is outside the allowed rules/workflows directory")
     }
@@ -212,6 +214,14 @@ export class RulesWorkflowsService {
       return true
     } catch {
       return false
+    }
+  }
+
+  private async realpathOrResolved(targetPath: string): Promise<string> {
+    try {
+      return await fs.realpath(targetPath)
+    } catch {
+      return path.resolve(targetPath)
     }
   }
 

@@ -2,7 +2,7 @@
 
 **GitHub Issue:** [#174](https://github.com/Kilo-Org/kilo/issues/174)
 **Priority:** P3
-**Status:** ❌ Not started
+**Status:** ✅ Done
 
 ## Description
 
@@ -18,11 +18,12 @@ Support for the `/init` command — initialize a repository for agentic engineer
 
 ## Current State
 
-No initialization support exists in the extension. The CLI supports `/init`.
+Initialization is available in the extension via `kilo-code.new.initializeRepository`:
+
+- Command palette trigger opens initialization profile picker (standard/web app/library/backend service)
+- Runs `/init` in a freshly created session with progress notifications
+- Navigates/focuses the new chat session once initialization starts
 
 ## Gaps
 
-- No init command registered in the extension
-- No UI for triggering initialization
-- Need to determine if this calls a CLI endpoint or replicates CLI logic
-- No progress/status feedback during initialization
+- None for migration-plan parity scope

@@ -1001,6 +1001,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
               ? value
               : path.join(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd(), value),
           )
+
+      if (uri.scheme === "file") {
+        const allowed = await this.isPathInsideAllowedRoots(uri.fsPath)
+        if (!allowed) {
+          void vscode.window.showWarningMessage("Blocked opening a file outside the current workspace scope.")
+          return
+        }
+      }
       await vscode.commands.executeCommand("vscode.open", uri)
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to open file path:", { path: value, error })
@@ -3797,6 +3805,36 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     return target === tempRoot || target.startsWith(`${tempRoot}${path.sep}`)
   }
 
+  private normalizePathForCompare(targetPath: string): string {
+    const resolved = path.resolve(targetPath)
+    return process.platform === "win32" ? resolved.toLowerCase() : resolved
+  }
+
+  private async realpathOrResolved(targetPath: string): Promise<string> {
+    try {
+      return await fs.realpath(targetPath)
+    } catch {
+      return path.resolve(targetPath)
+    }
+  }
+
+  private async isPathInsideAllowedRoots(targetPath: string): Promise<boolean> {
+    const candidateCanonical = this.normalizePathForCompare(await this.realpathOrResolved(targetPath))
+    const roots = [
+      ...(vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath) ?? []),
+      this.attachmentTempDir,
+    ]
+
+    for (const root of roots) {
+      const rootCanonical = this.normalizePathForCompare(await this.realpathOrResolved(root))
+      if (candidateCanonical === rootCanonical || candidateCanonical.startsWith(`${rootCanonical}${path.sep}`)) {
+        return true
+      }
+    }
+
+    return false
+  }
+
   private getLocalResourceRoots(): vscode.Uri[] {
     const roots = [this.extensionUri]
     const workspaceRoots = vscode.workspace.workspaceFolders?.map((folder) => folder.uri) ?? []
@@ -3822,10 +3860,11 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     // CSP allows:
     // - default-src 'none': Block everything by default
-    // - style-src: Allow inline styles and our CSS file
+    // - style-src: Inline styles are still required by bundled UI primitives that emit runtime style attributes
     // - script-src 'nonce-...': Only allow scripts with our nonce
+    // - 'wasm-unsafe-eval' remains required for syntax/highlight tooling that relies on WASM evaluation
     // - connect-src: allow only extension-local resource origin (no localhost wildcard network access)
-    // - img-src: Allow images from webview and data URIs
+    // - img-src: Allow webview/data URIs plus https for explicit external screenshot/image preview features
     const csp = [
       "default-src 'none'",
       `style-src 'unsafe-inline' ${webview.cspSource}`,

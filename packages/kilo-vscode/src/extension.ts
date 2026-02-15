@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import os from "node:os"
 import path from "node:path"
+import fs from "node:fs/promises"
 import { execFile as execFileCb } from "node:child_process"
 import { promisify } from "node:util"
 import { KiloProvider } from "./KiloProvider"
@@ -196,6 +197,15 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("kilo-code.new.openSlashCommandPicker", () => {
       return openSlashCommandPicker(provider)
     }),
+    vscode.commands.registerCommand("kilo-code.new.createProjectSlashCommand", () => {
+      return createSlashCommandFile("project")
+    }),
+    vscode.commands.registerCommand("kilo-code.new.createGlobalSlashCommand", () => {
+      return createSlashCommandFile("global")
+    }),
+    vscode.commands.registerCommand("kilo-code.new.runWorkflowCommand", () => {
+      return runWorkflowCommand(provider)
+    }),
     vscode.commands.registerCommand("kilo-code.new.initializeRepository", () => {
       return initializeRepository(connectionService, provider)
     }),
@@ -256,6 +266,149 @@ async function showSettingsSyncDiagnostics(context: vscode.ExtensionContext): Pr
     ),
   })
   await vscode.window.showTextDocument(document, { preview: true })
+}
+
+function normalizeSlashCommandName(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+}
+
+async function createSlashCommandFile(scope: "project" | "global"): Promise<void> {
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
+  if (scope === "project" && !workspaceFolder) {
+    void vscode.window.showWarningMessage("Open a workspace folder to create a project slash command.")
+    return
+  }
+
+  const rawName = await vscode.window.showInputBox({
+    title: scope === "project" ? "Create Project Slash Command" : "Create Global Slash Command",
+    placeHolder: "my-command",
+    prompt: "Command name used as /my-command",
+    validateInput: (value) => {
+      const normalized = normalizeSlashCommandName(value)
+      if (!normalized) {
+        return "Enter a valid command name"
+      }
+      return undefined
+    },
+  })
+  if (!rawName) {
+    return
+  }
+
+  const normalizedName = normalizeSlashCommandName(rawName)
+  const description = await vscode.window.showInputBox({
+    title: "Command Description (Optional)",
+    placeHolder: "Describe what this command does",
+  })
+
+  const baseDir =
+    scope === "project"
+      ? path.join(workspaceFolder!.uri.fsPath, ".kilocode", "commands")
+      : path.join(os.homedir(), ".kilocode", "commands")
+  const filePath = path.join(baseDir, `${normalizedName}.md`)
+
+  try {
+    await fs.mkdir(baseDir, { recursive: true })
+    await fs.access(filePath)
+    const overwrite = await vscode.window.showWarningMessage(
+      `Slash command already exists: /${normalizedName}`,
+      { modal: true },
+      "Overwrite",
+    )
+    if (overwrite !== "Overwrite") {
+      return
+    }
+  } catch {
+    // File does not exist; continue.
+  }
+
+  const body = [
+    "---",
+    `description: ${description?.trim() || `Run /${normalizedName}`}`,
+    "---",
+    "",
+    "Write your reusable prompt here.",
+    "",
+    "Use placeholders and concise instructions for best results.",
+    "",
+  ].join("\n")
+
+  await fs.writeFile(filePath, body, "utf8")
+  await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(filePath))
+}
+
+interface WorkflowCommandEntry {
+  name: string
+  scope: "project" | "global"
+  path: string
+}
+
+async function listWorkflowCommands(workspaceDir?: string): Promise<WorkflowCommandEntry[]> {
+  const roots: Array<{ scope: "project" | "global"; dir: string }> = [
+    { scope: "global", dir: path.join(os.homedir(), ".kilocode", "workflows") },
+  ]
+  if (workspaceDir) {
+    roots.unshift({ scope: "project", dir: path.join(workspaceDir, ".kilocode", "workflows") })
+  }
+
+  const entries: WorkflowCommandEntry[] = []
+  for (const root of roots) {
+    try {
+      const files = await fs.readdir(root.dir, { withFileTypes: true })
+      for (const file of files) {
+        if (!file.isFile()) {
+          continue
+        }
+        const ext = path.extname(file.name).toLowerCase()
+        if (ext !== ".md" && ext !== ".txt") {
+          continue
+        }
+        entries.push({
+          name: path.basename(file.name, ext),
+          scope: root.scope,
+          path: path.join(root.dir, file.name),
+        })
+      }
+    } catch {
+      // Ignore missing directories.
+    }
+  }
+
+  return entries.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+async function runWorkflowCommand(provider: KiloProvider): Promise<void> {
+  const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+  const workflows = await listWorkflowCommands(workspaceDir)
+  if (workflows.length === 0) {
+    void vscode.window.showInformationMessage("No workflow files found in .kilocode/workflows.")
+    return
+  }
+
+  const choice = await vscode.window.showQuickPick(
+    workflows.map((workflow) => ({
+      label: `/${workflow.name}`,
+      description: workflow.scope === "project" ? "project workflow" : "global workflow",
+      detail: workflow.path,
+      workflow,
+    })),
+    {
+      title: "Run Workflow Command",
+      placeHolder: "Pick a workflow command to run in chat",
+    },
+  )
+
+  if (!choice) {
+    return
+  }
+
+  await vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
+  provider.postMessage({ type: "navigate", view: "newTask" })
+  provider.postMessage({ type: "prefillPrompt", text: `/${choice.workflow.name} ` })
 }
 
 function decodeHtmlEntities(value: string): string {
@@ -378,17 +531,66 @@ async function initializeRepository(connectionService: KiloConnectionService, pr
   }
 
   const workspaceDir = workspaceFolder.uri.fsPath
+  const profile = await vscode.window.showQuickPick(
+    [
+      {
+        label: "Standard (Recommended)",
+        detail: "General-purpose repository initialization",
+        prompt: "/init",
+      },
+      {
+        label: "Web App",
+        detail: "Tailor initialization toward frontend/web workflows",
+        prompt: "/init\nPrefer web-app conventions, frontend tooling, and UI-focused quality gates.",
+      },
+      {
+        label: "Library / Package",
+        detail: "Tailor initialization toward reusable package workflows",
+        prompt: "/init\nPrefer library/package conventions, API stability checks, and release hygiene.",
+      },
+      {
+        label: "Backend Service",
+        detail: "Tailor initialization toward service/backend workflows",
+        prompt: "/init\nPrefer backend-service conventions, reliability checks, and operational safety.",
+      },
+    ],
+    {
+      title: "Initialize Repository",
+      placeHolder: "Choose initialization profile",
+    },
+  )
+
+  if (!profile) {
+    return
+  }
 
   try {
-    await vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
-    await connectionService.connect(workspaceDir)
-    const client = connectionService.getHttpClient()
-    const session = await client.createSession(workspaceDir)
-    await client.sendMessage(session.id, [{ type: "text", text: "/init" }], workspaceDir)
+    const session = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: "Initializing repository with Kilo…",
+      },
+      async (progress) => {
+        progress.report({ message: "Opening chat surface…", increment: 10 })
+        await vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
+
+        progress.report({ message: "Connecting to backend…", increment: 25 })
+        await connectionService.connect(workspaceDir)
+        const client = connectionService.getHttpClient()
+
+        progress.report({ message: "Creating init session…", increment: 25 })
+        const createdSession = await client.createSession(workspaceDir)
+
+        progress.report({ message: "Sending /init request…", increment: 35 })
+        await client.sendMessage(createdSession.id, [{ type: "text", text: profile.prompt }], workspaceDir)
+        progress.report({ message: "Done", increment: 5 })
+        return createdSession
+      },
+    )
 
     provider.postMessage({ type: "navigate", view: "newTask" })
     provider.postMessage({ type: "openSession", sessionID: session.id })
-    void vscode.window.showInformationMessage("Kilo repository initialization started.")
+    void vscode.window.showInformationMessage(`Kilo repository initialization started (${profile.label}).`)
   } catch (error) {
     logger.error("[Kilo New] Failed to initialize repository via /init", error)
     void vscode.window.showErrorMessage(

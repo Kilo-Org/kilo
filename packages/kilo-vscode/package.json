@@ -58,6 +58,9 @@
     "onCommand:kilo-code.new.showContributionReport",
     "onCommand:kilo-code.new.clearContributionReport",
     "onCommand:kilo-code.new.settingsSyncDiagnostics",
+    "onCommand:kilo-code.new.createProjectSlashCommand",
+    "onCommand:kilo-code.new.createGlobalSlashCommand",
+    "onCommand:kilo-code.new.runWorkflowCommand",
     "onCommand:kilo-code.new.autocomplete.generateSuggestions",
     "onCommand:kilo-code.new.initializeRepository",
     "onCommand:kilo-code.new.generateCommitMessage",
@@ -183,6 +186,21 @@
       {
         "command": "kilo-code.new.settingsSyncDiagnostics",
         "title": "Show Settings Sync Diagnostics",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.createProjectSlashCommand",
+        "title": "Create Project Slash Command",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.createGlobalSlashCommand",
+        "title": "Create Global Slash Command",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.runWorkflowCommand",
+        "title": "Run Workflow Command",
         "category": "Kilo Code"
       },
       {

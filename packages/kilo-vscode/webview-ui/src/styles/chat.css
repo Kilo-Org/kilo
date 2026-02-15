@@ -1494,3 +1494,16 @@ body,
     transform: rotate(360deg);
   }
 }
+
+@media (forced-colors: active) {
+  .connection-state-spinner {
+    border-color: CanvasText;
+    border-top-color: transparent;
+  }
+
+  .session-meta-pill,
+  .kilo-followup-chip,
+  .kilo-command-chip {
+    border-color: CanvasText;
+  }
+}

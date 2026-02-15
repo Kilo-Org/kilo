@@ -2,7 +2,7 @@ import { spawn, ChildProcess } from "child_process"
 import * as crypto from "crypto"
 import * as fs from "fs"
 import * as path from "path"
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 import { CLI_SERVER_AUTH_USERNAME } from "./auth"
 import { logger } from "../../utils/logger"
 

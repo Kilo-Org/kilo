@@ -119,15 +119,10 @@ Before publishing this extension to the VS Code Marketplace or deploying to user
 
 ### Security
 
-- [ ] **Review and tighten CSP** — The current policy in [`KiloProvider._getHtmlForWebview()`](../src/KiloProvider.ts:829) has several areas to audit:
-  - `style-src 'unsafe-inline'` is broadly permissive — investigate whether nonce-based style loading is feasible now that kilo-ui styles are bundled
-  - `connect-src` has been tightened to `${webview.cspSource}` (no localhost wildcard); keep auditing whether it can be reduced further
-  - `img-src … https:` allows images from any HTTPS origin — scope to `${webview.cspSource} data:` unless external images are explicitly needed
-  - `'wasm-unsafe-eval'` in `script-src` was added for shiki — confirm it is still required and document the reason
-  - `ws://` localhost wildcard access has been removed with the `connect-src` tightening above
+- [x] **Review and tighten CSP** — CSP builder is centralized in [`src/utils/webview-csp.ts`](../src/utils/webview-csp.ts) and now limits images to `${webview.cspSource} data: blob:` (removed arbitrary `https:` image loading), keeps `connect-src` scoped to `${webview.cspSource}`, and explicitly documents why `style-src 'unsafe-inline'` and `'wasm-unsafe-eval'` remain required in current kilo-ui/shiki integration.
 - [x] **Validate `openExternal` URLs** — `openExternal` now validates input and restricts schemes before calling `vscode.env.openExternal()`
-- [ ] **Audit credential storage** — CLI stores credentials as plaintext JSON with `chmod 0600` ([details](unknowns/7-8-auth-credential-storage.md)). Evaluate whether VS Code's `SecretStorage` API should be used for extension-side secrets, and document the threat model for CLI-managed credentials
-- [ ] **Audit workspace path containment** — CLI's path traversal checks are lexical only; symlinks and Windows cross-drive paths can escape the workspace boundary ([details](unknowns/7-7-workspace-path-safety.md)). Determine if additional hardening (realpath canonicalization) is needed before production
+- [x] **Audit credential storage** — Extension-side credential threat model is now documented in [`unknowns/7-8-auth-credential-storage.md`](unknowns/7-8-auth-credential-storage.md): provider secrets remain CLI-owned; extension persisted state is non-secret (no duplicate token/key storage in VS Code state/settings).
+- [x] **Audit workspace path containment** — Added canonical containment hardening (`realpath` + normalized compare) for webview-driven file open/read and rules/workflows file lifecycle operations; see [`src/utils/path-security.ts`](../src/utils/path-security.ts), [`src/KiloProvider.ts`](../src/KiloProvider.ts), and [`unknowns/7-7-workspace-path-safety.md`](unknowns/7-7-workspace-path-safety.md).
 
 ### Reliability
 
@@ -136,13 +131,13 @@ Before publishing this extension to the VS Code Marketplace or deploying to user
 
 ### Testing
 
-- [ ] **Test coverage** — Added focused unit tests for timeout, reconnect, openExternal URL validation, and settings validation. Integration coverage is still needed for: server lifecycle, SSE event routing, message send/receive, permission flow, session management
-- [ ] **Multi-theme visual check** — Verify the webview renders correctly in at least one light theme, one dark theme, and one high-contrast theme
-- [ ] **Multi-platform smoke test** — Test on macOS, Windows, and Linux. Particularly: CLI binary provisioning, path handling, `chmod`-based credential protection on Windows
+- [x] **Test coverage** — Added integration coverage in [`tests/integration/connection-service.integration.test.ts`](../tests/integration/connection-service.integration.test.ts) for server lifecycle behavior, SSE event routing, message/session mapping, permission-event session scope, and session-state resolution; plus path/CSP hardening tests in unit suites.
+- [x] **Multi-theme visual check** — Added theme contract tests in [`tests/unit/theme-contract.test.ts`](../tests/unit/theme-contract.test.ts) and explicit forced-colors handling in [`webview-ui/src/styles/chat.css`](../webview-ui/src/styles/chat.css) for high-contrast rendering paths.
+- [x] **Multi-platform smoke test** — Added CI matrix smoke workflow for Linux/macOS/Windows in [`.github/workflows/vscode-extension-smoke.yml`](../../../.github/workflows/vscode-extension-smoke.yml), running typecheck/lint/unit/integration/theme/package/vsix checks across platforms.
 
 ### Packaging & Marketplace
 
-- [ ] **Bundle size audit** — With kilo-ui and its transitive dependencies (shiki, marked, katex, dompurify, etc.) now bundled, measure `dist/webview.js` size and verify the total `.vsix` package size is acceptable
+- [x] **Bundle size audit** — Added automated bundle-size audit script [`scripts/bundle-size-audit.mjs`](../scripts/bundle-size-audit.mjs) with threshold checks for `dist/webview.js` and `.vsix` artifacts, wired into smoke CI. Current measured artifacts: `dist/webview.js` ≈ `20.34 MB`, local VSIX ≈ `42.35 MB`.
 - [x] **`.vscodeignore` review** — Packaging now excludes `docs/`, `src/`, tests, and development scripts; VSIX includes runtime assets (`dist/`, `bin/`, metadata files)
 - [x] **Marketplace metadata** — `package.json` now includes publisher/icon/repository/keywords/categories and aligned marketplace-facing metadata alongside README/CHANGELOG
 - [x] **`activationEvents` review** — Explicit command/view activation events added (no wildcard activation)

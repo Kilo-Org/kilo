@@ -1,5 +1,21 @@
 # 7.7 Workspace binding & path traversal protections (files + tool execution sandbox)
 
+## VS Code extension hardening status (Feb 2026)
+
+The extension now applies canonical-path containment checks (realpath + normalized path compare) before opening/reading filesystem paths requested from the webview:
+
+- `openFilePath` requests are blocked outside workspace roots and temp attachment roots.
+- `openImage` / file attachment opens are blocked outside allowed roots.
+- file attachment reads (`file://`) are blocked outside allowed roots.
+- terminal `cwd` requests are restricted to the active workspace root using canonical containment.
+- rules/workflows file operations enforce canonical containment (including symlink escape protection).
+
+Implementation anchors:
+
+- [`src/utils/path-security.ts`](../../src/utils/path-security.ts)
+- [`src/KiloProvider.ts`](../../src/KiloProvider.ts)
+- [`src/services/settings/rules-workflows.ts`](../../src/services/settings/rules-workflows.ts)
+
 **What we can confirm from OpenCode code**
 
 - Instance/workspace selection is derived from the inbound `directory` (query/header), and project discovery will attempt to locate a git root; [`Instance.worktree`](../../kilo/packages/opencode/src/project/instance.ts:44) may differ from [`Instance.directory`](../../kilo/packages/opencode/src/project/instance.ts:41) [`Project.fromDirectory()`](../../kilo/packages/opencode/src/project/project.ts:53).
@@ -12,4 +28,4 @@
 - Whether other endpoints (beyond [`File.read()`](../../kilo/packages/opencode/src/file/index.ts:275) / [`File.list()`](../../kilo/packages/opencode/src/file/index.ts:322)) have equivalent [`Instance.containsPath()`](../../kilo/packages/opencode/src/project/instance.ts:55) enforcement.
 - Whether OpenCode resolves paths to realpaths before permission evaluation (current checks are lexical).
 
-**Actionable conclusion**: treat OpenCode’s file boundary checks as “good but not bulletproof”; if we need stronger guarantees, we likely need additional hardening (realpath canonicalization + symlink checks) before trusting it as Kilo’s primary tool executor.
+**Actionable conclusion**: OpenCode still uses primarily lexical checks, but the VS Code extension now adds realpath-based containment hardening at extension-controlled entry points for defense-in-depth.

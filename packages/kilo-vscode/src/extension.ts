@@ -80,7 +80,8 @@ export function activate(context: vscode.ExtensionContext) {
   initializeLogger(outputChannel)
   setLoggerDebugEnabled(context.extensionMode !== vscode.ExtensionMode.Production)
   logger.info("Kilo Code extension is now active")
-  initializeSettingsSync(context)
+  const workspaceDirs = (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath)
+  initializeSettingsSync(context, workspaceDirs)
 
   // Create shared connection service (one server for all webviews)
   const connectionService = new KiloConnectionService(context)
@@ -253,7 +254,8 @@ async function openSlashCommandPicker(provider: KiloProvider): Promise<void> {
 }
 
 async function showSettingsSyncDiagnostics(context: vscode.ExtensionContext): Promise<void> {
-  const diagnostics = readSettingsSyncDiagnostics(context)
+  const workspaceDirs = (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath)
+  const diagnostics = readSettingsSyncDiagnostics(context, workspaceDirs)
   const document = await vscode.workspace.openTextDocument({
     language: "json",
     content: JSON.stringify(

@@ -24,6 +24,8 @@ import { readSettingsActiveTab, writeLastProviderAuth, writeSettingsActiveTab } 
 import { logger } from "./utils/logger"
 import { parseAllowedOpenExternalUrl } from "./utils/open-external"
 import { captureTelemetryEvent, parseTelemetryProperties, telemetryEventNameSchema } from "./utils/telemetry"
+import { isPathInsideAnyRoot } from "./utils/path-security"
+import { buildWebviewCsp } from "./utils/webview-csp"
 import { RulesWorkflowsService } from "./services/settings/rules-workflows"
 import {
   validateAutocompleteSettingUpdate,
@@ -848,7 +850,15 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
   private async handleOpenFileAttachment(fileUrl: string): Promise<void> {
     try {
-      await vscode.commands.executeCommand("vscode.open", vscode.Uri.parse(fileUrl))
+      const uri = vscode.Uri.parse(fileUrl)
+      if (uri.scheme === "file") {
+        const allowed = await this.isPathInsideAllowedRoots(uri.fsPath)
+        if (!allowed) {
+          void vscode.window.showWarningMessage("Blocked opening a file outside the current workspace scope.")
+          return
+        }
+      }
+      await vscode.commands.executeCommand("vscode.open", uri)
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to open file attachment:", error)
     }
@@ -939,7 +949,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
   private async readAttachmentBytes(rawUrl: string): Promise<Uint8Array> {
     if (rawUrl.startsWith("file://")) {
-      return vscode.workspace.fs.readFile(vscode.Uri.parse(rawUrl))
+      const uri = vscode.Uri.parse(rawUrl)
+      const allowed = await this.isPathInsideAllowedRoots(uri.fsPath)
+      if (!allowed) {
+        throw new Error("Blocked reading file attachment outside workspace scope")
+      }
+      return vscode.workspace.fs.readFile(uri)
     }
     if (rawUrl.startsWith("data:")) {
       return this.decodeDataUrl(rawUrl)
@@ -1109,7 +1124,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     await this.handleOpenDiffPreview(selected.path, selected.before, selected.after)
   }
 
-  private resolveTerminalCwd(rawCwd: unknown): string {
+  private async resolveTerminalCwd(rawCwd: unknown): Promise<string> {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd()
     if (typeof rawCwd !== "string" || rawCwd.trim().length === 0) {
       return workspaceRoot
@@ -1117,15 +1132,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     const trimmed = rawCwd.trim()
     const candidate = path.isAbsolute(trimmed) ? trimmed : path.resolve(workspaceRoot, trimmed)
-    const normalizedRoot = path.resolve(workspaceRoot)
-    const normalizedCandidate = path.resolve(candidate)
-    const withinRoot =
-      normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}${path.sep}`)
-    return withinRoot ? normalizedCandidate : normalizedRoot
+    const withinRoot = await isPathInsideAnyRoot(candidate, [workspaceRoot])
+    return withinRoot ? path.resolve(candidate) : workspaceRoot
   }
 
   private async handleOpenTerminal(rawCwd: unknown, rawCommand: unknown): Promise<void> {
-    const cwd = this.resolveTerminalCwd(rawCwd)
+    const cwd = await this.resolveTerminalCwd(rawCwd)
     const terminal = vscode.window.createTerminal({ name: "Kilo Code Terminal", cwd })
     terminal.show(false)
 
@@ -3805,34 +3817,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     return target === tempRoot || target.startsWith(`${tempRoot}${path.sep}`)
   }
 
-  private normalizePathForCompare(targetPath: string): string {
-    const resolved = path.resolve(targetPath)
-    return process.platform === "win32" ? resolved.toLowerCase() : resolved
-  }
-
-  private async realpathOrResolved(targetPath: string): Promise<string> {
-    try {
-      return await fs.realpath(targetPath)
-    } catch {
-      return path.resolve(targetPath)
-    }
-  }
-
   private async isPathInsideAllowedRoots(targetPath: string): Promise<boolean> {
-    const candidateCanonical = this.normalizePathForCompare(await this.realpathOrResolved(targetPath))
     const roots = [
       ...(vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath) ?? []),
       this.attachmentTempDir,
     ]
-
-    for (const root of roots) {
-      const rootCanonical = this.normalizePathForCompare(await this.realpathOrResolved(root))
-      if (candidateCanonical === rootCanonical || candidateCanonical.startsWith(`${rootCanonical}${path.sep}`)) {
-        return true
-      }
-    }
-
-    return false
+    return isPathInsideAnyRoot(targetPath, roots)
   }
 
   private getLocalResourceRoots(): vscode.Uri[] {
@@ -3864,15 +3854,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     // - script-src 'nonce-...': Only allow scripts with our nonce
     // - 'wasm-unsafe-eval' remains required for syntax/highlight tooling that relies on WASM evaluation
     // - connect-src: allow only extension-local resource origin (no localhost wildcard network access)
-    // - img-src: Allow webview/data URIs plus https for explicit external screenshot/image preview features
-    const csp = [
-      "default-src 'none'",
-      `style-src 'unsafe-inline' ${webview.cspSource}`,
-      `script-src 'nonce-${nonce}' 'wasm-unsafe-eval'`,
-      `font-src ${webview.cspSource}`,
-      `connect-src ${webview.cspSource}`,
-      `img-src ${webview.cspSource} data: https:`,
-    ].join("; ")
+    // - img-src: allow only extension/data/blob origins (external images are opened through openExternal)
+    const csp = buildWebviewCsp({ cspSource: webview.cspSource, nonce })
 
     return `<!DOCTYPE html>
 <html lang="en" data-theme="kilo-vscode">

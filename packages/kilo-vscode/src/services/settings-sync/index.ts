@@ -1,4 +1,4 @@
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 
 export const SETTINGS_SYNC_KEYS = {
   settingsActiveTab: "settings.activeTab",
@@ -42,16 +42,14 @@ function agentManagerStateKey(workspaceDir: string): string {
   return `kilo.agentManager.state.${encodeURIComponent(workspaceDir)}`
 }
 
-function collectDynamicSyncKeys(): string[] {
-  const workspaceFolders = vscode.workspace.workspaceFolders ?? []
-  return workspaceFolders.flatMap((folder) => {
-    const workspaceDir = folder.uri.fsPath
+function collectDynamicSyncKeys(workspaceDirs: readonly string[] = []): string[] {
+  return workspaceDirs.flatMap((workspaceDir) => {
     return [sessionHistoryCacheKey(workspaceDir), agentManagerStateKey(workspaceDir)]
   })
 }
 
-function getSyncKeysForRegistration(): string[] {
-  return [...Object.values(SETTINGS_SYNC_KEYS), ...collectDynamicSyncKeys()]
+function getSyncKeysForRegistration(workspaceDirs: readonly string[] = []): string[] {
+  return [...Object.values(SETTINGS_SYNC_KEYS), ...collectDynamicSyncKeys(workspaceDirs)]
 }
 
 async function migrateLegacySyncKeys(context: vscode.ExtensionContext): Promise<void> {
@@ -72,8 +70,8 @@ async function migrateLegacySyncKeys(context: vscode.ExtensionContext): Promise<
   }
 }
 
-export function initializeSettingsSync(context: vscode.ExtensionContext): void {
-  context.globalState.setKeysForSync(getSyncKeysForRegistration())
+export function initializeSettingsSync(context: vscode.ExtensionContext, workspaceDirs: readonly string[] = []): void {
+  context.globalState.setKeysForSync(getSyncKeysForRegistration(workspaceDirs))
   void migrateLegacySyncKeys(context)
 }
 
@@ -99,11 +97,11 @@ export async function writeLastProviderAuth(context: vscode.ExtensionContext, pr
   await context.globalState.update(SETTINGS_SYNC_KEYS.lastProviderAuth, providerId.trim())
 }
 
-export function readSettingsSyncDiagnostics(context: vscode.ExtensionContext): {
-  keys: string[]
-  values: Record<string, unknown>
-} {
-  const keys = getSyncKeysForRegistration()
+export function readSettingsSyncDiagnostics(
+  context: vscode.ExtensionContext,
+  workspaceDirs: readonly string[] = [],
+): { keys: string[]; values: Record<string, unknown> } {
+  const keys = getSyncKeysForRegistration(workspaceDirs)
   const values: Record<string, unknown> = {}
 
   for (const key of keys) {

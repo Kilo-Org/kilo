@@ -34,6 +34,7 @@ import type {
   AgentInfo,
   ExtensionMessage,
   FileAttachment,
+  FollowUpSuggestion,
 } from "../types/messages"
 
 // Store structure for messages and parts
@@ -43,6 +44,7 @@ interface SessionStore {
   parts: Record<string, Part[]> // messageID -> parts
   todos: Record<string, TodoItem[]> // sessionID -> todos
   modelSelections: Record<string, ModelSelection> // sessionID -> model
+  followUps: Record<string, FollowUpSuggestion[]> // sessionID -> follow-up suggestions
 }
 
 interface SessionContextValue {
@@ -73,6 +75,9 @@ interface SessionContextValue {
 
   // Todos for current session
   todos: Accessor<TodoItem[]>
+
+  // Follow-up suggestions for current session
+  followUpSuggestions: Accessor<FollowUpSuggestion[]>
 
   // Pending permission requests
   permissions: Accessor<PermissionRequest[]>
@@ -171,6 +176,7 @@ export const SessionProvider: ParentComponent = (props) => {
     parts: {},
     todos: {},
     modelSelections: {},
+    followUps: {},
   })
 
   // Keep pending selection in sync with provider default until the user
@@ -299,6 +305,10 @@ export const SessionProvider: ParentComponent = (props) => {
 
         case "sessionsLoaded":
           handleSessionsLoaded(message.sessions)
+          break
+
+        case "followUpSuggestions":
+          setStore("followUps", message.sessionID, message.suggestions)
           break
 
         case "sessionUpdated":
@@ -504,6 +514,12 @@ export const SessionProvider: ParentComponent = (props) => {
         "modelSelections",
         produce((selections) => {
           delete selections[sessionID]
+        }),
+      )
+      setStore(
+        "followUps",
+        produce((followUps) => {
+          delete followUps[sessionID]
         }),
       )
       // Clean up pending questions/errors for the deleted session
@@ -958,6 +974,11 @@ export const SessionProvider: ParentComponent = (props) => {
     return id ? store.todos[id] || [] : []
   }
 
+  const followUpSuggestions = () => {
+    const id = currentSessionID()
+    return id ? store.followUps[id] || [] : []
+  }
+
   const sessions = createMemo(() =>
     Object.values(store.sessions).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
   )
@@ -1019,6 +1040,7 @@ export const SessionProvider: ParentComponent = (props) => {
     getSessionMetadata,
     getParts,
     todos,
+    followUpSuggestions,
     permissions,
     questions,
     questionErrors,

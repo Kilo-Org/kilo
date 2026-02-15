@@ -6,10 +6,12 @@ import fs from "node:fs/promises"
 import { z } from "zod"
 import { diffLines } from "diff"
 import {
+  type AgentInfo,
   type CommandDefinition,
   type Config,
   type HttpClient,
   type McpConfig,
+  type MessageInfo,
   type ProfileData,
   type SessionInfo,
   type SSEEvent,
@@ -120,6 +122,12 @@ const extensionSettingsEnvelopeSchema = z
   })
   .passthrough()
 
+interface FollowUpSuggestion {
+  id: string
+  text: string
+  mode?: string
+}
+
 export class KiloProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "kilo-code.new.sidebarView"
   private static readonly notificationTimestamps = new Map<string, number>()
@@ -141,6 +149,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   private mdmPolicy: MdmPolicyConfig | null = null
   /** Most recent cloud profile payload; undefined means unknown/not fetched yet. */
   private latestProfileData: ProfileData | null | undefined = undefined
+  /** Latest visible agent list (cached for contextual follow-up suggestion mode hints). */
+  private latestVisibleAgents: AgentInfo[] = []
 
   private trackedSessionIds: Set<string> = new Set()
   private unsubscribeEvent: (() => void) | null = null
@@ -1463,6 +1473,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         messages,
       })
 
+      this.postMessage({
+        type: "followUpSuggestions",
+        sessionID,
+        suggestions: this.buildFollowUpSuggestionsFromHistory(messagesData),
+      })
+
       await this.refreshTodosForSession(sessionID, workspaceDir)
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to load messages:", error)
@@ -1502,6 +1518,169 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       })
     } catch (error) {
       logger.debug("[Kilo New] KiloProvider: No todos loaded for session", { sessionID, error })
+    }
+  }
+
+  private collectPlainTextFromParts(parts: MessagePart[]): string {
+    const chunks: string[] = []
+
+    for (const part of parts) {
+      if (part.type === "text" && typeof part.text === "string") {
+        chunks.push(part.text)
+        continue
+      }
+
+      if (part.type === "reasoning" && typeof part.text === "string") {
+        chunks.push(part.text)
+        continue
+      }
+
+      if (part.type === "tool" && part.state && typeof part.state === "object") {
+        const state = part.state as {
+          status?: string
+          title?: unknown
+          output?: unknown
+          error?: unknown
+        }
+        if (typeof state.title === "string") {
+          chunks.push(state.title)
+        }
+        if (typeof state.output === "string") {
+          chunks.push(state.output)
+        }
+        if (typeof state.error === "string") {
+          chunks.push(state.error)
+        }
+      }
+    }
+
+    return chunks.join("\n").trim()
+  }
+
+  private resolveFollowUpMode(candidates: string[]): string | undefined {
+    if (candidates.length === 0 || this.latestVisibleAgents.length === 0) {
+      return undefined
+    }
+    const agentByLower = new Map(this.latestVisibleAgents.map((agent) => [agent.name.toLowerCase(), agent.name]))
+    for (const candidate of candidates) {
+      const exact = agentByLower.get(candidate.toLowerCase())
+      if (exact) {
+        return exact
+      }
+    }
+    return undefined
+  }
+
+  private buildFollowUpSuggestionsFromHistory(
+    history: Array<{ info: MessageInfo; parts: MessagePart[] }>,
+  ): FollowUpSuggestion[] {
+    const latestAssistant = [...history].reverse().find((entry) => entry.info.role === "assistant")
+    if (!latestAssistant) {
+      return []
+    }
+
+    const latestUser = [...history].reverse().find((entry) => entry.info.role === "user")
+    const assistantText = this.collectPlainTextFromParts(latestAssistant.parts)
+    const userText = latestUser ? this.collectPlainTextFromParts(latestUser.parts) : ""
+    const normalizedAssistant = assistantText.toLowerCase()
+    const normalizedUser = userText.toLowerCase()
+
+    let suggestions: FollowUpSuggestion[]
+
+    const errorLike = /\b(error|failed|failure|exception|traceback|unable|cannot|timeout)\b/i.test(assistantText)
+    const codeLike = /```|diff|patch|stack trace|changed file|refactor|implementation|function|class/i.test(assistantText)
+    const planningLike = /\b(next|plan|roadmap|todo|milestone|priority)\b/i.test(`${normalizedAssistant}\n${normalizedUser}`)
+
+    if (errorLike) {
+      suggestions = [
+        {
+          id: "debug-root-cause",
+          text: "Identify the likely root cause and explain why it failed.",
+          mode: this.resolveFollowUpMode(["debug", "troubleshoot", "review"]),
+        },
+        {
+          id: "debug-minimal-fix",
+          text: "Propose a minimal fix and include a small patch plan.",
+          mode: this.resolveFollowUpMode(["debug", "code", "architect"]),
+        },
+        {
+          id: "debug-verify",
+          text: "What checks should I run to verify the fix safely?",
+        },
+      ]
+    } else if (codeLike) {
+      suggestions = [
+        {
+          id: "code-walkthrough",
+          text: "Walk me through these changes step by step.",
+          mode: this.resolveFollowUpMode(["review", "architect", "code"]),
+        },
+        {
+          id: "code-tests",
+          text: "What tests should I run next for this change?",
+        },
+        {
+          id: "code-risks",
+          text: "What are the biggest regression risks here?",
+          mode: this.resolveFollowUpMode(["review", "debug"]),
+        },
+      ]
+    } else if (planningLike) {
+      suggestions = [
+        {
+          id: "plan-next",
+          text: "What is the highest-impact next step?",
+        },
+        {
+          id: "plan-checklist",
+          text: "Turn this into a concise checklist with priorities.",
+          mode: this.resolveFollowUpMode(["architect", "planner"]),
+        },
+        {
+          id: "plan-verify",
+          text: "What evidence should we collect to mark this done?",
+        },
+      ]
+    } else {
+      suggestions = [
+        {
+          id: "summary",
+          text: "Summarize this response in 3 concise bullets.",
+        },
+        {
+          id: "next-step",
+          text: "What should I do next to make the most progress?",
+        },
+        {
+          id: "validation",
+          text: "How can I quickly validate this end-to-end?",
+        },
+      ]
+    }
+
+    const seen = new Set<string>()
+    return suggestions.filter((item) => {
+      const key = item.text.trim().toLowerCase()
+      if (!key || seen.has(key)) {
+        return false
+      }
+      seen.add(key)
+      return true
+    })
+  }
+
+  private async refreshFollowUpSuggestions(sessionID: string): Promise<void> {
+    const client = this.httpClient ?? (await this.ensureHttpClient())
+    if (!client) {
+      return
+    }
+    const workspaceDir = this.getWorkspaceDirectory()
+    try {
+      const history = await client.getMessages(sessionID, workspaceDir)
+      const suggestions = this.buildFollowUpSuggestionsFromHistory(history)
+      this.postMessage({ type: "followUpSuggestions", sessionID, suggestions })
+    } catch (error) {
+      logger.debug("[Kilo New] KiloProvider: Failed to refresh follow-up suggestions", { sessionID, error })
     }
   }
 
@@ -2235,6 +2414,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
       // Filter to only visible primary/all modes (not subagents, not hidden)
       const visible = agents.filter((a) => a.mode !== "subagent" && !a.hidden)
+      this.latestVisibleAgents = visible
 
       // Find default agent: first one in list (CLI sorts default first)
       const defaultAgent = visible.length > 0 ? visible[0].name : "code"
@@ -3338,6 +3518,18 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           sessionID: event.properties.sessionID,
           status: event.properties.status.type,
         })
+        if (event.properties.status.type === "idle") {
+          void this.refreshFollowUpSuggestions(event.properties.sessionID)
+        }
+        break
+
+      case "session.idle":
+        this.postMessage({
+          type: "sessionStatus",
+          sessionID: event.properties.sessionID,
+          status: "idle",
+        })
+        void this.refreshFollowUpSuggestions(event.properties.sessionID)
         break
 
       case "permission.asked":

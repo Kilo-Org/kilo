@@ -7,6 +7,7 @@ import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup
 import { Button } from "@kilocode/kilo-ui/button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { ContextMenu } from "@kilocode/kilo-ui/context-menu"
+import { Popover } from "@kilocode/kilo-ui/popover"
 import { showToast } from "@kilocode/kilo-ui/toast"
 import { useSession } from "../../context/session"
 import { useServer } from "../../context/server"
@@ -95,6 +96,7 @@ export const PromptInput: Component = () => {
   const [slashSelectedIndex, setSlashSelectedIndex] = createSignal(0)
   const [isRecordingVoice, setIsRecordingVoice] = createSignal(false)
   const [pendingAutoSend, setPendingAutoSend] = createSignal(false)
+  const [thinkingOpen, setThinkingOpen] = createSignal(false)
   let textareaRef: HTMLTextAreaElement | undefined
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
   let speechRecognition: SpeechRecognitionLike | undefined
@@ -212,17 +214,7 @@ export const PromptInput: Component = () => {
     window.dispatchEvent(new CustomEvent(FOLLOW_UP_AUTO_APPROVE_PAUSE_EVENT, { detail: { paused } }))
   }
 
-  const cycleThinkingVariant = () => {
-    if (isDisabled() || isBusy()) return
-
-    const variants = variantOptions().map((variant) => variant.key)
-    if (variants.length === 0) return
-
-    const sequence: Array<string | undefined> = [undefined, ...variants]
-    const current = activeVariant()
-    const index = sequence.findIndex((item) => item === current)
-    const next = sequence[(index + 1) % sequence.length]
-
+  const setThinkingVariant = (next: string | undefined) => {
     const selectedAgent = session.selectedAgent()
     const nextAgents = { ...(config().agent ?? {}) }
     const nextAgentConfig = { ...(nextAgents[selectedAgent] ?? {}) }
@@ -240,6 +232,7 @@ export const PromptInput: Component = () => {
     }
 
     updateConfig({ agent: nextAgents })
+    setThinkingOpen(false)
   }
 
   const getLastUserMessageText = () => {
@@ -892,17 +885,52 @@ export const PromptInput: Component = () => {
         <ModeSwitcher />
         <ModelSelector />
         <Show when={variantOptions().length > 0}>
-          <Tooltip value={language.t("command.model.variant.cycle.description")} placement="top">
-            <Button
-              variant="ghost"
-              size="small"
-              class="prompt-thinking-toggle"
-              onClick={cycleThinkingVariant}
-              disabled={isDisabled() || isBusy()}
-            >
-              {thinkingLabel()}
-            </Button>
-          </Tooltip>
+          <Popover
+            placement="top-start"
+            open={thinkingOpen()}
+            onOpenChange={setThinkingOpen}
+            triggerAs={Button}
+            triggerProps={{
+              variant: "ghost",
+              size: "small",
+              class: "prompt-thinking-toggle",
+              disabled: isDisabled() || isBusy(),
+            }}
+            trigger={
+              <>
+                <span>{thinkingLabel()}</span>
+                <svg class="prompt-thinking-toggle-chevron" width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 4l4 5H4l4-5z" />
+                </svg>
+              </>
+            }
+            class="prompt-thinking-popover"
+          >
+            <div class="prompt-thinking-list" role="listbox" aria-label="Thinking variants">
+              <button
+                type="button"
+                class={`prompt-thinking-item${!activeVariant() ? " selected" : ""}`}
+                onClick={() => setThinkingVariant(undefined)}
+                role="option"
+                aria-selected={!activeVariant()}
+              >
+                Thinking off
+              </button>
+              <For each={variantOptions()}>
+                {(variant) => (
+                  <button
+                    type="button"
+                    class={`prompt-thinking-item${activeVariant() === variant.key ? " selected" : ""}`}
+                    onClick={() => setThinkingVariant(variant.key)}
+                    role="option"
+                    aria-selected={activeVariant() === variant.key}
+                  >
+                    {variant.label}
+                  </button>
+                )}
+              </For>
+            </div>
+          </Popover>
         </Show>
         <Show when={!isDisabled()}>
           <span>{language.t("prompt.hint.sendShortcut")}</span>

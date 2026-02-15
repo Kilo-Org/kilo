@@ -4,12 +4,7 @@ import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { ContextMenu } from "@kilocode/kilo-ui/context-menu"
 import { showToast } from "@kilocode/kilo-ui/toast"
 import { useSession } from "../../context/session"
-
-interface FollowUpSuggestion {
-  id: string
-  text: string
-  mode?: string
-}
+import type { FollowUpSuggestion } from "../../types/messages"
 
 const AUTO_APPROVE_SECONDS = 60
 const FOLLOW_UP_AUTO_APPROVE_PAUSE_EVENT = "kilo:followup-autoapprove-pause"
@@ -46,6 +41,11 @@ export const FollowUpSuggest: Component = () => {
   })
 
   const suggestions = createMemo(() => {
+    const generated = session.followUpSuggestions()
+    if (generated.length > 0) {
+      return generated
+    }
+
     const last = lastAssistantMessage()
     if (!last) {
       return BASE_SUGGESTIONS

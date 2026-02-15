@@ -1013,6 +1013,49 @@ body,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prompt-thinking-toggle-chevron {
+  flex-shrink: 0;
+}
+
+.prompt-thinking-popover {
+  width: 220px;
+  max-width: 220px;
+}
+
+.prompt-thinking-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.prompt-thinking-item {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .prompt-thinking-item:hover {
+    background: var(--vscode-list-hoverBackground, var(--vscode-toolbar-hoverBackground));
+  }
+}
+
+.prompt-thinking-item.selected {
+  background: var(--vscode-list-activeSelectionBackground, var(--vscode-toolbar-hoverBackground));
+  color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+  font-weight: 600;
 }
 
 /* ============================================

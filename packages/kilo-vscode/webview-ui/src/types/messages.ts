@@ -755,6 +755,18 @@ export interface SlashCommandsLoadedMessage {
   error?: string
 }
 
+export interface FollowUpSuggestion {
+  id: string
+  text: string
+  mode?: string
+}
+
+export interface FollowUpSuggestionsMessage {
+  type: "followUpSuggestions"
+  sessionID: string
+  suggestions: FollowUpSuggestion[]
+}
+
 export type ExtensionMessage =
   | ReadyMessage
   | ConnectionStateMessage
@@ -801,6 +813,7 @@ export type ExtensionMessage =
   | MarketplaceActionResultMessage
   | RulesCatalogLoadedMessage
   | SlashCommandsLoadedMessage
+  | FollowUpSuggestionsMessage
 
 // ============================================
 // Messages FROM webview TO extension

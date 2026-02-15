@@ -1705,6 +1705,60 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     return parsed.success ? parsed.data : {}
   }
 
+  private getCachedAllowListPolicy():
+    | { allowAll: boolean; providers: Record<string, { allowAll: boolean; models?: string[] }> }
+    | null {
+    const envelope =
+      this.cachedExtensionPolicyMessage &&
+      typeof this.cachedExtensionPolicyMessage === "object" &&
+      !Array.isArray(this.cachedExtensionPolicyMessage)
+        ? (this.cachedExtensionPolicyMessage as { policy?: unknown })
+        : null
+    const policy =
+      envelope?.policy && typeof envelope.policy === "object" && !Array.isArray(envelope.policy)
+        ? (envelope.policy as Record<string, unknown>)
+        : null
+    const parsed = organizationAllowListSchema.safeParse(policy?.allowList)
+    if (!parsed.success) {
+      return null
+    }
+    return {
+      allowAll: parsed.data.allowAll,
+      providers: parsed.data.providers,
+    }
+  }
+
+  private getOrganizationPolicyViolation(providerID?: string, modelID?: string): string | null {
+    const allowList = this.getCachedAllowListPolicy()
+    if (!allowList || allowList.allowAll) {
+      return null
+    }
+
+    const provider = providerID?.trim()
+    const model = modelID?.trim()
+    if (!provider || !model) {
+      return "Organization policy requires selecting an allowed provider/model before sending."
+    }
+
+    const providerRule = allowList.providers[provider]
+    if (!providerRule) {
+      return `Provider \"${provider}\" is blocked by organization policy.`
+    }
+    if (providerRule.allowAll) {
+      return null
+    }
+
+    const models = Array.isArray(providerRule.models) ? providerRule.models : []
+    if (models.length === 0) {
+      return `Provider \"${provider}\" has no allowed models under organization policy.`
+    }
+    if (!models.includes(model)) {
+      return `Model \"${model}\" is not allowed for provider \"${provider}\" by organization policy.`
+    }
+
+    return null
+  }
+
   private sessionHistoryCacheKey(workspaceDir?: string): string {
     const root = workspaceDir || this.getWorkspaceDirectory()
     const encoded = Buffer.from(root).toString("base64url")
@@ -2519,6 +2573,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     if (!(await this.ensureMdmComplianceOrReject("send-message"))) {
       return
     }
+    const policyViolation = this.getOrganizationPolicyViolation(providerID, modelID)
+    if (policyViolation) {
+      this.postMessage({
+        type: "error",
+        message: policyViolation,
+      })
+      return
+    }
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
@@ -2621,6 +2683,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       this.postMessage({
         type: "error",
         message: "No model selected. Connect a provider to compact this session.",
+      })
+      return
+    }
+    const policyViolation = this.getOrganizationPolicyViolation(providerID, modelID)
+    if (policyViolation) {
+      this.postMessage({
+        type: "error",
+        message: policyViolation,
       })
       return
     }

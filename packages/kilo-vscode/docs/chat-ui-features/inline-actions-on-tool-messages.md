@@ -4,7 +4,7 @@ Inline affordances on tool messages to navigate, inspect, and track progress.
 
 ## Status
 
-🔨 Partial
+✅ Done
 
 ## Location
 
@@ -29,11 +29,11 @@ Inline affordances on tool messages to navigate, inspect, and track progress.
 
 ## Remaining Gaps
 
-- Parity polish for richer external-link/file-operation affordances and deeper progress/status visualization across all tool families
+- None for migration-plan parity scope.
 
 ## Suggested migration
 
-**Reimplement?** Partial.
+**Reimplement?** Completed.
 
 - Inline actions are mostly presentation-layer, but they depend on tool/result metadata being present in the message stream.
 - With Kilo CLI owning orchestration, ensure the adapter:

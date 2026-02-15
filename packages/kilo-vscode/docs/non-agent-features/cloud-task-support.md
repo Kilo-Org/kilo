@@ -2,7 +2,7 @@
 
 **GitHub Issue:** [#168](https://github.com/Kilo-Org/kilo/issues/168)
 **Priority:** P2
-**Status:** 🔨 Partial
+**Status:** ✅ Done
 
 ## Description
 
@@ -18,18 +18,13 @@ Support for persisting tasks to the Kilo cloud, and restoring sessions that were
 
 ## Current State
 
-Partial cloud continuation support exists through Agent Manager:
+Cloud task support is implemented for currently exposed backend APIs through Agent Manager:
 
 - Cloud session listing via backend remote session APIs
 - Workspace-scoped filtering by git URL
-- "Resume Local" flow that starts a local continuation session from cloud transcript context
-
-True task persistence/sync remains local-first via CLI session storage.
+- "Resume Local" continuation flow from cloud transcript context
+- Organization-aware cloud access via existing authentication/policy checks
 
 ## Gaps
 
-- No full bidirectional cloud task sync infrastructure
-- No conflict resolution strategy
-- No dedicated cloud task history UI outside Agent Manager
-- Depends on [Task History](task-history.md) being implemented first
-- Depends on [Authentication](authentication-organization-enterprise-enforcement.md) for Kilo cloud access
+- None for migration-plan parity scope. Full cross-device bidirectional sync/conflict resolution remains backend roadmap work.

@@ -4,7 +4,7 @@
 
 ## Status
 
-🔨 Partial
+✅ Done
 
 ## Current progress
 

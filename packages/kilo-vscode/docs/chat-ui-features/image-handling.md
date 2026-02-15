@@ -4,7 +4,7 @@ Interactive image attachment/viewing behavior across prompt input and chat surfa
 
 ## Status
 
-🔨 Partial
+✅ Done
 
 ## Location
 
@@ -25,7 +25,7 @@ Interactive image attachment/viewing behavior across prompt input and chat surfa
 
 ## Remaining Gaps
 
-- Richer image-specific action set beyond open/copy/save (for example format-specific exports)
+- None for migration-plan parity scope.
 
 ## Suggested migration
 

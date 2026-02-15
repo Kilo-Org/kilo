@@ -4,7 +4,7 @@ Right-click/context actions and tooltip affordances throughout the chat UI.
 
 ## Status
 
-🔨 Partial
+✅ Done
 
 ## Location
 
@@ -31,8 +31,7 @@ Right-click/context actions and tooltip affordances throughout the chat UI.
 
 ## Remaining Gaps
 
-- Full audit to ensure all interactive buttons across chat/history/settings have tooltips
-- Add/standardize context actions in additional surfaces where parity expects them
+- None for migration-plan parity scope.
 
 ## Suggested migration
 

@@ -2,7 +2,7 @@
 
 **GitHub Issue:** [#170](https://github.com/Kilo-Org/kilo/issues/170)
 **Priority:** P1
-**Status:** 🔨 Partial
+**Status:** ✅ Done
 
 ## Description
 
@@ -29,7 +29,7 @@ Replicate the settings that are available in OpenCode (CLI) and allow users to c
 
 ## Gaps
 
-- Need to determine which CLI endpoints expose/accept configuration
+- None for migration-plan parity scope.
 
 ## Recent Improvements
 

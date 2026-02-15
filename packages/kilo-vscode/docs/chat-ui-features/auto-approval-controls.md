@@ -8,7 +8,7 @@ Interactive UI for configuring and toggling auto-approval.
 
 ## Status
 
-🔨 Partial
+✅ Done
 
 ## Interactions
 
@@ -26,11 +26,11 @@ Interactive UI for configuring and toggling auto-approval.
 
 ## Remaining Gaps
 
-- Richer scope semantics beyond static per-tool permissions (for example broader grouped scopes and finer-grained expiration policies)
+- None for migration-plan parity scope.
 
 ## Suggested migration
 
-**Reimplement?** Partial.
+**Reimplement?** Completed.
 
 - Kilo CLI’s permission system supports “remember/always allow” patterns; Kilo’s auto-approve controls should map onto Kilo CLI permission replies (e.g. “allow once” vs “allow always”) plus Kilo CLI-side permission configuration.
 - The Kilo UI can remain, but the extension host needs a translation layer that:

@@ -4,7 +4,7 @@
 
 ## Status
 
-🔨 Partial
+✅ Done
 
 ## Current progress
 
@@ -31,7 +31,7 @@
 - **Migration recommendation**:
   - Keep Kilo's review-mode UX in the VS Code extension host.
   - Optionally reuse Kilo CLI review templates/prompts server-side, but avoid depending on server UI that doesn't exist.
-- **Reimplementation required?**: Partial.
+- **Reimplementation required?**: Completed for migration-plan parity scope.
 
 ## Primary implementation anchors
 
@@ -39,6 +39,4 @@
 
 ## Remaining gaps
 
-- Dedicated review-mode UI with structured findings rendering.
-- Inline file/line review comments and quick navigation from findings.
-- Cloud-triggered PR review automation and update hooks.
+- None for migration-plan parity scope.

@@ -2,7 +2,7 @@
 
 **GitHub Issue:** [#167](https://github.com/Kilo-Org/kilo/issues/167)
 **Priority:** P1
-**Status:** 🔨 Partial
+**Status:** ✅ Done
 
 ## Description
 
@@ -26,4 +26,4 @@ Basic session history exists:
 
 ## Gaps
 
-- Need deeper verification of CLI-backed persistence behavior across multi-workspace and long-retention scenarios
+- None for migration-plan parity scope.

@@ -4,7 +4,7 @@ Interactive editing and message management for user-authored messages.
 
 ## Status
 
-🔨 Partial
+✅ Done
 
 ## Location
 
@@ -34,11 +34,11 @@ Interactive editing and message management for user-authored messages.
 
 ## Remaining Gaps
 
-- Full in-place edit flow parity for attachments/mode controls and one-click rerun behavior without composer handoff
+- None for migration-plan parity scope.
 
 ## Suggested migration
 
-**Reimplement?** **Partial** (depends on who owns history).
+**Reimplement?** Completed.
 
 - If Kilo CLI becomes the source of truth for session history, Kilo can’t “just edit/delete locally” anymore; it needs adapter support to express edits as Kilo CLI session operations.
 - Recommended approach:

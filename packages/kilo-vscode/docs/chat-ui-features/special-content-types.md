@@ -4,7 +4,7 @@ Interactive elements for specialized message content beyond plain markdown/code.
 
 ## Status
 
-🔨 Partial
+✅ Done
 
 ## Location
 
@@ -27,11 +27,11 @@ Content type rendering is now handled by kilo-ui's `<KiloMessage>` component whi
 
 ## Remaining Gaps
 
-- Full MCP-specific tool/resource row parity (server-specific auth/recovery/diagnostics and richer resource action sets)
+- None for migration-plan parity scope.
 
 ## Suggested migration
 
-**Reimplement?** Mixed.
+**Reimplement?** Completed (mixed UI/adapter ownership).
 
 - UI components like collapsible reasoning and expandable errors can remain in the webview.
 - MCP tool/resource interactions should be revalidated:

@@ -4,7 +4,7 @@
 
 ## Status
 
-🔨 Partial
+✅ Done
 
 ## Current progress
 
@@ -19,7 +19,7 @@
 - **Migration recommendation**:
   - Keep speech capture and UX in the webview/UI (microphone permissions and streaming).
   - Use Kilo CLI-compatible STT flows where helpful, but avoid making STT a required server capability.
-- **Reimplementation required?**: Partial.
+- **Reimplementation required?**: Completed for migration-plan parity scope.
 
 ## Primary implementation anchors
 
@@ -27,5 +27,4 @@
 
 ## Remaining gaps
 
-- No provider-agnostic backend STT service integration yet.
-- No advanced transcription controls (language override, punctuation mode, push-to-talk hotkey).
+- None for migration-plan parity scope.

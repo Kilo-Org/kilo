@@ -4,7 +4,7 @@ Checkpoint restore/navigation and task-level UX actions.
 
 ## Status
 
-🔨 Partial
+✅ Done
 
 ## Location
 
@@ -29,11 +29,11 @@ Checkpoint restore/navigation and task-level UX actions.
 
 ## Remaining Gaps
 
-- Full undo/redo parity and checkpoint-specific restore affordances
+- None for migration-plan parity scope.
 
 ## Suggested migration
 
-**Reimplement?** Partial.
+**Reimplement?** Completed.
 
 - If “checkpoints” are implemented as Kilo-side git snapshots, they can remain a VS Code integration owned by the extension host (still valid under the new architecture).
 - If you want to align with Kilo CLI-native session operations (undo/redo/fork/diff), implement adapter support that maps those Kilo CLI session controls into existing Kilo UI affordances (or add new controls).

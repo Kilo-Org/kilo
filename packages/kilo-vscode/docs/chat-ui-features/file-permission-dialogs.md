@@ -4,7 +4,7 @@ Batch approval UI for file read operations.
 
 ## Status
 
-🔨 Partial
+✅ Done
 
 ## Location
 
@@ -30,11 +30,11 @@ Batch approval UI for file read operations.
 
 ## Remaining Gaps
 
-- Per-file granularity/overrides beyond the current pattern list need parity work if required by product UX.
+- None for migration-plan parity scope.
 
 ## Suggested migration
 
-**Reimplement?** Partial (UI can stay; semantics need remapping).
+**Reimplement?** Completed.
 
 - Kilo CLI uses a permission-request queue (asked/replied) model; the extension host must translate Kilo CLI permission events into Kilo's existing approval UX per [`docs/opencode-core/opencode-migration-plan.md`](docs/opencode-core/opencode-migration-plan.md:1).
 - If Kilo CLI permission prompts are per-tool-call (not "batch per-file"), you may need to:

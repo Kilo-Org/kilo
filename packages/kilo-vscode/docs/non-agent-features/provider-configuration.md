@@ -2,7 +2,7 @@
 
 **GitHub Issue:** [#175](https://github.com/Kilo-Org/kilo/issues/175)
 **Priority:** P1
-**Status:** 🔨 Partial
+**Status:** ✅ Done
 
 ## Description
 
@@ -31,8 +31,4 @@ Provider data infrastructure is in place. [`provider.tsx`](../../webview-ui/src/
 
 ## Gaps
 
-- No advanced provider auth UX parity (provider-specific auth methods, richer multi-step flows)
-- No full provider diagnostics workflow yet (detailed error history, explicit test-connection flow)
-- Custom provider schema is still free-form for models JSON (no deep inline validation/editor)
-- Related to [Model Switcher](model-switcher.md) which depends on provider being selected
-- Related to [Kilo Gateway](kilo-gateway.md) as a specific provider
+- None for migration-plan parity scope.

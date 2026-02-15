@@ -70,6 +70,18 @@ const webviewSessionSchema = z.object({
   title: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  revert: z
+    .object({
+      messageID: z.string(),
+    })
+    .optional(),
+  metadata: z
+    .object({
+      cost: z.number().optional(),
+      model: z.string().optional(),
+      messageCount: z.number().int().nonnegative().optional(),
+    })
+    .optional(),
   summary: z
     .object({
       additions: z.number(),
@@ -80,6 +92,29 @@ const webviewSessionSchema = z.object({
 })
 
 const webviewSessionsSchema = z.array(webviewSessionSchema)
+
+const organizationAllowListSchema = z
+  .object({
+    allowAll: z.boolean().optional().default(true),
+    providers: z
+      .record(
+        z.string(),
+        z.object({
+          allowAll: z.boolean().optional().default(true),
+          models: z.array(z.string()).optional(),
+        }),
+      )
+      .optional()
+      .default({}),
+  })
+  .strict()
+
+const extensionSettingsEnvelopeSchema = z
+  .object({
+    organization: z.record(z.string(), z.unknown()).optional(),
+    user: z.record(z.string(), z.unknown()).optional(),
+  })
+  .passthrough()
 
 export class KiloProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "kilo-code.new.sidebarView"
@@ -96,6 +131,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   private cachedAgentsMessage: unknown = null
   /** Cached configLoaded payload so requestConfig can be served before httpClient is ready */
   private cachedConfigMessage: unknown = null
+  /** Cached extension policy payload for org/MDM-aware UX gating */
+  private cachedExtensionPolicyMessage: unknown = null
 
   private trackedSessionIds: Set<string> = new Set()
   private unsubscribeEvent: (() => void) | null = null
@@ -164,6 +201,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     this.sendSettingsUiState()
     this.sendCommandApprovalSettings()
     this.sendGatewayPreference()
+    if (this.cachedExtensionPolicyMessage) {
+      this.postMessage(this.cachedExtensionPolicyMessage)
+    }
 
     // Always attempt to fetch+push profile when connected.
     if (this.connectionState === "connected" && this.httpClient) {
@@ -399,6 +439,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           break
         case "openCheckpointPicker":
           await this.handleOpenCheckpointPicker(message.sessionID)
+          break
+        case "unrevertSession":
+          await this.handleUnrevertSession(message.sessionID)
           break
         case "pasteAttachments": {
           const files = z
@@ -1197,6 +1240,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       await this.fetchAndSendProviders()
       await this.fetchAndSendAgents()
       await this.fetchAndSendConfig()
+      await this.fetchAndSendExtensionPolicy()
       this.sendNotificationSettings()
       this.sendCommandApprovalSettings()
       this.sendGatewayPreference()
@@ -1217,12 +1261,21 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   /**
    * Convert SessionInfo to webview format.
    */
-  private sessionToWebview(session: SessionInfo) {
+  private sessionToWebview(
+    session: SessionInfo,
+    metadata?: {
+      cost?: number
+      model?: string
+      messageCount?: number
+    },
+  ) {
     return {
       id: session.id,
       title: session.title,
       createdAt: new Date(session.time.created).toISOString(),
       updatedAt: new Date(session.time.updated).toISOString(),
+      ...(session.revert?.messageID ? { revert: { messageID: session.revert.messageID } } : {}),
+      ...(metadata ? { metadata } : {}),
       summary: session.summary,
     }
   }
@@ -1459,6 +1512,63 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     await this.refreshTodosForSession(targetSessionID, workspaceDir)
   }
 
+  private async buildSessionHistoryMetadata(
+    client: HttpClient,
+    workspaceDir: string,
+    sessions: SessionInfo[],
+  ): Promise<Map<string, { cost?: number; model?: string; messageCount?: number }>> {
+    const result = new Map<string, { cost?: number; model?: string; messageCount?: number }>()
+    const targets = [...sessions].sort((a, b) => b.time.updated - a.time.updated).slice(0, 20)
+
+    await Promise.all(
+      targets.map(async (session) => {
+        try {
+          const messages = await client.getMessages(session.id, workspaceDir)
+          if (messages.length === 0) {
+            return
+          }
+
+          let totalCost = 0
+          let model: string | undefined
+          for (const entry of messages) {
+            if (entry.info.role !== "assistant") {
+              continue
+            }
+            totalCost += entry.info.cost ?? 0
+          }
+
+          for (let index = messages.length - 1; index >= 0; index--) {
+            const info = messages[index]?.info
+            if (!info || info.role !== "assistant") {
+              continue
+            }
+            if (info.providerID && info.modelID) {
+              model = `${info.providerID}/${info.modelID}`
+              break
+            }
+            if (info.modelID) {
+              model = info.modelID
+              break
+            }
+          }
+
+          result.set(session.id, {
+            ...(totalCost > 0 ? { cost: totalCost } : {}),
+            ...(model ? { model } : {}),
+            messageCount: messages.length,
+          })
+        } catch (error) {
+          logger.debug("[Kilo New] KiloProvider: Failed to build session history metadata", {
+            sessionID: session.id,
+            error,
+          })
+        }
+      }),
+    )
+
+    return result
+  }
+
   /**
    * Handle loading all sessions.
    */
@@ -1487,7 +1597,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     try {
       const workspaceDir = this.getWorkspaceDirectory()
       const sessions = await client.listSessions(workspaceDir)
-      const webviewSessions = sessions.map((session) => this.sessionToWebview(session))
+      const metadataBySessionID = await this.buildSessionHistoryMetadata(client, workspaceDir, sessions)
+      const webviewSessions = sessions.map((session) => this.sessionToWebview(session, metadataBySessionID.get(session.id)))
 
       this.postMessage({
         type: "sessionsLoaded",
@@ -1522,11 +1633,114 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     return parsed.success ? parsed.data : {}
   }
 
+  private parseExtensionPolicy(
+    extensionSettings: unknown,
+  ): {
+    fetchedAt: string
+    allowList?: { allowAll: boolean; providers: Record<string, { allowAll: boolean; models?: string[] }> }
+    featureFlags?: Record<string, boolean>
+    mdmEnforced?: boolean
+    organizationRaw?: Record<string, unknown>
+    userRaw?: Record<string, unknown>
+  } | null {
+    const parsed = extensionSettingsEnvelopeSchema.safeParse(extensionSettings)
+    const organizationRaw = (parsed.success ? parsed.data.organization : undefined) ?? {}
+    const userRaw = (parsed.success ? parsed.data.user : undefined) ?? {}
+
+    const directRecord =
+      !parsed.success && extensionSettings && typeof extensionSettings === "object" && !Array.isArray(extensionSettings)
+        ? (extensionSettings as Record<string, unknown>)
+        : {}
+
+    const allowListCandidate =
+      organizationRaw.allowList ?? organizationRaw.organizationAllowList ?? directRecord.allowList ?? directRecord.organizationAllowList
+    const allowListParsed = organizationAllowListSchema.safeParse(allowListCandidate)
+    const allowList = allowListParsed.success
+      ? {
+          allowAll: allowListParsed.data.allowAll,
+          providers: allowListParsed.data.providers,
+        }
+      : undefined
+
+    const featureFlagsSource =
+      (userRaw.features && typeof userRaw.features === "object" ? (userRaw.features as Record<string, unknown>) : undefined) ??
+      (organizationRaw.featureFlags && typeof organizationRaw.featureFlags === "object"
+        ? (organizationRaw.featureFlags as Record<string, unknown>)
+        : undefined)
+    const featureFlags: Record<string, boolean> = {}
+    if (featureFlagsSource) {
+      for (const [key, value] of Object.entries(featureFlagsSource)) {
+        if (typeof value === "boolean") {
+          featureFlags[key] = value
+        }
+      }
+    }
+
+    const mdmSources = [
+      organizationRaw.mdm,
+      organizationRaw.mdmPolicy,
+      organizationRaw.mdmEnforced,
+      organizationRaw.managed,
+      organizationRaw.policyManaged,
+      directRecord.mdm,
+      directRecord.mdmPolicy,
+      directRecord.mdmEnforced,
+    ]
+    const mdmEnforced = mdmSources.some((value) => value === true || (typeof value === "object" && value !== null))
+
+    const hasOrganization = Object.keys(organizationRaw).length > 0
+    const hasUser = Object.keys(userRaw).length > 0
+    const hasFeatureFlags = Object.keys(featureFlags).length > 0
+    if (!allowList && !hasFeatureFlags && !mdmEnforced && !hasOrganization && !hasUser) {
+      return null
+    }
+
+    return {
+      fetchedAt: new Date().toISOString(),
+      ...(allowList ? { allowList } : {}),
+      ...(hasFeatureFlags ? { featureFlags } : {}),
+      ...(mdmEnforced ? { mdmEnforced: true } : {}),
+      ...(hasOrganization ? { organizationRaw } : {}),
+      ...(hasUser ? { userRaw } : {}),
+    }
+  }
+
+  private async fetchAndSendExtensionPolicy(): Promise<void> {
+    const client = this.httpClient ?? (await this.ensureHttpClient())
+    if (!client) {
+      if (this.cachedExtensionPolicyMessage) {
+        this.postMessage(this.cachedExtensionPolicyMessage)
+      }
+      return
+    }
+
+    try {
+      const extensionSettings = await client.getExtensionSettings()
+      const policy = this.parseExtensionPolicy(extensionSettings)
+      const message = {
+        type: "extensionPolicyLoaded",
+        policy,
+      }
+      this.cachedExtensionPolicyMessage = message
+      this.postMessage(message)
+    } catch (error) {
+      logger.debug("[Kilo New] KiloProvider: Failed to fetch extension policy settings", error)
+      const message = {
+        type: "extensionPolicyLoaded",
+        policy: null,
+      }
+      this.cachedExtensionPolicyMessage = message
+      this.postMessage(message)
+    }
+  }
+
   private readCachedSessions(): Array<{
     id: string
     title?: string
     createdAt: string
     updatedAt: string
+    revert?: { messageID: string }
+    metadata?: { cost?: number; model?: string; messageCount?: number }
     summary?: { additions: number; deletions: number; files: number }
   }> {
     const raw = this.extensionContext.globalState.get<unknown>(SESSION_HISTORY_CACHE_KEY)
@@ -1543,6 +1757,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       title?: string
       createdAt: string
       updatedAt: string
+      revert?: { messageID: string }
+      metadata?: { cost?: number; model?: string; messageCount?: number }
       summary?: { additions: number; deletions: number; files: number }
     }>,
   ): Promise<void> {
@@ -2030,11 +2246,13 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     name: string
     description?: string
     source?: "command" | "mcp" | "skill"
+    hints?: string[]
   } {
     return {
       name: command.name,
       description: command.description,
       source: command.source,
+      hints: Array.isArray(command.hints) ? command.hints : [],
     }
   }
 
@@ -2349,6 +2567,41 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private async handleUnrevertSession(sessionID?: string): Promise<void> {
+    const client = await this.ensureHttpClient()
+    if (!client) {
+      this.postMessage({
+        type: "error",
+        message: "Not connected to CLI backend",
+      })
+      return
+    }
+
+    const targetSessionID = sessionID || this.currentSession?.id
+    if (!targetSessionID) {
+      return
+    }
+
+    try {
+      const workspaceDir = this.getWorkspaceDirectory()
+      const updated = await client.unrevertSession(targetSessionID, workspaceDir)
+      if (this.currentSession?.id === updated.id) {
+        this.currentSession = updated
+      }
+      this.postMessage({
+        type: "sessionUpdated",
+        session: this.sessionToWebview(updated),
+      })
+      await this.handleLoadMessages(updated.id)
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to unrevert session:", error)
+      this.postMessage({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to redo session state",
+      })
+    }
+  }
+
   private async handleForkSession(sessionID?: string, messageID?: string): Promise<void> {
     const client = await this.ensureHttpClient()
     if (!client) {
@@ -2636,6 +2889,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       const profileData = await client.getProfile()
       this.postMessage({ type: "profileData", data: profileData })
       this.postMessage({ type: "deviceAuthComplete" })
+      await this.fetchAndSendExtensionPolicy()
 
       // Step 5: If user has organizations, navigate to profile view so they can pick one
       if (profileData?.profile.organizations && profileData.profile.organizations.length > 0) {
@@ -2756,6 +3010,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to refresh providers after org switch:", error)
     }
+    await this.fetchAndSendExtensionPolicy()
   }
 
   /**
@@ -2774,6 +3029,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       type: "profileData",
       data: null,
     })
+    await this.fetchAndSendExtensionPolicy()
   }
 
   /**

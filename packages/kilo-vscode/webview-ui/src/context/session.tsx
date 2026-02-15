@@ -60,6 +60,8 @@ interface SessionContextValue {
   // Session status
   status: Accessor<SessionStatus>
   loading: Accessor<boolean>
+  canUndo: Accessor<boolean>
+  canRedo: Accessor<boolean>
 
   // Messages for current session
   messages: Accessor<Message[]>
@@ -96,6 +98,8 @@ interface SessionContextValue {
   sendMessage: (text: string, providerID?: string, modelID?: string, files?: FileAttachment[]) => void
   abort: () => void
   compact: () => void
+  undo: () => void
+  redo: () => void
   seeNewChanges: () => void
   createTodo: (content: string, status?: "pending" | "in_progress" | "completed" | "cancelled") => void
   updateTodo: (
@@ -581,6 +585,42 @@ export const SessionProvider: ParentComponent = (props) => {
     })
   }
 
+  function undo() {
+    if (!server.isConnected()) {
+      return
+    }
+    const current = currentSession()
+    const revertID = current?.revert?.messageID
+    const sessionMessages = messages().filter((message) => message.role === "user")
+    const target = [...sessionMessages].reverse().find((message) => !revertID || message.id < revertID)
+    if (!target) {
+      return
+    }
+    revertMessage(target.id)
+  }
+
+  function redo() {
+    if (!server.isConnected()) {
+      return
+    }
+    const sessionID = currentSessionID()
+    const revertID = currentSession()?.revert?.messageID
+    if (!sessionID || !revertID) {
+      return
+    }
+
+    const nextMessage = messages().find((message) => message.role === "user" && message.id > revertID)
+    if (nextMessage) {
+      revertMessage(nextMessage.id)
+      return
+    }
+
+    vscode.postMessage({
+      type: "unrevertSession",
+      sessionID,
+    })
+  }
+
   function seeNewChanges() {
     vscode.postMessage({
       type: "seeNewChanges",
@@ -848,6 +888,23 @@ export const SessionProvider: ParentComponent = (props) => {
     return id ? store.messages[id] || [] : []
   }
 
+  const canUndo = createMemo(() => {
+    const current = currentSession()
+    const sessionMessages = messages().filter((message) => message.role === "user")
+    if (sessionMessages.length === 0) {
+      return false
+    }
+    const revertID = current?.revert?.messageID
+    if (!revertID) {
+      return true
+    }
+    return sessionMessages.some((message) => message.id < revertID)
+  })
+
+  const canRedo = createMemo(() => {
+    return !!currentSession()?.revert?.messageID
+  })
+
   const getSessionMessages = (sessionID: string) => {
     return store.messages[sessionID] || []
   }
@@ -887,8 +944,8 @@ export const SessionProvider: ParentComponent = (props) => {
 
     return {
       durationMs,
-      cost: totalCost > 0 ? totalCost : undefined,
-      model,
+      cost: totalCost > 0 ? totalCost : info.metadata?.cost,
+      model: model ?? info.metadata?.model,
     }
   }
 
@@ -955,6 +1012,8 @@ export const SessionProvider: ParentComponent = (props) => {
     sessionsLoadError,
     status,
     loading,
+    canUndo,
+    canRedo,
     messages,
     getSessionMessages,
     getSessionMetadata,
@@ -973,6 +1032,8 @@ export const SessionProvider: ParentComponent = (props) => {
     sendMessage,
     abort,
     compact,
+    undo,
+    redo,
     seeNewChanges,
     createTodo,
     updateTodo,

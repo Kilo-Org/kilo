@@ -70,6 +70,14 @@ function formatVariantLabel(key: string, metadata: Record<string, unknown> | und
     .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+function attachmentToMarkdown(file: FileAttachment): string {
+  const label = (file.name ?? "attachment").replace(/\]/g, "\\]")
+  if (file.mime.startsWith("image/")) {
+    return `![${label}](${file.url})`
+  }
+  return `[${label}](${file.url})`
+}
+
 export const PromptInput: Component = () => {
   const session = useSession()
   const server = useServer()
@@ -86,6 +94,7 @@ export const PromptInput: Component = () => {
   const [slashCommandsRequested, setSlashCommandsRequested] = createSignal(false)
   const [slashSelectedIndex, setSlashSelectedIndex] = createSignal(0)
   const [isRecordingVoice, setIsRecordingVoice] = createSignal(false)
+  const [pendingAutoSend, setPendingAutoSend] = createSignal(false)
   let textareaRef: HTMLTextAreaElement | undefined
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
   let speechRecognition: SpeechRecognitionLike | undefined
@@ -300,13 +309,27 @@ export const PromptInput: Component = () => {
   })
 
   const prefillListener = (event: Event) => {
-    const custom = event as CustomEvent<{ text?: string }>
+    const custom = event as CustomEvent<{
+      text?: string
+      files?: FileAttachment[]
+      providerID?: string
+      modelID?: string
+      autoSend?: boolean
+    }>
     const textValue = custom.detail?.text
-    if (typeof textValue !== "string" || textValue.length === 0) {
+    if (typeof textValue !== "string") {
       return
     }
     setText(textValue)
     setGhostText("")
+    const incomingFiles = Array.isArray(custom.detail?.files) ? custom.detail!.files : undefined
+    if (incomingFiles) {
+      setAttachments(incomingFiles)
+    }
+    if (custom.detail?.providerID && custom.detail?.modelID) {
+      session.selectModel(custom.detail.providerID, custom.detail.modelID)
+    }
+    setPendingAutoSend(!!custom.detail?.autoSend)
     requestAnimationFrame(() => {
       if (!textareaRef) return
       textareaRef.value = textValue
@@ -497,6 +520,7 @@ export const PromptInput: Component = () => {
     setText("")
     setGhostText("")
     setAttachments([])
+    setPendingAutoSend(false)
     setFollowUpAutoApprovePaused(false)
 
     // Reset textarea height
@@ -504,6 +528,19 @@ export const PromptInput: Component = () => {
       textareaRef.style.height = "auto"
     }
   }
+
+  createEffect(() => {
+    if (!pendingAutoSend()) {
+      return
+    }
+    if (isBusy() || isDisabled()) {
+      return
+    }
+    if (!canSend()) {
+      return
+    }
+    handleSend()
+  })
 
   const handleAttachFiles = () => {
     if (isBusy() || isDisabled()) return
@@ -528,6 +565,15 @@ export const PromptInput: Component = () => {
       showToast({ variant: "success", title: "Attachment path copied" })
     } catch {
       showToast({ variant: "error", title: "Failed to copy attachment path" })
+    }
+  }
+
+  const handleCopyAttachmentMarkdown = async (file: FileAttachment) => {
+    try {
+      await navigator.clipboard.writeText(attachmentToMarkdown(file))
+      showToast({ variant: "success", title: "Markdown copied" })
+    } catch {
+      showToast({ variant: "error", title: "Failed to copy markdown" })
     }
   }
 
@@ -712,6 +758,9 @@ export const PromptInput: Component = () => {
                     </ContextMenu.Item>
                     <ContextMenu.Item onSelect={() => void handleCopyAttachmentPath(file.url)}>
                       <ContextMenu.ItemLabel>{language.t("session.header.open.copyPath")}</ContextMenu.ItemLabel>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item onSelect={() => void handleCopyAttachmentMarkdown(file)}>
+                      <ContextMenu.ItemLabel>Copy Markdown</ContextMenu.ItemLabel>
                     </ContextMenu.Item>
                     <ContextMenu.Separator />
                     <ContextMenu.Item onSelect={() => handleRemoveAttachment(file.url)}>

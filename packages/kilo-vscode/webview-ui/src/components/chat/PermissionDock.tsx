@@ -1,8 +1,10 @@
 import { Component, For, Show, createEffect, createMemo, createSignal } from "solid-js"
 import { BasicTool } from "@kilocode/kilo-ui/basic-tool"
 import { Button } from "@kilocode/kilo-ui/button"
+import { showToast } from "@kilocode/kilo-ui/toast"
 import { useSession } from "../../context/session"
 import { useLanguage } from "../../context/language"
+import { useVSCode } from "../../context/vscode"
 import type { PermissionRequest } from "../../types/messages"
 
 function readPatterns(request: PermissionRequest): string[] {
@@ -33,9 +35,25 @@ function readPatterns(request: PermissionRequest): string[] {
   return [...new Set(collected)]
 }
 
+function resolveOpenablePath(pattern: string): string | undefined {
+  const trimmed = pattern.trim()
+  if (!trimmed) {
+    return undefined
+  }
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("file://")) {
+    return trimmed
+  }
+  const globChars = /[*?[\]{}]/
+  if (globChars.test(trimmed)) {
+    return undefined
+  }
+  return trimmed.replace(/\/+$/, "")
+}
+
 export const PermissionDock: Component<{ requests: PermissionRequest[] }> = (props) => {
   const session = useSession()
   const language = useLanguage()
+  const vscode = useVSCode()
   const [activeIndex, setActiveIndex] = createSignal(0)
 
   createEffect(() => {
@@ -59,6 +77,12 @@ export const PermissionDock: Component<{ requests: PermissionRequest[] }> = (pro
 
   const permission = createMemo(() => (activeRequest()?.permission || activeRequest()?.toolName || "").trim())
   const patterns = createMemo(() => (activeRequest() ? readPatterns(activeRequest()!) : []))
+  const patternRows = createMemo(() =>
+    patterns().map((pattern) => ({
+      pattern,
+      openable: resolveOpenablePath(pattern),
+    })),
+  )
 
   const subtitle = createMemo(() => {
     const value = permission()
@@ -88,6 +112,27 @@ export const PermissionDock: Component<{ requests: PermissionRequest[] }> = (pro
       return
     }
     session.respondToPermissions(ids, response)
+  }
+
+  const openPattern = (pattern: string) => {
+    const target = resolveOpenablePath(pattern)
+    if (!target) {
+      return
+    }
+    if (target.startsWith("http://") || target.startsWith("https://")) {
+      vscode.postMessage({ type: "openExternal", url: target })
+      return
+    }
+    vscode.postMessage({ type: "openFilePath", path: target })
+  }
+
+  const copyPattern = async (pattern: string) => {
+    try {
+      await navigator.clipboard.writeText(pattern)
+      showToast({ variant: "success", title: "Path copied" })
+    } catch {
+      showToast({ variant: "error", title: "Failed to copy path" })
+    }
   }
 
   const canStepBack = createMemo(() => activeIndex() > 0)
@@ -121,9 +166,43 @@ export const PermissionDock: Component<{ requests: PermissionRequest[] }> = (pro
             </Button>
           </div>
         </Show>
-        <Show when={patterns().length > 0}>
-          <div class="tool-inline-actions">
-            <For each={patterns().slice(0, 12)}>{(pattern) => <code class="tool-inline-path">{pattern}</code>}</For>
+        <Show when={patternRows().length > 0}>
+          <div class="tool-inline-diff-panel">
+            <For each={patternRows().slice(0, 8)}>
+              {(row) => (
+                <div
+                  style={{
+                    display: "flex",
+                    "align-items": "center",
+                    gap: "6px",
+                    "justify-content": "space-between",
+                    padding: "6px 8px",
+                    "border-bottom": "1px solid var(--vscode-panel-border)",
+                  }}
+                >
+                  <code class="tool-inline-path" style={{ margin: 0, flex: 1, "min-width": 0 }}>
+                    {row.pattern}
+                  </code>
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      disabled={!row.openable}
+                      onClick={() => openPattern(row.pattern)}
+                      aria-label="Open path"
+                    >
+                      Open
+                    </Button>
+                    <Button variant="ghost" size="small" onClick={() => void copyPattern(row.pattern)} aria-label="Copy path">
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </For>
+            <Show when={patternRows().length > 8}>
+              <div class="tool-inline-diff-truncated">+{patternRows().length - 8} more patterns</div>
+            </Show>
           </div>
         </Show>
         <Show when={permission() === "doom_loop"}>

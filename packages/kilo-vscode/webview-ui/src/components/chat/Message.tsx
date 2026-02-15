@@ -47,6 +47,15 @@ interface ImagePart {
   filename?: string
 }
 
+interface FilePartLike {
+  type: "file"
+  id: string
+  mime: string
+  url: string
+  originalUrl?: string
+  filename?: string
+}
+
 interface InlineDiffPreview {
   path?: string
   additions: number
@@ -477,6 +486,23 @@ function getToolResourceLinks(props: ToolProps): string[] {
   return Array.from(values).slice(0, 8)
 }
 
+function filePartToAttachment(part: FilePartLike): FileAttachment {
+  return {
+    mime: part.mime,
+    url: part.originalUrl ?? part.url,
+    previewUrl: part.mime.startsWith("image/") ? part.url : undefined,
+    name: part.filename,
+  }
+}
+
+function attachmentMarkdown(attachment: FileAttachment): string {
+  const label = (attachment.name ?? "attachment").replace(/\]/g, "\\]")
+  if (attachment.mime.startsWith("image/")) {
+    return `![${label}](${attachment.url})`
+  }
+  return `[${label}](${attachment.url})`
+}
+
 const BashTool: Component<ToolProps> = (props) => {
   const session = useSession()
   const server = useServer()
@@ -485,6 +511,7 @@ const BashTool: Component<ToolProps> = (props) => {
 
   const isRunning = () => props.status === "running" || props.status === "pending"
   const exitCode = () => getExitCode(props.metadata?.exit)
+  const [showFullOutput, setShowFullOutput] = createSignal(false)
 
   const status = createMemo(() => {
     if (isRunning()) return { state: "running", label: "Running" }
@@ -506,6 +533,22 @@ const BashTool: Component<ToolProps> = (props) => {
     const raw = props.output ?? props.metadata.output
     return typeof raw === "string" ? stripAnsi(raw) : ""
   }
+  const outputStats = createMemo(() => {
+    const body = output()
+    const lines = body ? body.split("\n") : []
+    return {
+      lines,
+      lineCount: lines.length,
+    }
+  })
+  const effectiveOutput = createMemo(() => {
+    const { lines, lineCount } = outputStats()
+    if (!isRunning() || showFullOutput() || lineCount <= 350) {
+      return output()
+    }
+    const tail = lines.slice(-250).join("\n")
+    return `[streaming tail mode: showing last 250 of ${lineCount} lines]\n${tail}`
+  })
 
   const cwd = () => {
     const raw = props.input.cwd ?? props.metadata.cwd ?? props.metadata.directory
@@ -515,7 +558,7 @@ const BashTool: Component<ToolProps> = (props) => {
     getDurationMs(props.metadata.durationMs ?? props.metadata.duration ?? props.metadata.elapsedMs ?? props.metadata.timeMs)
 
   const markdown = () => {
-    const body = output()
+    const body = effectiveOutput()
     if (!body) {
       return `\`\`\`command\n$ ${command()}\n\`\`\``
     }
@@ -614,6 +657,13 @@ const BashTool: Component<ToolProps> = (props) => {
                 Copy Output
               </Button>
             </Tooltip>
+            <Show when={outputStats().lineCount > 350}>
+              <Tooltip value={showFullOutput() ? "Show streaming tail" : "Show full output"} placement="top">
+                <Button variant="ghost" size="small" onClick={() => setShowFullOutput((prev) => !prev)}>
+                  {showFullOutput() ? "Tail" : "Full"}
+                </Button>
+              </Tooltip>
+            </Show>
           </div>
         ),
       }}
@@ -704,6 +754,34 @@ function registerOpenFileInlineAction(toolName: string) {
     const resourceLinks = createMemo(() => getToolResourceLinks(props))
     const primaryPath = createMemo(() => filePaths()[0])
     const primaryResource = createMemo(() => resourceLinks()[0])
+    const mcpContext = createMemo(() => {
+      if (props.tool !== "mcp") {
+        return null
+      }
+      const metadata = props.metadata ?? {}
+      const input = props.input ?? {}
+      const readString = (value: unknown) => (typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined)
+      const serverName =
+        readString((metadata as { name?: unknown }).name) ??
+        readString((metadata as { server?: unknown }).server) ??
+        readString((input as { name?: unknown }).name) ??
+        readString((input as { server?: unknown }).server)
+      const status =
+        readString((metadata as { status?: unknown }).status) ??
+        (props.status === "completed" ? "completed" : props.status === "error" ? "failed" : props.status)
+      const error =
+        readString((metadata as { error?: unknown }).error) ??
+        (typeof props.output === "string" && props.status === "error" ? props.output : undefined)
+      const authUrl =
+        normalizeResourceLink(readString((metadata as { authUrl?: unknown }).authUrl) ?? "") ??
+        normalizeResourceLink(readString((metadata as { url?: unknown }).url) ?? "")
+      return {
+        serverName,
+        status,
+        error,
+        authUrl,
+      }
+    })
 
     const openFile = () => {
       const path = primaryPath()
@@ -779,6 +857,37 @@ function registerOpenFileInlineAction(toolName: string) {
       }
     }
 
+    const openMcpSettings = () => {
+      vscode.postMessage({ type: "settingsTabChanged", tab: "agentBehaviour" })
+      window.postMessage({ type: "action", action: "settingsButtonClicked" }, "*")
+    }
+
+    const reconnectMcpServer = () => {
+      const name = mcpContext()?.serverName
+      if (!name) {
+        return
+      }
+      vscode.postMessage({ type: "connectMcpServer", name })
+    }
+
+    const copyMcpDiagnostics = async () => {
+      const context = mcpContext()
+      if (!context) {
+        return
+      }
+      const lines = [
+        `server: ${context.serverName ?? "unknown"}`,
+        `status: ${context.status ?? "unknown"}`,
+        ...(context.error ? [`error: ${context.error}`] : []),
+      ]
+      try {
+        await navigator.clipboard.writeText(lines.join("\n"))
+        showToast({ variant: "success", title: "MCP diagnostics copied" })
+      } catch {
+        showToast({ variant: "error", title: "Failed to copy diagnostics" })
+      }
+    }
+
     return (
       <div class="tool-inline-actions-container">
         <Show when={primaryPath() || diffTargets().length > 0 || primaryResource()}>
@@ -839,6 +948,56 @@ function registerOpenFileInlineAction(toolName: string) {
             </Show>
             <Show when={filePaths().length > 1}>
               <span class="tool-inline-actions-meta">+{filePaths().length - 1} more</span>
+            </Show>
+            <Show when={mcpContext()}>
+              {(context) => (
+                <>
+                  <Tooltip value="Open MCP settings" placement="top">
+                    <Button variant="ghost" size="small" onClick={openMcpSettings} aria-label="Open MCP settings">
+                      MCP Settings
+                    </Button>
+                  </Tooltip>
+                  <Tooltip value="Copy MCP diagnostics" placement="top">
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      onClick={() => void copyMcpDiagnostics()}
+                      aria-label="Copy MCP diagnostics"
+                    >
+                      Copy MCP
+                    </Button>
+                  </Tooltip>
+                  <Show when={context().serverName}>
+                    <Tooltip value="Retry MCP connection" placement="top">
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        onClick={reconnectMcpServer}
+                        aria-label="Retry MCP connection"
+                      >
+                        Reconnect
+                      </Button>
+                    </Tooltip>
+                  </Show>
+                  <Show when={context().authUrl}>
+                    {(url) => (
+                      <Tooltip value="Open MCP auth URL" placement="top">
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          onClick={() => vscode.postMessage({ type: "openExternal", url: url() })}
+                          aria-label="Open MCP auth URL"
+                        >
+                          Auth URL
+                        </Button>
+                      </Tooltip>
+                    )}
+                  </Show>
+                  <Show when={context().status}>
+                    <span class="tool-inline-actions-meta">MCP: {context().status}</span>
+                  </Show>
+                </>
+              )}
             </Show>
           </div>
         </Show>
@@ -924,12 +1083,12 @@ export const Message: Component<MessageProps> = (props) => {
   })
   const parts = () => session.getParts(props.message.id) as unknown as SDKPart[]
   const [viewerFile, setViewerFile] = createSignal<FileAttachment | null>(null)
-  const imageParts = createMemo<ImagePart[]>(() =>
-    (parts() as unknown as ImagePart[]).filter(
-      (part): part is ImagePart =>
-        part.type === "file" && typeof part.mime === "string" && part.mime.startsWith("image/"),
+  const fileParts = createMemo<FilePartLike[]>(() =>
+    (parts() as unknown as FilePartLike[]).filter(
+      (part): part is FilePartLike => part.type === "file" && typeof part.mime === "string" && typeof part.url === "string",
     ),
   )
+  const imageParts = createMemo<ImagePart[]>(() => fileParts().filter((part): part is ImagePart => part.mime.startsWith("image/")))
   const openImageAttachment = (part: ImagePart) => {
     const originalUrl = part.originalUrl ?? part.url
     if (originalUrl.startsWith("file://")) {
@@ -957,6 +1116,15 @@ export const Message: Component<MessageProps> = (props) => {
       name: part.filename,
       mime: part.mime,
     })
+  }
+
+  const copyImageMarkdown = async (part: ImagePart) => {
+    try {
+      await navigator.clipboard.writeText(attachmentMarkdown(filePartToAttachment(part)))
+      showToast({ variant: "success", title: "Markdown copied" })
+    } catch {
+      showToast({ variant: "error", title: "Failed to copy markdown" })
+    }
   }
 
   const previewImage = (part: ImagePart) => {
@@ -1045,20 +1213,31 @@ export const Message: Component<MessageProps> = (props) => {
     setIsEditingUserMessage(false)
   }
 
-  const applyInlineEdit = () => {
+  const applyInlineEdit = (autoSend = false) => {
     const nextValue = editingText().trim()
     const currentValue = userMessageText().trim()
     if (!nextValue || nextValue === currentValue) {
       setIsEditingUserMessage(false)
       return
     }
+    const attachments = fileParts().map((part) => filePartToAttachment(part))
     session.revertMessage(props.message.id)
-    window.dispatchEvent(new CustomEvent("kilo:prompt-prefill", { detail: { text: nextValue } }))
+    window.dispatchEvent(
+      new CustomEvent("kilo:prompt-prefill", {
+        detail: {
+          text: nextValue,
+          files: attachments,
+          providerID: props.message.providerID,
+          modelID: props.message.modelID,
+          autoSend,
+        },
+      }),
+    )
     setIsEditingUserMessage(false)
     showToast({
       variant: "default",
-      title: "Message moved to composer",
-      description: "Review and resend the edited prompt.",
+      title: autoSend ? "Message rerun" : "Message moved to composer",
+      description: autoSend ? "Edited prompt was sent immediately." : "Review and resend the edited prompt.",
     })
   }
 
@@ -1196,6 +1375,14 @@ export const Message: Component<MessageProps> = (props) => {
                 <Button variant="primary" size="small" onClick={applyInlineEdit} disabled={editingText().trim().length === 0}>
                   Save
                 </Button>
+                <Button
+                  variant="primary"
+                  size="small"
+                  onClick={() => applyInlineEdit(true)}
+                  disabled={editingText().trim().length === 0}
+                >
+                  Rerun
+                </Button>
               </div>
             </div>
           </Show>
@@ -1220,6 +1407,9 @@ export const Message: Component<MessageProps> = (props) => {
                         </ContextMenu.Item>
                         <ContextMenu.Item onSelect={() => void copyImagePath(part)}>
                           <ContextMenu.ItemLabel>{language.t("session.header.open.copyPath")}</ContextMenu.ItemLabel>
+                        </ContextMenu.Item>
+                        <ContextMenu.Item onSelect={() => void copyImageMarkdown(part)}>
+                          <ContextMenu.ItemLabel>Copy Markdown</ContextMenu.ItemLabel>
                         </ContextMenu.Item>
                       </ContextMenu.Content>
                     </ContextMenu.Portal>

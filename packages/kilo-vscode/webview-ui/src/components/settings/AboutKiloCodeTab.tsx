@@ -4,11 +4,12 @@ import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { showToast } from "@kilocode/kilo-ui/toast"
 import { useLanguage } from "../../context/language"
 import { useConfig } from "../../context/config"
-import type { Config, ConnectionState } from "../../types/messages"
+import type { Config, ConnectionState, ExtensionPolicy } from "../../types/messages"
 
 export interface AboutKiloCodeTabProps {
   port: number | null
   connectionState: ConnectionState
+  extensionPolicy: ExtensionPolicy | null
 }
 
 const AboutKiloCodeTab: Component<AboutKiloCodeTabProps> = (props) => {
@@ -212,6 +213,53 @@ const AboutKiloCodeTab: Component<AboutKiloCodeTabProps> = (props) => {
           }}
         >
           {language.t("settings.aboutKiloCode.extensionName")}
+        </p>
+      </div>
+
+      <div
+        style={{
+          background: "var(--vscode-editor-background)",
+          border: "1px solid var(--vscode-panel-border)",
+          "border-radius": "4px",
+          padding: "16px",
+          "margin-top": "16px",
+        }}
+      >
+        <h4
+          style={{
+            "font-size": "13px",
+            "font-weight": "600",
+            "margin-bottom": "8px",
+            "margin-top": "0",
+            color: "var(--vscode-foreground)",
+          }}
+        >
+          Organization & Policy
+        </h4>
+        <p
+          style={{
+            "font-size": "12px",
+            color: "var(--vscode-descriptionForeground)",
+            margin: "0 0 8px 0",
+          }}
+        >
+          {props.extensionPolicy
+            ? `Policy fetched ${new Date(props.extensionPolicy.fetchedAt).toLocaleString()}`
+            : "No organization policy settings received yet."}
+        </p>
+        <p style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)", margin: "0 0 6px 0" }}>
+          Allowlist:{" "}
+          {props.extensionPolicy?.allowList
+            ? props.extensionPolicy.allowList.allowAll
+              ? "Allow all providers"
+              : `${Object.keys(props.extensionPolicy.allowList.providers ?? {}).length} provider rules`
+            : "None"}
+        </p>
+        <p style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)", margin: "0 0 6px 0" }}>
+          MDM enforced: {props.extensionPolicy?.mdmEnforced ? "Yes" : "No"}
+        </p>
+        <p style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)", margin: 0 }}>
+          Feature flags: {props.extensionPolicy?.featureFlags ? Object.keys(props.extensionPolicy.featureFlags).length : 0}
         </p>
       </div>
 

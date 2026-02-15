@@ -398,6 +398,13 @@ export class HttpClient {
   }
 
   /**
+   * Clear a session revert pointer and restore the latest session state.
+   */
+  async unrevertSession(sessionId: string, directory: string): Promise<SessionInfo> {
+    return this.request<SessionInfo>("POST", `/session/${sessionId}/unrevert`, {}, { directory })
+  }
+
+  /**
    * Create a new session forked from an existing session/message.
    */
   async forkSession(sessionId: string, directory: string, messageID?: string): Promise<SessionInfo> {

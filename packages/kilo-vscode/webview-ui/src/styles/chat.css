@@ -299,6 +299,17 @@ body,
   color: var(--vscode-descriptionForeground);
 }
 
+.tool-inline-path {
+  display: block;
+  margin: 0;
+  font-size: 11px;
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-editor-font-family, monospace);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tool-inline-meta {
   font-size: 11px;
   color: var(--vscode-descriptionForeground);

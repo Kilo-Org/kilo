@@ -4,6 +4,12 @@ export interface SessionInfo {
   title: string
   directory: string
   parentID?: string
+  revert?: {
+    messageID: string
+    partID?: string
+    snapshot?: string
+    diff?: string
+  }
   share?: string
   summary?: {
     additions: number

@@ -5,7 +5,14 @@
 
 import { createContext, useContext, createSignal, onMount, onCleanup, ParentComponent, Accessor } from "solid-js"
 import { useVSCode } from "./vscode"
-import type { ConnectionState, ServerInfo, ProfileData, DeviceAuthState, ExtensionMessage } from "../types/messages"
+import type {
+  ConnectionState,
+  ServerInfo,
+  ProfileData,
+  DeviceAuthState,
+  ExtensionMessage,
+  ExtensionPolicy,
+} from "../types/messages"
 
 interface ServerContextValue {
   connectionState: Accessor<ConnectionState>
@@ -21,6 +28,7 @@ interface ServerContextValue {
   allowedCommands: Accessor<string[]>
   deniedCommands: Accessor<string[]>
   preferGatewayDefault: Accessor<boolean>
+  extensionPolicy: Accessor<ExtensionPolicy | null>
 }
 
 const ServerContext = createContext<ServerContextValue>()
@@ -40,6 +48,7 @@ export const ServerProvider: ParentComponent = (props) => {
   const [allowedCommands, setAllowedCommands] = createSignal<string[]>([])
   const [deniedCommands, setDeniedCommands] = createSignal<string[]>([])
   const [preferGatewayDefault, setPreferGatewayDefault] = createSignal(false)
+  const [extensionPolicy, setExtensionPolicy] = createSignal<ExtensionPolicy | null>(null)
 
   onMount(() => {
     const unsubscribe = vscode.onMessage((message: ExtensionMessage) => {
@@ -73,6 +82,9 @@ export const ServerProvider: ParentComponent = (props) => {
         case "profileData":
           console.log("[Kilo New] Profile data:", message.data ? "received" : "null")
           setProfileData(message.data)
+          break
+        case "extensionPolicyLoaded":
+          setExtensionPolicy(message.policy)
           break
 
         case "deviceAuthStarted":
@@ -148,6 +160,7 @@ export const ServerProvider: ParentComponent = (props) => {
     allowedCommands,
     deniedCommands,
     preferGatewayDefault,
+    extensionPolicy,
   }
 
   return <ServerContext.Provider value={value}>{props.children}</ServerContext.Provider>

@@ -21,6 +21,8 @@ export const TaskHeader: Component = () => {
   const canCompact = createMemo(() => !busy() && hasMessages() && !!session.selected())
   const canSeeChanges = createMemo(() => !busy() && hasMessages())
   const canOpenCheckpoints = createMemo(() => !busy() && hasMessages())
+  const canUndo = createMemo(() => !busy() && session.canUndo())
+  const canRedo = createMemo(() => !busy() && session.canRedo())
 
   const cost = createMemo(() => {
     const total = session.totalCost()
@@ -49,6 +51,16 @@ export const TaskHeader: Component = () => {
           <Tooltip value="Open Source Control changes" placement="bottom">
             <Button size="small" variant="ghost" disabled={!canSeeChanges()} onClick={() => session.seeNewChanges()}>
               See New Changes
+            </Button>
+          </Tooltip>
+          <Tooltip value={language.t("command.session.undo")} placement="bottom">
+            <Button size="small" variant="ghost" disabled={!canUndo()} onClick={() => session.undo()}>
+              {language.t("command.session.undo")}
+            </Button>
+          </Tooltip>
+          <Tooltip value={language.t("command.session.redo")} placement="bottom">
+            <Button size="small" variant="ghost" disabled={!canRedo()} onClick={() => session.redo()}>
+              {language.t("command.session.redo")}
             </Button>
           </Tooltip>
           <Tooltip value="Open checkpoint restore menu" placement="bottom">

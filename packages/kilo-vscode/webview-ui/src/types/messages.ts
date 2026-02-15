@@ -113,6 +113,14 @@ export interface SessionInfo {
   title?: string
   createdAt: string
   updatedAt: string
+  revert?: {
+    messageID: string
+  }
+  metadata?: {
+    cost?: number
+    model?: string
+    messageCount?: number
+  }
   summary?: {
     additions: number
     deletions: number
@@ -206,6 +214,25 @@ export interface ProfileData {
   }
   balance: KilocodeBalance | null
   currentOrgId: string | null
+}
+
+export interface OrganizationProviderAllowList {
+  allowAll: boolean
+  models?: string[]
+}
+
+export interface OrganizationAllowList {
+  allowAll: boolean
+  providers: Record<string, OrganizationProviderAllowList>
+}
+
+export interface ExtensionPolicy {
+  fetchedAt: string
+  allowList?: OrganizationAllowList
+  featureFlags?: Record<string, boolean>
+  mdmEnforced?: boolean
+  organizationRaw?: Record<string, unknown>
+  userRaw?: Record<string, unknown>
 }
 
 // Marketplace types
@@ -497,6 +524,11 @@ export interface ProfileDataMessage {
   data: ProfileData | null
 }
 
+export interface ExtensionPolicyLoadedMessage {
+  type: "extensionPolicyLoaded"
+  policy: ExtensionPolicy | null
+}
+
 export interface DeviceAuthStartedMessage {
   type: "deviceAuthStarted"
   code?: string
@@ -707,6 +739,7 @@ export interface SlashCommandInfo {
   name: string
   description?: string
   source?: "command" | "mcp" | "skill"
+  hints?: string[]
 }
 
 export interface SlashCommandsLoadedMessage {
@@ -731,6 +764,7 @@ export type ExtensionMessage =
   | SessionsLoadedMessage
   | ActionMessage
   | ProfileDataMessage
+  | ExtensionPolicyLoadedMessage
   | DeviceAuthStartedMessage
   | DeviceAuthCompleteMessage
   | DeviceAuthFailedMessage
@@ -1067,6 +1101,11 @@ export interface OpenCheckpointPickerRequest {
   sessionID?: string
 }
 
+export interface UnrevertSessionRequest {
+  type: "unrevertSession"
+  sessionID?: string
+}
+
 export interface PasteAttachmentsRequest {
   type: "pasteAttachments"
   files: Array<{
@@ -1229,6 +1268,7 @@ export type WebviewMessage =
   | ForkSessionRequest
   | OpenForkSessionPickerRequest
   | OpenCheckpointPickerRequest
+  | UnrevertSessionRequest
   | PasteAttachmentsRequest
   | SeeNewChangesRequest
   | CreateTodoRequest

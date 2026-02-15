@@ -9,6 +9,7 @@ import { showToast } from "@kilocode/kilo-ui/toast"
 
 import { useConfig } from "../../context/config"
 import { useSession } from "../../context/session"
+import { useServer } from "../../context/server"
 import { useLanguage } from "../../context/language"
 import { useVSCode } from "../../context/vscode"
 import type {
@@ -19,6 +20,7 @@ import type {
   McpStatus,
   RulesCatalog,
   RulesCatalogItem,
+  SlashCommandInfo,
 } from "../../types/messages"
 
 type SubtabId = "agents" | "mcpServers" | "rules" | "commands" | "skills"
@@ -87,6 +89,7 @@ const AgentBehaviourTab: Component = () => {
   const language = useLanguage()
   const { config, updateConfig } = useConfig()
   const session = useSession()
+  const server = useServer()
   const vscode = useVSCode()
   const [activeSubtab, setActiveSubtab] = createSignal<SubtabId>("agents")
   const [selectedAgent, setSelectedAgent] = createSignal<string>("")
@@ -117,9 +120,53 @@ const AgentBehaviourTab: Component = () => {
   const [mcpToolEnabled, setMcpToolEnabled] = createSignal(true)
   const [mcpStatusRefreshedAt, setMcpStatusRefreshedAt] = createSignal<number | null>(null)
   const [showOnlyMcpIssues, setShowOnlyMcpIssues] = createSignal(false)
+  const [mcpStatusSnapshot, setMcpStatusSnapshot] = createSignal<Record<string, McpStatus>>({})
+  const [mcpDiagnosticsTimeline, setMcpDiagnosticsTimeline] = createSignal<
+    Record<string, Array<{ level: "info" | "success" | "warn" | "error"; message: string; at: number }>>
+  >({})
+  const [slashCommands, setSlashCommands] = createSignal<SlashCommandInfo[]>([])
 
   const mcpEntries = createMemo(() => Object.entries(config().mcp ?? {}).sort(([a], [b]) => a.localeCompare(b)))
   const mcpToolEntries = createMemo(() => Object.entries(config().tools ?? {}).sort(([a], [b]) => a.localeCompare(b)))
+  const mcpTimelineStorageKey = createMemo(() => {
+    const currentOrg = server.profileData()?.currentOrgId ?? "personal"
+    return `kilo.mcp.timeline.v1.${currentOrg}`
+  })
+  const discoveredMcpTools = createMemo(() => {
+    const byName = new Map<string, { name: string; description?: string; sourceCommand: string }>()
+
+    for (const command of slashCommands()) {
+      if (command.source !== "mcp") {
+        continue
+      }
+      const rawName = command.name.trim().replace(/^\//, "")
+      if (!rawName) {
+        continue
+      }
+      const candidates = new Set<string>()
+      candidates.add(rawName.startsWith("mcp.") ? rawName : `mcp.${rawName}`)
+      for (const hint of command.hints ?? []) {
+        const normalizedHint = hint.trim()
+        if (!normalizedHint) {
+          continue
+        }
+        if (normalizedHint.startsWith("mcp.")) {
+          candidates.add(normalizedHint)
+        }
+      }
+      for (const normalized of candidates) {
+        if (!byName.has(normalized)) {
+          byName.set(normalized, {
+            name: normalized,
+            description: command.description?.trim() || undefined,
+            sourceCommand: rawName,
+          })
+        }
+      }
+    }
+
+    return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name))
+  })
 
   const parseRecordJson = (value: string, label: string): Record<string, string> | null => {
     const trimmed = value.trim()
@@ -253,6 +300,41 @@ const AgentBehaviourTab: Component = () => {
     }
   }
 
+  const pushMcpTimeline = (
+    name: string,
+    entry: { level: "info" | "success" | "warn" | "error"; message: string; at?: number },
+  ) => {
+    const timestamp = entry.at ?? Date.now()
+    setMcpDiagnosticsTimeline((prev) => {
+      const next = {
+        ...prev,
+        [name]: [...(prev[name] ?? []), { level: entry.level, message: entry.message, at: timestamp }].slice(-40),
+      }
+      try {
+        localStorage.setItem(mcpTimelineStorageKey(), JSON.stringify(next))
+      } catch {
+        // Ignore storage errors.
+      }
+      return next
+    })
+  }
+
+  const statusDescription = (status: McpStatus): string => {
+    if (status.status === "connected") {
+      return "connected"
+    }
+    if (status.status === "disabled") {
+      return "disabled"
+    }
+    if (status.status === "needs_auth") {
+      return "needs authentication"
+    }
+    if (status.status === "needs_client_registration") {
+      return "needs client registration"
+    }
+    return `failed: ${status.error}`
+  }
+
   const mcpServerType = (mcp: McpConfig): McpType => (mcp.url ? "remote" : "local")
 
   const extractUrlFromText = (value?: string): string | undefined => {
@@ -289,6 +371,13 @@ const AgentBehaviourTab: Component = () => {
 
     if (mcpStatusRefreshedAt()) {
       lines.push(`refreshedAt: ${new Date(mcpStatusRefreshedAt()!).toISOString()}`)
+    }
+    const timeline = mcpDiagnosticsTimeline()[name] ?? []
+    if (timeline.length > 0) {
+      lines.push("timeline:")
+      for (const entry of timeline.slice(-10)) {
+        lines.push(`  - ${new Date(entry.at).toISOString()} [${entry.level}] ${entry.message}`)
+      }
     }
 
     return lines.join("\n")
@@ -389,6 +478,10 @@ const AgentBehaviourTab: Component = () => {
       name,
       config: configInput,
     })
+    pushMcpTimeline(name, {
+      level: "info",
+      message: editingMcpName() ? "Server configuration updated" : "Server configuration created",
+    })
     showToast({
       variant: "success",
       title: editingMcpName() ? "MCP server updated" : "MCP server added",
@@ -406,12 +499,31 @@ const AgentBehaviourTab: Component = () => {
       delete cloned[name]
       return cloned
     })
+    pushMcpTimeline(name, {
+      level: "info",
+      message: "Server removed from config",
+    })
     showToast({ variant: "success", title: "MCP server removed", description: name })
     setTimeout(() => vscode.postMessage({ type: "requestMcpStatus" }), 250)
   }
 
+  const triggerMcpConnection = (name: string, connect: boolean) => {
+    pushMcpTimeline(name, {
+      level: "info",
+      message: connect ? "Connect requested from settings" : "Disconnect requested from settings",
+    })
+    vscode.postMessage({
+      type: connect ? "connectMcpServer" : "disconnectMcpServer",
+      name,
+    })
+  }
+
   const requestMcpStatus = () => {
     vscode.postMessage({ type: "requestMcpStatus" })
+  }
+
+  const requestSlashCommands = () => {
+    vscode.postMessage({ type: "requestSlashCommands" })
   }
 
   const requestRulesCatalog = () => {
@@ -511,6 +623,20 @@ const AgentBehaviourTab: Component = () => {
     })
   }
 
+  const setMcpToolPolicy = (name: string, enabled: boolean | null) => {
+    const trimmed = name.trim()
+    if (!trimmed) {
+      return
+    }
+    const next = { ...(config().tools ?? {}) }
+    if (enabled === null) {
+      delete next[trimmed]
+    } else {
+      next[trimmed] = enabled
+    }
+    updateConfig({ tools: Object.keys(next).length > 0 ? next : undefined })
+  }
+
   const removeMcpToolPolicy = (name: string) => {
     const next = { ...(config().tools ?? {}) }
     delete next[name]
@@ -519,8 +645,48 @@ const AgentBehaviourTab: Component = () => {
 
   const unsubscribe = vscode.onMessage((message: ExtensionMessage) => {
     if (message.type === "mcpStatusLoaded") {
+      const previous = mcpStatusSnapshot()
+      for (const [name, nextStatus] of Object.entries(message.status)) {
+        const previousStatus = previous[name]
+        const changed =
+          !previousStatus ||
+          previousStatus.status !== nextStatus.status ||
+          (previousStatus.status === "failed" &&
+            nextStatus.status === "failed" &&
+            previousStatus.error !== nextStatus.error) ||
+          (previousStatus.status === "needs_client_registration" &&
+            nextStatus.status === "needs_client_registration" &&
+            previousStatus.error !== nextStatus.error)
+        if (!changed) {
+          continue
+        }
+        pushMcpTimeline(name, {
+          level:
+            nextStatus.status === "connected"
+              ? "success"
+              : nextStatus.status === "failed"
+                ? "error"
+                : nextStatus.status === "needs_auth" || nextStatus.status === "needs_client_registration"
+                  ? "warn"
+                  : "info",
+          message: `Status changed to ${statusDescription(nextStatus)}`,
+        })
+      }
+      for (const missing of Object.keys(previous)) {
+        if (!(missing in message.status)) {
+          pushMcpTimeline(missing, {
+            level: "info",
+            message: "Status removed from backend response",
+          })
+        }
+      }
       setMcpStatus(message.status)
+      setMcpStatusSnapshot(message.status)
       setMcpStatusRefreshedAt(Date.now())
+      return
+    }
+    if (message.type === "slashCommandsLoaded") {
+      setSlashCommands(Array.isArray(message.commands) ? message.commands : [])
       return
     }
     if (message.type === "rulesCatalogLoaded") {
@@ -533,6 +699,29 @@ const AgentBehaviourTab: Component = () => {
   createEffect(() => {
     if (activeSubtab() === "mcpServers") {
       requestMcpStatus()
+      requestSlashCommands()
+    }
+  })
+
+  createEffect(() => {
+    const key = mcpTimelineStorageKey()
+    try {
+      const raw = localStorage.getItem(key)
+      if (!raw) {
+        setMcpDiagnosticsTimeline({})
+        return
+      }
+      const parsed = JSON.parse(raw) as Record<
+        string,
+        Array<{ level: "info" | "success" | "warn" | "error"; message: string; at: number }>
+      >
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        setMcpDiagnosticsTimeline({})
+        return
+      }
+      setMcpDiagnosticsTimeline(parsed)
+    } catch {
+      setMcpDiagnosticsTimeline({})
     }
   })
 
@@ -1058,6 +1247,46 @@ const AgentBehaviourTab: Component = () => {
                             {mcpDiagnosticsText(name, mcp)}
                           </pre>
                         </details>
+                        <details style={{ "margin-top": "4px" }}>
+                          <summary
+                            style={{
+                              cursor: "pointer",
+                              "font-size": "11px",
+                              color: "var(--vscode-descriptionForeground)",
+                              "user-select": "none",
+                            }}
+                          >
+                            Timeline
+                          </summary>
+                          <div style={{ display: "flex", "flex-direction": "column", gap: "4px", "margin-top": "4px" }}>
+                            <For each={(mcpDiagnosticsTimeline()[name] ?? []).slice().reverse().slice(0, 10)}>
+                              {(entry) => (
+                                <div
+                                  style={{
+                                    "font-size": "11px",
+                                    color:
+                                      entry.level === "error"
+                                        ? "var(--vscode-errorForeground)"
+                                        : entry.level === "warn"
+                                          ? "var(--vscode-testing-iconQueued, #cca700)"
+                                          : entry.level === "success"
+                                            ? "var(--vscode-testing-iconPassed, #89d185)"
+                                            : "var(--vscode-descriptionForeground)",
+                                    "font-family": "var(--vscode-editor-font-family, monospace)",
+                                    "word-break": "break-word",
+                                  }}
+                                >
+                                  {new Date(entry.at).toLocaleString()} [{entry.level}] {entry.message}
+                                </div>
+                              )}
+                            </For>
+                            <Show when={(mcpDiagnosticsTimeline()[name] ?? []).length === 0}>
+                              <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
+                                No timeline events recorded yet.
+                              </div>
+                            </Show>
+                          </div>
+                        </details>
                         <div
                           style={{
                             "font-size": "11px",
@@ -1106,12 +1335,7 @@ const AgentBehaviourTab: Component = () => {
                           <Button
                             size="small"
                             variant="ghost"
-                            onClick={() =>
-                              vscode.postMessage({
-                                type: status().connected ? "disconnectMcpServer" : "connectMcpServer",
-                                name,
-                              })
-                            }
+                            onClick={() => triggerMcpConnection(name, !status().connected)}
                           >
                             {connectLabel()}
                           </Button>
@@ -1146,6 +1370,88 @@ const AgentBehaviourTab: Component = () => {
           >
             Manage `config.tools` entries to explicitly allow (`true`) or disable (`false`) tools.
           </div>
+          <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)", padding: "8px 0 0" }}>
+            Discovered from slash-command metadata (`source: mcp`).
+          </div>
+          <Show when={discoveredMcpTools().length > 0}>
+            <div style={{ display: "flex", "flex-direction": "column", gap: "6px", padding: "8px 0" }}>
+              <For each={discoveredMcpTools().slice(0, 30)}>
+                {(tool) => {
+                  const currentPolicy = () => config().tools?.[tool.name]
+                  return (
+                    <div
+                      style={{
+                        display: "flex",
+                        "align-items": "center",
+                        gap: "8px",
+                        "justify-content": "space-between",
+                        border: "1px solid var(--border-weak-base)",
+                        "border-radius": "6px",
+                        padding: "6px 8px",
+                      }}
+                    >
+                      <div style={{ flex: 1, "min-width": 0 }}>
+                        <div
+                          style={{
+                            "font-size": "12px",
+                            "font-family": "var(--vscode-editor-font-family, monospace)",
+                            "word-break": "break-word",
+                          }}
+                        >
+                          {tool.name}
+                        </div>
+                        <Show when={tool.description}>
+                          <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
+                            {tool.description}
+                          </div>
+                        </Show>
+                      </div>
+                      <div style={{ display: "flex", gap: "4px", "align-items": "center" }}>
+                        <Button
+                          size="small"
+                          variant="ghost"
+                          data-state={currentPolicy() === true ? "active" : "idle"}
+                          onClick={() => setMcpToolPolicy(tool.name, currentPolicy() === true ? null : true)}
+                        >
+                          Allow
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="ghost"
+                          data-state={currentPolicy() === false ? "active" : "idle"}
+                          onClick={() => setMcpToolPolicy(tool.name, currentPolicy() === false ? null : false)}
+                        >
+                          Deny
+                        </Button>
+                        <Tooltip value="Use this key in manual editor" placement="top">
+                          <Button
+                            size="small"
+                            variant="ghost"
+                            onClick={() => {
+                              setMcpToolName(tool.name)
+                              setMcpToolEnabled(currentPolicy() !== false)
+                            }}
+                          >
+                            Use
+                          </Button>
+                        </Tooltip>
+                      </div>
+                    </div>
+                  )
+                }}
+              </For>
+              <Show when={discoveredMcpTools().length > 30}>
+                <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
+                  +{discoveredMcpTools().length - 30} more discovered tools
+                </div>
+              </Show>
+            </div>
+          </Show>
+          <Show when={discoveredMcpTools().length === 0}>
+            <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)", padding: "8px 0" }}>
+              No MCP tools discovered yet. Refresh slash commands by reopening this tab after servers connect.
+            </div>
+          </Show>
           <div style={{ display: "flex", gap: "8px", "align-items": "center", padding: "8px 0" }}>
             <div style={{ flex: 1 }}>
               <TextField

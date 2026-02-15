@@ -1,4 +1,4 @@
-import { Component, For, createMemo, createSignal, onCleanup } from "solid-js"
+import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import { Select } from "@kilocode/kilo-ui/select"
 import { Card } from "@kilocode/kilo-ui/card"
 import { Button } from "@kilocode/kilo-ui/button"
@@ -8,6 +8,7 @@ import { Switch } from "@kilocode/kilo-ui/switch"
 import { showToast } from "@kilocode/kilo-ui/toast"
 import { useConfig } from "../../context/config"
 import { useProvider } from "../../context/provider"
+import { useServer } from "../../context/server"
 import { useLanguage } from "../../context/language"
 import { useVSCode } from "../../context/vscode"
 import { ModelSelectorBase } from "../chat/ModelSelector"
@@ -18,6 +19,9 @@ interface ProviderOption {
   value: string
   label: string
 }
+
+type ProviderDiagnostic = { level: "success" | "error"; message: string; at: number }
+type ProviderDiagnosticHistoryEntry = { level: "info" | "success" | "error"; message: string; at: number }
 
 const KILO_GATEWAY_PROVIDER_ID = "kilo"
 
@@ -57,6 +61,7 @@ const SettingsRow: Component<{ label: string; description: string; last?: boolea
 const ProvidersTab: Component = () => {
   const { config, updateConfig } = useConfig()
   const provider = useProvider()
+  const server = useServer()
   const language = useLanguage()
   const vscode = useVSCode()
 
@@ -69,29 +74,142 @@ const ProvidersTab: Component = () => {
   const [newDisabled, setNewDisabled] = createSignal<ProviderOption | undefined>()
   const [newEnabled, setNewEnabled] = createSignal<ProviderOption | undefined>()
   const [preferGatewayDefault, setPreferGatewayDefault] = createSignal(false)
-  const [providerDiagnostics, setProviderDiagnostics] = createSignal<
-    Record<string, { level: "success" | "error"; message: string; at: number }>
+  const [providerDiagnostics, setProviderDiagnostics] = createSignal<Record<string, ProviderDiagnostic>>({})
+  const [providerDiagnosticHistory, setProviderDiagnosticHistory] = createSignal<
+    Record<string, ProviderDiagnosticHistoryEntry[]>
   >({})
+  const [connectedSnapshot, setConnectedSnapshot] = createSignal<Record<string, boolean>>({})
 
   const disabledProviders = () => config().disabled_providers ?? []
   const enabledProviders = () => config().enabled_providers ?? []
+  const enterpriseAllowList = createMemo(() => server.extensionPolicy()?.allowList)
+  const enterprisePolicyActive = createMemo(() => !!enterpriseAllowList() && !enterpriseAllowList()!.allowAll)
 
-  const unsubscribe = vscode.onMessage((message: ExtensionMessage) => {
-    if (message.type !== "providerAuthResult") {
-      if (message.type === "gatewayPreferenceLoaded") {
-        setPreferGatewayDefault(!!message.preferGatewayDefault)
+  const diagnosticStorageKey = createMemo(() => {
+    const currentOrg = server.profileData()?.currentOrgId ?? "personal"
+    return `kilo.providers.diagnostics.v1.${currentOrg}`
+  })
+
+  const pushProviderDiagnostic = (
+    providerID: string,
+    entry: { level: "info" | "success" | "error"; message: string; at?: number },
+  ) => {
+    const timestamp = entry.at ?? Date.now()
+    if (entry.level === "success" || entry.level === "error") {
+      const latestEntry: ProviderDiagnostic = {
+        level: entry.level === "success" ? "success" : "error",
+        message: entry.message,
+        at: timestamp,
       }
-      return
-    }
-    if (message.success) {
       setProviderDiagnostics((prev) => ({
         ...prev,
-        [message.providerID]: {
-          level: "success",
-          message: message.message ?? "Connected successfully",
-          at: Date.now(),
-        },
+        [providerID]: latestEntry,
       }))
+    }
+
+    setProviderDiagnosticHistory((prev) => {
+      const next = {
+        ...prev,
+        [providerID]: [...(prev[providerID] ?? []), { level: entry.level, message: entry.message, at: timestamp }].slice(-25),
+      }
+      try {
+        localStorage.setItem(diagnosticStorageKey(), JSON.stringify(next))
+      } catch {
+        // Ignore storage write failures.
+      }
+      return next
+    })
+  }
+
+  const providerPolicyInfo = (providerID: string) => {
+    const allowList = enterpriseAllowList()
+    if (!allowList || allowList.allowAll) {
+      return { blocked: false as const, models: undefined as string[] | undefined }
+    }
+    const providerRule = allowList.providers?.[providerID]
+    if (!providerRule) {
+      return { blocked: true as const, models: undefined as string[] | undefined }
+    }
+    if (providerRule.allowAll) {
+      return { blocked: false as const, models: undefined as string[] | undefined }
+    }
+    const models = Array.isArray(providerRule.models) ? providerRule.models : []
+    return {
+      blocked: models.length === 0,
+      models: models.length > 0 ? models : undefined,
+    }
+  }
+
+  const copyProviderDiagnostics = async (providerID: string) => {
+    try {
+      const history = providerDiagnosticHistory()[providerID] ?? []
+      const connected = provider.connected().includes(providerID)
+      const lines = [
+        `provider: ${providerID}`,
+        `connected: ${connected}`,
+        `entries: ${history.length}`,
+        ...history.map((entry) => `${new Date(entry.at).toISOString()} [${entry.level}] ${entry.message}`),
+      ]
+      await navigator.clipboard.writeText(lines.join("\n"))
+      showToast({ variant: "success", title: "Provider diagnostics copied", description: providerID })
+    } catch {
+      showToast({ variant: "error", title: "Failed to copy provider diagnostics" })
+    }
+  }
+
+  const testProviderConnection = (providerID: string, connected: boolean) => {
+    pushProviderDiagnostic(providerID, {
+      level: "info",
+      message: connected ? "Connection check requested (refreshing provider catalog)" : "Connection check requested (connect flow)",
+    })
+    if (connected) {
+      provider.refresh()
+      vscode.postMessage({ type: "requestProviders" })
+      return
+    }
+    connectProvider(providerID)
+  }
+
+  const unsubscribe = vscode.onMessage((message: ExtensionMessage) => {
+    if (message.type === "gatewayPreferenceLoaded") {
+      setPreferGatewayDefault(!!message.preferGatewayDefault)
+      return
+    }
+
+    if (message.type === "providersLoaded") {
+      const nextSnapshot: Record<string, boolean> = {}
+      for (const providerID of Object.keys(message.providers ?? {})) {
+        nextSnapshot[providerID] = Array.isArray(message.connected) && message.connected.includes(providerID)
+      }
+
+      const previousSnapshot = connectedSnapshot()
+      for (const [providerID, isConnected] of Object.entries(nextSnapshot)) {
+        const previous = previousSnapshot[providerID]
+        if (previous === undefined) {
+          continue
+        }
+        if (previous !== isConnected) {
+          pushProviderDiagnostic(providerID, {
+            level: isConnected ? "success" : "info",
+            message: isConnected ? "Provider reported connected by backend" : "Provider reported disconnected by backend",
+          })
+        }
+      }
+      setConnectedSnapshot(nextSnapshot)
+      return
+    }
+
+    if (message.type !== "providerAuthResult") {
+      return
+    }
+
+    if (message.success) {
+      pushProviderDiagnostic(message.providerID, {
+        level: "success",
+        message:
+          message.message ??
+          (message.action === "connect" ? "Connected successfully through provider auth flow" : "Disconnected successfully"),
+      })
       showToast({
         variant: "success",
         title: message.action === "connect" ? "Provider connected" : "Provider disconnected",
@@ -100,14 +218,11 @@ const ProvidersTab: Component = () => {
       provider.refresh()
       return
     }
-    setProviderDiagnostics((prev) => ({
-      ...prev,
-      [message.providerID]: {
-        level: "error",
-        message: message.message ?? "Connection failed",
-        at: Date.now(),
-      },
-    }))
+
+    pushProviderDiagnostic(message.providerID, {
+      level: "error",
+      message: message.message ?? "Connection failed",
+    })
     showToast({
       variant: "error",
       title: message.action === "connect" ? "Provider connect failed" : "Provider disconnect failed",
@@ -115,6 +230,43 @@ const ProvidersTab: Component = () => {
     })
   })
   onCleanup(unsubscribe)
+
+  createEffect(() => {
+    const key = diagnosticStorageKey()
+    try {
+      const raw = localStorage.getItem(key)
+      if (!raw) {
+        setProviderDiagnosticHistory({})
+        setProviderDiagnostics({})
+        return
+      }
+      const parsed = JSON.parse(raw) as Record<string, ProviderDiagnosticHistoryEntry[]>
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        setProviderDiagnosticHistory({})
+        setProviderDiagnostics({})
+        return
+      }
+      setProviderDiagnosticHistory(parsed)
+      const latest: Record<string, ProviderDiagnostic> = {}
+      for (const [providerID, entries] of Object.entries(parsed)) {
+        const latestErrorOrSuccess = [...(entries ?? [])]
+          .reverse()
+          .find((entry) => entry.level === "success" || entry.level === "error")
+        if (latestErrorOrSuccess) {
+          latest[providerID] = {
+            level: latestErrorOrSuccess.level === "success" ? "success" : "error",
+            message: latestErrorOrSuccess.message,
+            at: latestErrorOrSuccess.at,
+          }
+        }
+      }
+      setProviderDiagnostics(latest)
+    } catch {
+      setProviderDiagnosticHistory({})
+      setProviderDiagnostics({})
+    }
+  })
+
   vscode.postMessage({ type: "requestGatewayPreference" })
 
   const connectProvider = (providerID: string) => {
@@ -135,12 +287,15 @@ const ProvidersTab: Component = () => {
         const modelCount = Object.keys(entry.models ?? {}).length
         const defaultModelID = defaults[entry.id]
         const defaultModelName = defaultModelID ? (entry.models?.[defaultModelID]?.name ?? defaultModelID) : undefined
+        const policy = providerPolicyInfo(entry.id)
         return {
           id: entry.id,
           name: entry.name,
           connected: connected.has(entry.id),
           modelCount,
           defaultModelName,
+          policyBlocked: policy.blocked,
+          policyModels: policy.models,
         }
       })
       .sort((a, b) => a.name.localeCompare(b.name))
@@ -216,6 +371,15 @@ const ProvidersTab: Component = () => {
 
   return (
     <div>
+      <For each={enterprisePolicyActive() ? [0] : []}>
+        {() => (
+          <Card style={{ "margin-bottom": "16px" }}>
+            <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>
+              Organization policy is enforcing provider allowlists. Some providers or models may be restricted.
+            </div>
+          </Card>
+        )}
+      </For>
       {/* Provider catalog */}
       <Card>
         <div
@@ -259,6 +423,20 @@ const ProvidersTab: Component = () => {
                   {item.modelCount} models
                   {item.defaultModelName ? ` · default: ${item.defaultModelName}` : ""}
                 </div>
+                <For each={item.policyModels && item.policyModels.length > 0 ? [item.policyModels] : []}>
+                  {(models) => (
+                    <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)", "margin-top": "2px" }}>
+                      Policy models: {models.join(", ")}
+                    </div>
+                  )}
+                </For>
+                <For each={item.policyBlocked ? [0] : []}>
+                  {() => (
+                    <div style={{ "font-size": "11px", color: "var(--vscode-errorForeground)", "margin-top": "2px" }}>
+                      Blocked by organization policy
+                    </div>
+                  )}
+                </For>
                 <For each={providerDiagnostics()[item.id] ? [providerDiagnostics()[item.id]] : []}>
                   {(diagnostic) => (
                     <div
@@ -275,6 +453,45 @@ const ProvidersTab: Component = () => {
                     </div>
                   )}
                 </For>
+                <details style={{ "margin-top": "4px" }}>
+                  <summary
+                    style={{
+                      cursor: "pointer",
+                      "font-size": "11px",
+                      color: "var(--vscode-descriptionForeground)",
+                      "user-select": "none",
+                    }}
+                  >
+                    Diagnostics history
+                  </summary>
+                  <div style={{ "margin-top": "4px", display: "flex", "flex-direction": "column", gap: "3px" }}>
+                    <For each={(providerDiagnosticHistory()[item.id] ?? []).slice().reverse().slice(0, 8)}>
+                      {(entry) => (
+                        <div
+                          style={{
+                            "font-size": "11px",
+                            color:
+                              entry.level === "error"
+                                ? "var(--vscode-errorForeground)"
+                                : entry.level === "success"
+                                  ? "var(--vscode-testing-iconPassed, #89d185)"
+                                  : "var(--vscode-descriptionForeground)",
+                            "font-family": "var(--vscode-editor-font-family, monospace)",
+                          }}
+                        >
+                          {new Date(entry.at).toLocaleTimeString()} [{entry.level}] {entry.message}
+                        </div>
+                      )}
+                    </For>
+                    <For each={(providerDiagnosticHistory()[item.id] ?? []).length === 0 ? [0] : []}>
+                      {() => (
+                        <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
+                          No diagnostics recorded yet.
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                </details>
               </div>
 
               <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
@@ -292,11 +509,27 @@ const ProvidersTab: Component = () => {
                     ? language.t("settings.aboutKiloCode.status.connected")
                     : language.t("settings.aboutKiloCode.status.disconnected")}
                 </span>
+                <Tooltip value="Run provider connection check" placement="top">
+                  <Button
+                    size="small"
+                    variant="ghost"
+                    onClick={() => testProviderConnection(item.id, item.connected)}
+                    disabled={item.policyBlocked && !item.connected}
+                  >
+                    Test
+                  </Button>
+                </Tooltip>
+                <Tooltip value="Copy provider diagnostics" placement="top">
+                  <Button size="small" variant="ghost" onClick={() => void copyProviderDiagnostics(item.id)}>
+                    Copy
+                  </Button>
+                </Tooltip>
                 <Tooltip value={item.connected ? "Disconnect provider" : "Connect provider"} placement="top">
                   <Button
                     size="small"
                     variant="ghost"
                     onClick={() => (item.connected ? disconnectProvider(item.id) : connectProvider(item.id))}
+                    disabled={item.policyBlocked && !item.connected}
                   >
                     {item.connected ? "Disconnect" : "Connect"}
                   </Button>
@@ -397,10 +630,22 @@ const ProvidersTab: Component = () => {
         </SettingsRow>
       </Card>
 
-      <CustomProvidersSection
-        providers={config().provider}
-        onChange={(nextProviders) => updateConfig({ provider: nextProviders })}
-      />
+      <For each={enterprisePolicyActive() ? [0] : []}>
+        {() => (
+          <Card style={{ "margin-top": "16px" }}>
+            <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>
+              Custom provider editing is disabled while organization allowlist policy is active.
+            </div>
+          </Card>
+        )}
+      </For>
+
+      <Show when={!enterprisePolicyActive()}>
+        <CustomProvidersSection
+          providers={config().provider}
+          onChange={(nextProviders) => updateConfig({ provider: nextProviders })}
+        />
+      </Show>
 
       {/* Disabled providers */}
       <h4 style={{ "margin-top": "16px", "margin-bottom": "8px" }}>Disabled Providers</h4>

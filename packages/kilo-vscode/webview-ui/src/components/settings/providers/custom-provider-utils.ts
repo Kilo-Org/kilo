@@ -89,6 +89,70 @@ function formatStringList(value: unknown): string {
   return entries.join("\n")
 }
 
+function validateModelsConfig(
+  models: Record<string, unknown> | undefined,
+): { ok: true; value: Record<string, ProviderModelConfig> | undefined } | { ok: false; error: string } {
+  if (!models) {
+    return { ok: true, value: undefined }
+  }
+
+  for (const [modelKey, candidate] of Object.entries(models)) {
+    if (!isRecord(candidate)) {
+      return { ok: false, error: `Model \"${modelKey}\" must be a JSON object.` }
+    }
+
+    const { id, name, status, provider, options, headers, variants } = candidate
+    if (id !== undefined && typeof id !== "string") {
+      return { ok: false, error: `Model \"${modelKey}\" field \"id\" must be a string.` }
+    }
+    if (name !== undefined && typeof name !== "string") {
+      return { ok: false, error: `Model \"${modelKey}\" field \"name\" must be a string.` }
+    }
+    if (status !== undefined && !["active", "alpha", "beta", "deprecated"].includes(String(status))) {
+      return { ok: false, error: `Model \"${modelKey}\" field \"status\" must be active/alpha/beta/deprecated.` }
+    }
+    if (provider !== undefined) {
+      if (!isRecord(provider)) {
+        return { ok: false, error: `Model \"${modelKey}\" field \"provider\" must be an object.` }
+      }
+      if (provider.npm !== undefined && typeof provider.npm !== "string") {
+        return { ok: false, error: `Model \"${modelKey}\" field \"provider.npm\" must be a string.` }
+      }
+    }
+    if (options !== undefined && !isRecord(options)) {
+      return { ok: false, error: `Model \"${modelKey}\" field \"options\" must be an object.` }
+    }
+    if (headers !== undefined) {
+      if (!isRecord(headers)) {
+        return { ok: false, error: `Model \"${modelKey}\" field \"headers\" must be an object.` }
+      }
+      for (const [headerKey, headerValue] of Object.entries(headers)) {
+        if (typeof headerValue !== "string") {
+          return {
+            ok: false,
+            error: `Model \"${modelKey}\" header \"${headerKey}\" must be a string.`,
+          }
+        }
+      }
+    }
+    if (variants !== undefined) {
+      if (!isRecord(variants)) {
+        return { ok: false, error: `Model \"${modelKey}\" field \"variants\" must be an object.` }
+      }
+      for (const [variantKey, variantValue] of Object.entries(variants)) {
+        if (!isRecord(variantValue)) {
+          return {
+            ok: false,
+            error: `Model \"${modelKey}\" variant \"${variantKey}\" must be an object.`,
+          }
+        }
+      }
+    }
+  }
+
+  return { ok: true, value: models as Record<string, ProviderModelConfig> }
+}
+
 export function createEmptyCustomProviderDraft(): CustomProviderDraft {
   return {
     id: "",
@@ -146,6 +210,10 @@ export function draftToProviderConfig(draft: CustomProviderDraft): DraftToProvid
   if (!parsedModels.ok) {
     return parsedModels
   }
+  const validatedModels = validateModelsConfig(parsedModels.value)
+  if (!validatedModels.ok) {
+    return validatedModels
+  }
 
   const parsedOptions = parseObjectJSON(draft.optionsJson, "Extra options JSON")
   if (!parsedOptions.ok) {
@@ -198,7 +266,7 @@ export function draftToProviderConfig(draft: CustomProviderDraft): DraftToProvid
     whitelist: parseStringList(draft.whitelist),
     blacklist: parseStringList(draft.blacklist),
     options: Object.keys(options).length > 0 ? options : undefined,
-    models: parsedModels.value as Record<string, ProviderModelConfig> | undefined,
+    models: validatedModels.value,
   }
 
   return { ok: true, id, config }

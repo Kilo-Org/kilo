@@ -3,7 +3,7 @@
  * Text input with send/abort buttons and ghost-text autocomplete for the chat interface
  */
 
-import { Component, For, Show, createMemo, createSignal, onCleanup } from "solid-js"
+import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { ContextMenu } from "@kilocode/kilo-ui/context-menu"
@@ -17,11 +17,24 @@ import { useConfig } from "../../context/config"
 import { ModelSelector } from "./ModelSelector"
 import { ModeSwitcher } from "./ModeSwitcher"
 import { ImageViewer } from "../common/ImageViewer"
-import type { FileAttachment } from "../../types/messages"
+import type { FileAttachment, SlashCommandInfo } from "../../types/messages"
 
 const AUTOCOMPLETE_DEBOUNCE_MS = 500
 const MIN_TEXT_LENGTH = 3
 const FOLLOW_UP_AUTO_APPROVE_PAUSE_EVENT = "kilo:followup-autoapprove-pause"
+
+type SpeechRecognitionLike = {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  start: () => void
+  stop: () => void
+  onresult: ((event: { resultIndex: number; results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }> }) => void) | null
+  onerror: ((event: { error?: string }) => void) | null
+  onend: (() => void) | null
+}
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -38,6 +51,25 @@ function readFileAsDataUrl(file: File): Promise<string> {
   })
 }
 
+function formatVariantLabel(key: string, metadata: Record<string, unknown> | undefined): string {
+  if (metadata) {
+    const direct =
+      (typeof metadata.label === "string" && metadata.label.trim()) ||
+      (typeof metadata.name === "string" && metadata.name.trim()) ||
+      (typeof metadata.title === "string" && metadata.title.trim()) ||
+      (typeof metadata.displayName === "string" && metadata.displayName.trim())
+    if (direct) {
+      return direct
+    }
+  }
+
+  return key
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
 export const PromptInput: Component = () => {
   const session = useSession()
   const server = useServer()
@@ -50,31 +82,120 @@ export const PromptInput: Component = () => {
   const [ghostText, setGhostText] = createSignal("")
   const [attachments, setAttachments] = createSignal<FileAttachment[]>([])
   const [viewerFile, setViewerFile] = createSignal<FileAttachment | null>(null)
+  const [slashCommands, setSlashCommands] = createSignal<SlashCommandInfo[]>([])
+  const [slashCommandsRequested, setSlashCommandsRequested] = createSignal(false)
+  const [slashSelectedIndex, setSlashSelectedIndex] = createSignal(0)
+  const [isRecordingVoice, setIsRecordingVoice] = createSignal(false)
   let textareaRef: HTMLTextAreaElement | undefined
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
+  let speechRecognition: SpeechRecognitionLike | undefined
   let requestCounter = 0
 
   const isBusy = () => session.status() === "busy"
   const isDisabled = () => !server.isConnected()
+  const isSpeechSupported = () => {
+    if (typeof window === "undefined") {
+      return false
+    }
+    const w = window as unknown as { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor }
+    return !!(w.SpeechRecognition || w.webkitSpeechRecognition)
+  }
   const hasAttachments = () => attachments().length > 0
   const canSend = () => (text().trim().length > 0 || hasAttachments()) && !isBusy() && !isDisabled()
+  const slashQuery = createMemo(() => {
+    const value = text()
+    const match = value.match(/^\/([^\s]*)$/)
+    if (!match) {
+      return null
+    }
+    return match[1].toLowerCase()
+  })
+  const slashSuggestions = createMemo(() => {
+    const query = slashQuery()
+    if (query === null) {
+      return []
+    }
+    const normalizedQuery = query.trim()
+    const items = slashCommands()
+      .filter((command) => {
+        if (!normalizedQuery) {
+          return true
+        }
+        const nameMatch = command.name.toLowerCase().includes(normalizedQuery)
+        const descriptionMatch = command.description?.toLowerCase().includes(normalizedQuery) ?? false
+        return nameMatch || descriptionMatch
+      })
+      .sort((left, right) => {
+        const leftStarts = normalizedQuery ? left.name.toLowerCase().startsWith(normalizedQuery) : false
+        const rightStarts = normalizedQuery ? right.name.toLowerCase().startsWith(normalizedQuery) : false
+        if (leftStarts !== rightStarts) {
+          return leftStarts ? -1 : 1
+        }
+        return left.name.localeCompare(right.name)
+      })
+    return items
+  })
+  const slashPickerOpen = createMemo(() => slashQuery() !== null && !isBusy() && !isDisabled())
 
-  const availableVariants = createMemo(() => {
+  createEffect(() => {
+    if (!slashPickerOpen() || slashCommandsRequested()) {
+      return
+    }
+    setSlashCommandsRequested(true)
+    vscode.postMessage({ type: "requestSlashCommands" })
+  })
+
+  createEffect(() => {
+    slashQuery()
+    setSlashSelectedIndex(0)
+  })
+
+  createEffect(() => {
+    const maxIndex = slashSuggestions().length - 1
+    if (maxIndex < 0) {
+      setSlashSelectedIndex(0)
+      return
+    }
+    if (slashSelectedIndex() > maxIndex) {
+      setSlashSelectedIndex(maxIndex)
+    }
+  })
+
+  createEffect(() => {
+    if ((isBusy() || isDisabled()) && isRecordingVoice()) {
+      stopVoiceInput()
+    }
+  })
+
+  const variantOptions = createMemo(() => {
     const selected = session.selected()
     const model = provider.findModel(selected)
     if (!model?.variants) return []
-    return Object.keys(model.variants).filter((name) => name && name !== "default")
+    return Object.entries(model.variants)
+      .filter(([name]) => name && name !== "default")
+      .map(([name, metadata]) => ({
+        key: name,
+        label: formatVariantLabel(name, metadata),
+      }))
   })
 
   const activeVariant = createMemo(() => {
-    const variants = availableVariants()
+    const variants = variantOptions()
     if (variants.length === 0) return undefined
     const configured = config().agent?.[session.selectedAgent()]?.variant
-    return configured && variants.includes(configured) ? configured : undefined
+    return configured && variants.some((variant) => variant.key === configured) ? configured : undefined
+  })
+
+  const activeVariantLabel = createMemo(() => {
+    const active = activeVariant()
+    if (!active) {
+      return undefined
+    }
+    return variantOptions().find((variant) => variant.key === active)?.label
   })
 
   const thinkingLabel = createMemo(() => {
-    const variant = activeVariant()
+    const variant = activeVariantLabel()
     return variant ? `Thinking: ${variant}` : "Thinking: off"
   })
 
@@ -85,7 +206,7 @@ export const PromptInput: Component = () => {
   const cycleThinkingVariant = () => {
     if (isDisabled() || isBusy()) return
 
-    const variants = availableVariants()
+    const variants = variantOptions().map((variant) => variant.key)
     if (variants.length === 0) return
 
     const sequence: Array<string | undefined> = [undefined, ...variants]
@@ -153,6 +274,19 @@ export const PromptInput: Component = () => {
         }
         return merged
       })
+      return
+    }
+
+    if (message.type === "slashCommandsLoaded") {
+      const commands = Array.isArray(message.commands) ? message.commands : []
+      setSlashCommands(commands)
+      setSlashCommandsRequested(true)
+      return
+    }
+
+    if (message.type === "configLoaded" || message.type === "configUpdated") {
+      setSlashCommands([])
+      setSlashCommandsRequested(false)
     }
   })
 
@@ -161,6 +295,8 @@ export const PromptInput: Component = () => {
     if (debounceTimer) {
       clearTimeout(debounceTimer)
     }
+    speechRecognition?.stop()
+    speechRecognition = undefined
   })
 
   const prefillListener = (event: Event) => {
@@ -257,6 +393,30 @@ export const PromptInput: Component = () => {
   }
 
   const handleKeyDown = (e: KeyboardEvent) => {
+    const suggestions = slashSuggestions()
+    if (slashPickerOpen() && suggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault()
+        setSlashSelectedIndex((prev) => (prev + 1) % suggestions.length)
+        return
+      }
+
+      if (e.key === "ArrowUp") {
+        e.preventDefault()
+        setSlashSelectedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length)
+        return
+      }
+
+      if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
+        e.preventDefault()
+        const selected = suggestions[Math.min(slashSelectedIndex(), suggestions.length - 1)]
+        if (selected) {
+          applySlashSuggestion(selected.name)
+        }
+        return
+      }
+    }
+
     // Tab or ArrowRight to accept ghost text
     if ((e.key === "Tab" || e.key === "ArrowRight") && ghostText()) {
       e.preventDefault()
@@ -297,9 +457,40 @@ export const PromptInput: Component = () => {
     }
   }
 
+  const applySlashSuggestion = (name: string) => {
+    const next = `/${name} `
+    setText(next)
+    setGhostText("")
+    setFollowUpAutoApprovePaused(next.trim().length > 0)
+
+    requestAnimationFrame(() => {
+      if (!textareaRef) return
+      textareaRef.value = next
+      adjustHeight()
+      textareaRef.focus()
+      const end = next.length
+      textareaRef.setSelectionRange(end, end)
+    })
+  }
+
+  const slashBadgeLabel = (source?: SlashCommandInfo["source"]) => {
+    switch (source) {
+      case "skill":
+        return language.t("prompt.slash.badge.skill")
+      case "mcp":
+        return language.t("prompt.slash.badge.mcp")
+      default:
+        return language.t("prompt.slash.badge.custom")
+    }
+  }
+
   const handleSend = () => {
     const message = text().trim()
     if ((!message && !hasAttachments()) || isBusy() || isDisabled()) return
+
+    if (isRecordingVoice()) {
+      stopVoiceInput()
+    }
 
     const sel = session.selected()
     session.sendMessage(message, sel?.providerID, sel?.modelID, attachments())
@@ -384,6 +575,89 @@ export const PromptInput: Component = () => {
         })
       }
     })()
+  }
+
+  function stopVoiceInput() {
+    if (!speechRecognition) {
+      setIsRecordingVoice(false)
+      return
+    }
+    speechRecognition.stop()
+    speechRecognition = undefined
+    setIsRecordingVoice(false)
+  }
+
+  function startVoiceInput() {
+    if (isBusy() || isDisabled()) return
+    if (!isSpeechSupported()) {
+      showToast({
+        variant: "error",
+        title: "Voice input is not supported in this environment",
+      })
+      return
+    }
+
+    const w = window as unknown as { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor }
+    const Recognition = w.SpeechRecognition || w.webkitSpeechRecognition
+    if (!Recognition) {
+      showToast({
+        variant: "error",
+        title: "Voice input is not supported in this environment",
+      })
+      return
+    }
+
+    const recognition = new Recognition()
+    const baseText = text().trim()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = navigator.language || "en-US"
+    recognition.onresult = (event) => {
+      const segments: string[] = []
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0]?.transcript?.trim()
+        if (transcript) {
+          segments.push(transcript)
+        }
+      }
+      const spoken = segments.join(" ").trim()
+      const nextText = [baseText, spoken].filter(Boolean).join(baseText && spoken ? " " : "")
+      setText(nextText)
+      setFollowUpAutoApprovePaused(nextText.trim().length > 0)
+      setGhostText("")
+      requestAnimationFrame(() => {
+        if (!textareaRef) return
+        textareaRef.value = nextText
+        adjustHeight()
+        const end = nextText.length
+        textareaRef.setSelectionRange(end, end)
+      })
+    }
+
+    recognition.onerror = () => {
+      showToast({
+        variant: "error",
+        title: "Voice input failed",
+      })
+      stopVoiceInput()
+    }
+
+    recognition.onend = () => {
+      setIsRecordingVoice(false)
+      speechRecognition = undefined
+    }
+
+    speechRecognition = recognition
+    setIsRecordingVoice(true)
+    recognition.start()
+  }
+
+  function toggleVoiceInput() {
+    if (isRecordingVoice()) {
+      stopVoiceInput()
+      return
+    }
+    startVoiceInput()
   }
 
   const handleAbort = () => {
@@ -473,12 +747,55 @@ export const PromptInput: Component = () => {
               <span class="prompt-input-ghost-text">{ghostText()}</span>
             </div>
           </Show>
+          <Show when={slashPickerOpen()}>
+            <div class="prompt-slash-popover" role="listbox" aria-label="Slash command suggestions">
+              <Show
+                when={slashSuggestions().length > 0}
+                fallback={<div class="prompt-slash-empty">{language.t("prompt.popover.emptyCommands")}</div>}
+              >
+                <For each={slashSuggestions()}>
+                  {(command, index) => (
+                    <button
+                      type="button"
+                      class={`prompt-slash-item${index() === slashSelectedIndex() ? " is-active" : ""}`}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onMouseEnter={() => setSlashSelectedIndex(index())}
+                      onClick={() => applySlashSuggestion(command.name)}
+                      role="option"
+                      aria-selected={index() === slashSelectedIndex()}
+                    >
+                      <span class="prompt-slash-item-main">
+                        <span class="prompt-slash-item-label">/{command.name}</span>
+                        <Show when={command.description}>
+                          <span class="prompt-slash-item-description">{command.description}</span>
+                        </Show>
+                      </span>
+                      <span class="prompt-slash-item-badge">{slashBadgeLabel(command.source)}</span>
+                    </button>
+                  )}
+                </For>
+              </Show>
+            </div>
+          </Show>
         </div>
         <div class="prompt-input-actions">
           <Show
             when={isBusy()}
             fallback={
               <>
+                <Tooltip value={isRecordingVoice() ? "Stop voice input" : "Start voice input"} placement="top">
+                  <Button
+                    variant={isRecordingVoice() ? "primary" : "ghost"}
+                    size="small"
+                    onClick={toggleVoiceInput}
+                    disabled={isDisabled() || isBusy() || (!isSpeechSupported() && !isRecordingVoice())}
+                    aria-label={isRecordingVoice() ? "Stop voice input" : "Start voice input"}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M8 1.5a2.5 2.5 0 0 1 2.5 2.5v4a2.5 2.5 0 0 1-5 0V4A2.5 2.5 0 0 1 8 1.5Zm0 10a4.5 4.5 0 0 0 4.5-4.5H14A6 6 0 0 1 8.75 13v1.5h-1.5V13A6 6 0 0 1 2 7h1.5A4.5 4.5 0 0 0 8 11.5Z" />
+                    </svg>
+                  </Button>
+                </Tooltip>
                 <Tooltip value={language.t("prompt.action.attachFile")} placement="top">
                   <Button
                     variant="ghost"
@@ -521,7 +838,7 @@ export const PromptInput: Component = () => {
       <div class="prompt-input-hint">
         <ModeSwitcher />
         <ModelSelector />
-        <Show when={availableVariants().length > 0}>
+        <Show when={variantOptions().length > 0}>
           <Tooltip value={language.t("command.model.variant.cycle.description")} placement="top">
             <Button
               variant="ghost"

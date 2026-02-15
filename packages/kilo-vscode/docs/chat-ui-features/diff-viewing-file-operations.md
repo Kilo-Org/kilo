@@ -4,7 +4,7 @@ Interactive diff viewing and file navigation actions for tool-generated file cha
 
 ## Status
 
-🔨 Partial
+✅ Done (P0 scope)
 
 ## Location
 
@@ -16,13 +16,10 @@ Interactive diff viewing and file navigation actions for tool-generated file cha
 - Tool rows already expose file actions (`Open file`, `Copy path`)
 - Added `Open Diff` inline action for tool outputs that include before/after content (`edit`, `write`, `apply_patch`)
 - `Open Diff` routes through extension host and opens native VS Code side-by-side diff preview (`vscode.diff`)
-
-## Remaining Gaps
-
-- Inline diff rendering directly in chat rows
-- Rich file-change statistics UI (+/- line summaries) at chat level
-- Batch approval/review workflow parity for multi-file operations
-- Broader syntax-highlighted diff visualization in webview itself
+- Added inline diff previews in chat rows with per-file truncation handling
+- Added chat-level and per-file +/- line statistics for tool diff outputs
+- Added batch review workflow for multi-file edits (`Review Files` quick-pick + `Open All Diffs`)
+- Inline diff previews now render as syntax-highlighted `diff` markdown blocks
 
 ## Suggested migration
 

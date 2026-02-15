@@ -22,7 +22,7 @@ describe("HttpClient timeouts", () => {
         })
       })) as typeof fetch
 
-    const client = new HttpClient({ baseUrl: "http://127.0.0.1:1111", password: "pw" })
+    const client = new HttpClient({ baseUrl: "http://127.0.0.1:1111", password: "pw", username: "kilo" })
 
     await expect(
       (client as any).request("GET", "/session", undefined, {
@@ -49,7 +49,7 @@ describe("HttpClient timeouts", () => {
       } as Response
     }) as typeof fetch
 
-    const client = new HttpClient({ baseUrl: "http://127.0.0.1:1111", password: "pw" })
+    const client = new HttpClient({ baseUrl: "http://127.0.0.1:1111", password: "pw", username: "kilo" })
 
     await expect(
       (client as any).request("GET", "/session", undefined, {

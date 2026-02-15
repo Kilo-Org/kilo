@@ -116,6 +116,9 @@ function setExpandState(wrapper: HTMLDivElement, button: HTMLButtonElement, labe
 
 function setupCodeInteractions(root: HTMLDivElement, labels: CodeLabels) {
   const timeouts = new Map<HTMLButtonElement, ReturnType<typeof setTimeout>>()
+  const touchButtonTimeouts = new Map<HTMLDivElement, ReturnType<typeof setTimeout>>()
+  const touchStartYByPre = new WeakMap<HTMLPreElement, number>()
+  const wrappers = new Set<HTMLDivElement>()
 
   const updateLabel = (button: HTMLButtonElement) => {
     const copied = button.getAttribute("data-copied") === "true"
@@ -126,13 +129,18 @@ function setupCodeInteractions(root: HTMLDivElement, labels: CodeLabels) {
     const parent = block.parentElement
     if (!parent) return null
     const wrapped = parent.getAttribute("data-component") === "markdown-code"
-    if (wrapped) return parent as HTMLDivElement
+    if (wrapped) {
+      const existing = parent as HTMLDivElement
+      wrappers.add(existing)
+      return existing
+    }
     const wrapper = document.createElement("div")
     wrapper.setAttribute("data-component", "markdown-code")
     parent.replaceChild(wrapper, block)
     wrapper.appendChild(block)
     wrapper.appendChild(createCopyButton(labels))
     wrapper.appendChild(createExpandButton(labels))
+    wrappers.add(wrapper)
     return wrapper
   }
 
@@ -188,6 +196,114 @@ function setupCodeInteractions(root: HTMLDivElement, labels: CodeLabels) {
     timeouts.set(button, timeout)
   }
 
+  const getScrollablePreFromTarget = (target: EventTarget | null): HTMLPreElement | null => {
+    if (!(target instanceof Element)) {
+      return null
+    }
+    const pre = target.closest('[data-component="markdown-code"] pre')
+    if (!(pre instanceof HTMLPreElement)) {
+      return null
+    }
+    if (pre.scrollHeight <= pre.clientHeight) {
+      return null
+    }
+    return pre
+  }
+
+  const markTouchActive = (wrapper: HTMLDivElement) => {
+    wrapper.setAttribute("data-touch-active", "true")
+    const existing = touchButtonTimeouts.get(wrapper)
+    if (existing) {
+      clearTimeout(existing)
+    }
+    const timeout = setTimeout(() => {
+      wrapper.removeAttribute("data-touch-active")
+      touchButtonTimeouts.delete(wrapper)
+    }, 2200)
+    touchButtonTimeouts.set(wrapper, timeout)
+  }
+
+  const handlePointerDown = (event: PointerEvent) => {
+    if (!(event.target instanceof Element)) {
+      return
+    }
+    const wrapper = event.target.closest('[data-component="markdown-code"]')
+    if (wrapper instanceof HTMLDivElement) {
+      markTouchActive(wrapper)
+    }
+  }
+
+  const handleWheel = (event: WheelEvent) => {
+    const pre = getScrollablePreFromTarget(event.target)
+    if (!pre) {
+      return
+    }
+
+    const atTop = pre.scrollTop <= 0
+    const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 1
+    if ((event.deltaY < 0 && !atTop) || (event.deltaY > 0 && !atBottom)) {
+      // Keep nested code-block scrolling isolated from the parent scroll container.
+      event.stopPropagation()
+    }
+  }
+
+  const handleTouchStart = (event: TouchEvent) => {
+    const pre = getScrollablePreFromTarget(event.target)
+    if (!pre) {
+      return
+    }
+    const touch = event.touches[0]
+    if (touch) {
+      touchStartYByPre.set(pre, touch.clientY)
+    }
+  }
+
+  const handleTouchMove = (event: TouchEvent) => {
+    const pre = getScrollablePreFromTarget(event.target)
+    if (!pre) {
+      return
+    }
+    const touch = event.touches[0]
+    if (!touch) {
+      return
+    }
+
+    const lastY = touchStartYByPre.get(pre)
+    touchStartYByPre.set(pre, touch.clientY)
+    if (lastY === undefined) {
+      return
+    }
+
+    const deltaY = lastY - touch.clientY
+    const atTop = pre.scrollTop <= 0
+    const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 1
+    if ((deltaY < 0 && !atTop) || (deltaY > 0 && !atBottom)) {
+      // Mirror wheel behavior for touch scroll chaining.
+      event.stopPropagation()
+    }
+  }
+
+  const updateSelectionState = () => {
+    const selection = document.getSelection()
+    const hasSelection = !!selection && !selection.isCollapsed && selection.rangeCount > 0
+    if (!hasSelection) {
+      for (const wrapper of wrappers) {
+        wrapper.removeAttribute("data-selecting")
+      }
+      return
+    }
+
+    const anchorNode = selection?.anchorNode ?? null
+    for (const wrapper of wrappers) {
+      const containsSelection = !!anchorNode && wrapper.contains(anchorNode)
+      if (containsSelection) {
+        wrapper.setAttribute("data-selecting", "true")
+      } else {
+        wrapper.removeAttribute("data-selecting")
+      }
+    }
+  }
+
   const blocks = Array.from(root.querySelectorAll("pre"))
   for (const block of blocks) {
     const wrapper = ensureWrapper(block)
@@ -202,11 +318,27 @@ function setupCodeInteractions(root: HTMLDivElement, labels: CodeLabels) {
   }
 
   root.addEventListener("click", handleClick)
+  root.addEventListener("pointerdown", handlePointerDown)
+  root.addEventListener("wheel", handleWheel, { passive: true })
+  root.addEventListener("touchstart", handleTouchStart, { passive: true })
+  root.addEventListener("touchmove", handleTouchMove, { passive: true })
+  document.addEventListener("selectionchange", updateSelectionState)
 
   return () => {
     root.removeEventListener("click", handleClick)
+    root.removeEventListener("pointerdown", handlePointerDown)
+    root.removeEventListener("wheel", handleWheel)
+    root.removeEventListener("touchstart", handleTouchStart)
+    root.removeEventListener("touchmove", handleTouchMove)
+    document.removeEventListener("selectionchange", updateSelectionState)
     for (const timeout of timeouts.values()) {
       clearTimeout(timeout)
+    }
+    for (const timeout of touchButtonTimeouts.values()) {
+      clearTimeout(timeout)
+    }
+    for (const wrapper of wrappers) {
+      wrapper.removeAttribute("data-touch-active")
     }
   }
 }

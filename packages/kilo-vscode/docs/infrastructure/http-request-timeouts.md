@@ -1,7 +1,7 @@
 # HTTP Request Timeouts
 
 **Priority:** P1
-**Status:** ❌ Not started
+**Status:** ✅ Done
 **Source:** [JetBrains plugin analysis](../../LESSONS_LEARNED_JETBRAINS.md)
 
 ## Description
@@ -17,14 +17,12 @@ The HTTP client uses bare `fetch()` with no connect or request timeouts. A hung 
 
 ## Current State
 
-[`HttpClient.request()`](../../src/services/cli-backend/http-client.ts:37) calls `fetch()` directly with no `AbortController` or timeout. The only timeout in the codebase is the 30s server startup timeout in [`ServerManager`](../../src/services/cli-backend/server-manager.ts:112).
+`HttpClient` now uses `AbortController` with explicit connect and request timeouts:
 
-## Gaps
-
-- No `AbortController` usage in HTTP client
-- No request timeout configuration
-- No connect timeout
-- Hung requests will block indefinitely
+- [`src/services/cli-backend/http-client.ts`](../../src/services/cli-backend/http-client.ts:1) adds connect timeout (default 10s) + request timeout (default 60s)
+- Timeout errors include operation + phase (`connect` or `request`)
+- Timers are cleared in `finally`
+- Same timeout discipline is applied to `fimCompletion()` streaming requests
 
 ## Implementation Notes
 

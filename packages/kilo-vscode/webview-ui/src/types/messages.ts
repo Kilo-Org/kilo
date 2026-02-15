@@ -125,6 +125,9 @@ export interface PermissionRequest {
   id: string
   sessionID: string
   toolName: string
+  permission?: string
+  patterns?: string[]
+  always?: string[]
   args: Record<string, unknown>
   message?: string
   tool?: { messageID: string; callID: string }
@@ -203,6 +206,63 @@ export interface ProfileData {
   }
   balance: KilocodeBalance | null
   currentOrgId: string | null
+}
+
+// Marketplace types
+export type MarketplaceItemType = "mode" | "mcp" | "skill"
+
+export interface MarketplaceItemBase {
+  type: MarketplaceItemType
+  id: string
+  name: string
+  description: string
+  managedByOrganization?: boolean
+  author?: string
+  authorUrl?: string
+  tags?: string[]
+  prerequisites?: string[]
+}
+
+export interface MarketplaceMcpParameter {
+  name: string
+  key: string
+  placeholder?: string
+  optional: boolean
+}
+
+export interface MarketplaceMcpInstallMethod {
+  name: string
+  content: string
+  parameters?: MarketplaceMcpParameter[]
+  prerequisites?: string[]
+}
+
+export interface MarketplaceModeItem extends MarketplaceItemBase {
+  type: "mode"
+  content: string
+}
+
+export interface MarketplaceMcpItem extends MarketplaceItemBase {
+  type: "mcp"
+  url: string
+  content: string | MarketplaceMcpInstallMethod[]
+  parameters?: MarketplaceMcpParameter[]
+}
+
+export interface MarketplaceSkillItem extends MarketplaceItemBase {
+  type: "skill"
+  category: string
+  githubUrl: string
+  content: string
+  displayName: string
+  displayCategory: string
+}
+
+export type MarketplaceItem = MarketplaceModeItem | MarketplaceMcpItem | MarketplaceSkillItem
+
+export interface MarketplaceInstalledMetadata {
+  project: Record<string, { type: MarketplaceItemType }>
+  global: Record<string, { type: MarketplaceItemType }>
 }
 
 // Provider/model types for model selector
@@ -462,6 +522,11 @@ export interface NavigateMessage {
   view: "newTask" | "marketplace" | "history" | "profile" | "settings"
 }
 
+export interface PrefillPromptMessage {
+  type: "prefillPrompt"
+  text: string
+}
+
 export interface ProvidersLoadedMessage {
   type: "providersLoaded"
   providers: Record<string, Provider>
@@ -583,9 +648,71 @@ export interface NotificationSettingsLoadedMessage {
   }
 }
 
+export interface CommandApprovalSettingsLoadedMessage {
+  type: "commandApprovalSettingsLoaded"
+  settings: {
+    allowedCommands: string[]
+    deniedCommands: string[]
+  }
+}
+
+export interface GatewayPreferenceLoadedMessage {
+  type: "gatewayPreferenceLoaded"
+  preferGatewayDefault: boolean
+}
+
 export interface FilesSelectedMessage {
   type: "filesSelected"
   files: FileAttachment[]
+}
+
+export interface MarketplaceDataMessage {
+  type: "marketplaceData"
+  items: MarketplaceItem[]
+  installedMetadata: MarketplaceInstalledMetadata
+  errors?: string[]
+}
+
+export interface MarketplaceActionResultMessage {
+  type: "marketplaceActionResult"
+  action: "install" | "remove"
+  success: boolean
+  itemID?: string
+  error?: string
+}
+
+export interface RulesCatalogItem {
+  path: string
+  name: string
+  enabled: boolean
+}
+
+export interface RulesCatalog {
+  rules: {
+    global: RulesCatalogItem[]
+    local: RulesCatalogItem[]
+  }
+  workflows: {
+    global: RulesCatalogItem[]
+    local: RulesCatalogItem[]
+  }
+}
+
+export interface RulesCatalogLoadedMessage {
+  type: "rulesCatalogLoaded"
+  catalog: RulesCatalog
+}
+
+export interface SlashCommandInfo {
+  name: string
+  description?: string
+  source?: "command" | "mcp" | "skill"
+}
+
+export interface SlashCommandsLoadedMessage {
+  type: "slashCommandsLoaded"
+  commands: SlashCommandInfo[]
+  error?: string
 }
 
 export type ExtensionMessage =
@@ -609,6 +736,7 @@ export type ExtensionMessage =
   | DeviceAuthFailedMessage
   | DeviceAuthCancelledMessage
   | NavigateMessage
+  | PrefillPromptMessage
   | ProvidersLoadedMessage
   | AgentsLoadedMessage
   | AutocompleteSettingsLoadedMessage
@@ -625,7 +753,13 @@ export type ExtensionMessage =
   | ConfigValidationErrorMessage
   | SettingValidationErrorMessage
   | NotificationSettingsLoadedMessage
+  | CommandApprovalSettingsLoadedMessage
+  | GatewayPreferenceLoadedMessage
   | FilesSelectedMessage
+  | MarketplaceDataMessage
+  | MarketplaceActionResultMessage
+  | RulesCatalogLoadedMessage
+  | SlashCommandsLoadedMessage
 
 // ============================================
 // Messages FROM webview TO extension
@@ -788,6 +922,10 @@ export interface RequestConfigMessage {
   type: "requestConfig"
 }
 
+export interface RequestSlashCommandsMessage {
+  type: "requestSlashCommands"
+}
+
 export interface UpdateConfigMessage {
   type: "updateConfig"
   config: Partial<Config>
@@ -852,6 +990,14 @@ export interface RequestNotificationSettingsMessage {
   type: "requestNotificationSettings"
 }
 
+export interface RequestCommandApprovalSettingsMessage {
+  type: "requestCommandApprovalSettings"
+}
+
+export interface RequestGatewayPreferenceMessage {
+  type: "requestGatewayPreference"
+}
+
 export interface RetryConnectionRequest {
   type: "retryConnection"
 }
@@ -882,6 +1028,21 @@ export interface OpenDiffPreviewRequest {
   path?: string
   before: string
   after: string
+}
+
+export interface OpenBatchDiffPreviewRequest {
+  type: "openBatchDiffPreview"
+  diffs: Array<{
+    path?: string
+    before: string
+    after: string
+  }>
+}
+
+export interface OpenTerminalRequest {
+  type: "openTerminal"
+  cwd?: string
+  command?: string
 }
 
 export interface RevertMessageRequest {
@@ -938,6 +1099,75 @@ export interface DeleteTodoRequest {
   todoID: string
 }
 
+export interface RequestMarketplaceDataMessage {
+  type: "requestMarketplaceData"
+}
+
+export interface InstallMarketplaceItemMessage {
+  type: "installMarketplaceItem"
+  item: MarketplaceItem
+  target: "project" | "global"
+  selectedIndex?: number
+  parameters?: Record<string, unknown>
+}
+
+export interface RemoveMarketplaceItemMessage {
+  type: "removeMarketplaceItem"
+  item: MarketplaceItem
+  target: "project" | "global"
+}
+
+export interface RequestRulesCatalogMessage {
+  type: "requestRulesCatalog"
+}
+
+export interface CreateRuleFileMessage {
+  type: "createRuleFile"
+  kind: "rule" | "workflow"
+  scope: "global" | "local"
+  filename: string
+}
+
+export interface OpenRuleFileMessage {
+  type: "openRuleFile"
+  kind: "rule" | "workflow"
+  scope: "global" | "local"
+  path: string
+}
+
+export interface DeleteRuleFileMessage {
+  type: "deleteRuleFile"
+  kind: "rule" | "workflow"
+  scope: "global" | "local"
+  path: string
+}
+
+export interface ToggleRuleFileMessage {
+  type: "toggleRuleFile"
+  kind: "rule" | "workflow"
+  scope: "global" | "local"
+  path: string
+  enabled: boolean
+}
+
+export type TelemetryEventName =
+  | "Marketplace Tab Viewed"
+  | "Marketplace Install Button Clicked"
+  | "Marketplace Item Installed"
+  | "Marketplace Item Removed"
+  | "Agent Manager Opened"
+  | "Agent Manager Session Started"
+  | "Agent Manager Session Completed"
+  | "Agent Manager Session Stopped"
+  | "Agent Manager Session Error"
+  | "Agent Manager Login Issue"
+
+export interface TelemetryEventMessage {
+  type: "telemetryEvent"
+  event: TelemetryEventName
+  properties?: Record<string, unknown>
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -969,6 +1199,7 @@ export type WebviewMessage =
   | UpdateSettingRequest
   | RequestBrowserSettingsMessage
   | RequestConfigMessage
+  | RequestSlashCommandsMessage
   | UpdateConfigMessage
   | RequestMcpStatusMessage
   | RequestSettingsUiStateMessage
@@ -979,12 +1210,16 @@ export type WebviewMessage =
   | ConnectProviderAuthMessage
   | DisconnectProviderAuthMessage
   | RequestNotificationSettingsMessage
+  | RequestCommandApprovalSettingsMessage
+  | RequestGatewayPreferenceMessage
   | RetryConnectionRequest
   | SelectFilesRequest
   | OpenFileAttachmentRequest
   | SaveFileAttachmentRequest
   | OpenFilePathRequest
   | OpenDiffPreviewRequest
+  | OpenBatchDiffPreviewRequest
+  | OpenTerminalRequest
   | RevertMessageRequest
   | ForkSessionRequest
   | OpenForkSessionPickerRequest
@@ -993,6 +1228,15 @@ export type WebviewMessage =
   | CreateTodoRequest
   | UpdateTodoRequest
   | DeleteTodoRequest
+  | RequestMarketplaceDataMessage
+  | InstallMarketplaceItemMessage
+  | RemoveMarketplaceItemMessage
+  | RequestRulesCatalogMessage
+  | CreateRuleFileMessage
+  | OpenRuleFileMessage
+  | DeleteRuleFileMessage
+  | ToggleRuleFileMessage
+  | TelemetryEventMessage
 
 // ============================================
 // VS Code API type

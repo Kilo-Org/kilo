@@ -1,4 +1,4 @@
-import { Component, createSignal, createMemo, Switch, Match, onMount, onCleanup } from "solid-js"
+import { Component, createSignal, createMemo, createEffect, Switch, Match, onMount, onCleanup } from "solid-js"
 import { ThemeProvider } from "@kilocode/kilo-ui/theme"
 import { DialogProvider } from "@kilocode/kilo-ui/context/dialog"
 import { MarkedProvider } from "@kilocode/kilo-ui/context/marked"
@@ -8,7 +8,8 @@ import Settings from "./components/Settings"
 import ProfileView from "./components/ProfileView"
 import LoadingPanel from "./components/LoadingPanel"
 import ErrorPanel from "./components/ErrorPanel"
-import { VSCodeProvider } from "./context/vscode"
+import MarketplaceView from "./components/MarketplaceView"
+import { VSCodeProvider, useVSCode } from "./context/vscode"
 import { ServerProvider, useServer } from "./context/server"
 import { ProviderProvider } from "./context/provider"
 import { ConfigProvider } from "./context/config"
@@ -28,24 +29,6 @@ import "./styles/chat.css"
 
 type ViewType = "newTask" | "marketplace" | "history" | "profile" | "settings"
 const VALID_VIEWS = new Set<string>(["newTask", "marketplace", "history", "profile", "settings"])
-
-const DummyView: Component<{ title: string }> = (props) => {
-  return (
-    <div
-      style={{
-        display: "flex",
-        "justify-content": "center",
-        "align-items": "center",
-        height: "100%",
-        "min-height": "200px",
-        "font-size": "24px",
-        color: "var(--vscode-foreground)",
-      }}
-    >
-      <h1>{props.title}</h1>
-    </div>
-  )
-}
 
 /**
  * Bridge our session store to the DataProvider's expected Data shape.
@@ -163,6 +146,7 @@ const LanguageBridge: Component<{ children: any }> = (props) => {
 // Inner app component that uses the contexts
 const AppContent: Component = () => {
   const [currentView, setCurrentView] = createSignal<ViewType>("newTask")
+  const vscode = useVSCode()
   const session = useSession()
   const server = useServer()
   const language = useLanguage()
@@ -199,9 +183,30 @@ const AppContent: Component = () => {
         console.log("[Kilo New] App: 🧭 navigate:", message.view)
         setCurrentView(message.view as ViewType)
       }
+      if (message?.type === "openSession" && typeof message.sessionID === "string") {
+        session.selectSession(message.sessionID)
+        setCurrentView("newTask")
+      }
+      if (message?.type === "prefillPrompt" && typeof message.text === "string") {
+        window.dispatchEvent(new CustomEvent("kilo:prompt-prefill", { detail: { text: message.text } }))
+      }
     }
     window.addEventListener("message", handler)
     onCleanup(() => window.removeEventListener("message", handler))
+  })
+
+  createEffect(() => {
+    if (currentView() !== "marketplace") {
+      return
+    }
+
+    vscode.postMessage({
+      type: "telemetryEvent",
+      event: "Marketplace Tab Viewed",
+      properties: {
+        source: "sidebar",
+      },
+    })
   })
 
   const handleSelectSession = (id: string) => {
@@ -236,10 +241,26 @@ const AppContent: Component = () => {
           </Switch>
         </Match>
         <Match when={currentView() === "marketplace"}>
-          <DummyView title="Marketplace" />
+          <MarketplaceView />
         </Match>
         <Match when={currentView() === "history"}>
-          <SessionList onSelectSession={handleSelectSession} />
+          <Switch fallback={<LoadingPanel message={language.t("connection.state.connecting")} />}>
+            <Match when={server.connectionState() === "connected"}>
+              <SessionList onSelectSession={handleSelectSession} />
+            </Match>
+            <Match when={server.connectionState() === "connecting"}>
+              <LoadingPanel message={language.t("connection.state.connecting")} />
+            </Match>
+            <Match when={server.connectionState() === "reconnecting"}>
+              <LoadingPanel message={language.t("connection.state.reconnecting")} />
+            </Match>
+            <Match when={server.connectionState() === "error"}>
+              <ErrorPanel message={server.error()} onRetry={server.retryConnection} />
+            </Match>
+            <Match when={server.connectionState() === "disconnected"}>
+              <ErrorPanel message={language.t("connection.state.disconnected")} onRetry={server.retryConnection} />
+            </Match>
+          </Switch>
         </Match>
         <Match when={currentView() === "profile"}>
           <ProfileView

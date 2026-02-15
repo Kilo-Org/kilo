@@ -4,7 +4,11 @@ import type {
   MessageInfo,
   MessagePart,
   AgentInfo,
+  CommandDefinition,
   ProfileData,
+  KiloExtensionSettings,
+  RemoteSessionInfo,
+  RemoteSessionMessage,
   ProviderAuthAuthorization,
   ProviderListResponse,
   McpStatus,
@@ -12,6 +16,7 @@ import type {
   Config,
 } from "./types"
 import { logger } from "../../utils/logger"
+import { CLI_SERVER_AUTH_USERNAME, createBasicAuthHeader } from "./auth"
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 10_000
 const DEFAULT_REQUEST_TIMEOUT_MS = 60_000
@@ -30,14 +35,12 @@ interface RequestOptions {
 export class HttpClient {
   private readonly baseUrl: string
   private readonly authHeader: string
-  private readonly authUsername = "opencode"
+  private readonly authUsername: string
 
   constructor(config: ServerConfig) {
     this.baseUrl = config.baseUrl
-    // Auth header format: Basic base64("opencode:password")
-    // NOTE: The CLI server expects a non-empty username ("opencode"). Using an empty username
-    // (":password") results in 401 for both REST and SSE endpoints.
-    this.authHeader = `Basic ${Buffer.from(`${this.authUsername}:${config.password}`).toString("base64")}`
+    this.authUsername = config.username || CLI_SERVER_AUTH_USERNAME
+    this.authHeader = createBasicAuthHeader(this.authUsername, config.password)
 
     // Safe debug logging: no secrets.
     logger.debug("[Kilo New] HTTP: 🔐 Auth configured", {
@@ -240,6 +243,14 @@ export class HttpClient {
    */
   async listAgents(directory: string): Promise<AgentInfo[]> {
     return this.request<AgentInfo[]>("GET", "/agent", undefined, { directory })
+  }
+
+  /**
+   * List all slash commands available to the current workspace.
+   * Includes built-ins and commands contributed by custom commands, MCPs, and skills.
+   */
+  async listCommands(directory: string): Promise<CommandDefinition[]> {
+    return this.request<CommandDefinition[]>("GET", "/command", undefined, { directory })
   }
 
   // ============================================
@@ -455,6 +466,56 @@ export class HttpClient {
    */
   async setOrganization(organizationId: string | null): Promise<void> {
     await this.request<boolean>("POST", "/kilo/organization", { organizationId })
+  }
+
+  /**
+   * Fetch cloud extension settings (organization/user policy settings).
+   */
+  async getExtensionSettings(): Promise<KiloExtensionSettings> {
+    return this.request<KiloExtensionSettings>("GET", "/kilo/extension-settings")
+  }
+
+  /**
+   * List cloud-synced remote sessions for Agent Manager.
+   */
+  async listRemoteSessions(limit = 50): Promise<RemoteSessionInfo[]> {
+    const encodedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(100, Math.floor(limit))) : 50
+    const response = await this.request<{ sessions?: Array<Record<string, unknown>> }>(
+      "GET",
+      `/kilo/remote-sessions?limit=${encodedLimit}`,
+    )
+    const raw = Array.isArray(response.sessions) ? response.sessions : []
+    return raw.map((session) => ({
+      sessionID: typeof session.session_id === "string" ? session.session_id : "",
+      title: typeof session.title === "string" ? session.title : "Untitled",
+      createdAt: typeof session.created_at === "string" ? session.created_at : new Date(0).toISOString(),
+      updatedAt: typeof session.updated_at === "string" ? session.updated_at : new Date(0).toISOString(),
+      gitUrl: typeof session.git_url === "string" ? session.git_url : null,
+      organizationId: typeof session.organization_id === "string" ? session.organization_id : null,
+      lastMode: typeof session.last_mode === "string" ? session.last_mode : null,
+      lastModel: typeof session.last_model === "string" ? session.last_model : null,
+      cloudAgentSessionId: typeof session.cloud_agent_session_id === "string" ? session.cloud_agent_session_id : null,
+    }))
+  }
+
+  /**
+   * Fetch transcript messages for a cloud-synced remote session.
+   */
+  async getRemoteSessionMessages(sessionID: string): Promise<RemoteSessionMessage[]> {
+    const encoded = encodeURIComponent(sessionID)
+    const response = await this.request<{ messages?: Array<Record<string, unknown>> }>(
+      "GET",
+      `/kilo/remote-sessions/${encoded}/messages`,
+    )
+    const raw = Array.isArray(response.messages) ? response.messages : []
+    return raw.map((message) => ({
+      ts: typeof message.ts === "number" ? message.ts : undefined,
+      type: typeof message.type === "string" ? message.type : undefined,
+      ask: typeof message.ask === "string" ? message.ask : undefined,
+      say: typeof message.say === "string" ? message.say : undefined,
+      text: typeof message.text === "string" ? message.text : undefined,
+      reasoning: typeof message.reasoning === "string" ? message.reasoning : undefined,
+    }))
   }
 
   // ============================================

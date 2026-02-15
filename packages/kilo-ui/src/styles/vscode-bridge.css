@@ -11,8 +11,35 @@
  */
 
 html[data-theme="kilo-vscode"] {
-  /* Let VS Code control the color scheme instead of the OS preference */
-  color-scheme: normal;
+  /* ===== Typography =====
+   * opencode UI components use --font-family-sans/mono variables.
+   * Bridge them to VS Code-native font settings inside the extension.
+   */
+  --font-family-sans: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  --font-family-sans--font-feature-settings: normal;
+  --font-family-sans--font-variation-settings: normal;
+  --font-family-mono: var(
+    --vscode-editor-font-family,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace
+  );
+  --font-family-mono--font-feature-settings: normal;
+  --font-family-mono--font-variation-settings: normal;
+  --font-size-small: calc(var(--vscode-font-size, 13px) * 0.85);
+  --font-size-base: var(--vscode-font-size, 13px);
+  --font-size-large: calc(var(--vscode-font-size, 13px) * 1.15);
+  --font-size-x-large: calc(var(--vscode-font-size, 13px) * 1.35);
+  --font-weight-regular: var(--vscode-font-weight, 400);
+  --font-weight-medium: 500;
+  --line-height-large: 150%;
+  --line-height-x-large: 170%;
+  --line-height-2x-large: 190%;
 
   /* ===== Backgrounds ===== */
   --background-base: var(--vscode-editor-background);

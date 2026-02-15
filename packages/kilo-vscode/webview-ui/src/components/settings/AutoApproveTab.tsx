@@ -1,4 +1,4 @@
-import { Component, For, createMemo } from "solid-js"
+import { Component, For, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import { Select } from "@kilocode/kilo-ui/select"
 import { Card } from "@kilocode/kilo-ui/card"
 import { Button } from "@kilocode/kilo-ui/button"
@@ -33,10 +33,22 @@ interface LevelOption {
   label: string
 }
 
+interface DurationOption {
+  value: number
+  label: string
+}
+
 const LEVEL_OPTIONS: LevelOption[] = [
   { value: "allow", label: "Allow" },
   { value: "ask", label: "Ask" },
   { value: "deny", label: "Deny" },
+]
+
+const TEMP_DURATION_OPTIONS: DurationOption[] = [
+  { value: 5, label: "5 min" },
+  { value: 15, label: "15 min" },
+  { value: 30, label: "30 min" },
+  { value: 60, label: "60 min" },
 ]
 
 const TOOL_DESCRIPTIONS: Record<string, string> = {
@@ -61,6 +73,11 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
 const AutoApproveTab: Component = () => {
   const language = useLanguage()
   const { config, updateConfig } = useConfig()
+  const [tempMinutes, setTempMinutes] = createSignal(15)
+  const [tempUntil, setTempUntil] = createSignal<number | null>(null)
+  const [tempPreviousEditLevel, setTempPreviousEditLevel] = createSignal<PermissionLevel | null>(null)
+  const [now, setNow] = createSignal(Date.now())
+  let countdownTimer: ReturnType<typeof setInterval> | undefined
 
   const permissions = createMemo(() => config().permission ?? {})
 
@@ -91,6 +108,76 @@ const AutoApproveTab: Component = () => {
     updateConfig({ permission: updated as Record<string, PermissionLevel> })
   }
 
+  const remainingMs = createMemo(() => {
+    const until = tempUntil()
+    if (!until) return 0
+    return Math.max(0, until - now())
+  })
+
+  const remainingLabel = createMemo(() => {
+    const totalSeconds = Math.ceil(remainingMs() / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return `${minutes}:${String(seconds).padStart(2, "0")}`
+  })
+
+  const stopTemporaryAutoApprove = () => {
+    const previous = tempPreviousEditLevel()
+    const current = permissions()
+    if (previous) {
+      updateConfig({
+        permission: {
+          ...current,
+          edit: previous,
+        },
+      })
+    }
+    setTempUntil(null)
+    setTempPreviousEditLevel(null)
+  }
+
+  const startTemporaryAutoApprove = () => {
+    const durationMs = tempMinutes() * 60_000
+    if (!Number.isFinite(durationMs) || durationMs <= 0) {
+      return
+    }
+    setTempPreviousEditLevel(getLevel("edit"))
+    setTempUntil(Date.now() + durationMs)
+    updateConfig({
+      permission: {
+        ...permissions(),
+        edit: "allow",
+      },
+    })
+  }
+
+  createEffect(() => {
+    const until = tempUntil()
+    if (!until) {
+      if (countdownTimer) {
+        clearInterval(countdownTimer)
+        countdownTimer = undefined
+      }
+      return
+    }
+
+    if (!countdownTimer) {
+      setNow(Date.now())
+      countdownTimer = setInterval(() => setNow(Date.now()), 1_000)
+    }
+
+    if (now() >= until) {
+      stopTemporaryAutoApprove()
+    }
+  })
+
+  onCleanup(() => {
+    if (countdownTimer) {
+      clearInterval(countdownTimer)
+      countdownTimer = undefined
+    }
+  })
+
   return (
     <div data-component="auto-approve-settings">
       {/* Presets */}
@@ -112,6 +199,42 @@ const AutoApproveTab: Component = () => {
               Require prompts
             </Button>
           </Tooltip>
+        </div>
+      </Card>
+
+      <div style={{ "margin-top": "12px" }} />
+
+      <Card>
+        <div style={{ display: "flex", "flex-direction": "column", gap: "8px" }}>
+          <div style={{ "font-weight": "600" }}>Temporary edit auto-approval</div>
+          <div style={{ "font-size": "11px", color: "var(--text-weak-base, var(--vscode-descriptionForeground))" }}>
+            Allow `edit` actions for a limited time window, then automatically restore the previous permission level.
+          </div>
+          <div style={{ display: "flex", gap: "8px", "align-items": "center", "flex-wrap": "wrap" }}>
+            <Select
+              options={TEMP_DURATION_OPTIONS}
+              current={TEMP_DURATION_OPTIONS.find((option) => option.value === tempMinutes())}
+              value={(option) => String(option.value)}
+              label={(option) => option.label}
+              onSelect={(option) => option && setTempMinutes(option.value)}
+              variant="secondary"
+              size="small"
+              triggerVariant="settings"
+            />
+            <Tooltip value="Start temporary edit auto-approval" placement="top">
+              <Button size="small" variant="secondary" onClick={startTemporaryAutoApprove} disabled={tempUntil() !== null}>
+                Start window
+              </Button>
+            </Tooltip>
+            <Tooltip value="Stop and restore previous edit permission" placement="top">
+              <Button size="small" variant="ghost" onClick={stopTemporaryAutoApprove} disabled={tempUntil() === null}>
+                Stop
+              </Button>
+            </Tooltip>
+            <div style={{ "font-size": "11px", "font-variant-numeric": "tabular-nums" }}>
+              <strong>Status:</strong> {tempUntil() ? `active (${remainingLabel()} left)` : "off"}
+            </div>
+          </div>
         </div>
       </Card>
 

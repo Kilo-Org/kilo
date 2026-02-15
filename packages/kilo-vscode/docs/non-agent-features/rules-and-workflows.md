@@ -2,7 +2,7 @@
 
 **GitHub Issue:** [#173](https://github.com/Kilo-Org/kilo/issues/173)
 **Priority:** P3
-**Status:** ❌ Not started
+**Status:** 🔨 Partial
 
 ## Description
 
@@ -18,12 +18,17 @@ Support for rules and workflows. Rules define constraints and guidelines for the
 
 ## Current State
 
-No rules or workflow UI exists. The CLI backend supports rules (AGENTS.md, .kilocode/rules/).
+Basic rules/workflows management now exists in the Agent Behaviour > Rules subtab:
+- Lists workspace/global `.kilocode/rules` files
+- Lists workspace/global `.kilocode/workflows` files
+- Supports create/open/delete file actions
+- Supports per-file enable/disable toggles (persisted in extension state)
+
+The CLI backend still owns runtime behavior; extension currently focuses on discovery and file lifecycle.
 
 ## Gaps
 
-- No rules management UI
-- No workflow definition or execution UI
-- Need to determine CLI endpoints for rules CRUD
-- Need to determine workflow format and execution model
+- No dedicated workflow execution UI
+- Limited metadata beyond enabled/disabled state
+- No advanced templates, sharing, or validation flows yet
 - Related to [Custom Commands](custom-command-system.md) and [Skills System](skills-system.md)

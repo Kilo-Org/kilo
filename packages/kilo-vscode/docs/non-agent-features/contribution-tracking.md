@@ -16,6 +16,12 @@
   - If required later, add server-side storage/aggregation, but assume extension ownership for now.
 - **Reimplementation required?**: Yes.
 
+## Current progress
+
+- Added extension-host contribution tracking that records tool-based file edits and line-change stats from SSE tool updates.
+- Added command palette actions to view and clear per-workspace contribution reports.
+- Remaining work includes line-level fingerprinting, cloud attribution APIs, and organization-level reporting surfaces.
+
 ## Primary implementation anchors
 
 - [`src/services/contribution-tracking/`](../../src/services/contribution-tracking/)

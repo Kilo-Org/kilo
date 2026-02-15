@@ -1,7 +1,7 @@
 # SSE Auto-Reconnect with Exponential Backoff
 
 **Priority:** P0
-**Status:** ❌ Not started
+**Status:** ✅ Done
 **Source:** [JetBrains plugin analysis](../../LESSONS_LEARNED_JETBRAINS.md)
 
 ## Description
@@ -19,19 +19,12 @@ The SSE connection to the CLI backend has no reconnect logic. If the connection 
 
 ## Current State
 
-The [`SSEClient`](../../src/services/cli-backend/sse-client.ts:13) emits `"disconnected"` on error (line 78-83) and stops. No retry logic exists.
+Implemented in:
 
-[`ConnectionState`](../../src/services/cli-backend/connection-service.ts:7) only supports `"connecting" | "connected" | "disconnected" | "error"` — no `"reconnecting"`.
-
-The webview [`ConnectionState`](../../webview-ui/src/types/messages.ts:6) mirrors this.
-
-## Gaps
-
-- No reconnect logic in [`SSEClient`](../../src/services/cli-backend/sse-client.ts:13)
-- No `"reconnecting"` connection state
-- No webview UI for reconnecting state
-- No backoff/retry timer management
-- No cleanup of retry timers on dispose
+- [`src/services/cli-backend/sse-client.ts`](../../src/services/cli-backend/sse-client.ts:1): exponential backoff reconnect loop with capped delays and cleanup on dispose
+- [`src/services/cli-backend/connection-service.ts`](../../src/services/cli-backend/connection-service.ts:1): `"reconnecting"` state propagation
+- [`webview-ui/src/types/messages.ts`](../../webview-ui/src/types/messages.ts:1): webview connection state includes `"reconnecting"`
+- [`webview-ui/src/App.tsx`](../../webview-ui/src/App.tsx:1): reconnecting UI panel/render gating
 
 ## Implementation Notes
 

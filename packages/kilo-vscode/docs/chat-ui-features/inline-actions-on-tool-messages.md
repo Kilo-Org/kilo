@@ -24,11 +24,12 @@ Inline affordances on tool messages to navigate, inspect, and track progress.
 - Tool rows with file metadata now expose inline "Copy path" actions
 - Tool rows with before/after metadata now expose inline "Open Diff" actions (native VS Code diff preview)
 - Multi-file tool metadata now surfaces an inline `+N more` hint for additional file targets
+- Resource/link actions were expanded beyond file tools: tool wrappers now extract URL/resource metadata and expose inline `Open Link` / `Copy Link` actions.
+- Added wrapper coverage for web/resource-oriented tools (`webfetch`, `websearch`, `codesearch`, `fetch`, `search`, `mcp`) where renderers are available.
 
 ## Remaining Gaps
 
-- Expand jump-to-file/file-resource actions to additional tool types beyond current file-centric tools
-- Parity polish for richer external-link/file-operation affordances
+- Parity polish for richer external-link/file-operation affordances and deeper progress/status visualization across all tool families
 
 ## Suggested migration
 

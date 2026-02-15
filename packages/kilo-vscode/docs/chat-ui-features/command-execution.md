@@ -2,6 +2,10 @@
 
 Interactive terminal output rendering and approval controls for executed commands.
 
+## Status
+
+✅ Done (P0 scope)
+
 ## Location
 
 Command execution rendering is now handled by kilo-ui's `<KiloMessage>` component which includes per-tool renderers including `BasicTool`. There is no standalone command execution component — tool messages are rendered through the unified message pipeline.
@@ -11,11 +15,19 @@ Command execution rendering is now handled by kilo-ui's `<KiloMessage>` componen
 - Expand/collapse terminal output (chevron down icon)
 - Abort button to kill running processes (shows PID)
 - Exit status indicator - color-coded dot (green=success, red=failure) with tooltip
+- Execution metadata chips for `cwd`, `exit`, and `duration`
 - Command pattern selector:
   - Allow/deny command patterns
   - Updates auto-approval settings
 - Real-time output streaming - shows live command output as it executes
 - Syntax highlighting for shell commands
+
+## Current Progress
+
+- Command tool rows render status indicator and abort action mapped to session abort semantics.
+- Output sections are expandable/collapsible and continue to stream while running.
+- Metadata chips now show `cwd`, `exit`, and `duration`.
+- Command-pattern allow/deny controls are available inline and persist through extension settings (`allowedCommands` / `deniedCommands`).
 
 ## Suggested migration
 

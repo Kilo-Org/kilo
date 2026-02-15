@@ -1,7 +1,7 @@
 # Connection State UI (Loading / Error / Reconnecting)
 
 **Priority:** P0
-**Status:** ❌ Not started
+**Status:** ✅ Done
 **Source:** [JetBrains plugin analysis](../../LESSONS_LEARNED_JETBRAINS.md)
 
 ## Description
@@ -18,15 +18,12 @@ The chat view renders regardless of connection state. When the extension is conn
 
 ## Current State
 
-[`App.tsx`](../../webview-ui/src/App.tsx:83) renders `<ChatView />` unconditionally regardless of connection state. The [`server.tsx`](../../webview-ui/src/context/server.tsx:27) context tracks connection state but it's not used to gate the UI.
+Implemented:
 
-## Gaps
-
-- No loading/connecting spinner
-- No error panel with retry
-- No reconnecting indicator
-- Chat renders even when disconnected — prompt input accepts text that can't be sent
-- The [`PromptInput`](../../webview-ui/src/components/chat/PromptInput.tsx) should be disabled when not connected
+- [`webview-ui/src/App.tsx`](../../webview-ui/src/App.tsx:1) gates chat/history rendering by `useServer().connectionState()`
+- [`webview-ui/src/components/LoadingPanel.tsx`](../../webview-ui/src/components/LoadingPanel.tsx:1) renders connecting/initializing/reconnecting states
+- [`webview-ui/src/components/ErrorPanel.tsx`](../../webview-ui/src/components/ErrorPanel.tsx:1) renders error/disconnected with retry callback
+- [`webview-ui/src/context/server.tsx`](../../webview-ui/src/context/server.tsx:1) tracks `connecting | connected | reconnecting | disconnected | error` and exposes `retryConnection()`
 
 ## Implementation Notes
 

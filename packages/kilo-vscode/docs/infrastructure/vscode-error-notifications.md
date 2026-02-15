@@ -1,7 +1,7 @@
 # VSCode Error Notifications for Critical Failures
 
 **Priority:** P1
-**Status:** ❌ Not started
+**Status:** ✅ Done
 **Source:** [JetBrains plugin analysis](../../LESSONS_LEARNED_JETBRAINS.md)
 
 ## Description
@@ -17,16 +17,11 @@ Critical errors (CLI binary not found, server startup failure, connection lost) 
 
 ## Current State
 
-All errors are posted to the webview as `{ type: "error" }` messages. No `vscode.window.showErrorMessage()` or `vscode.window.showWarningMessage()` calls exist in the extension host.
+Critical failure paths now surface native VS Code notifications with retry affordances and dedupe guardrails:
 
-The CLI binary check at [`ServerManager.startServer()`](../../src/services/cli-backend/server-manager.ts:52) throws an error string that is caught in [`KiloProvider.initializeConnection()`](../../src/KiloProvider.ts:261) and sent to the webview only.
-
-## Gaps
-
-- No `vscode.window.showErrorMessage()` for server startup failures
-- No `vscode.window.showWarningMessage()` for connection loss
-- No actionable notifications (e.g., "Retry" button)
-- Users may miss errors if webview is collapsed or not focused
+- [`src/KiloProvider.ts`](../../src/KiloProvider.ts:1) sends `showErrorMessage` / `showWarningMessage` for startup/connection failures
+- Notifications include retry actions where applicable
+- Duplicate notification spam is throttled by extension-side deduping logic
 
 ## Implementation Notes
 

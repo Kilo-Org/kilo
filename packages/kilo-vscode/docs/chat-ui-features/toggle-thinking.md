@@ -25,9 +25,9 @@ Prompt input now includes a "Thinking" cycle control in [`PromptInput.tsx`](../.
 - Detects model variants from provider metadata
 - Cycles variant (`off → variant1 → variant2 ...`) for the currently selected agent
 - Persists choice by updating `config.agent[agentName].variant`
+- Uses friendly variant labels when provider metadata exposes `label` / `name` / `title` / `displayName` (falls back to formatted key names)
 
 ## Gaps
 
-- Variant labels are currently raw variant keys (no localized/friendly names)
 - UX still uses cycle behavior; no dedicated dropdown or explicit per-model variant picker
 - Need end-to-end validation across providers to confirm which variants map to “thinking on/off” semantics

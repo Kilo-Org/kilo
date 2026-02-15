@@ -196,6 +196,7 @@ export class KiloConnectionService {
     const config: ServerConfig = {
       baseUrl: `http://127.0.0.1:${server.port}`,
       password: server.password,
+      username: server.username,
     }
 
     this.client = new HttpClient(config)
@@ -219,10 +220,14 @@ export class KiloConnectionService {
     })
 
     this.sseClient.onError((error) => {
-      this.setState("error")
-      rejectConnected?.(error)
-      resolveConnected = null
-      rejectConnected = null
+      // Treat SSE errors as fatal only before initial connect completes.
+      // After a successful connect, SSEClient handles reconnect/disconnect state transitions.
+      if (!didConnect) {
+        this.setState("error")
+        rejectConnected?.(error)
+        resolveConnected = null
+        rejectConnected = null
+      }
     })
 
     // Wire SSE state → broadcast to all registered state listeners

@@ -143,6 +143,17 @@ export interface AgentInfo {
   color?: string
 }
 
+// Slash command metadata from the CLI /command endpoint
+export interface CommandDefinition {
+  name: string
+  description?: string
+  agent?: string
+  model?: string
+  source?: "command" | "mcp" | "skill"
+  template: string
+  hints: string[]
+}
+
 // Provider/model types from provider catalog
 
 // Model definition from provider catalog
@@ -183,6 +194,7 @@ export interface ModelSelection {
 export interface ServerConfig {
   baseUrl: string
   password: string
+  username: string
 }
 
 // Provider OAuth types
@@ -213,6 +225,32 @@ export interface ProfileData {
   profile: KilocodeProfile
   balance: KilocodeBalance | null
   currentOrgId: string | null
+}
+
+export interface KiloExtensionSettings {
+  organization?: Record<string, unknown>
+  user?: Record<string, unknown>
+}
+
+export interface RemoteSessionInfo {
+  sessionID: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  gitUrl: string | null
+  organizationId: string | null
+  lastMode: string | null
+  lastModel: string | null
+  cloudAgentSessionId: string | null
+}
+
+export interface RemoteSessionMessage {
+  ts?: number
+  type?: "ask" | "say" | string
+  ask?: string
+  say?: string
+  text?: string
+  reasoning?: string
 }
 
 // MCP server status — discriminated union returned by the backend

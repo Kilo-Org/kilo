@@ -40,3 +40,6 @@ Replicate the settings that are available in OpenCode (CLI) and allow users to c
 - Invalid updates are now rejected with explicit validation error messages and webview rollback/re-sync behavior.
 - Added settings import/export controls (`AboutKiloCodeTab`) for JSON backup/restore workflows.
 - Added MCP server management UI in Agent Behaviour settings (add/update/remove + connect/disconnect + status refresh).
+- Added rules/workflows file management in Agent Behaviour settings (local/global list, create, open, delete, and per-file enable toggles).
+- Added VS Code setting for commit-message diff filtering (`kilo-code.new.git.commitMessageExcludeGlobs`).
+- Added VS Code settings for code-action prompt templates (`kilo-code.new.codeActions.explainTemplate`, `fixTemplate`, `improveTemplate`).

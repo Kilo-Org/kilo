@@ -196,7 +196,7 @@ export const FollowUpSuggest: Component = () => {
                     as="button"
                     type="button"
                     class="follow-up-suggest-chip"
-                    onClick={(event) => onSuggestionClick(item, event as MouseEvent)}
+                    onClick={(event: MouseEvent) => onSuggestionClick(item, event)}
                     title="Click to send, Shift+Click to draft"
                   >
                     <span class="follow-up-suggest-chip-text">{item.text}</span>

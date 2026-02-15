@@ -18,6 +18,9 @@ interface ServerContextValue {
   startLogin: () => void
   vscodeLanguage: Accessor<string | undefined>
   languageOverride: Accessor<string | undefined>
+  allowedCommands: Accessor<string[]>
+  deniedCommands: Accessor<string[]>
+  preferGatewayDefault: Accessor<boolean>
 }
 
 const ServerContext = createContext<ServerContextValue>()
@@ -34,6 +37,9 @@ export const ServerProvider: ParentComponent = (props) => {
   const [deviceAuth, setDeviceAuth] = createSignal<DeviceAuthState>(initialDeviceAuth)
   const [vscodeLanguage, setVscodeLanguage] = createSignal<string | undefined>()
   const [languageOverride, setLanguageOverride] = createSignal<string | undefined>()
+  const [allowedCommands, setAllowedCommands] = createSignal<string[]>([])
+  const [deniedCommands, setDeniedCommands] = createSignal<string[]>([])
+  const [preferGatewayDefault, setPreferGatewayDefault] = createSignal(false)
 
   onMount(() => {
     const unsubscribe = vscode.onMessage((message: ExtensionMessage) => {
@@ -41,8 +47,6 @@ export const ServerProvider: ParentComponent = (props) => {
         case "ready":
           console.log("[Kilo New] Server ready:", message.serverInfo)
           setServerInfo(message.serverInfo)
-          setConnectionState("connected")
-          setError(undefined)
           if (message.vscodeLanguage) {
             setVscodeLanguage(message.vscodeLanguage)
           }
@@ -97,6 +101,15 @@ export const ServerProvider: ParentComponent = (props) => {
           console.log("[Kilo New] Device auth cancelled")
           setDeviceAuth(initialDeviceAuth)
           break
+
+        case "commandApprovalSettingsLoaded":
+          setAllowedCommands(Array.isArray(message.settings?.allowedCommands) ? message.settings.allowedCommands : [])
+          setDeniedCommands(Array.isArray(message.settings?.deniedCommands) ? message.settings.deniedCommands : [])
+          break
+
+        case "gatewayPreferenceLoaded":
+          setPreferGatewayDefault(!!message.preferGatewayDefault)
+          break
       }
     })
 
@@ -106,6 +119,8 @@ export const ServerProvider: ParentComponent = (props) => {
     // Without this handshake, messages posted during a webview refresh can be lost.
     console.log("[Kilo New] Webview ready")
     vscode.postMessage({ type: "webviewReady" })
+    vscode.postMessage({ type: "requestCommandApprovalSettings" })
+    vscode.postMessage({ type: "requestGatewayPreference" })
   })
 
   const startLogin = () => {
@@ -130,6 +145,9 @@ export const ServerProvider: ParentComponent = (props) => {
     startLogin,
     vscodeLanguage,
     languageOverride,
+    allowedCommands,
+    deniedCommands,
+    preferGatewayDefault,
   }
 
   return <ServerContext.Provider value={value}>{props.children}</ServerContext.Provider>

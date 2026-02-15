@@ -123,6 +123,7 @@
 
   [data-component="markdown-code"] {
     position: relative;
+    overscroll-behavior: contain;
   }
 
   [data-component="markdown-code"][data-can-expand="true"]:not([data-expanded="true"])::after {
@@ -144,10 +145,26 @@
     opacity: 0;
     transition: opacity 0.15s ease;
     z-index: 1;
+    pointer-events: none;
   }
 
   [data-component="markdown-code"]:hover [data-slot="markdown-copy-button"] {
     opacity: 1;
+    pointer-events: auto;
+  }
+
+  [data-component="markdown-code"]:focus-within [data-slot="markdown-copy-button"],
+  [data-component="markdown-code"]:focus-within [data-slot="markdown-expand-button"],
+  [data-component="markdown-code"][data-touch-active="true"] [data-slot="markdown-copy-button"],
+  [data-component="markdown-code"][data-touch-active="true"] [data-slot="markdown-expand-button"] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  [data-component="markdown-code"][data-selecting="true"] [data-slot="markdown-copy-button"],
+  [data-component="markdown-code"][data-selecting="true"] [data-slot="markdown-expand-button"] {
+    opacity: 0 !important;
+    pointer-events: none;
   }
 
   [data-slot="markdown-expand-button"] {
@@ -185,6 +202,8 @@
   [data-component="markdown-code"][data-can-expand="true"]:not([data-expanded="true"]) pre {
     max-height: 500px;
     overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   [data-slot="markdown-copy-button"] [data-slot="check-icon"] {

@@ -4,6 +4,31 @@
  */
 
 /* ============================================
+   Webview Typography Baseline
+   Aligns font rendering with VS Code + legacy extension preflight.
+   ============================================ */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  tab-size: 4;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--vscode-font-size, 13px);
+  font-weight: var(--vscode-font-weight, 400);
+  line-height: 1.25;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+}
+
+/* ============================================
    Chat View Layout
    ============================================ */
 
@@ -144,7 +169,13 @@
   border-color: var(--vscode-charts-green, #89d185);
 }
 
+.todo-panel-status[data-status="cancelled"] {
+  color: var(--vscode-descriptionForeground);
+  border-color: var(--vscode-descriptionForeground);
+}
+
 .todo-panel-content {
+  flex: 1;
   min-width: 0;
   font-size: 12px;
   color: var(--vscode-foreground);
@@ -154,6 +185,39 @@
 .todo-panel-content[data-status="completed"] {
   color: var(--vscode-descriptionForeground);
   text-decoration: line-through;
+}
+
+.todo-panel-content[data-status="cancelled"] {
+  color: var(--vscode-descriptionForeground);
+  text-decoration: line-through;
+}
+
+.todo-panel-item-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.todo-panel-status-select {
+  height: 24px;
+  padding: 2px 6px;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 4px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-size: 11px;
+  font-family: var(--vscode-font-family);
+}
+
+.todo-panel-status-select:focus {
+  outline: none;
+  border-color: var(--vscode-focusBorder);
+}
+
+.todo-panel-delete-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .todo-panel-toggle {
@@ -235,10 +299,116 @@
   color: var(--vscode-descriptionForeground);
 }
 
+.tool-inline-meta {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.tool-inline-diff-panel {
+  margin: 6px 0 8px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  background: var(--vscode-editor-background);
+  overflow: hidden;
+}
+
+.tool-inline-diff-file {
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.tool-inline-diff-file:last-child {
+  border-bottom: none;
+}
+
+.tool-inline-diff-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+}
+
+.tool-inline-diff-path {
+  font-size: 11px;
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-editor-font-family, monospace);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-inline-diff-stats {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.tool-inline-diff-code {
+  margin: 0;
+  padding: 8px;
+  max-height: 240px;
+  overflow: auto;
+  font-size: 11px;
+  background: var(--vscode-textCodeBlock-background, var(--vscode-editor-background));
+}
+
+.tool-inline-diff-code [data-component="markdown"] {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.tool-inline-diff-code [data-component="markdown"] pre {
+  margin: 0;
+}
+
+.tool-inline-diff-truncated {
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
 .message-image-gallery {
   margin-top: 6px;
   display: flex;
   flex-wrap: wrap;
+  gap: 6px;
+}
+
+.message-inline-editor {
+  margin-top: 4px;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 6px;
+  background: var(--vscode-input-background);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.message-inline-editor-input {
+  width: 100%;
+  min-height: 84px;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 4px;
+  background: var(--vscode-editor-background);
+  color: var(--vscode-input-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 8px 10px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.message-inline-editor-input:focus {
+  outline: none;
+  border-color: var(--vscode-focusBorder);
+}
+
+.message-inline-editor-actions {
+  display: flex;
+  justify-content: flex-end;
   gap: 6px;
 }
 
@@ -405,6 +575,75 @@
 
 .command-tool-status[data-state="unknown"] .command-tool-status-dot {
   background: var(--vscode-descriptionForeground);
+}
+
+.command-tool-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 6px;
+}
+
+.command-tool-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-tool-patterns {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.command-tool-patterns-label {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.command-tool-pattern-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+
+.command-tool-pattern-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.command-tool-pattern-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.command-tool-pattern-actions [data-component="button"][data-state="active"] {
+  border-color: var(--vscode-focusBorder);
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.command-tool-pattern-more {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
 }
 
 /* ============================================
@@ -619,6 +858,86 @@
 
 .prompt-input-ghost-text {
   color: var(--vscode-editorGhostText-foreground, rgba(255, 255, 255, 0.35));
+}
+
+.prompt-slash-popover {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-input-border));
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background, var(--vscode-input-background));
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+}
+
+.prompt-slash-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.prompt-slash-item {
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  padding: 8px 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .prompt-slash-item:hover {
+    background: var(--vscode-list-hoverBackground, var(--vscode-toolbar-hoverBackground));
+  }
+}
+
+.prompt-slash-item.is-active {
+  background: var(--vscode-list-activeSelectionBackground, var(--vscode-toolbar-hoverBackground));
+  color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+}
+
+.prompt-slash-item-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.prompt-slash-item-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: inherit;
+}
+
+.prompt-slash-item-description {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-slash-item-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: 3px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--vscode-input-border);
+  color: var(--vscode-descriptionForeground);
 }
 
 .prompt-input-actions {

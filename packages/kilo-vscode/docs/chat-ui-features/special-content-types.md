@@ -23,10 +23,11 @@ Content type rendering is now handled by kilo-ui's `<KiloMessage>` component whi
 - Reasoning parts render via kilo-ui reasoning renderer
 - Tool error rows now support detail expansion and copy-to-clipboard actions
 - DataProvider bridge now wires question/task callbacks (reply/reject, session navigation/sync) for richer interactive message-part behavior
+- Tool/resource rows now include broader inline link/resource affordances (`Open Link` / `Copy Link`) from tool metadata/output extraction, including MCP/web-oriented wrappers where available.
 
 ## Remaining Gaps
 
-- MCP tool/resource row parity and richer resource-specific affordances
+- Full MCP-specific tool/resource row parity (server-specific auth/recovery/diagnostics and richer resource action sets)
 
 ## Suggested migration
 

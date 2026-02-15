@@ -25,13 +25,14 @@ Provider data infrastructure is in place. [`provider.tsx`](../../webview-ui/src/
 
 - Provider catalog with connected/disconnected status
 - Per-provider connect/disconnect actions (OAuth connect + auth removal)
+- In-tab lightweight provider diagnostics showing latest connect/disconnect outcome per provider (status message + relative timestamp)
 - Custom provider configuration form (add/edit/remove provider entries, API key, base URL, optional models JSON)
 - Default/small model selection and provider allow/deny lists
 
 ## Gaps
 
 - No advanced provider auth UX parity (provider-specific auth methods, richer multi-step flows)
-- No dedicated provider connection diagnostics view (error history/test connection)
+- No full provider diagnostics workflow yet (detailed error history, explicit test-connection flow)
 - Custom provider schema is still free-form for models JSON (no deep inline validation/editor)
 - Related to [Model Switcher](model-switcher.md) which depends on provider being selected
 - Related to [Kilo Gateway](kilo-gateway.md) as a specific provider

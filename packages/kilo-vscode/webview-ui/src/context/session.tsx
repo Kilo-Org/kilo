@@ -111,6 +111,7 @@ interface SessionContextValue {
   revertMessage: (messageID: string) => void
   forkSession: (messageID?: string) => void
   respondToPermission: (permissionId: string, response: "once" | "always" | "reject") => void
+  respondToPermissions: (permissionIds: string[], response: "once" | "always" | "reject") => void
   replyToQuestion: (requestID: string, answers: string[][]) => void
   rejectQuestion: (requestID: string) => void
   createSession: () => void
@@ -138,6 +139,7 @@ export const SessionProvider: ParentComponent = (props) => {
   const [sessionsLoading, setSessionsLoading] = createSignal(false)
   const [sessionsLoadedAt, setSessionsLoadedAt] = createSignal<number | null>(null)
   const [sessionsLoadError, setSessionsLoadError] = createSignal<string | null>(null)
+  const [pendingSessionsLoad, setPendingSessionsLoad] = createSignal(false)
 
   // Pending permissions
   const [permissions, setPermissions] = createSignal<PermissionRequest[]>([])
@@ -306,7 +308,7 @@ export const SessionProvider: ParentComponent = (props) => {
           setLoading(false)
           if (
             typeof message.message === "string" &&
-            /load sessions|session list|session history/i.test(message.message)
+            /load sessions|session list|session history|not connected to cli backend/i.test(message.message)
           ) {
             setSessionsLoading(false)
             setSessionsLoadError(message.message)
@@ -695,19 +697,31 @@ export const SessionProvider: ParentComponent = (props) => {
   }
 
   function respondToPermission(permissionId: string, response: "once" | "always" | "reject") {
-    // Resolve sessionID from the stored permission request
-    const permission = permissions().find((p) => p.id === permissionId)
-    const sessionID = permission?.sessionID ?? currentSessionID() ?? ""
+    respondToPermissions([permissionId], response)
+  }
 
-    vscode.postMessage({
-      type: "permissionResponse",
-      permissionId,
-      sessionID,
-      response,
-    })
+  function respondToPermissions(permissionIds: string[], response: "once" | "always" | "reject") {
+    const ids = Array.from(new Set(permissionIds.filter((id) => typeof id === "string" && id.trim().length > 0)))
+    if (ids.length === 0) {
+      return
+    }
 
-    // Remove from pending permissions
-    setPermissions((prev) => prev.filter((p) => p.id !== permissionId))
+    const current = permissions()
+    const byId = new Map(current.map((permission) => [permission.id, permission]))
+
+    for (const permissionId of ids) {
+      const permission = byId.get(permissionId)
+      const sessionID = permission?.sessionID ?? currentSessionID() ?? ""
+      vscode.postMessage({
+        type: "permissionResponse",
+        permissionId,
+        sessionID,
+        response,
+      })
+    }
+
+    const idSet = new Set(ids)
+    setPermissions((prev) => prev.filter((permission) => !idSet.has(permission.id)))
   }
 
   function clearQuestionError(requestID: string) {
@@ -763,10 +777,13 @@ export const SessionProvider: ParentComponent = (props) => {
   function loadSessions() {
     if (!server.isConnected()) {
       console.warn("[Kilo New] Cannot load sessions: not connected")
-      setSessionsLoading(false)
-      setSessionsLoadError("Not connected to CLI backend")
+      setSessionsLoading(true)
+      setSessionsLoadError(null)
+      setPendingSessionsLoad(true)
+      server.retryConnection()
       return
     }
+    setPendingSessionsLoad(false)
     setSessionsLoading(true)
     setSessionsLoadError(null)
     vscode.postMessage({ type: "loadSessions" })
@@ -877,6 +894,19 @@ export const SessionProvider: ParentComponent = (props) => {
     Object.values(store.sessions).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
   )
 
+  createEffect(() => {
+    if (!pendingSessionsLoad()) {
+      return
+    }
+    if (!server.isConnected()) {
+      return
+    }
+    setPendingSessionsLoad(false)
+    setSessionsLoading(true)
+    setSessionsLoadError(null)
+    vscode.postMessage({ type: "loadSessions" })
+  })
+
   // Total cost across all assistant messages in the current session
   const totalCost = createMemo(() => {
     return messages().reduce((sum, m) => sum + (m.role === "assistant" ? (m.cost ?? 0) : 0), 0)
@@ -940,6 +970,7 @@ export const SessionProvider: ParentComponent = (props) => {
     revertMessage,
     forkSession,
     respondToPermission,
+    respondToPermissions,
     replyToQuestion,
     rejectQuestion,
     createSession,

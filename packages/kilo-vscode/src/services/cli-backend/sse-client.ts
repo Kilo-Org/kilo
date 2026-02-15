@@ -1,6 +1,7 @@
 import EventSource from "eventsource"
 import type { ServerConfig, SSEEvent } from "./types"
 import { logger } from "../../utils/logger"
+import { CLI_SERVER_AUTH_USERNAME, createBasicAuthHeader } from "./auth"
 
 // Type definitions for handlers
 export type SSEEventHandler = (event: SSEEvent) => void
@@ -18,10 +19,12 @@ interface SSEClientOptions {
   createEventSource?: (url: string, init: { headers: Record<string, string> }) => EventSourceLike
   initialReconnectDelayMs?: number
   maxReconnectDelayMs?: number
+  maxInitialConnectAttempts?: number
 }
 
 const INITIAL_RECONNECT_DELAY_MS = 2_000
 const MAX_RECONNECT_DELAY_MS = 30_000
+const MAX_INITIAL_CONNECT_ATTEMPTS = 5
 
 /**
  * SSE Client for receiving real-time events from the CLI backend.
@@ -32,23 +35,27 @@ export class SSEClient {
   private handlers: Set<SSEEventHandler> = new Set()
   private errorHandlers: Set<SSEErrorHandler> = new Set()
   private stateHandlers: Set<SSEStateHandler> = new Set()
-  private readonly authUsername = "opencode"
+  private readonly authUsername: string
   private readonly createEventSourceImpl: (url: string, init: { headers: Record<string, string> }) => EventSourceLike
   private readonly initialReconnectDelayMs: number
   private readonly maxReconnectDelayMs: number
+  private readonly maxInitialConnectAttempts: number
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null
   private reconnectDelayMs: number
   private shouldReconnect = false
   private directory: string | null = null
   private hasConnected = false
+  private initialConnectAttempts = 0
 
   constructor(
     private readonly config: ServerConfig,
     options?: SSEClientOptions,
   ) {
+    this.authUsername = config.username || CLI_SERVER_AUTH_USERNAME
     this.createEventSourceImpl = options?.createEventSource ?? ((url, init) => new EventSource(url, init) as EventSourceLike)
     this.initialReconnectDelayMs = options?.initialReconnectDelayMs ?? INITIAL_RECONNECT_DELAY_MS
     this.maxReconnectDelayMs = options?.maxReconnectDelayMs ?? MAX_RECONNECT_DELAY_MS
+    this.maxInitialConnectAttempts = options?.maxInitialConnectAttempts ?? MAX_INITIAL_CONNECT_ATTEMPTS
     this.reconnectDelayMs = this.initialReconnectDelayMs
   }
 
@@ -62,6 +69,7 @@ export class SSEClient {
     this.shouldReconnect = true
     this.directory = directory
     this.hasConnected = false
+    this.initialConnectAttempts = 0
     this.reconnectDelayMs = this.initialReconnectDelayMs
     this.clearReconnectTimeout()
     this.closeEventSource()
@@ -83,7 +91,7 @@ export class SSEClient {
     logger.debug("[Kilo New] SSE: 🌐 Connecting to URL:", url)
 
     // Create auth header
-    const authHeader = `Basic ${Buffer.from(`${this.authUsername}:${this.config.password}`).toString("base64")}`
+    const authHeader = createBasicAuthHeader(this.authUsername, this.config.password)
     logger.debug("[Kilo New] SSE: 🔑 Auth header created", {
       username: this.authUsername,
       passwordLength: this.config.password.length,
@@ -105,6 +113,7 @@ export class SSEClient {
       }
       logger.debug("[Kilo New] SSE: ✅ EventSource opened successfully")
       this.hasConnected = true
+      this.initialConnectAttempts = 0
       this.reconnectDelayMs = this.initialReconnectDelayMs
       this.notifyState("connected")
     }
@@ -140,8 +149,14 @@ export class SSEClient {
 
       // Initial connect failed before we ever established a stream.
       if (!this.hasConnected) {
-        this.notifyError(new Error("EventSource connection error"))
-        this.notifyState("disconnected")
+        this.initialConnectAttempts += 1
+        if (this.initialConnectAttempts >= this.maxInitialConnectAttempts) {
+          this.notifyError(new Error("EventSource connection error"))
+          this.notifyState("disconnected")
+          return
+        }
+
+        this.scheduleReconnect()
         return
       }
 
@@ -191,6 +206,7 @@ export class SSEClient {
     this.shouldReconnect = false
     this.directory = null
     this.hasConnected = false
+    this.initialConnectAttempts = 0
     this.reconnectDelayMs = this.initialReconnectDelayMs
     this.clearReconnectTimeout()
     this.closeEventSource()

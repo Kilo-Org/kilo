@@ -1,4 +1,4 @@
-import type { ProviderConfig, ProviderOptionsConfig } from "../../../types/messages"
+import type { ProviderConfig, ProviderModelConfig, ProviderOptionsConfig } from "../../../types/messages"
 
 export interface CustomProviderDraft {
   id: string
@@ -198,7 +198,7 @@ export function draftToProviderConfig(draft: CustomProviderDraft): DraftToProvid
     whitelist: parseStringList(draft.whitelist),
     blacklist: parseStringList(draft.blacklist),
     options: Object.keys(options).length > 0 ? options : undefined,
-    models: parsedModels.value,
+    models: parsedModels.value as Record<string, ProviderModelConfig> | undefined,
   }
 
   return { ok: true, id, config }

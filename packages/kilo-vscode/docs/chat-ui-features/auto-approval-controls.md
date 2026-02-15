@@ -21,11 +21,12 @@ Interactive UI for configuring and toggling auto-approval.
 - Auto-approval settings tab now supports per-tool permission levels (`allow` / `ask` / `deny`)
 - Supports global fallback (`*`) plus tool-level overrides
 - Includes quick presets (`Safe defaults`, `Full auto`, `Require prompts`)
+- Added temporary edit auto-approval window controls with selectable duration and live countdown (`Start window` / `Stop`)
+- Temporary window automatically restores the prior `edit` permission level when the timer expires
 
 ## Remaining Gaps
 
-- Timeout/countdown UX parity for temporary auto-approval windows
-- Richer scope semantics beyond static per-tool permissions
+- Richer scope semantics beyond static per-tool permissions (for example broader grouped scopes and finer-grained expiration policies)
 
 ## Suggested migration
 

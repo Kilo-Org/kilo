@@ -4,7 +4,7 @@ Interactive functionality for rendered code blocks (copying, expanding, scroll b
 
 ## Status
 
-🔨 Partial
+✅ Done (P0 scope)
 
 ## Location
 
@@ -26,8 +26,5 @@ Code blocks are rendered via kilo-ui's `<KiloMessage>` component with shiki synt
 - Copy button with copied-state feedback is available on markdown code blocks
 - Long code blocks now support expand/collapse controls with a 500px collapsed threshold
 - Collapsed long blocks show a bottom fade affordance and inline expand action
-
-## Remaining Gaps
-
-- Deeper sticky-button behavior parity during complex scroll/selection interactions
-- Inertial scroll chaining refinements between nested code blocks and parent container
+- Selection-aware control hiding and scroll-behavior polish are implemented for nested/scrollable code blocks
+- Added wheel/touch scroll-chaining guards and touch/focus affordances for code-block controls

@@ -28,11 +28,13 @@ Interactive editing and message management for user-authored messages.
 - Message context menus now include session-management actions:
   - **Fork from message** (create a new session from that point)
   - **Undo** on user messages (revert session to that message point) with confirmation dialog
+- User message rows now expose inline `Edit` and `Delete` actions.
+- Inline editor is available directly in the row with `Save`/`Cancel` controls and keyboard shortcuts (`Cmd/Ctrl+Enter` save, `Esc` cancel).
+- Edit flow maps cleanly to CLI-backed history semantics (`revertMessage` + prompt prefill for resend), preserving server-owned session history.
 
 ## Remaining Gaps
 
-- Inline edit and delete actions that directly modify user-authored message text
-- Full in-place edit flow parity (edit controls inside the message row, attachments/mode controls) instead of session-level fork/revert actions
+- Full in-place edit flow parity for attachments/mode controls and one-click rerun behavior without composer handoff
 
 ## Suggested migration
 

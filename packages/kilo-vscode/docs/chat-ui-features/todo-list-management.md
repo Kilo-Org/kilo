@@ -4,7 +4,7 @@ Interactive todo tracking surfaced from CLI session state.
 
 ## Status
 
-🔨 Partial
+✅ Done
 
 ## Location
 
@@ -19,12 +19,13 @@ Interactive todo tracking surfaced from CLI session state.
 - Completed-items visibility toggle is available
 - Todo rows support context-menu copy actions
 - Session load now fetches `/session/{id}/todo` so historical sessions populate todo state immediately
+- Todo panel supports inline add/edit/delete with write-back to backend endpoints
+- Todo rows expose explicit status controls (pending/in progress/completed/cancelled)
+- Delete flow now includes inline confirmation before removal
 
 ## Remaining Gaps
 
-- Inline edit/add/delete flows in the webview
-- Write-back/update interactions for todo changes from UI to backend
-- Richer management UX parity (status dropdown editing, confirmation flows)
+None identified for baseline parity in this migration plan.
 
 ## Suggested migration
 

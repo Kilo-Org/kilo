@@ -16,6 +16,9 @@ type ValidatedSettingKey =
   | "browserAutomation.headless"
   | "model.providerID"
   | "model.modelID"
+  | "model.preferGatewayDefault"
+  | "allowedCommands"
+  | "deniedCommands"
   | "notifications.agent"
   | "notifications.permissions"
   | "notifications.errors"
@@ -181,6 +184,9 @@ const settingSchemas: Record<ValidatedSettingKey, z.ZodTypeAny> = {
   "browserAutomation.headless": z.boolean(),
   "model.providerID": nonEmptyStringSchema,
   "model.modelID": nonEmptyStringSchema,
+  "model.preferGatewayDefault": z.boolean(),
+  allowedCommands: stringArraySchema,
+  deniedCommands: stringArraySchema,
   "notifications.agent": z.boolean(),
   "notifications.permissions": z.boolean(),
   "notifications.errors": z.boolean(),

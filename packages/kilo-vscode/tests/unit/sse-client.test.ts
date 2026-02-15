@@ -26,7 +26,7 @@ describe("SSEClient reconnect behavior", () => {
     const states: string[] = []
 
     const client = new SSEClient(
-      { baseUrl: "http://127.0.0.1:1111", password: "pw" },
+      { baseUrl: "http://127.0.0.1:1111", password: "pw", username: "kilo" },
       {
         createEventSource: () => {
           const next = new FakeEventSource()
@@ -56,12 +56,13 @@ describe("SSEClient reconnect behavior", () => {
     expect(states.at(-1)).toBe("connected")
   })
 
-  it("does not reconnect when initial connection fails before open", async () => {
+  it("retries initial connection failures before emitting disconnected", async () => {
     const instances: FakeEventSource[] = []
     const states: string[] = []
+    const errors: Error[] = []
 
     const client = new SSEClient(
-      { baseUrl: "http://127.0.0.1:1111", password: "pw" },
+      { baseUrl: "http://127.0.0.1:1111", password: "pw", username: "kilo" },
       {
         createEventSource: () => {
           const next = new FakeEventSource()
@@ -69,17 +70,28 @@ describe("SSEClient reconnect behavior", () => {
           return next
         },
         initialReconnectDelayMs: 5,
+        maxReconnectDelayMs: 20,
+        maxInitialConnectAttempts: 3,
       },
     )
 
     client.onStateChange((state) => states.push(state))
+    client.onError((error) => errors.push(error))
     client.connect("/tmp/ws")
+
     instances[0].emitError()
+    expect(states.at(-1)).toBe("reconnecting")
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(instances.length).toBe(2)
 
-    expect(states).toContain("disconnected")
-    expect(states).not.toContain("reconnecting")
-
+    instances[1].emitError()
+    expect(states.at(-1)).toBe("reconnecting")
     await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(instances.length).toBe(1)
+    expect(instances.length).toBe(3)
+
+    instances[2].emitError()
+    expect(states.at(-1)).toBe("disconnected")
+    expect(errors).toHaveLength(1)
+    expect(errors[0].message).toContain("EventSource connection error")
   })
 })

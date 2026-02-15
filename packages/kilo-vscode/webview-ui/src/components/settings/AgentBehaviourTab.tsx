@@ -11,7 +11,15 @@ import { useConfig } from "../../context/config"
 import { useSession } from "../../context/session"
 import { useLanguage } from "../../context/language"
 import { useVSCode } from "../../context/vscode"
-import type { AgentConfig, ExtensionMessage, McpConfig, McpServerConfigInput, McpStatus } from "../../types/messages"
+import type {
+  AgentConfig,
+  ExtensionMessage,
+  McpConfig,
+  McpServerConfigInput,
+  McpStatus,
+  RulesCatalog,
+  RulesCatalogItem,
+} from "../../types/messages"
 
 type SubtabId = "agents" | "mcpServers" | "rules" | "commands" | "skills"
 
@@ -34,11 +42,18 @@ interface SelectOption {
 }
 
 type McpType = "local" | "remote"
+type RulesScope = "local" | "global"
+type RulesKind = "rule" | "workflow"
 
 const MCP_TYPE_OPTIONS: Array<{ value: McpType; label: string }> = [
   { value: "local", label: "Local (command)" },
   { value: "remote", label: "Remote (URL)" },
 ]
+
+const EMPTY_RULES_CATALOG: RulesCatalog = {
+  rules: { local: [], global: [] },
+  workflows: { local: [], global: [] },
+}
 
 interface SettingRowProps {
   label: string
@@ -78,6 +93,11 @@ const AgentBehaviourTab: Component = () => {
   const [newSkillPath, setNewSkillPath] = createSignal("")
   const [newSkillUrl, setNewSkillUrl] = createSignal("")
   const [newInstruction, setNewInstruction] = createSignal("")
+  const [newRuleFilename, setNewRuleFilename] = createSignal("")
+  const [newRuleScope, setNewRuleScope] = createSignal<RulesScope>("local")
+  const [newWorkflowFilename, setNewWorkflowFilename] = createSignal("")
+  const [newWorkflowScope, setNewWorkflowScope] = createSignal<RulesScope>("local")
+  const [rulesCatalog, setRulesCatalog] = createSignal<RulesCatalog>(EMPTY_RULES_CATALOG)
   const [editingCommandKey, setEditingCommandKey] = createSignal<string | null>(null)
   const [commandName, setCommandName] = createSignal("")
   const [commandValue, setCommandValue] = createSignal("")
@@ -307,7 +327,7 @@ const AgentBehaviourTab: Component = () => {
 
     const timeoutRaw = mcpTimeoutMs().trim()
     const timeout = timeoutRaw ? Number.parseInt(timeoutRaw, 10) : undefined
-    if (timeoutRaw && (!Number.isFinite(timeout) || timeout <= 0)) {
+    if (timeoutRaw && (typeof timeout !== "number" || !Number.isFinite(timeout) || timeout <= 0)) {
       showToast({ variant: "error", title: "Timeout must be a positive integer" })
       return
     }
@@ -386,6 +406,86 @@ const AgentBehaviourTab: Component = () => {
     vscode.postMessage({ type: "requestMcpStatus" })
   }
 
+  const requestRulesCatalog = () => {
+    vscode.postMessage({ type: "requestRulesCatalog" })
+  }
+
+  const createRuleOrWorkflow = (kind: RulesKind, scope: RulesScope, filename: string, reset: () => void) => {
+    const normalized = filename.trim()
+    if (!normalized) {
+      showToast({ variant: "error", title: "Filename is required" })
+      return
+    }
+    vscode.postMessage({
+      type: "createRuleFile",
+      kind,
+      scope,
+      filename: normalized,
+    })
+    showToast({
+      variant: "success",
+      title: `${kind === "rule" ? "Rule" : "Workflow"} file created`,
+      description: normalized,
+    })
+    reset()
+    setTimeout(requestRulesCatalog, 200)
+  }
+
+  const toggleRuleOrWorkflow = (kind: RulesKind, scope: RulesScope, item: RulesCatalogItem, enabled: boolean) => {
+    vscode.postMessage({
+      type: "toggleRuleFile",
+      kind,
+      scope,
+      path: item.path,
+      enabled,
+    })
+    setRulesCatalog((prev) => {
+      const next: RulesCatalog = {
+        rules: {
+          local: [...prev.rules.local],
+          global: [...prev.rules.global],
+        },
+        workflows: {
+          local: [...prev.workflows.local],
+          global: [...prev.workflows.global],
+        },
+      }
+      const list = kind === "rule" ? next.rules[scope] : next.workflows[scope]
+      const foundIndex = list.findIndex((entry) => entry.path === item.path)
+      if (foundIndex >= 0) {
+        list[foundIndex] = { ...list[foundIndex], enabled }
+      }
+      return next
+    })
+  }
+
+  const openRuleOrWorkflow = (kind: RulesKind, scope: RulesScope, item: RulesCatalogItem) => {
+    vscode.postMessage({
+      type: "openRuleFile",
+      kind,
+      scope,
+      path: item.path,
+    })
+  }
+
+  const deleteRuleOrWorkflow = (kind: RulesKind, scope: RulesScope, item: RulesCatalogItem) => {
+    if (!window.confirm(`Delete ${item.name}?`)) {
+      return
+    }
+    vscode.postMessage({
+      type: "deleteRuleFile",
+      kind,
+      scope,
+      path: item.path,
+    })
+    showToast({
+      variant: "success",
+      title: `${kind === "rule" ? "Rule" : "Workflow"} file deleted`,
+      description: item.name,
+    })
+    setTimeout(requestRulesCatalog, 200)
+  }
+
   const upsertMcpToolPolicy = () => {
     const name = mcpToolName().trim()
     if (!name) {
@@ -413,6 +513,10 @@ const AgentBehaviourTab: Component = () => {
     if (message.type === "mcpStatusLoaded") {
       setMcpStatus(message.status)
       setMcpStatusRefreshedAt(Date.now())
+      return
+    }
+    if (message.type === "rulesCatalogLoaded") {
+      setRulesCatalog(message.catalog)
     }
   })
 
@@ -421,6 +525,12 @@ const AgentBehaviourTab: Component = () => {
   createEffect(() => {
     if (activeSubtab() === "mcpServers") {
       requestMcpStatus()
+    }
+  })
+
+  createEffect(() => {
+    if (activeSubtab() === "rules") {
+      requestRulesCatalog()
     }
   })
 
@@ -1177,87 +1287,296 @@ const AgentBehaviourTab: Component = () => {
     </div>
   )
 
-  const renderRulesSubtab = () => (
-    <div>
-      <Card>
-        <div
-          style={{
-            "padding-bottom": "8px",
-            "border-bottom": "1px solid var(--border-weak-base)",
-          }}
-        >
-          <div style={{ "font-weight": "500" }}>Additional Instruction Files</div>
-          <div
-            style={{
-              "font-size": "11px",
-              color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
-              "margin-top": "2px",
-            }}
-          >
-            Paths to additional instruction files that are included in the system prompt
-          </div>
-        </div>
-
-        {/* Add new instruction path */}
-        <div
-          style={{
-            display: "flex",
-            gap: "8px",
-            "align-items": "center",
-            padding: "8px 0",
-            "border-bottom": instructions().length > 0 ? "1px solid var(--border-weak-base)" : "none",
-          }}
-        >
-          <div style={{ flex: 1 }}>
-            <TextField
-              value={newInstruction()}
-              placeholder="e.g. ./INSTRUCTIONS.md"
-              onChange={(val) => setNewInstruction(val)}
-              onKeyDown={(e: KeyboardEvent) => {
-                if (e.key === "Enter") addInstruction()
-              }}
-            />
-          </div>
-          <Button size="small" onClick={addInstruction}>
-            Add
-          </Button>
-        </div>
-
-        {/* Instructions list */}
-        <For each={instructions()}>
-          {(path, index) => (
+  const renderRulesSubtab = () => {
+    const renderCatalogGroup = (
+      title: string,
+      kind: RulesKind,
+      scope: RulesScope,
+      entries: RulesCatalogItem[],
+      emptyText: string,
+    ) => (
+      <div style={{ "margin-top": "10px" }}>
+        <div style={{ "font-weight": "500", "font-size": "12px", "margin-bottom": "6px" }}>{title}</div>
+        <Show
+          when={entries.length > 0}
+          fallback={
             <div
               style={{
-                display: "flex",
-                "align-items": "center",
-                "justify-content": "space-between",
-                padding: "6px 0",
-                "border-bottom": index() < instructions().length - 1 ? "1px solid var(--border-weak-base)" : "none",
+                "font-size": "11px",
+                color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
               }}
             >
-              <span
+              {emptyText}
+            </div>
+          }
+        >
+          <For each={entries}>
+            {(item, index) => (
+              <div
                 style={{
-                  "font-family": "var(--vscode-editor-font-family, monospace)",
-                  "font-size": "12px",
+                  display: "flex",
+                  "align-items": "center",
+                  "justify-content": "space-between",
+                  gap: "8px",
+                  padding: "6px 0",
+                  "border-bottom": index() < entries.length - 1 ? "1px solid var(--border-weak-base)" : "none",
                 }}
               >
-                {path}
-              </span>
-              <Tooltip value={language.t("common.delete")} placement="top">
-                <IconButton
-                  size="small"
-                  variant="ghost"
-                  icon="close"
-                  onClick={() => removeInstruction(index())}
-                  aria-label={language.t("common.delete")}
-                />
-              </Tooltip>
+                <label
+                  style={{
+                    display: "flex",
+                    "align-items": "center",
+                    gap: "8px",
+                    flex: 1,
+                    "min-width": 0,
+                    "font-size": "12px",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={item.enabled}
+                    onChange={(event) => toggleRuleOrWorkflow(kind, scope, item, event.currentTarget.checked)}
+                  />
+                  <span
+                    style={{
+                      "font-family": "var(--vscode-editor-font-family, monospace)",
+                      overflow: "hidden",
+                      "text-overflow": "ellipsis",
+                      "white-space": "nowrap",
+                    }}
+                  >
+                    {item.name}
+                  </span>
+                </label>
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <Button size="small" variant="ghost" onClick={() => openRuleOrWorkflow(kind, scope, item)}>
+                    Open
+                  </Button>
+                  <Button size="small" variant="ghost" onClick={() => deleteRuleOrWorkflow(kind, scope, item)}>
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            )}
+          </For>
+        </Show>
+      </div>
+    )
+
+    return (
+      <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+        <Card>
+          <div
+            style={{
+              "padding-bottom": "8px",
+              "border-bottom": "1px solid var(--border-weak-base)",
+            }}
+          >
+            <div style={{ "font-weight": "500" }}>Additional Instruction Files</div>
+            <div
+              style={{
+                "font-size": "11px",
+                color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+                "margin-top": "2px",
+              }}
+            >
+              Paths to additional instruction files that are included in the system prompt
             </div>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              "align-items": "center",
+              padding: "8px 0",
+              "border-bottom": instructions().length > 0 ? "1px solid var(--border-weak-base)" : "none",
+            }}
+          >
+            <div style={{ flex: 1 }}>
+              <TextField
+                value={newInstruction()}
+                placeholder="e.g. ./INSTRUCTIONS.md"
+                onChange={(val) => setNewInstruction(val)}
+                onKeyDown={(e: KeyboardEvent) => {
+                  if (e.key === "Enter") addInstruction()
+                }}
+              />
+            </div>
+            <Button size="small" onClick={addInstruction}>
+              Add
+            </Button>
+          </div>
+
+          <For each={instructions()}>
+            {(instructionPath, index) => (
+              <div
+                style={{
+                  display: "flex",
+                  "align-items": "center",
+                  "justify-content": "space-between",
+                  padding: "6px 0",
+                  "border-bottom": index() < instructions().length - 1 ? "1px solid var(--border-weak-base)" : "none",
+                }}
+              >
+                <span
+                  style={{
+                    "font-family": "var(--vscode-editor-font-family, monospace)",
+                    "font-size": "12px",
+                  }}
+                >
+                  {instructionPath}
+                </span>
+                <Tooltip value={language.t("common.delete")} placement="top">
+                  <IconButton
+                    size="small"
+                    variant="ghost"
+                    icon="close"
+                    onClick={() => removeInstruction(index())}
+                    aria-label={language.t("common.delete")}
+                  />
+                </Tooltip>
+              </div>
+            )}
+          </For>
+        </Card>
+
+        <Card>
+          <div
+            style={{
+              "padding-bottom": "8px",
+              "border-bottom": "1px solid var(--border-weak-base)",
+            }}
+          >
+            <div style={{ "font-weight": "500" }}>Rules</div>
+            <div
+              style={{
+                "font-size": "11px",
+                color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+                "margin-top": "2px",
+              }}
+            >
+              Manage rule files from workspace and global `.kilocode/rules`.
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", "align-items": "center", padding: "8px 0" }}>
+            <select
+              value={newRuleScope()}
+              onChange={(event) => setNewRuleScope(event.currentTarget.value as RulesScope)}
+              style={{
+                "background-color": "var(--vscode-input-background)",
+                color: "var(--vscode-input-foreground)",
+                border: "1px solid var(--border-weak-base)",
+                padding: "4px 6px",
+                "border-radius": "6px",
+              }}
+            >
+              <option value="local">Workspace</option>
+              <option value="global">Global</option>
+            </select>
+            <div style={{ flex: 1 }}>
+              <TextField
+                value={newRuleFilename()}
+                placeholder="new-rule.md"
+                onChange={(value) => setNewRuleFilename(value)}
+                onKeyDown={(event: KeyboardEvent) => {
+                  if (event.key === "Enter") {
+                    createRuleOrWorkflow("rule", newRuleScope(), newRuleFilename(), () => setNewRuleFilename(""))
+                  }
+                }}
+              />
+            </div>
+            <Button
+              size="small"
+              onClick={() => createRuleOrWorkflow("rule", newRuleScope(), newRuleFilename(), () => setNewRuleFilename(""))}
+            >
+              Create
+            </Button>
+          </div>
+
+          {renderCatalogGroup("Workspace Rules", "rule", "local", rulesCatalog().rules.local, "No workspace rules found.")}
+          {renderCatalogGroup("Global Rules", "rule", "global", rulesCatalog().rules.global, "No global rules found.")}
+        </Card>
+
+        <Card>
+          <div
+            style={{
+              "padding-bottom": "8px",
+              "border-bottom": "1px solid var(--border-weak-base)",
+            }}
+          >
+            <div style={{ "font-weight": "500" }}>Workflows</div>
+            <div
+              style={{
+                "font-size": "11px",
+                color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+                "margin-top": "2px",
+              }}
+            >
+              Manage reusable workflow files from workspace and global `.kilocode/workflows`.
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", "align-items": "center", padding: "8px 0" }}>
+            <select
+              value={newWorkflowScope()}
+              onChange={(event) => setNewWorkflowScope(event.currentTarget.value as RulesScope)}
+              style={{
+                "background-color": "var(--vscode-input-background)",
+                color: "var(--vscode-input-foreground)",
+                border: "1px solid var(--border-weak-base)",
+                padding: "4px 6px",
+                "border-radius": "6px",
+              }}
+            >
+              <option value="local">Workspace</option>
+              <option value="global">Global</option>
+            </select>
+            <div style={{ flex: 1 }}>
+              <TextField
+                value={newWorkflowFilename()}
+                placeholder="new-workflow.md"
+                onChange={(value) => setNewWorkflowFilename(value)}
+                onKeyDown={(event: KeyboardEvent) => {
+                  if (event.key === "Enter") {
+                    createRuleOrWorkflow("workflow", newWorkflowScope(), newWorkflowFilename(), () =>
+                      setNewWorkflowFilename(""),
+                    )
+                  }
+                }}
+              />
+            </div>
+            <Button
+              size="small"
+              onClick={() =>
+                createRuleOrWorkflow("workflow", newWorkflowScope(), newWorkflowFilename(), () =>
+                  setNewWorkflowFilename(""),
+                )
+              }
+            >
+              Create
+            </Button>
+          </div>
+
+          {renderCatalogGroup(
+            "Workspace Workflows",
+            "workflow",
+            "local",
+            rulesCatalog().workflows.local,
+            "No workspace workflows found.",
           )}
-        </For>
-      </Card>
-    </div>
-  )
+          {renderCatalogGroup(
+            "Global Workflows",
+            "workflow",
+            "global",
+            rulesCatalog().workflows.global,
+            "No global workflows found.",
+          )}
+        </Card>
+      </div>
+    )
+  }
 
   const renderCommandsSubtab = () => (
     <div>

@@ -1,7 +1,7 @@
 # Dedicated Output Channel
 
 **Priority:** P2
-**Status:** ❌ Not started
+**Status:** ✅ Done
 **Source:** [JetBrains plugin analysis](../../LESSONS_LEARNED_JETBRAINS.md)
 
 ## Description
@@ -18,14 +18,11 @@ All extension logging uses `console.log("[Kilo New] ...")` which goes to the Ext
 
 ## Current State
 
-All debug output uses `console.log("[Kilo New] ...")` per the [AGENTS.md](../../AGENTS.md) convention. Users must find extension logs in the "Extension Host" output channel and manually filter for `[Kilo New]`.
+Implemented with a dedicated output channel and shared logger utility:
 
-## Gaps
-
-- No dedicated output channel
-- No centralized logging utility
-- No log level control
-- Hard to filter Kilo logs from other extension noise
+- [`src/extension.ts`](../../src/extension.ts:1) creates and owns `vscode.window.createOutputChannel("Kilo Code")`
+- [`src/utils/logger.ts`](../../src/utils/logger.ts:1) provides centralized levelled logging
+- Core extension/CLI service paths are migrated to `logger.*` while preserving console output as secondary diagnostics
 
 ## Implementation Notes
 

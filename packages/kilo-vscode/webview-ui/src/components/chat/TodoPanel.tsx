@@ -26,6 +26,7 @@ export const TodoPanel: Component = () => {
   const [newTodoText, setNewTodoText] = createSignal("")
   const [editingTodoID, setEditingTodoID] = createSignal<string | null>(null)
   const [editingText, setEditingText] = createSignal("")
+  const [pendingDeleteTodoID, setPendingDeleteTodoID] = createSignal<string | null>(null)
 
   const todos = createMemo(() => session.todos())
   const total = createMemo(() => todos().length)
@@ -74,6 +75,23 @@ export const TodoPanel: Component = () => {
     session.updateTodo(todoID, { content })
     setEditingTodoID(null)
     setEditingText("")
+  }
+
+  const updateTodoStatus = (todoID: string, status: "pending" | "in_progress" | "completed" | "cancelled") => {
+    session.updateTodo(todoID, { status })
+  }
+
+  const requestDeleteTodo = (todoID: string) => {
+    setPendingDeleteTodoID(todoID)
+  }
+
+  const cancelDeleteTodo = () => {
+    setPendingDeleteTodoID(null)
+  }
+
+  const confirmDeleteTodo = (todoID: string) => {
+    session.deleteTodo(todoID)
+    setPendingDeleteTodoID(null)
   }
 
   return (
@@ -126,9 +144,53 @@ export const TodoPanel: Component = () => {
                   <Show
                     when={editingTodoID() === item.id}
                     fallback={
-                      <span class="todo-panel-content" data-status={item.status} onDblClick={() => startEdit(item.id, item.content)}>
-                        {item.content}
-                      </span>
+                      <>
+                        <span
+                          class="todo-panel-content"
+                          data-status={item.status}
+                          onDblClick={() => startEdit(item.id, item.content)}
+                        >
+                          {item.content}
+                        </span>
+                        <div class="todo-panel-item-controls">
+                          <select
+                            class="todo-panel-status-select"
+                            value={item.status}
+                            onChange={(event) =>
+                              updateTodoStatus(
+                                item.id,
+                                event.currentTarget.value as "pending" | "in_progress" | "completed" | "cancelled",
+                              )
+                            }
+                            aria-label={`Set status for todo ${item.content}`}
+                          >
+                            <option value="pending">{language.t("todo.status.pending")}</option>
+                            <option value="in_progress">{language.t("todo.status.inProgress")}</option>
+                            <option value="completed">{language.t("todo.status.completed")}</option>
+                            <option value="cancelled">Cancelled</option>
+                          </select>
+                          <Button size="small" variant="ghost" onClick={() => startEdit(item.id, item.content)}>
+                            Edit
+                          </Button>
+                          <Show
+                            when={pendingDeleteTodoID() === item.id}
+                            fallback={
+                              <Button size="small" variant="ghost" onClick={() => requestDeleteTodo(item.id)}>
+                                Delete
+                              </Button>
+                            }
+                          >
+                            <div class="todo-panel-delete-confirm">
+                              <Button size="small" variant="ghost" onClick={() => confirmDeleteTodo(item.id)}>
+                                Confirm
+                              </Button>
+                              <Button size="small" variant="ghost" onClick={cancelDeleteTodo}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </Show>
+                        </div>
+                      </>
                     }
                   >
                     <div class="todo-panel-edit-row">
@@ -180,11 +242,14 @@ export const TodoPanel: Component = () => {
                     <ContextMenu.Item onSelect={() => session.updateTodo(item.id, { status: "completed" })}>
                       <ContextMenu.ItemLabel>{language.t("todo.status.completed")}</ContextMenu.ItemLabel>
                     </ContextMenu.Item>
+                    <ContextMenu.Item onSelect={() => session.updateTodo(item.id, { status: "cancelled" })}>
+                      <ContextMenu.ItemLabel>Cancelled</ContextMenu.ItemLabel>
+                    </ContextMenu.Item>
                     <ContextMenu.Separator />
                     <ContextMenu.Item onSelect={() => startEdit(item.id, item.content)}>
                       <ContextMenu.ItemLabel>Edit</ContextMenu.ItemLabel>
                     </ContextMenu.Item>
-                    <ContextMenu.Item onSelect={() => session.deleteTodo(item.id)}>
+                    <ContextMenu.Item onSelect={() => requestDeleteTodo(item.id)}>
                       <ContextMenu.ItemLabel>Delete</ContextMenu.ItemLabel>
                     </ContextMenu.Item>
                   </ContextMenu.Content>

@@ -2,7 +2,7 @@
 
 **GitHub Issue:** [#176](https://github.com/Kilo-Org/kilo/issues/176)
 **Priority:** P0
-**Status:** 🔨 Partial (In progress)
+**Status:** ✅ Done (extension scope)
 
 ## Description
 
@@ -23,9 +23,9 @@ Auth flow works ([`DeviceAuthCard.tsx`](../../webview-ui/src/components/DeviceAu
 
 - Startup model selector (`kilo-code.new.model.providerID` + `kilo-code.new.model.modelID`)
 - One-click "Use Kilo Gateway Default" action backed by the CLI provider defaults map
+- Optional `Prefer Kilo Gateway Default` toggle (`kilo-code.new.model.preferGatewayDefault`) so new sessions automatically follow the gateway default model when available
 
-## Gaps
+## Notes
 
-- Need to verify CLI-side Kilo Gateway integration is complete
-- Need to ensure auth token is passed correctly to CLI for gateway access
-- Related to [Provider Configuration](provider-configuration.md) and [Model Switcher](model-switcher.md)
+- CLI-side gateway/auth behavior remains owned by the backend; extension-side model and auth UX wiring is complete.
+- Related to [Provider Configuration](provider-configuration.md) and [Model Switcher](model-switcher.md).

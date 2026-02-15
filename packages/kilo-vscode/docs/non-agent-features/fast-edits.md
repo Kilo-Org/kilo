@@ -15,6 +15,11 @@
   - Keep VS Code-specific diff/preview/confirmation UX in the extension host.
 - **Reimplementation required?**: Partial.
 
+## Current progress
+
+- `fast_edit_file` tool messages now flow through shared inline file/diff actions in chat (open file, copy path, open diff, inline diff preview).
+- Remaining work is primarily dedicated mode controls and deeper quick-edit UX polish.
+
 ## Implementation notes
 
 - This often spans “tooling” and edit-application code, and may not appear as a single service directory under `src/services`.

@@ -2,6 +2,23 @@
 
 - **What it is**: Generates commit messages from git context (commonly staged changes; some implementations also consider selected files).
 
+## Status
+
+🔨 Partial
+
+## Current progress
+
+- Added extension command `kilo-code.new.generateCommitMessage`.
+- Added Source Control title-bar integration via `scm/title` menu.
+- Command collects staged git context:
+  - `git diff --cached --name-status`
+  - `git diff --cached --stat`
+  - staged patch excerpt (truncated)
+- Command now attempts direct generation via the CLI backend and inserts the generated message into the SCM input box automatically.
+- If direct generation fails, command falls back to the chat-prefill flow.
+- Added regenerate flow: after insertion, users can request a new variation, and prior suggestions are fed back as "avoid" context to reduce repetitive outputs.
+- Added configurable staged patch filtering via VS Code setting `kilo-code.new.git.commitMessageExcludeGlobs`.
+
 ## Notable characteristics
 
 - VS Code Source Control integration (fills commit message box).
@@ -23,4 +40,8 @@
 
 ## Primary implementation anchors
 
-- [`src/services/commit-message/`](../../src/services/commit-message/)
+- [`src/extension.ts`](../../src/extension.ts)
+
+## Remaining gaps
+
+- Dedicated history/iteration UI beyond the notification-based regenerate flow.

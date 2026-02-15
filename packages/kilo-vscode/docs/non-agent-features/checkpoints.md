@@ -20,6 +20,12 @@
   - If they map, delegate snapshot creation/storage/revert to Kilo CLI; otherwise keep the existing Kilo checkpoint service.
 - **Reimplementation required?**: Partial.
 
+## Current progress
+
+- Session-level undo/revert/fork flows are wired through the chat UI and CLI endpoints.
+- "See New Changes" integration provides quick git-change review after checkpoint-like operations.
+- Remaining parity work is the dedicated shadow-repo checkpoint system (snapshot history, selective restore, safety checks).
+
 ## Primary implementation anchors
 
 - [`src/services/checkpoints/`](../../src/services/checkpoints/)

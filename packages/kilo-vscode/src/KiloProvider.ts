@@ -4,7 +4,9 @@ import os from "node:os"
 import { randomUUID } from "node:crypto"
 import fs from "node:fs/promises"
 import { z } from "zod"
+import { diffLines } from "diff"
 import {
+  type CommandDefinition,
   type Config,
   type HttpClient,
   type McpConfig,
@@ -18,12 +20,15 @@ import { handleChatCompletionAccepted } from "./services/autocomplete/chat-autoc
 import { readSettingsActiveTab, writeLastProviderAuth, writeSettingsActiveTab } from "./services/settings-sync"
 import { logger } from "./utils/logger"
 import { parseAllowedOpenExternalUrl } from "./utils/open-external"
+import { captureTelemetryEvent, parseTelemetryProperties, telemetryEventNameSchema } from "./utils/telemetry"
+import { RulesWorkflowsService } from "./services/settings/rules-workflows"
 import {
   validateAutocompleteSettingUpdate,
   validateConfigPatch,
   validateSettingUpdate,
   type SettingsValidationIssue,
 } from "./services/settings/validation"
+import { MarketplaceService, marketplaceItemSchema, type MarketplaceItem } from "./services/marketplace"
 const RETRY_ACTION_LABEL = "Retry"
 const NOTIFICATION_DEDUPE_MS = 10_000
 const ATTACHMENT_EXT_TO_MIME: Record<string, string> = {
@@ -80,12 +85,16 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   private unsubscribeState: (() => void) | null = null
   private webviewMessageDisposable: vscode.Disposable | null = null
   private readonly attachmentTempDir = path.join(os.tmpdir(), "kilo-code-vscode-attachments")
+  private readonly marketplaceService = new MarketplaceService()
+  private readonly rulesWorkflowsService: RulesWorkflowsService
 
   constructor(
     private readonly extensionContext: vscode.ExtensionContext,
     private readonly extensionUri: vscode.Uri,
     private readonly connectionService: KiloConnectionService,
-  ) {}
+  ) {
+    this.rulesWorkflowsService = new RulesWorkflowsService(extensionContext)
+  }
 
   /**
    * Convenience getter that returns the shared HttpClient or null if not yet connected.
@@ -136,6 +145,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       })
     }
     this.sendSettingsUiState()
+    this.sendCommandApprovalSettings()
+    this.sendGatewayPreference()
 
     // Always attempt to fetch+push profile when connected.
     if (this.connectionState === "connected" && this.httpClient) {
@@ -268,6 +279,18 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         case "loadSessions":
           await this.handleLoadSessions()
           break
+        case "requestMarketplaceData":
+          await this.handleRequestMarketplaceData()
+          break
+        case "installMarketplaceItem":
+          await this.handleInstallMarketplaceItem(message.item, message.target, message.selectedIndex, message.parameters)
+          break
+        case "removeMarketplaceItem":
+          await this.handleRemoveMarketplaceItem(message.item, message.target)
+          break
+        case "telemetryEvent":
+          this.handleTelemetryEvent(message.event, message.properties)
+          break
         case "login":
           await this.handleLogin()
           break
@@ -323,6 +346,28 @@ export class KiloProvider implements vscode.WebviewViewProvider {
               message.after,
             )
           }
+          break
+        case "openBatchDiffPreview":
+          if (Array.isArray(message.diffs)) {
+            await this.handleOpenBatchDiffPreview(
+              message.diffs
+                .filter(
+                  (entry: unknown): entry is { path?: string; before: string; after: string } =>
+                    !!entry &&
+                    typeof entry === "object" &&
+                    typeof (entry as { before?: unknown }).before === "string" &&
+                    typeof (entry as { after?: unknown }).after === "string",
+                )
+                .map((entry: { path?: string; before: string; after: string }) => ({
+                  path: typeof entry.path === "string" ? entry.path : undefined,
+                  before: entry.before,
+                  after: entry.after,
+                })),
+            )
+          }
+          break
+        case "openTerminal":
+          await this.handleOpenTerminal(message.cwd, message.command)
           break
         case "revertMessage":
           if (typeof message.messageID === "string") {
@@ -382,6 +427,24 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           break
         case "requestConfig":
           await this.fetchAndSendConfig()
+          break
+        case "requestRulesCatalog":
+          await this.handleRequestRulesCatalog()
+          break
+        case "createRuleFile":
+          await this.handleCreateRuleFile(message.kind, message.scope, message.filename)
+          break
+        case "openRuleFile":
+          await this.handleOpenRuleFile(message.kind, message.scope, message.path)
+          break
+        case "deleteRuleFile":
+          await this.handleDeleteRuleFile(message.kind, message.scope, message.path)
+          break
+        case "toggleRuleFile":
+          await this.handleToggleRuleFile(message.kind, message.scope, message.path, message.enabled)
+          break
+        case "requestSlashCommands":
+          await this.handleRequestSlashCommands()
           break
         case "requestMcpStatus":
           await this.fetchAndSendMcpStatus()
@@ -462,6 +525,13 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           if (validated.value.key.startsWith("notifications.") || validated.value.key.startsWith("sounds.")) {
             this.sendNotificationSettings()
           }
+          if (validated.value.key === "allowedCommands" || validated.value.key === "deniedCommands") {
+            this.sendCommandApprovalSettings()
+          }
+          if (validated.value.key === "model.preferGatewayDefault") {
+            this.sendGatewayPreference()
+            await this.fetchAndSendProviders()
+          }
           break
         }
         case "requestBrowserSettings":
@@ -469,6 +539,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           break
         case "requestNotificationSettings":
           this.sendNotificationSettings()
+          break
+        case "requestCommandApprovalSettings":
+          this.sendCommandApprovalSettings()
+          break
+        case "requestGatewayPreference":
+          this.sendGatewayPreference()
           break
         case "seeNewChanges":
           await this.handleSeeNewChanges(message.sessionID)
@@ -512,6 +588,115 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       await vscode.commands.executeCommand("markdown.showPreviewToSide", doc.uri)
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to open markdown preview:", error)
+    }
+  }
+
+  private getPrimaryWorkspacePath(): string | undefined {
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+  }
+
+  private isRuleKind(value: unknown): value is "rule" | "workflow" {
+    return value === "rule" || value === "workflow"
+  }
+
+  private isRuleScope(value: unknown): value is "global" | "local" {
+    return value === "global" || value === "local"
+  }
+
+  private async handleRequestRulesCatalog(): Promise<void> {
+    try {
+      const catalog = await this.rulesWorkflowsService.list(this.getPrimaryWorkspacePath())
+      this.postMessage({ type: "rulesCatalogLoaded", catalog })
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to load rules/workflows catalog:", error)
+      this.postMessage({
+        type: "error",
+        message: `Failed to load rules/workflows: ${error instanceof Error ? error.message : String(error)}`,
+      })
+    }
+  }
+
+  private async handleCreateRuleFile(kind: unknown, scope: unknown, filename: unknown): Promise<void> {
+    if (!this.isRuleKind(kind) || !this.isRuleScope(scope) || typeof filename !== "string") {
+      return
+    }
+
+    try {
+      await this.rulesWorkflowsService.createFile({
+        kind,
+        scope,
+        filename,
+        workspaceDir: this.getPrimaryWorkspacePath(),
+      })
+      await this.handleRequestRulesCatalog()
+    } catch (error) {
+      this.postMessage({
+        type: "error",
+        message: `Failed to create ${kind}: ${error instanceof Error ? error.message : String(error)}`,
+      })
+    }
+  }
+
+  private async handleOpenRuleFile(kind: unknown, scope: unknown, filePath: unknown): Promise<void> {
+    if (!this.isRuleKind(kind) || !this.isRuleScope(scope) || typeof filePath !== "string") {
+      return
+    }
+
+    try {
+      await this.rulesWorkflowsService.openFile({
+        kind,
+        scope,
+        filePath,
+        workspaceDir: this.getPrimaryWorkspacePath(),
+      })
+    } catch (error) {
+      this.postMessage({
+        type: "error",
+        message: `Failed to open ${kind}: ${error instanceof Error ? error.message : String(error)}`,
+      })
+    }
+  }
+
+  private async handleDeleteRuleFile(kind: unknown, scope: unknown, filePath: unknown): Promise<void> {
+    if (!this.isRuleKind(kind) || !this.isRuleScope(scope) || typeof filePath !== "string") {
+      return
+    }
+
+    try {
+      await this.rulesWorkflowsService.deleteFile({
+        kind,
+        scope,
+        filePath,
+        workspaceDir: this.getPrimaryWorkspacePath(),
+      })
+      await this.handleRequestRulesCatalog()
+    } catch (error) {
+      this.postMessage({
+        type: "error",
+        message: `Failed to delete ${kind}: ${error instanceof Error ? error.message : String(error)}`,
+      })
+    }
+  }
+
+  private async handleToggleRuleFile(kind: unknown, scope: unknown, filePath: unknown, enabled: unknown): Promise<void> {
+    if (!this.isRuleKind(kind) || !this.isRuleScope(scope) || typeof filePath !== "string" || typeof enabled !== "boolean") {
+      return
+    }
+
+    try {
+      await this.rulesWorkflowsService.toggleFile({
+        kind,
+        scope,
+        filePath,
+        enabled,
+        workspaceDir: this.getPrimaryWorkspacePath(),
+      })
+      await this.handleRequestRulesCatalog()
+    } catch (error) {
+      this.postMessage({
+        type: "error",
+        message: `Failed to update ${kind}: ${error instanceof Error ? error.message : String(error)}`,
+      })
     }
   }
 
@@ -631,14 +816,125 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async handleOpenDiffPreview(rawPath: string | undefined, before: string, after: string): Promise<void> {
+  private getDiffStats(before: string, after: string): { additions: number; deletions: number } {
+    const chunks = diffLines(before, after)
+    let additions = 0
+    let deletions = 0
+    for (const chunk of chunks) {
+      if (chunk.added) {
+        additions += chunk.count ?? 0
+      } else if (chunk.removed) {
+        deletions += chunk.count ?? 0
+      }
+    }
+    return { additions, deletions }
+  }
+
+  private async handleOpenDiffPreview(
+    rawPath: string | undefined,
+    before: string,
+    after: string,
+    options?: { preview?: boolean },
+  ): Promise<void> {
     try {
       const left = await vscode.workspace.openTextDocument({ content: before })
       const right = await vscode.workspace.openTextDocument({ content: after })
       const title = rawPath?.trim() ? `${path.basename(rawPath)} (before ↔ after)` : "Diff Preview"
-      await vscode.commands.executeCommand("vscode.diff", left.uri, right.uri, title, { preview: true })
+      await vscode.commands.executeCommand("vscode.diff", left.uri, right.uri, title, {
+        preview: options?.preview ?? true,
+      })
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to open diff preview:", error)
+    }
+  }
+
+  private async handleOpenBatchDiffPreview(
+    diffs: Array<{ path?: string; before: string; after: string }>,
+  ): Promise<void> {
+    const validDiffs = diffs.filter((entry) => entry.before !== entry.after)
+    if (validDiffs.length === 0) {
+      return
+    }
+
+    if (validDiffs.length === 1) {
+      const only = validDiffs[0]
+      await this.handleOpenDiffPreview(only.path, only.before, only.after)
+      return
+    }
+
+    type DiffPickItem = vscode.QuickPickItem & {
+      index: number
+      openAll?: boolean
+    }
+
+    const picks: DiffPickItem[] = [
+      {
+        label: "Open All Diffs",
+        description: `${validDiffs.length} files`,
+        detail: "Open all file diffs in editor tabs for batch review",
+        index: -1,
+        openAll: true,
+      },
+      ...validDiffs.map((entry, index) => {
+        const stats = this.getDiffStats(entry.before, entry.after)
+        const label = entry.path?.trim() ? entry.path : `Changed file ${index + 1}`
+        return {
+          label,
+          description: `+${stats.additions} -${stats.deletions}`,
+          detail: "Open this file diff",
+          index,
+        }
+      }),
+    ]
+
+    const picked = await vscode.window.showQuickPick(picks, {
+      title: `Review Changed Files (${validDiffs.length})`,
+      matchOnDescription: true,
+      matchOnDetail: true,
+    })
+    if (!picked) {
+      return
+    }
+
+    if (picked.openAll) {
+      for (const entry of validDiffs) {
+        await this.handleOpenDiffPreview(entry.path, entry.before, entry.after, { preview: false })
+      }
+      return
+    }
+
+    const selected = validDiffs[picked.index]
+    if (!selected) {
+      return
+    }
+    await this.handleOpenDiffPreview(selected.path, selected.before, selected.after)
+  }
+
+  private resolveTerminalCwd(rawCwd: unknown): string {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd()
+    if (typeof rawCwd !== "string" || rawCwd.trim().length === 0) {
+      return workspaceRoot
+    }
+
+    const trimmed = rawCwd.trim()
+    const candidate = path.isAbsolute(trimmed) ? trimmed : path.resolve(workspaceRoot, trimmed)
+    const normalizedRoot = path.resolve(workspaceRoot)
+    const normalizedCandidate = path.resolve(candidate)
+    const withinRoot =
+      normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}${path.sep}`)
+    return withinRoot ? normalizedCandidate : normalizedRoot
+  }
+
+  private async handleOpenTerminal(rawCwd: unknown, rawCommand: unknown): Promise<void> {
+    const cwd = this.resolveTerminalCwd(rawCwd)
+    const terminal = vscode.window.createTerminal({ name: "Kilo Code Terminal", cwd })
+    terminal.show(false)
+
+    if (typeof rawCommand === "string") {
+      const command = rawCommand.trim()
+      if (command.length > 0) {
+        terminal.sendText(command, true)
+      }
     }
   }
 
@@ -882,6 +1178,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       await this.fetchAndSendAgents()
       await this.fetchAndSendConfig()
       this.sendNotificationSettings()
+      this.sendCommandApprovalSettings()
+      this.sendGatewayPreference()
 
       logger.debug("[Kilo New] KiloProvider: ✅ initializeConnection completed successfully")
     } catch (error) {
@@ -910,10 +1208,34 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Ensure a connected HttpClient exists, attempting a lazy reconnect when needed.
+   * This prevents user-triggered actions (history refresh, open session) from failing
+   * with a stale "Not connected" state after transient backend disconnects.
+   */
+  private async ensureHttpClient(): Promise<HttpClient | null> {
+    const existing = this.httpClient
+    if (existing) {
+      return existing
+    }
+
+    const workspaceDir = this.getWorkspaceDirectory()
+    try {
+      await this.connectionService.connect(workspaceDir)
+      this.connectionState = this.connectionService.getConnectionState()
+      this.postMessage({ type: "connectionState", state: this.connectionState })
+      return this.httpClient
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: lazy reconnect failed", error)
+      return null
+    }
+  }
+
+  /**
    * Handle creating a new session.
    */
   private async handleCreateSession(): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({
         type: "error",
         message: "Not connected to CLI backend",
@@ -923,7 +1245,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      const session = await this.httpClient.createSession(workspaceDir)
+      const session = await client.createSession(workspaceDir)
       this.currentSession = session
       this.trackedSessionIds.add(session.id)
 
@@ -948,7 +1270,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     // Track the session so we receive its SSE events
     this.trackedSessionIds.add(sessionID)
 
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({
         type: "error",
         message: "Not connected to CLI backend",
@@ -958,12 +1281,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      const messagesData = await this.httpClient.getMessages(sessionID, workspaceDir)
+      const messagesData = await client.getMessages(sessionID, workspaceDir)
 
       // Update currentSession so fallback logic in handleSendMessage/handleAbort
       // references the correct session after switching to a historical session.
       // Non-blocking: don't let a failure here prevent messages from loading.
-      this.httpClient
+      client
         .getSession(sessionID, workspaceDir)
         .then((session) => {
           if (!this.currentSession || this.currentSession.id === sessionID) {
@@ -1013,11 +1336,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   private async refreshTodosForSession(sessionID: string, workspaceDir: string): Promise<void> {
-    if (!this.httpClient) {
+    const client = this.httpClient ?? (await this.ensureHttpClient())
+    if (!client) {
       return
     }
     try {
-      const todos = await this.httpClient.getTodos(sessionID, workspaceDir)
+      const todos = await client.getTodos(sessionID, workspaceDir)
       this.postMessage({
         type: "todoUpdated",
         sessionID,
@@ -1042,7 +1366,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     status?: "pending" | "in_progress" | "completed" | "cancelled",
     priority?: "high" | "medium" | "low",
   ): Promise<void> {
-    if (!this.httpClient) {
+    const client = this.httpClient ?? (await this.ensureHttpClient())
+    if (!client) {
       return
     }
     const targetSessionID = sessionID || this.currentSession?.id
@@ -1054,7 +1379,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       return
     }
     const workspaceDir = this.getWorkspaceDirectory()
-    await this.httpClient.createTodo(targetSessionID, { content: trimmed, status, priority }, workspaceDir)
+    await client.createTodo(targetSessionID, { content: trimmed, status, priority }, workspaceDir)
     await this.refreshTodosForSession(targetSessionID, workspaceDir)
   }
 
@@ -1065,7 +1390,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     status?: "pending" | "in_progress" | "completed" | "cancelled",
     priority?: "high" | "medium" | "low",
   ): Promise<void> {
-    if (!this.httpClient) {
+    const client = this.httpClient ?? (await this.ensureHttpClient())
+    if (!client) {
       return
     }
     const targetSessionID = sessionID || this.currentSession?.id
@@ -1095,12 +1421,13 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     const workspaceDir = this.getWorkspaceDirectory()
-    await this.httpClient.updateTodo(targetSessionID, todoID, changes, workspaceDir)
+    await client.updateTodo(targetSessionID, todoID, changes, workspaceDir)
     await this.refreshTodosForSession(targetSessionID, workspaceDir)
   }
 
   private async handleDeleteTodo(sessionID: string | undefined, todoID: string): Promise<void> {
-    if (!this.httpClient) {
+    const client = this.httpClient ?? (await this.ensureHttpClient())
+    if (!client) {
       return
     }
     const targetSessionID = sessionID || this.currentSession?.id
@@ -1108,7 +1435,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       return
     }
     const workspaceDir = this.getWorkspaceDirectory()
-    await this.httpClient.deleteTodo(targetSessionID, todoID, workspaceDir)
+    await client.deleteTodo(targetSessionID, todoID, workspaceDir)
     await this.refreshTodosForSession(targetSessionID, workspaceDir)
   }
 
@@ -1116,7 +1443,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Handle loading all sessions.
    */
   private async handleLoadSessions(): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({
         type: "error",
         message: "Not connected to CLI backend",
@@ -1126,7 +1454,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      const sessions = await this.httpClient.listSessions(workspaceDir)
+      const sessions = await client.listSessions(workspaceDir)
 
       this.postMessage({
         type: "sessionsLoaded",
@@ -1141,18 +1469,175 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private parseMarketplaceItem(rawItem: unknown): MarketplaceItem | null {
+    const parsed = marketplaceItemSchema.safeParse(rawItem)
+    return parsed.success ? parsed.data : null
+  }
+
+  private parseMarketplaceTarget(rawTarget: unknown): "project" | "global" {
+    return z.enum(["project", "global"]).catch("project").parse(rawTarget)
+  }
+
+  private parseMarketplaceSelectedIndex(rawSelectedIndex: unknown): number | undefined {
+    const parsed = z.number().int().min(0).safeParse(rawSelectedIndex)
+    return parsed.success ? parsed.data : undefined
+  }
+
+  private parseMarketplaceParameters(rawParameters: unknown): Record<string, unknown> {
+    const parsed = z.record(z.string(), z.unknown()).safeParse(rawParameters)
+    return parsed.success ? parsed.data : {}
+  }
+
+  private handleTelemetryEvent(rawEvent: unknown, rawProperties?: unknown): void {
+    const event = telemetryEventNameSchema.safeParse(rawEvent)
+    if (!event.success) {
+      return
+    }
+
+    captureTelemetryEvent(event.data, parseTelemetryProperties(rawProperties))
+  }
+
+  private async handleRequestMarketplaceData(): Promise<void> {
+    const errors: string[] = []
+    let extensionSettings: unknown = undefined
+    const client = this.httpClient ?? (await this.ensureHttpClient())
+
+    if (client) {
+      try {
+        extensionSettings = await client.getExtensionSettings()
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error))
+      }
+    }
+
+    try {
+      const result = await this.marketplaceService.getCatalog({ extensionSettings })
+      this.postMessage({
+        type: "marketplaceData",
+        items: result.items,
+        installedMetadata: result.installedMetadata,
+        errors: [...errors, ...(result.errors ?? [])],
+      })
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to fetch marketplace data:", error)
+      this.postMessage({
+        type: "marketplaceData",
+        items: [],
+        installedMetadata: { project: {}, global: {} },
+        errors: [...errors, error instanceof Error ? error.message : String(error)],
+      })
+    }
+  }
+
+  private async handleInstallMarketplaceItem(
+    rawItem: unknown,
+    rawTarget: unknown,
+    rawSelectedIndex?: unknown,
+    rawParameters?: unknown,
+  ): Promise<void> {
+    const item = this.parseMarketplaceItem(rawItem)
+    if (!item) {
+      this.postMessage({
+        type: "marketplaceActionResult",
+        action: "install",
+        success: false,
+        error: "Invalid marketplace item payload",
+      })
+      return
+    }
+
+    try {
+      const target = this.parseMarketplaceTarget(rawTarget)
+      const selectedIndex = this.parseMarketplaceSelectedIndex(rawSelectedIndex)
+      const parameters = this.parseMarketplaceParameters(rawParameters)
+
+      await this.marketplaceService.installItem(item, { target, selectedIndex, parameters })
+      const installationMethodName =
+        item.type === "mcp" && Array.isArray(item.content) && typeof selectedIndex === "number"
+          ? item.content[selectedIndex]?.name
+          : undefined
+      captureTelemetryEvent("Marketplace Item Installed", {
+        itemId: item.id,
+        itemType: item.type,
+        itemName: item.name,
+        target,
+        hasParameters: Object.keys(parameters).length > 0,
+        ...(typeof installationMethodName === "string" ? { installationMethodName } : {}),
+      })
+      this.marketplaceService.invalidateCache()
+      await this.handleRequestMarketplaceData()
+      this.postMessage({
+        type: "marketplaceActionResult",
+        action: "install",
+        success: true,
+        itemID: item.id,
+      })
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to install marketplace item:", error)
+      this.postMessage({
+        type: "marketplaceActionResult",
+        action: "install",
+        success: false,
+        itemID: item.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  private async handleRemoveMarketplaceItem(rawItem: unknown, rawTarget: unknown): Promise<void> {
+    const item = this.parseMarketplaceItem(rawItem)
+    if (!item) {
+      this.postMessage({
+        type: "marketplaceActionResult",
+        action: "remove",
+        success: false,
+        error: "Invalid marketplace item payload",
+      })
+      return
+    }
+
+    try {
+      const target = this.parseMarketplaceTarget(rawTarget)
+      await this.marketplaceService.removeItem(item, target)
+      captureTelemetryEvent("Marketplace Item Removed", {
+        itemId: item.id,
+        itemType: item.type,
+        itemName: item.name,
+        target,
+      })
+      this.marketplaceService.invalidateCache()
+      await this.handleRequestMarketplaceData()
+      this.postMessage({
+        type: "marketplaceActionResult",
+        action: "remove",
+        success: true,
+        itemID: item.id,
+      })
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to remove marketplace item:", error)
+      this.postMessage({
+        type: "marketplaceActionResult",
+        action: "remove",
+        success: false,
+        itemID: item.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
   /**
    * Handle deleting a session.
    */
   private async handleDeleteSession(sessionID: string): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({ type: "error", message: "Not connected to CLI backend" })
       return
     }
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      await this.httpClient.deleteSession(sessionID, workspaceDir)
+      await client.deleteSession(sessionID, workspaceDir)
       this.trackedSessionIds.delete(sessionID)
       if (this.currentSession?.id === sessionID) {
         this.currentSession = null
@@ -1171,14 +1656,15 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Handle renaming a session.
    */
   private async handleRenameSession(sessionID: string, title: string): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({ type: "error", message: "Not connected to CLI backend" })
       return
     }
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      const updated = await this.httpClient.updateSession(sessionID, { title }, workspaceDir)
+      const updated = await client.updateSession(sessionID, { title }, workspaceDir)
       if (this.currentSession?.id === sessionID) {
         this.currentSession = updated
       }
@@ -1201,7 +1687,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * the map here so the rest of the code can use provider.id everywhere.
    */
   private async fetchAndSendProviders(): Promise<void> {
-    if (!this.httpClient) {
+    const client = this.httpClient ?? (await this.ensureHttpClient())
+    if (!client) {
       // httpClient not ready — serve from cache if available
       if (this.cachedProvidersMessage) {
         this.postMessage(this.cachedProvidersMessage)
@@ -1211,7 +1698,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      const response = await this.httpClient.listProviders(workspaceDir)
+      const response = await client.listProviders(workspaceDir)
 
       // Re-key providers from numeric indices to provider.id
       const normalized: typeof response.all = {}
@@ -1222,6 +1709,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       const config = vscode.workspace.getConfiguration("kilo-code.new.model")
       const configuredProviderID = config.get<string>("providerID", "kilo")
       const configuredModelID = config.get<string>("modelID", "kilo/auto")
+      const preferGatewayDefault = config.get<boolean>("preferGatewayDefault", false)
       const configuredIsFallback = configuredProviderID === "kilo" && configuredModelID === "kilo/auto"
       const gatewayDefaultModelID = response.default.kilo
 
@@ -1261,7 +1749,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         modelID: configuredModelID,
       }
 
-      if (configuredIsFallback && gatewayDefaultModelID) {
+      if ((configuredIsFallback || preferGatewayDefault) && gatewayDefaultModelID) {
         defaultSelection = { providerID: "kilo", modelID: gatewayDefaultModelID }
       }
 
@@ -1299,7 +1787,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Fetch agents (modes) from the backend and send to webview.
    */
   private async fetchAndSendAgents(): Promise<void> {
-    if (!this.httpClient) {
+    const client = this.httpClient ?? (await this.ensureHttpClient())
+    if (!client) {
       if (this.cachedAgentsMessage) {
         this.postMessage(this.cachedAgentsMessage)
       }
@@ -1308,7 +1797,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      const agents = await this.httpClient.listAgents(workspaceDir)
+      const agents = await client.listAgents(workspaceDir)
 
       // Filter to only visible primary/all modes (not subagents, not hidden)
       const visible = agents.filter((a) => a.mode !== "subagent" && !a.hidden)
@@ -1338,7 +1827,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Fetch backend config and send to webview.
    */
   private async fetchAndSendConfig(): Promise<void> {
-    if (!this.httpClient) {
+    const client = this.httpClient ?? (await this.ensureHttpClient())
+    if (!client) {
       if (this.cachedConfigMessage) {
         this.postMessage(this.cachedConfigMessage)
       }
@@ -1347,7 +1837,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      const config = await this.httpClient.getConfig(workspaceDir)
+      const config = await client.getConfig(workspaceDir)
 
       const message = {
         type: "configLoaded",
@@ -1361,10 +1851,41 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Fetch slash commands from CLI and send a normalized payload to the webview.
+   */
+  private async handleRequestSlashCommands(): Promise<void> {
+    const client = this.httpClient ?? (await this.ensureHttpClient())
+    if (!client) {
+      this.postMessage({
+        type: "slashCommandsLoaded",
+        commands: [],
+      })
+      return
+    }
+
+    try {
+      const workspaceDir = this.getWorkspaceDirectory()
+      const commands = await client.listCommands(workspaceDir)
+      this.postMessage({
+        type: "slashCommandsLoaded",
+        commands: commands.map((command) => this.commandToWebview(command)),
+      })
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to fetch slash commands:", error)
+      this.postMessage({
+        type: "slashCommandsLoaded",
+        commands: [],
+        error: error instanceof Error ? error.message : "Failed to fetch slash commands",
+      })
+    }
+  }
+
+  /**
    * Fetch MCP server status and send to webview.
    */
   private async fetchAndSendMcpStatus(): Promise<void> {
-    if (!this.httpClient) {
+    const client = this.httpClient ?? (await this.ensureHttpClient())
+    if (!client) {
       this.postMessage({
         type: "mcpStatusLoaded",
         status: {},
@@ -1373,7 +1894,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const status = await this.httpClient.getMcpStatus()
+      const status = await client.getMcpStatus()
       this.postMessage({
         type: "mcpStatusLoaded",
         status,
@@ -1406,6 +1927,35 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     })
   }
 
+  private sendCommandApprovalSettings(): void {
+    const config = vscode.workspace.getConfiguration("kilo-code.new")
+    const normalize = (input: unknown): string[] => {
+      if (!Array.isArray(input)) {
+        return []
+      }
+      const normalized = input
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value) => value.length > 0)
+      return Array.from(new Set(normalized))
+    }
+
+    this.postMessage({
+      type: "commandApprovalSettingsLoaded",
+      settings: {
+        allowedCommands: normalize(config.get<unknown>("allowedCommands", [])),
+        deniedCommands: normalize(config.get<unknown>("deniedCommands", [])),
+      },
+    })
+  }
+
+  private sendGatewayPreference(): void {
+    const config = vscode.workspace.getConfiguration("kilo-code.new.model")
+    this.postMessage({
+      type: "gatewayPreferenceLoaded",
+      preferGatewayDefault: config.get<boolean>("preferGatewayDefault", false),
+    })
+  }
+
   private postConfigValidationError(issues: SettingsValidationIssue[]): void {
     logger.warn("[Kilo New] KiloProvider: Rejected invalid config update", { issues })
     this.postMessage({
@@ -1413,6 +1963,18 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       message: "Invalid configuration update",
       issues,
     })
+  }
+
+  private commandToWebview(command: CommandDefinition): {
+    name: string
+    description?: string
+    source?: "command" | "mcp" | "skill"
+  } {
+    return {
+      name: command.name,
+      description: command.description,
+      source: command.source,
+    }
   }
 
   private postSettingValidationError(key: string | undefined, issues: SettingsValidationIssue[]): void {
@@ -1431,13 +1993,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * the full merged config back to the webview.
    */
   private async handleUpdateConfig(partial: Partial<Config>): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({ type: "error", message: "Not connected to CLI backend" })
       return
     }
 
     try {
-      const updated = await this.httpClient.updateConfig(partial)
+      const updated = await client.updateConfig(partial)
 
       const message = {
         type: "configUpdated",
@@ -1455,7 +2018,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleAddMcpServer(name: unknown, config: unknown): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({ type: "error", message: "Not connected to CLI backend" })
       return
     }
@@ -1493,7 +2057,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      await this.httpClient.addMcpServer(name.trim(), parsedConfig.data as McpConfig)
+      await client.addMcpServer(name.trim(), parsedConfig.data as McpConfig)
       await this.fetchAndSendConfig()
       await this.fetchAndSendMcpStatus()
     } catch (error) {
@@ -1506,7 +2070,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleConnectMcpServer(name: unknown): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({ type: "error", message: "Not connected to CLI backend" })
       return
     }
@@ -1516,7 +2081,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      await this.httpClient.connectMcpServer(name.trim())
+      await client.connectMcpServer(name.trim())
       await this.fetchAndSendMcpStatus()
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to connect MCP server:", error)
@@ -1528,7 +2093,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleDisconnectMcpServer(name: unknown): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({ type: "error", message: "Not connected to CLI backend" })
       return
     }
@@ -1538,7 +2104,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      await this.httpClient.disconnectMcpServer(name.trim())
+      await client.disconnectMcpServer(name.trim())
       await this.fetchAndSendMcpStatus()
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to disconnect MCP server:", error)
@@ -1560,7 +2126,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     agent?: string,
     files?: Array<{ mime: string; url: string }>,
   ): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({
         type: "error",
         message: "Not connected to CLI backend",
@@ -1573,7 +2140,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
       // Create session if needed
       if (!sessionID && !this.currentSession) {
-        this.currentSession = await this.httpClient.createSession(workspaceDir)
+        this.currentSession = await client.createSession(workspaceDir)
         this.trackedSessionIds.add(this.currentSession.id)
         // Notify webview of the new session
         this.postMessage({
@@ -1609,7 +2176,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
       parts.push({ type: "text", text })
 
-      await this.httpClient.sendMessage(targetSessionID, parts, workspaceDir, {
+      await client.sendMessage(targetSessionID, parts, workspaceDir, {
         providerID,
         modelID,
         agent,
@@ -1627,7 +2194,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Handle abort request from the webview.
    */
   private async handleAbort(sessionID?: string): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       return
     }
 
@@ -1638,7 +2206,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      await this.httpClient.abortSession(targetSessionID, workspaceDir)
+      await client.abortSession(targetSessionID, workspaceDir)
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to abort session:", error)
     }
@@ -1648,7 +2216,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Handle compact (context summarization) request from the webview.
    */
   private async handleCompact(sessionID?: string, providerID?: string, modelID?: string): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({
         type: "error",
         message: "Not connected to CLI backend",
@@ -1673,7 +2242,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      await this.httpClient.summarize(target, providerID, modelID, workspaceDir)
+      await client.summarize(target, providerID, modelID, workspaceDir)
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to compact session:", error)
       this.postMessage({
@@ -1684,7 +2253,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleRevertMessage(sessionID: string | undefined, messageID: string): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({
         type: "error",
         message: "Not connected to CLI backend",
@@ -1700,7 +2270,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      const updated = await this.httpClient.revertSession(targetSessionID, messageID, workspaceDir)
+      const updated = await client.revertSession(targetSessionID, messageID, workspaceDir)
       if (this.currentSession?.id === updated.id) {
         this.currentSession = updated
       }
@@ -1719,7 +2289,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleForkSession(sessionID?: string, messageID?: string): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({
         type: "error",
         message: "Not connected to CLI backend",
@@ -1735,7 +2306,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      const forked = await this.httpClient.forkSession(targetSessionID, workspaceDir, messageID)
+      const forked = await client.forkSession(targetSessionID, workspaceDir, messageID)
       this.currentSession = forked
       this.trackedSessionIds.add(forked.id)
       this.postMessage({
@@ -1753,7 +2324,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleOpenForkSessionPicker(sessionID?: string): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({
         type: "error",
         message: "Not connected to CLI backend",
@@ -1768,7 +2340,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      const children = await this.httpClient.listSessionChildren(targetSessionID, workspaceDir)
+      const children = await client.listSessionChildren(targetSessionID, workspaceDir)
       if (children.length === 0) {
         void vscode.window.showInformationMessage("No forked child sessions found.")
         return
@@ -1814,7 +2386,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     sessionID: string,
     response: "once" | "always" | "reject",
   ): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       return
     }
 
@@ -1826,7 +2399,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      await this.httpClient.respondToPermission(targetSessionID, permissionId, response, workspaceDir)
+      await client.respondToPermission(targetSessionID, permissionId, response, workspaceDir)
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to respond to permission:", error)
     }
@@ -1836,13 +2409,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Handle question reply from the webview.
    */
   private async handleQuestionReply(requestID: string, answers: string[][]): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({ type: "questionError", requestID })
       return
     }
 
     try {
-      await this.httpClient.replyToQuestion(requestID, answers, this.getWorkspaceDirectory())
+      await client.replyToQuestion(requestID, answers, this.getWorkspaceDirectory())
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to reply to question:", error)
       this.postMessage({ type: "questionError", requestID })
@@ -1853,13 +2427,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Handle question reject (dismiss) from the webview.
    */
   private async handleQuestionReject(requestID: string): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({ type: "questionError", requestID })
       return
     }
 
     try {
-      await this.httpClient.rejectQuestion(requestID, this.getWorkspaceDirectory())
+      await client.rejectQuestion(requestID, this.getWorkspaceDirectory())
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to reject question:", error)
       this.postMessage({ type: "questionError", requestID })
@@ -1872,7 +2447,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Sends device auth messages so the webview can display a QR code, verification code, and timer.
    */
   private async handleLogin(): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       return
     }
 
@@ -1884,7 +2460,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       const workspaceDir = this.getWorkspaceDirectory()
 
       // Step 1: Initiate OAuth authorization
-      const auth = await this.httpClient.oauthAuthorize("kilo", 0, workspaceDir)
+      const auth = await client.oauthAuthorize("kilo", 0, workspaceDir)
       logger.debug("[Kilo New] KiloProvider: 🔐 Got auth URL:", auth.url)
 
       // Parse code from instructions (format: "Open URL and enter code: ABCD-1234")
@@ -1903,7 +2479,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       })
 
       // Step 3: Wait for callback (blocks until polling completes)
-      await this.httpClient.oauthCallback("kilo", 0, workspaceDir)
+      await client.oauthCallback("kilo", 0, workspaceDir)
 
       // Check if this attempt was cancelled
       if (attempt !== this.loginAttempt) {
@@ -1913,7 +2489,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       logger.debug("[Kilo New] KiloProvider: 🔐 Login successful")
 
       // Step 4: Fetch profile and push to webview
-      const profileData = await this.httpClient.getProfile()
+      const profileData = await client.getProfile()
       this.postMessage({ type: "profileData", data: profileData })
       this.postMessage({ type: "deviceAuthComplete" })
 
@@ -1933,7 +2509,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleConnectProviderAuth(providerID: unknown): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({ type: "error", message: "Not connected to CLI backend" })
       return
     }
@@ -1945,9 +2522,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     const id = providerID.trim()
     try {
       const workspaceDir = this.getWorkspaceDirectory()
-      const auth = await this.httpClient.oauthAuthorize(id, 0, workspaceDir)
+      const auth = await client.oauthAuthorize(id, 0, workspaceDir)
       await vscode.env.openExternal(vscode.Uri.parse(auth.url))
-      await this.httpClient.oauthCallback(id, 0, workspaceDir)
+      await client.oauthCallback(id, 0, workspaceDir)
       await writeLastProviderAuth(this.extensionContext, id)
       await this.fetchAndSendProviders()
       if (id === "kilo") {
@@ -1969,7 +2546,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleDisconnectProviderAuth(providerID: unknown): Promise<void> {
-    if (!this.httpClient) {
+    const client = await this.ensureHttpClient()
+    if (!client) {
       this.postMessage({ type: "error", message: "Not connected to CLI backend" })
       return
     }
@@ -1980,7 +2558,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     const id = providerID.trim()
     try {
-      await this.httpClient.removeAuth(id)
+      await client.removeAuth(id)
       await writeLastProviderAuth(this.extensionContext, id)
       await this.fetchAndSendProviders()
       if (id === "kilo") {
@@ -2006,7 +2584,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Persists the selection and refreshes profile + providers since both change with org context.
    */
   private async handleSetOrganization(organizationId: string | null): Promise<void> {
-    const client = this.httpClient
+    const client = this.httpClient ?? (await this.ensureHttpClient())
     if (!client) {
       return
     }
@@ -2040,12 +2618,13 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Handle logout request from the webview.
    */
   private async handleLogout(): Promise<void> {
-    if (!this.httpClient) {
+    const client = this.httpClient ?? (await this.ensureHttpClient())
+    if (!client) {
       return
     }
 
     logger.debug("[Kilo New] KiloProvider: 🚪 Logging out...")
-    await this.httpClient.removeAuth("kilo")
+    await client.removeAuth("kilo")
     logger.debug("[Kilo New] KiloProvider: 🚪 Logged out successfully")
     this.postMessage({
       type: "profileData",
@@ -2057,12 +2636,13 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Handle profile refresh request from the webview.
    */
   private async handleRefreshProfile(): Promise<void> {
-    if (!this.httpClient) {
+    const client = this.httpClient ?? (await this.ensureHttpClient())
+    if (!client) {
       return
     }
 
     logger.debug("[Kilo New] KiloProvider: 🔄 Refreshing profile...")
-    const profileData = await this.httpClient.getProfile()
+    const profileData = await client.getProfile()
     this.postMessage({
       type: "profileData",
       data: profileData,
@@ -2199,6 +2779,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             id: event.properties.id,
             sessionID: event.properties.sessionID,
             toolName: event.properties.permission,
+            permission: event.properties.permission,
+            patterns: event.properties.patterns,
+            always: event.properties.always,
             args: event.properties.metadata,
             message: `Permission required: ${event.properties.permission}`,
             tool: event.properties.tool,
@@ -2415,19 +2998,15 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     if (workspaceFolders && workspaceFolders.length > 0) {
       return workspaceFolders[0].uri.fsPath
     }
-    return process.cwd()
+    // Extension host cwd is not guaranteed to be a valid user project path.
+    // Fall back to home for backend APIs that require an absolute directory.
+    return os.homedir()
   }
 
   private _getHtmlForWebview(webview: vscode.Webview): string {
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "dist", "webview.js"))
     const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "dist", "webview.css"))
     const iconsBaseUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "assets", "icons"))
-    const serverInfo = this.connectionService.getServerInfo()
-    const port = serverInfo?.port
-    const connectSrc =
-      typeof port === "number"
-        ? `connect-src http://127.0.0.1:${port} http://localhost:${port} ws://127.0.0.1:${port} ws://localhost:${port}`
-        : "connect-src http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*"
 
     const nonce = getNonce()
 
@@ -2435,14 +3014,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     // - default-src 'none': Block everything by default
     // - style-src: Allow inline styles and our CSS file
     // - script-src 'nonce-...': Only allow scripts with our nonce
-    // - connect-src: Allow connections to localhost for API calls
+    // - connect-src: allow only extension-local resource origin (no localhost wildcard network access)
     // - img-src: Allow images from webview and data URIs
     const csp = [
       "default-src 'none'",
       `style-src 'unsafe-inline' ${webview.cspSource}`,
       `script-src 'nonce-${nonce}' 'wasm-unsafe-eval'`,
       `font-src ${webview.cspSource}`,
-      connectSrc,
+      `connect-src ${webview.cspSource}`,
       `img-src ${webview.cspSource} data: https:`,
     ].join("; ")
 

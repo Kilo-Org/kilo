@@ -19,8 +19,10 @@ import { Dialog } from "@kilocode/kilo-ui/dialog"
 import { useDialog } from "@kilocode/kilo-ui/context/dialog"
 import { Markdown } from "@kilocode/kilo-ui/markdown"
 import { showToast } from "@kilocode/kilo-ui/toast"
+import { diffLines } from "diff"
 import { useSession } from "../../context/session"
 import { useLanguage } from "../../context/language"
+import { useServer } from "../../context/server"
 import { useVSCode } from "../../context/vscode"
 import { ImageViewer } from "../common/ImageViewer"
 import type { FileAttachment, Message as MessageType } from "../../types/messages"
@@ -43,6 +45,14 @@ interface ImagePart {
   url: string
   originalUrl?: string
   filename?: string
+}
+
+interface InlineDiffPreview {
+  path?: string
+  additions: number
+  deletions: number
+  text: string
+  truncated: boolean
 }
 
 function stripAnsi(input: string): string {
@@ -71,6 +81,187 @@ function getExitCode(value: unknown): number | undefined {
     if (Number.isFinite(parsed)) return parsed
   }
   return undefined
+}
+
+function getDurationMs(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return value
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return parsed
+    }
+  }
+  return undefined
+}
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) {
+    return `${Math.round(ms)}ms`
+  }
+  const seconds = ms / 1000
+  if (seconds < 60) {
+    return `${seconds.toFixed(seconds >= 10 ? 1 : 2)}s`
+  }
+  const minutes = Math.floor(seconds / 60)
+  const remaining = Math.round(seconds % 60)
+  return `${minutes}m ${remaining}s`
+}
+
+function splitShellCommands(command: string): string[] {
+  const chunks: string[] = []
+  let current = ""
+  let quote: "'" | '"' | null = null
+
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i]
+    const next = command[i + 1]
+
+    if (!quote && (char === "'" || char === '"')) {
+      quote = char
+      current += char
+      continue
+    }
+    if (quote && char === quote) {
+      quote = null
+      current += char
+      continue
+    }
+
+    if (!quote) {
+      if ((char === "&" && next === "&") || (char === "|" && next === "|")) {
+        if (current.trim()) {
+          chunks.push(current.trim())
+        }
+        current = ""
+        i++
+        continue
+      }
+      if (char === "|" || char === ";") {
+        if (current.trim()) {
+          chunks.push(current.trim())
+        }
+        current = ""
+        continue
+      }
+    }
+
+    current += char
+  }
+
+  if (current.trim()) {
+    chunks.push(current.trim())
+  }
+
+  return chunks
+}
+
+function tokenizeCommand(command: string): string[] {
+  const tokens: string[] = []
+  let current = ""
+  let quote: "'" | '"' | null = null
+
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i]
+    if (!quote && (char === "'" || char === '"')) {
+      quote = char
+      continue
+    }
+    if (quote && char === quote) {
+      quote = null
+      continue
+    }
+    if (!quote && /\s/.test(char)) {
+      if (current.length > 0) {
+        tokens.push(current)
+        current = ""
+      }
+      continue
+    }
+    current += char
+  }
+
+  if (current.length > 0) {
+    tokens.push(current)
+  }
+
+  return tokens
+}
+
+function extractPatternsFromCommand(command: string): string[] {
+  if (!command.trim()) {
+    return []
+  }
+
+  const patterns = new Set<string>()
+  const commands = splitShellCommands(command)
+  const breakingToken = /^-|[\\/:.~]/
+
+  for (const candidate of commands) {
+    const tokens = tokenizeCommand(candidate)
+    if (tokens.length === 0) {
+      continue
+    }
+
+    patterns.add(tokens.join(" "))
+    patterns.add(tokens[0])
+
+    const maxDepth = Math.min(tokens.length, 3)
+    for (let i = 1; i < maxDepth; i++) {
+      if (breakingToken.test(tokens[i])) {
+        break
+      }
+      patterns.add(tokens.slice(0, i + 1).join(" "))
+    }
+  }
+
+  return Array.from(patterns).sort((a, b) => a.length - b.length || a.localeCompare(b))
+}
+
+function buildInlineDiffPreview(target: DiffTarget): InlineDiffPreview {
+  const MAX_LINES = 160
+  const chunks = diffLines(target.before, target.after)
+  const lines: string[] = []
+  let additions = 0
+  let deletions = 0
+  let truncated = false
+
+  const append = (prefix: string, value: string) => {
+    const split = value.split("\n")
+    if (split.length > 0 && split[split.length - 1] === "") {
+      split.pop()
+    }
+    for (const line of split) {
+      if (lines.length >= MAX_LINES) {
+        truncated = true
+        return
+      }
+      lines.push(`${prefix}${line}`)
+    }
+  }
+
+  for (const chunk of chunks) {
+    if (chunk.added) {
+      additions += (chunk.count ?? 0) || chunk.value.split("\n").filter((line) => line.length > 0).length
+      append("+", chunk.value)
+      continue
+    }
+    if (chunk.removed) {
+      deletions += (chunk.count ?? 0) || chunk.value.split("\n").filter((line) => line.length > 0).length
+      append("-", chunk.value)
+      continue
+    }
+    append(" ", chunk.value)
+  }
+
+  return {
+    path: target.path,
+    additions,
+    deletions,
+    text: lines.join("\n"),
+    truncated,
+  }
 }
 
 function getToolFilePaths(props: ToolProps): string[] {
@@ -140,6 +331,18 @@ function getToolDiffTargets(props: ToolProps): DiffTarget[] {
     return targets
   }
 
+  if (props.tool === "fast_edit_file") {
+    const filediff = props.metadata?.filediff as
+      | { path?: unknown; file?: unknown; before?: unknown; after?: unknown }
+      | undefined
+    addTarget(
+      filediff?.path ?? filediff?.file ?? props.input?.filePath,
+      filediff?.before ?? props.input?.oldString ?? "",
+      filediff?.after ?? props.input?.newString ?? "",
+    )
+    return targets
+  }
+
   if (props.tool === "write") {
     const filediff = props.metadata?.filediff as
       | { path?: unknown; file?: unknown; before?: unknown; after?: unknown }
@@ -173,9 +376,112 @@ function getToolDiffTargets(props: ToolProps): DiffTarget[] {
   return targets
 }
 
+function normalizeResourceLink(value: string): string | undefined {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return undefined
+  }
+  if (trimmed.startsWith("file://")) {
+    return trimmed
+  }
+  try {
+    const parsed = new URL(trimmed)
+    if (parsed.protocol === "http:" || parsed.protocol === "https:" || parsed.protocol === "vscode:") {
+      return parsed.toString()
+    }
+  } catch {
+    return undefined
+  }
+  return undefined
+}
+
+function addResourceLink(values: Set<string>, value: unknown) {
+  if (typeof value !== "string") {
+    return
+  }
+  const normalized = normalizeResourceLink(value)
+  if (normalized) {
+    values.add(normalized)
+  }
+}
+
+function extractLinksFromText(text: string, values: Set<string>) {
+  const pattern = /(?:https?:\/\/|file:\/\/|vscode:\/\/)[^\s"'`<>]+/gi
+  const matches = text.match(pattern) ?? []
+  for (const match of matches) {
+    addResourceLink(values, match)
+  }
+}
+
+function getToolResourceLinks(props: ToolProps): string[] {
+  const values = new Set<string>()
+
+  const input = props.input ?? {}
+  const metadata = props.metadata ?? {}
+
+  const directCandidates = [
+    input.url,
+    input.uri,
+    input.href,
+    input.link,
+    input.endpoint,
+    input.resource,
+    metadata.url,
+    metadata.uri,
+    metadata.href,
+    metadata.link,
+    metadata.endpoint,
+    metadata.resource,
+    metadata.source,
+    metadata.target,
+  ]
+
+  for (const candidate of directCandidates) {
+    addResourceLink(values, candidate)
+  }
+
+  const groupedCandidates = [input.urls, input.links, input.resources, metadata.urls, metadata.links, metadata.resources]
+  for (const candidate of groupedCandidates) {
+    if (!Array.isArray(candidate)) {
+      continue
+    }
+    for (const item of candidate) {
+      if (typeof item === "string") {
+        addResourceLink(values, item)
+      } else if (item && typeof item === "object") {
+        addResourceLink(values, (item as { url?: unknown }).url)
+        addResourceLink(values, (item as { uri?: unknown }).uri)
+        addResourceLink(values, (item as { href?: unknown }).href)
+      }
+    }
+  }
+
+  const metadataFiles = metadata.files
+  if (Array.isArray(metadataFiles)) {
+    for (const file of metadataFiles) {
+      if (!file || typeof file !== "object") {
+        continue
+      }
+      addResourceLink(values, (file as { url?: unknown }).url)
+      addResourceLink(values, (file as { uri?: unknown }).uri)
+      addResourceLink(values, (file as { href?: unknown }).href)
+    }
+  }
+
+  if (typeof props.output === "string") {
+    extractLinksFromText(props.output.slice(0, 4000), values)
+  } else if (typeof metadata.output === "string") {
+    extractLinksFromText(metadata.output.slice(0, 4000), values)
+  }
+
+  return Array.from(values).slice(0, 8)
+}
+
 const BashTool: Component<ToolProps> = (props) => {
   const session = useSession()
+  const server = useServer()
   const language = useLanguage()
+  const vscode = useVSCode()
 
   const isRunning = () => props.status === "running" || props.status === "pending"
   const exitCode = () => getExitCode(props.metadata?.exit)
@@ -201,12 +507,40 @@ const BashTool: Component<ToolProps> = (props) => {
     return typeof raw === "string" ? stripAnsi(raw) : ""
   }
 
+  const cwd = () => {
+    const raw = props.input.cwd ?? props.metadata.cwd ?? props.metadata.directory
+    return typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : undefined
+  }
+  const durationMs = () =>
+    getDurationMs(props.metadata.durationMs ?? props.metadata.duration ?? props.metadata.elapsedMs ?? props.metadata.timeMs)
+
   const markdown = () => {
     const body = output()
     if (!body) {
       return `\`\`\`command\n$ ${command()}\n\`\`\``
     }
     return `\`\`\`command\n$ ${command()}\n\n${body}\n\`\`\``
+  }
+
+  const commandPatterns = createMemo(() => extractPatternsFromCommand(command()))
+
+  const saveCommandRules = (allowed: string[], denied: string[]) => {
+    vscode.postMessage({ type: "updateSetting", key: "allowedCommands", value: allowed })
+    vscode.postMessage({ type: "updateSetting", key: "deniedCommands", value: denied })
+  }
+
+  const setPatternDecision = (pattern: string, decision: "allow" | "deny" | "clear") => {
+    const allowed = server.allowedCommands().filter((entry) => entry !== pattern)
+    const denied = server.deniedCommands().filter((entry) => entry !== pattern)
+
+    if (decision === "allow") {
+      allowed.push(pattern)
+    }
+    if (decision === "deny") {
+      denied.push(pattern)
+    }
+
+    saveCommandRules(allowed, denied)
   }
 
   return (
@@ -236,10 +570,77 @@ const BashTool: Component<ToolProps> = (props) => {
                 </Button>
               </Tooltip>
             </Show>
+            <Tooltip value="Open in terminal" placement="top">
+              <Button
+                variant="ghost"
+                size="small"
+                onClick={() =>
+                  vscode.postMessage({
+                    type: "openTerminal",
+                    cwd: cwd(),
+                    command: command() || undefined,
+                  })
+                }
+              >
+                Terminal
+              </Button>
+            </Tooltip>
           </div>
         ),
       }}
     >
+      <Show when={cwd() || (exitCode() !== undefined && !isRunning()) || durationMs() !== undefined}>
+        <div class="command-tool-meta-row">
+          <Show when={cwd()}>
+            <span class="command-tool-meta-chip">cwd: {cwd()}</span>
+          </Show>
+          <Show when={exitCode() !== undefined && !isRunning()}>
+            <span class="command-tool-meta-chip">exit: {exitCode()}</span>
+          </Show>
+          <Show when={durationMs() !== undefined}>
+            <span class="command-tool-meta-chip">duration: {formatDuration(durationMs()!)}</span>
+          </Show>
+        </div>
+      </Show>
+      <Show when={commandPatterns().length > 0}>
+        <div class="command-tool-patterns">
+          <span class="command-tool-patterns-label">Command patterns</span>
+          <For each={commandPatterns().slice(0, 8)}>
+            {(pattern) => {
+              const isAllowed = () => server.allowedCommands().includes(pattern)
+              const isDenied = () => server.deniedCommands().includes(pattern)
+              return (
+                <div class="command-tool-pattern-row">
+                  <span class="command-tool-pattern-value" title={pattern}>
+                    {pattern}
+                  </span>
+                  <div class="command-tool-pattern-actions">
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      data-state={isAllowed() ? "active" : "idle"}
+                      onClick={() => setPatternDecision(pattern, isAllowed() ? "clear" : "allow")}
+                    >
+                      Allow
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="small"
+                      data-state={isDenied() ? "active" : "idle"}
+                      onClick={() => setPatternDecision(pattern, isDenied() ? "clear" : "deny")}
+                    >
+                      Deny
+                    </Button>
+                  </div>
+                </div>
+              )
+            }}
+          </For>
+          <Show when={commandPatterns().length > 8}>
+            <span class="command-tool-pattern-more">+{commandPatterns().length - 8} more patterns</span>
+          </Show>
+        </div>
+      </Show>
       <div data-component="tool-output" data-scrollable>
         <Markdown text={markdown()} />
       </div>
@@ -261,9 +662,19 @@ function registerOpenFileInlineAction(toolName: string) {
   const WrappedTool: Component<ToolProps> = (props) => {
     const language = useLanguage()
     const vscode = useVSCode()
+    const [showInlineDiff, setShowInlineDiff] = createSignal(false)
     const filePaths = createMemo(() => getToolFilePaths(props))
     const diffTargets = createMemo(() => getToolDiffTargets(props))
+    const diffPreviews = createMemo(() => diffTargets().map((target) => buildInlineDiffPreview(target)))
+    const aggregateDiffStats = createMemo(() =>
+      diffPreviews().reduce(
+        (acc, preview) => ({ additions: acc.additions + preview.additions, deletions: acc.deletions + preview.deletions }),
+        { additions: 0, deletions: 0 },
+      ),
+    )
+    const resourceLinks = createMemo(() => getToolResourceLinks(props))
     const primaryPath = createMemo(() => filePaths()[0])
+    const primaryResource = createMemo(() => resourceLinks()[0])
 
     const openFile = () => {
       const path = primaryPath()
@@ -299,9 +710,49 @@ function registerOpenFileInlineAction(toolName: string) {
       })
     }
 
+    const openBatchDiffReview = () => {
+      const targets = diffTargets()
+      if (targets.length === 0) {
+        return
+      }
+      vscode.postMessage({
+        type: "openBatchDiffPreview",
+        diffs: targets.map((target) => ({
+          path: target.path,
+          before: target.before,
+          after: target.after,
+        })),
+      })
+    }
+
+    const openResource = () => {
+      const target = primaryResource()
+      if (!target) {
+        return
+      }
+      if (target.startsWith("file://")) {
+        vscode.postMessage({ type: "openFilePath", path: target })
+        return
+      }
+      vscode.postMessage({ type: "openExternal", url: target })
+    }
+
+    const copyResource = async () => {
+      const target = primaryResource()
+      if (!target) {
+        return
+      }
+      try {
+        await navigator.clipboard.writeText(target)
+        showToast({ variant: "success", title: "Link copied" })
+      } catch {
+        showToast({ variant: "error", title: "Failed to copy link" })
+      }
+    }
+
     return (
       <div class="tool-inline-actions-container">
-        <Show when={primaryPath() || diffTargets().length > 0}>
+        <Show when={primaryPath() || diffTargets().length > 0 || primaryResource()}>
           <div class="tool-inline-actions">
             <Show when={primaryPath()}>
               <Tooltip value={language.t("command.file.open")} placement="top">
@@ -326,9 +777,72 @@ function registerOpenFileInlineAction(toolName: string) {
                   Open Diff
                 </Button>
               </Tooltip>
+              <Show when={diffTargets().length > 1}>
+                <Tooltip value="Review all changed files" placement="top">
+                  <Button variant="ghost" size="small" onClick={openBatchDiffReview} aria-label="Review changed files">
+                    Review Files
+                  </Button>
+                </Tooltip>
+              </Show>
+              <Tooltip value={showInlineDiff() ? "Hide inline diff" : "Show inline diff"} placement="top">
+                <Button variant="ghost" size="small" onClick={() => setShowInlineDiff((prev) => !prev)}>
+                  {showInlineDiff() ? "Hide Diff" : "Show Diff"}
+                </Button>
+              </Tooltip>
+              <span class="tool-inline-actions-meta">
+                +{aggregateDiffStats().additions} -{aggregateDiffStats().deletions}
+              </span>
+            </Show>
+            <Show when={primaryResource()}>
+              <Tooltip value="Open linked resource" placement="top">
+                <Button variant="ghost" size="small" onClick={openResource} aria-label="Open linked resource">
+                  Open Link
+                </Button>
+              </Tooltip>
+              <Tooltip value="Copy linked resource" placement="top">
+                <Button variant="ghost" size="small" onClick={() => void copyResource()} aria-label="Copy linked resource">
+                  Copy Link
+                </Button>
+              </Tooltip>
+              <Show when={resourceLinks().length > 1}>
+                <span class="tool-inline-actions-meta">+{resourceLinks().length - 1} links</span>
+              </Show>
             </Show>
             <Show when={filePaths().length > 1}>
               <span class="tool-inline-actions-meta">+{filePaths().length - 1} more</span>
+            </Show>
+          </div>
+        </Show>
+        <Show when={showInlineDiff() && diffPreviews().length > 0}>
+          <div class="tool-inline-diff-panel">
+            <For each={diffPreviews().slice(0, 3)}>
+              {(preview) => (
+                <div class="tool-inline-diff-file">
+                  <div class="tool-inline-diff-header">
+                    <span class="tool-inline-diff-path" title={preview.path ?? "Modified file"}>
+                      {preview.path ?? "Modified file"}
+                    </span>
+                    <span class="tool-inline-diff-stats">
+                      +{preview.additions} -{preview.deletions}
+                    </span>
+                  </div>
+                  <div class="tool-inline-diff-code">
+                    <Markdown
+                      text={
+                        preview.text && preview.text.trim().length > 0
+                          ? `\`\`\`diff\n${preview.text}\n\`\`\``
+                          : "No inline diff preview available."
+                      }
+                    />
+                  </div>
+                  <Show when={preview.truncated}>
+                    <div class="tool-inline-diff-truncated">Diff preview truncated. Use Open Diff for full context.</div>
+                  </Show>
+                </div>
+              )}
+            </For>
+            <Show when={diffPreviews().length > 3}>
+              <div class="tool-inline-diff-truncated">+{diffPreviews().length - 3} more modified files</div>
             </Show>
           </div>
         </Show>
@@ -357,8 +871,15 @@ function registerOpenFileInlineAction(toolName: string) {
 registerOpenFileInlineAction("read")
 registerOpenFileInlineAction("write")
 registerOpenFileInlineAction("edit")
+registerOpenFileInlineAction("fast_edit_file")
 registerOpenFileInlineAction("list")
 registerOpenFileInlineAction("apply_patch")
+registerOpenFileInlineAction("webfetch")
+registerOpenFileInlineAction("websearch")
+registerOpenFileInlineAction("codesearch")
+registerOpenFileInlineAction("fetch")
+registerOpenFileInlineAction("search")
+registerOpenFileInlineAction("mcp")
 
 export const Message: Component<MessageProps> = (props) => {
   const session = useSession()
@@ -418,9 +939,16 @@ export const Message: Component<MessageProps> = (props) => {
     })
   }
 
+  const userMessageText = createMemo(() => {
+    if (props.message.role !== "user") {
+      return ""
+    }
+    return props.message.content?.trim() ?? ""
+  })
+
   const previewMarkdown = createMemo(() => {
     if (props.message.role !== "assistant") {
-      return ""
+      return userMessageText()
     }
 
     const textParts = (parts() as Array<{ type?: string; text?: string }>)
@@ -436,6 +964,8 @@ export const Message: Component<MessageProps> = (props) => {
     return content ?? ""
   })
   const mermaidBlocks = createMemo(() => extractMermaidBlocks(previewMarkdown()))
+  const [isEditingUserMessage, setIsEditingUserMessage] = createSignal(false)
+  const [editingText, setEditingText] = createSignal("")
 
   const openMermaidPreview = () => {
     if (mermaidBlocks().length === 0) {
@@ -460,7 +990,7 @@ export const Message: Component<MessageProps> = (props) => {
   }
 
   const copyMessage = async () => {
-    const text = previewMarkdown()
+    const text = props.message.role === "assistant" ? previewMarkdown() : userMessageText()
     if (!text) {
       return
     }
@@ -471,6 +1001,62 @@ export const Message: Component<MessageProps> = (props) => {
     } catch {
       showToast({ variant: "error", title: "Failed to copy message" })
     }
+  }
+
+  const startInlineEdit = () => {
+    if (props.message.role !== "user") {
+      return
+    }
+    const value = userMessageText()
+    setEditingText(value)
+    setIsEditingUserMessage(true)
+  }
+
+  const cancelInlineEdit = () => {
+    setIsEditingUserMessage(false)
+  }
+
+  const applyInlineEdit = () => {
+    const nextValue = editingText().trim()
+    const currentValue = userMessageText().trim()
+    if (!nextValue || nextValue === currentValue) {
+      setIsEditingUserMessage(false)
+      return
+    }
+    session.revertMessage(props.message.id)
+    window.dispatchEvent(new CustomEvent("kilo:prompt-prefill", { detail: { text: nextValue } }))
+    setIsEditingUserMessage(false)
+    showToast({
+      variant: "default",
+      title: "Message moved to composer",
+      description: "Review and resend the edited prompt.",
+    })
+  }
+
+  const confirmDeleteFromHere = () => {
+    dialog.show(() => (
+      <Dialog title="Delete from this message?" fit>
+        <div class="dialog-confirm-body">
+          <span>Remove this message and all following conversation turns?</span>
+          <div class="dialog-confirm-actions">
+            <Button variant="ghost" size="large" onClick={() => dialog.close()}>
+              {language.t("common.cancel")}
+            </Button>
+            <Button
+              variant="primary"
+              size="large"
+              onClick={() => {
+                session.revertMessage(props.message.id)
+                setIsEditingUserMessage(false)
+                dialog.close()
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    ))
   }
 
   const confirmRevertMessage = () => {
@@ -509,6 +1095,24 @@ export const Message: Component<MessageProps> = (props) => {
                   {messageTime()}
                 </span>
               </Show>
+              <Show when={props.message.role === "user"}>
+                <Tooltip value="Edit message" placement="top">
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    onClick={startInlineEdit}
+                    aria-label="Edit message"
+                    disabled={isEditingUserMessage()}
+                  >
+                    Edit
+                  </Button>
+                </Tooltip>
+                <Tooltip value="Delete from this message" placement="top">
+                  <Button variant="ghost" size="small" onClick={confirmDeleteFromHere} aria-label="Delete from this message">
+                    Delete
+                  </Button>
+                </Tooltip>
+              </Show>
               <Show when={previewMarkdown().length > 0}>
                 <Tooltip value="Open markdown preview in VS Code" placement="top">
                   <Button
@@ -530,7 +1134,42 @@ export const Message: Component<MessageProps> = (props) => {
               </Show>
             </div>
           </Show>
-          <KiloMessage message={props.message as unknown as SDKMessage} parts={parts()} />
+          <Show
+            when={props.message.role === "user" && isEditingUserMessage()}
+            fallback={<KiloMessage message={props.message as unknown as SDKMessage} parts={parts()} />}
+          >
+            <div class="message-inline-editor">
+              <textarea
+                class="message-inline-editor-input"
+                value={editingText()}
+                onInput={(event) => setEditingText((event.target as HTMLTextAreaElement).value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault()
+                    cancelInlineEdit()
+                    return
+                  }
+                  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                    event.preventDefault()
+                    applyInlineEdit()
+                  }
+                }}
+                rows={4}
+                spellcheck={false}
+              />
+              <div class="message-inline-editor-actions">
+                <Button variant="ghost" size="small" onClick={cancelInlineEdit}>
+                  {language.t("common.cancel")}
+                </Button>
+                <Button variant="secondary" size="small" onClick={confirmDeleteFromHere}>
+                  Delete
+                </Button>
+                <Button variant="primary" size="small" onClick={applyInlineEdit} disabled={editingText().trim().length === 0}>
+                  Save
+                </Button>
+              </div>
+            </div>
+          </Show>
           <Show when={imageParts().length > 0}>
             <div class="message-image-gallery">
               <For each={imageParts()}>
@@ -583,6 +1222,12 @@ export const Message: Component<MessageProps> = (props) => {
               <ContextMenu.ItemLabel>Open Forks</ContextMenu.ItemLabel>
             </ContextMenu.Item>
             <Show when={props.message.role === "user"}>
+              <ContextMenu.Item onSelect={startInlineEdit}>
+                <ContextMenu.ItemLabel>Edit message</ContextMenu.ItemLabel>
+              </ContextMenu.Item>
+              <ContextMenu.Item onSelect={confirmDeleteFromHere}>
+                <ContextMenu.ItemLabel>Delete from here</ContextMenu.ItemLabel>
+              </ContextMenu.Item>
               <ContextMenu.Item onSelect={() => confirmRevertMessage()}>
                 <ContextMenu.ItemLabel>{language.t("command.session.undo")}</ContextMenu.ItemLabel>
               </ContextMenu.Item>

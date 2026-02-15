@@ -4,6 +4,7 @@ import { Card } from "@kilocode/kilo-ui/card"
 import { Button } from "@kilocode/kilo-ui/button"
 import { IconButton } from "@kilocode/kilo-ui/icon-button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
+import { Switch } from "@kilocode/kilo-ui/switch"
 import { showToast } from "@kilocode/kilo-ui/toast"
 import { useConfig } from "../../context/config"
 import { useProvider } from "../../context/provider"
@@ -67,15 +68,30 @@ const ProvidersTab: Component = () => {
 
   const [newDisabled, setNewDisabled] = createSignal<ProviderOption | undefined>()
   const [newEnabled, setNewEnabled] = createSignal<ProviderOption | undefined>()
+  const [preferGatewayDefault, setPreferGatewayDefault] = createSignal(false)
+  const [providerDiagnostics, setProviderDiagnostics] = createSignal<
+    Record<string, { level: "success" | "error"; message: string; at: number }>
+  >({})
 
   const disabledProviders = () => config().disabled_providers ?? []
   const enabledProviders = () => config().enabled_providers ?? []
 
   const unsubscribe = vscode.onMessage((message: ExtensionMessage) => {
     if (message.type !== "providerAuthResult") {
+      if (message.type === "gatewayPreferenceLoaded") {
+        setPreferGatewayDefault(!!message.preferGatewayDefault)
+      }
       return
     }
     if (message.success) {
+      setProviderDiagnostics((prev) => ({
+        ...prev,
+        [message.providerID]: {
+          level: "success",
+          message: message.message ?? "Connected successfully",
+          at: Date.now(),
+        },
+      }))
       showToast({
         variant: "success",
         title: message.action === "connect" ? "Provider connected" : "Provider disconnected",
@@ -84,6 +100,14 @@ const ProvidersTab: Component = () => {
       provider.refresh()
       return
     }
+    setProviderDiagnostics((prev) => ({
+      ...prev,
+      [message.providerID]: {
+        level: "error",
+        message: message.message ?? "Connection failed",
+        at: Date.now(),
+      },
+    }))
     showToast({
       variant: "error",
       title: message.action === "connect" ? "Provider connect failed" : "Provider disconnect failed",
@@ -91,6 +115,7 @@ const ProvidersTab: Component = () => {
     })
   })
   onCleanup(unsubscribe)
+  vscode.postMessage({ type: "requestGatewayPreference" })
 
   const connectProvider = (providerID: string) => {
     vscode.postMessage({ type: "connectProviderAuth", providerID })
@@ -175,6 +200,20 @@ const ProvidersTab: Component = () => {
     })
   }
 
+  const formatDiagnosticTime = (timestamp: number) => {
+    const elapsedMs = Date.now() - timestamp
+    const elapsedSeconds = Math.max(1, Math.round(elapsedMs / 1000))
+    if (elapsedSeconds < 60) {
+      return `${elapsedSeconds}s ago`
+    }
+    const elapsedMinutes = Math.round(elapsedSeconds / 60)
+    if (elapsedMinutes < 60) {
+      return `${elapsedMinutes}m ago`
+    }
+    const elapsedHours = Math.round(elapsedMinutes / 60)
+    return `${elapsedHours}h ago`
+  }
+
   return (
     <div>
       {/* Provider catalog */}
@@ -220,6 +259,22 @@ const ProvidersTab: Component = () => {
                   {item.modelCount} models
                   {item.defaultModelName ? ` · default: ${item.defaultModelName}` : ""}
                 </div>
+                <For each={providerDiagnostics()[item.id] ? [providerDiagnostics()[item.id]] : []}>
+                  {(diagnostic) => (
+                    <div
+                      style={{
+                        "font-size": "11px",
+                        color:
+                          diagnostic.level === "success"
+                            ? "var(--vscode-testing-iconPassed, #89d185)"
+                            : "var(--vscode-errorForeground)",
+                      }}
+                    >
+                      {diagnostic.level === "success" ? "OK" : "Error"}: {diagnostic.message} ·{" "}
+                      {formatDiagnosticTime(diagnostic.at)}
+                    </div>
+                  )}
+                </For>
               </div>
 
               <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
@@ -302,6 +357,21 @@ const ProvidersTab: Component = () => {
             }}
             placement="bottom-start"
           />
+        </SettingsRow>
+        <SettingsRow
+          label="Prefer Kilo Gateway Default"
+          description="When enabled, startup model automatically follows the backend Kilo Gateway default."
+        >
+          <Switch
+            checked={preferGatewayDefault()}
+            onChange={(checked) => {
+              setPreferGatewayDefault(checked)
+              vscode.postMessage({ type: "updateSetting", key: "model.preferGatewayDefault", value: checked })
+            }}
+            hideLabel
+          >
+            Prefer Kilo Gateway Default
+          </Switch>
         </SettingsRow>
         <SettingsRow
           label="Use Kilo Gateway Default"

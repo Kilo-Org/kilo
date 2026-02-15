@@ -6,7 +6,13 @@ import { promisify } from "node:util"
 import * as vscode from "vscode"
 import { logger } from "./utils/logger"
 import { captureTelemetryEvent } from "./utils/telemetry"
-import type { AgentInfo, KiloConnectionService, RemoteSessionInfo, SessionInfo } from "./services/cli-backend"
+import type {
+  AgentInfo,
+  KiloConnectionService,
+  PermissionRequest,
+  RemoteSessionInfo,
+  SessionInfo,
+} from "./services/cli-backend"
 
 const execFile = promisify(execFileCb)
 
@@ -20,6 +26,7 @@ type AgentManagerWebviewToExtensionMessage =
   | { type: "createSession"; prompt?: string; agent?: string; parallel?: boolean; branch?: string }
   | { type: "resumeRemoteSession"; sessionID?: string; text?: string }
   | { type: "sendSessionMessage"; sessionID?: string; text?: string }
+  | { type: "respondPermission"; sessionID?: string; permissionID?: string; response?: "once" | "always" | "reject" }
   | { type: "abortSession"; sessionID?: string }
   | { type: "deleteSession"; sessionID?: string }
   | { type: "bulkAbort"; sessionIDs?: string[] }
@@ -40,6 +47,12 @@ type AgentManagerSessionRow = {
   isWorktree: boolean
   worktreePath?: string
   branch?: string
+  pendingApprovalCount: number
+  nextPendingApproval?: {
+    id: string
+    permission: string
+    patterns: string[]
+  }
   canOpenInChat: boolean
   canSendMessage: boolean
 }
@@ -66,6 +79,7 @@ type AgentManagerAction =
   | "createSession"
   | "resumeRemoteSession"
   | "sendSessionMessage"
+  | "respondPermission"
   | "abortSession"
   | "deleteSession"
   | "bulkAbort"
@@ -108,6 +122,7 @@ export class AgentManagerProvider implements vscode.Disposable {
   private readonly sessionDirectoryById = new Map<string, string>()
   private readonly sessionStatusById = new Map<string, SessionRunStatus>()
   private readonly remoteSessionById = new Map<string, RemoteSessionInfo>()
+  private readonly pendingPermissionsBySession = new Map<string, PermissionRequest[]>()
   private refreshTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(
@@ -175,6 +190,14 @@ export class AgentManagerProvider implements vscode.Disposable {
         case "session.updated":
           this.scheduleRefreshData()
           break
+        case "permission.asked":
+          this.trackPendingPermission(event.properties)
+          this.scheduleRefreshData(80)
+          break
+        case "permission.replied":
+          this.clearPendingPermission(event.properties.sessionID, event.properties.requestID)
+          this.scheduleRefreshData(80)
+          break
       }
     })
 
@@ -220,6 +243,9 @@ export class AgentManagerProvider implements vscode.Disposable {
       case "sendSessionMessage":
         await this.sendSessionMessage(message.sessionID, message.text)
         return
+      case "respondPermission":
+        await this.respondPermission(message.sessionID, message.permissionID, message.response)
+        return
       case "abortSession":
         await this.abortSession(message.sessionID)
         return
@@ -254,6 +280,47 @@ export class AgentManagerProvider implements vscode.Disposable {
       this.refreshTimer = undefined
       void this.refreshData()
     }, delayMs)
+  }
+
+  private trackPendingPermission(request: PermissionRequest): void {
+    const existing = this.pendingPermissionsBySession.get(request.sessionID) ?? []
+    if (existing.some((entry) => entry.id === request.id)) {
+      return
+    }
+    this.pendingPermissionsBySession.set(request.sessionID, [...existing, request])
+  }
+
+  private clearPendingPermission(sessionID: string, requestID: string): void {
+    const existing = this.pendingPermissionsBySession.get(sessionID)
+    if (!existing || existing.length === 0) {
+      return
+    }
+    const remaining = existing.filter((entry) => entry.id !== requestID)
+    if (remaining.length === 0) {
+      this.pendingPermissionsBySession.delete(sessionID)
+      return
+    }
+    this.pendingPermissionsBySession.set(sessionID, remaining)
+  }
+
+  private getPendingPermissionSummary(sessionID: string): {
+    pendingApprovalCount: number
+    nextPendingApproval?: { id: string; permission: string; patterns: string[] }
+  } {
+    const pending = this.pendingPermissionsBySession.get(sessionID) ?? []
+    const next = pending[0]
+    return {
+      pendingApprovalCount: pending.length,
+      ...(next
+        ? {
+            nextPendingApproval: {
+              id: next.id,
+              permission: next.permission,
+              patterns: Array.isArray(next.patterns) ? next.patterns : [],
+            },
+          }
+        : {}),
+    }
   }
 
   private async refreshData(): Promise<void> {
@@ -342,6 +409,13 @@ export class AgentManagerProvider implements vscode.Disposable {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         errors.push(`Failed to load cloud sessions: ${message}`)
+      }
+
+      const knownSessionIds = new Set(byId.keys())
+      for (const sessionID of this.pendingPermissionsBySession.keys()) {
+        if (!knownSessionIds.has(sessionID)) {
+          this.pendingPermissionsBySession.delete(sessionID)
+        }
       }
 
       this.postMessage({
@@ -543,6 +617,43 @@ export class AgentManagerProvider implements vscode.Disposable {
     }
   }
 
+  private async respondPermission(
+    sessionID?: string,
+    permissionID?: string,
+    response?: "once" | "always" | "reject",
+  ): Promise<void> {
+    if (!sessionID) {
+      this.postActionResult("respondPermission", false, "Missing session ID")
+      return
+    }
+    if (!permissionID) {
+      this.postActionResult("respondPermission", false, "Missing permission ID", sessionID)
+      return
+    }
+    if (!response || (response !== "once" && response !== "always" && response !== "reject")) {
+      this.postActionResult("respondPermission", false, "Invalid permission response", sessionID)
+      return
+    }
+
+    const workspaceDir = this.getWorkspaceDirectory()
+    try {
+      const client = await this.getClient(workspaceDir)
+      const directory = await this.resolveSessionDirectory(sessionID)
+      await client.respondToPermission(sessionID, permissionID, response, directory)
+      this.clearPendingPermission(sessionID, permissionID)
+      this.postActionResult("respondPermission", true, `Sent ${response} reply`, sessionID)
+      await this.refreshData()
+    } catch (error) {
+      logger.error("[Kilo New] AgentManager: failed to respond to permission", {
+        sessionID,
+        permissionID,
+        response,
+        error,
+      })
+      this.postActionResult("respondPermission", false, error instanceof Error ? error.message : String(error), sessionID)
+    }
+  }
+
   private async abortSession(sessionID?: string): Promise<void> {
     if (!sessionID) {
       this.postActionResult("abortSession", false, "Missing session ID")
@@ -585,6 +696,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       await client.deleteSession(sessionID, directory)
       this.sessionStatusById.delete(sessionID)
       this.sessionDirectoryById.delete(sessionID)
+      this.pendingPermissionsBySession.delete(sessionID)
 
       const state = await this.loadState(workspaceDir)
       if (state.sessionMeta[sessionID]) {
@@ -648,6 +760,7 @@ export class AgentManagerProvider implements vscode.Disposable {
         await client.deleteSession(sessionID, directory)
         this.sessionStatusById.delete(sessionID)
         this.sessionDirectoryById.delete(sessionID)
+        this.pendingPermissionsBySession.delete(sessionID)
         delete state.sessionMeta[sessionID]
       } catch (error) {
         failures.push(`${sessionID}: ${error instanceof Error ? error.message : String(error)}`)
@@ -884,6 +997,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       isWorktree: !!meta.worktreePath,
       ...(meta.worktreePath ? { worktreePath: meta.worktreePath } : {}),
       ...(meta.branch ? { branch: meta.branch } : {}),
+      ...this.getPendingPermissionSummary(session.id),
       canOpenInChat: meta.directory === workspaceDir,
       canSendMessage: true,
     }
@@ -900,6 +1014,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       directoryLabel: "cloud session",
       source: "cloud",
       isWorktree: false,
+      pendingApprovalCount: 0,
       canOpenInChat: false,
       canSendMessage: false,
     }
@@ -1224,12 +1339,31 @@ export class AgentManagerProvider implements vscode.Disposable {
       color: var(--vscode-terminal-ansiGreen, #4ec9b0);
       border-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen, #4ec9b0) 70%, transparent 30%);
     }
+    .approval-badge {
+      align-self: flex-start;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      border: 1px solid color-mix(in srgb, var(--vscode-testing-iconQueued, #cca700) 70%, transparent 30%);
+      color: var(--vscode-testing-iconQueued, #cca700);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
     .session-meta {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
       font-size: 11px;
       color: var(--vscode-descriptionForeground);
+    }
+    .session-approval {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      font-family: var(--vscode-editor-font-family, monospace);
+      border: 1px dashed var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      overflow-wrap: anywhere;
     }
     .session-continue {
       display: flex;
@@ -1459,7 +1593,8 @@ export class AgentManagerProvider implements vscode.Disposable {
           formatWhen(session.updatedAt) +
           " • " +
           (session.source === "cloud" ? "cloud" : session.directoryLabel) +
-          (session.branch ? " • branch " + session.branch : "")
+          (session.branch ? " • branch " + session.branch : "") +
+          (session.pendingApprovalCount > 0 ? " • approvals " + session.pendingApprovalCount : "")
 
         main.appendChild(title)
         main.appendChild(id)
@@ -1472,6 +1607,12 @@ export class AgentManagerProvider implements vscode.Disposable {
 
         head.appendChild(main)
         head.appendChild(status)
+        if (session.pendingApprovalCount > 0) {
+          const approvalBadge = document.createElement("span")
+          approvalBadge.className = "approval-badge"
+          approvalBadge.textContent = session.pendingApprovalCount + " approval" + (session.pendingApprovalCount === 1 ? "" : "s")
+          head.appendChild(approvalBadge)
+        }
 
         const actionRow = document.createElement("div")
         actionRow.className = "session-actions"
@@ -1509,6 +1650,38 @@ export class AgentManagerProvider implements vscode.Disposable {
         actionRow.appendChild(openChatBtn)
 
         if (session.source !== "cloud") {
+          if (session.nextPendingApproval && session.nextPendingApproval.id) {
+            actionRow.appendChild(
+              makeButton("Allow Once", "secondary", () => {
+                vscode.postMessage({
+                  type: "respondPermission",
+                  sessionID: session.id,
+                  permissionID: session.nextPendingApproval.id,
+                  response: "once",
+                })
+              }),
+            )
+            actionRow.appendChild(
+              makeButton("Allow Always", "secondary", () => {
+                vscode.postMessage({
+                  type: "respondPermission",
+                  sessionID: session.id,
+                  permissionID: session.nextPendingApproval.id,
+                  response: "always",
+                })
+              }),
+            )
+            actionRow.appendChild(
+              makeButton("Deny", "warn", () => {
+                vscode.postMessage({
+                  type: "respondPermission",
+                  sessionID: session.id,
+                  permissionID: session.nextPendingApproval.id,
+                  response: "reject",
+                })
+              }),
+            )
+          }
           actionRow.appendChild(
             makeButton("Abort", "secondary", () => {
               vscode.postMessage({ type: "abortSession", sessionID: session.id })
@@ -1543,6 +1716,17 @@ export class AgentManagerProvider implements vscode.Disposable {
               vscode.postMessage({ type: "removeWorktree", sessionID: session.id })
             }),
           )
+        }
+
+        if (session.nextPendingApproval) {
+          const approvalInfo = document.createElement("div")
+          approvalInfo.className = "session-approval"
+          const patterns = Array.isArray(session.nextPendingApproval.patterns) ? session.nextPendingApproval.patterns : []
+          approvalInfo.textContent =
+            "Pending permission: " +
+            session.nextPendingApproval.permission +
+            (patterns.length > 0 ? " • " + patterns.slice(0, 4).join(", ") : "")
+          container.appendChild(approvalInfo)
         }
 
         const continueRow = document.createElement("div")

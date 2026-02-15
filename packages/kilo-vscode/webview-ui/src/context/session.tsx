@@ -108,6 +108,7 @@ interface SessionContextValue {
   ) => void
   deleteTodo: (todoID: string) => void
   openForkSessionPicker: () => void
+  openCheckpointPicker: () => void
   revertMessage: (messageID: string) => void
   forkSession: (messageID?: string) => void
   respondToPermission: (permissionId: string, response: "once" | "always" | "reject") => void
@@ -658,6 +659,16 @@ export const SessionProvider: ParentComponent = (props) => {
     })
   }
 
+  function openCheckpointPicker() {
+    if (!server.isConnected()) {
+      return
+    }
+    vscode.postMessage({
+      type: "openCheckpointPicker",
+      sessionID: currentSessionID(),
+    })
+  }
+
   function revertMessage(messageID: string) {
     if (!server.isConnected()) {
       console.warn("[Kilo New] Cannot revert message: not connected")
@@ -967,6 +978,7 @@ export const SessionProvider: ParentComponent = (props) => {
     updateTodo,
     deleteTodo,
     openForkSessionPicker,
+    openCheckpointPicker,
     revertMessage,
     forkSession,
     respondToPermission,

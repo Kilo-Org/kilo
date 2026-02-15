@@ -1062,6 +1062,11 @@ export interface OpenForkSessionPickerRequest {
   sessionID?: string
 }
 
+export interface OpenCheckpointPickerRequest {
+  type: "openCheckpointPicker"
+  sessionID?: string
+}
+
 export interface PasteAttachmentsRequest {
   type: "pasteAttachments"
   files: Array<{
@@ -1223,6 +1228,7 @@ export type WebviewMessage =
   | RevertMessageRequest
   | ForkSessionRequest
   | OpenForkSessionPickerRequest
+  | OpenCheckpointPickerRequest
   | PasteAttachmentsRequest
   | SeeNewChangesRequest
   | CreateTodoRequest

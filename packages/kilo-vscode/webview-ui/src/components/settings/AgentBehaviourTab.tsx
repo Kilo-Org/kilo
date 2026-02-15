@@ -255,6 +255,14 @@ const AgentBehaviourTab: Component = () => {
 
   const mcpServerType = (mcp: McpConfig): McpType => (mcp.url ? "remote" : "local")
 
+  const extractUrlFromText = (value?: string): string | undefined => {
+    if (!value) {
+      return undefined
+    }
+    const match = value.match(/https?:\/\/[^\s)'"`]+/i)
+    return match?.[0]
+  }
+
   const mcpDiagnosticsText = (name: string, mcp: McpConfig): string => {
     const summary = statusSummary(name)
     const commandData = getCommandAndArgs(mcp)
@@ -947,6 +955,43 @@ const AgentBehaviourTab: Component = () => {
             <For each={visibleMcpEntries()}>
               {([name, mcp], index) => {
                 const status = () => statusSummary(name)
+                const rawStatus = () => mcpStatus()[name]
+                const authUrl = () => {
+                  const current = rawStatus()
+                  if (!current) {
+                    return undefined
+                  }
+                  if (current.status === "failed" || current.status === "needs_client_registration") {
+                    return extractUrlFromText(current.error)
+                  }
+                  return undefined
+                }
+                const connectLabel = () => {
+                  const current = rawStatus()
+                  if (current?.status === "connected") {
+                    return "Disconnect"
+                  }
+                  if (current?.status === "needs_auth") {
+                    return "Re-authenticate"
+                  }
+                  if (current?.status === "needs_client_registration") {
+                    return "Register"
+                  }
+                  return "Connect"
+                }
+                const connectTooltip = () => {
+                  const current = rawStatus()
+                  if (current?.status === "connected") {
+                    return "Disconnect MCP server"
+                  }
+                  if (current?.status === "needs_auth") {
+                    return "Retry OAuth authentication"
+                  }
+                  if (current?.status === "needs_client_registration") {
+                    return "Retry client registration/auth flow"
+                  }
+                  return "Connect MCP server"
+                }
                 return (
                   <div
                     style={{
@@ -1044,10 +1089,20 @@ const AgentBehaviourTab: Component = () => {
                             Edit
                           </Button>
                         </Tooltip>
-                        <Tooltip
-                          value={status().connected ? "Disconnect MCP server" : "Connect MCP server"}
-                          placement="top"
-                        >
+                        <Show when={authUrl()}>
+                          {(url) => (
+                            <Tooltip value="Open authentication URL" placement="top">
+                              <Button
+                                size="small"
+                                variant="ghost"
+                                onClick={() => vscode.postMessage({ type: "openExternal", url: url() })}
+                              >
+                                Open Auth URL
+                              </Button>
+                            </Tooltip>
+                          )}
+                        </Show>
+                        <Tooltip value={connectTooltip()} placement="top">
                           <Button
                             size="small"
                             variant="ghost"
@@ -1058,7 +1113,7 @@ const AgentBehaviourTab: Component = () => {
                               })
                             }
                           >
-                            {status().connected ? "Disconnect" : "Connect"}
+                            {connectLabel()}
                           </Button>
                         </Tooltip>
                         <Tooltip value={language.t("common.delete")} placement="top">

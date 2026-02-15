@@ -380,6 +380,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         case "openForkSessionPicker":
           await this.handleOpenForkSessionPicker(message.sessionID)
           break
+        case "openCheckpointPicker":
+          await this.handleOpenCheckpointPicker(message.sessionID)
+          break
         case "pasteAttachments": {
           const files = z
             .array(
@@ -2374,6 +2377,89 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       this.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Failed to load fork sessions",
+      })
+    }
+  }
+
+  private summarizeCheckpointMessage(message: { info: { role: string }; parts: MessagePart[] }): string {
+    const textParts = message.parts
+      .filter((part): part is Extract<MessagePart, { type: "text" }> => part.type === "text")
+      .map((part) => part.text.trim())
+      .filter((text) => text.length > 0)
+    const summary = textParts[0] ?? ""
+    if (!summary) {
+      return message.info.role === "user" ? "(user message)" : "(assistant message)"
+    }
+    return summary.length > 90 ? `${summary.slice(0, 90)}…` : summary
+  }
+
+  private async handleOpenCheckpointPicker(sessionID?: string): Promise<void> {
+    const client = this.httpClient
+    if (!client) {
+      this.postMessage({
+        type: "error",
+        message: "Not connected to CLI backend",
+      })
+      return
+    }
+
+    const targetSessionID = sessionID || this.currentSession?.id
+    if (!targetSessionID) {
+      return
+    }
+
+    const workspaceDir = this.getPrimaryWorkspacePath()
+    if (!workspaceDir) {
+      this.postMessage({
+        type: "error",
+        message: "No workspace is open.",
+      })
+      return
+    }
+
+    try {
+      const messages = await client.getMessages(targetSessionID, workspaceDir)
+      if (messages.length === 0) {
+        void vscode.window.showInformationMessage("No checkpoints available for this session yet.")
+        return
+      }
+
+      const items = messages
+        .map((message, index) => {
+          const created = new Date(message.info.time.created).toLocaleTimeString()
+          const role = message.info.role === "user" ? "User" : "Assistant"
+          return {
+            label: `${role} · ${created}`,
+            description: `#${index + 1}`,
+            detail: this.summarizeCheckpointMessage({ info: { role: message.info.role }, parts: message.parts }),
+            messageID: message.info.id,
+          }
+        })
+        .reverse()
+
+      const picked = await vscode.window.showQuickPick(items, {
+        title: "Restore Checkpoint",
+        placeHolder: "Select a message checkpoint to restore the session to",
+      })
+      if (!picked) {
+        return
+      }
+
+      const action = await vscode.window.showWarningMessage(
+        "Restore this checkpoint? Later messages in this session will be removed.",
+        { modal: true },
+        "Restore",
+      )
+      if (action !== "Restore") {
+        return
+      }
+
+      await this.handleRevertMessage(targetSessionID, picked.messageID)
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to open checkpoint picker:", error)
+      this.postMessage({
+        type: "error",
+        message: error instanceof Error ? error.message : "Failed to open checkpoint picker",
       })
     }
   }

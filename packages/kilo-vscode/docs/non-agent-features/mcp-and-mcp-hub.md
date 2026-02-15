@@ -31,10 +31,11 @@ MCP is managed by the CLI backend, not local extension services. The extension i
   - add/update/remove server config (local and remote)
   - connect/disconnect actions
   - status refresh with richer status rendering (connected/disabled/needs auth/failed)
+  - diagnostics helpers (per-server details + copy diagnostics, filter to issue-only servers)
+  - auth recovery affordances (status-aware reconnect labels and optional `Open Auth URL` when recoverable URL is present in error details)
 - MCP tool allowlist/disablement is exposed via `config.tools` management in the same subtab.
 
 ## Remaining Gaps
 
-- No per-server OAuth recovery flow UI beyond raw status/errors.
-- No advanced MCP diagnostics/history panel.
+- No advanced MCP diagnostics/history panel with persistent event timeline.
 - Tool policy UX is still key-based and not schema-discovered from live server tool metadata.

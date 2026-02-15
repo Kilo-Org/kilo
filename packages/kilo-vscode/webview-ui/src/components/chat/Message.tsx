@@ -522,6 +522,25 @@ const BashTool: Component<ToolProps> = (props) => {
     return `\`\`\`command\n$ ${command()}\n\n${body}\n\`\`\``
   }
 
+  const transcript = createMemo(() => {
+    const commandLine = command().trim() ? `$ ${command().trim()}` : "$ (command unavailable)"
+    const body = output().trim()
+    return body.length > 0 ? `${commandLine}\n\n${body}` : commandLine
+  })
+
+  const openTranscript = () => {
+    vscode.postMessage({ type: "openMarkdownPreview", text: `\`\`\`shell\n${transcript()}\n\`\`\`` })
+  }
+
+  const copyOutput = async () => {
+    try {
+      await navigator.clipboard.writeText(output())
+      showToast({ variant: "success", title: "Command output copied" })
+    } catch {
+      showToast({ variant: "error", title: "Failed to copy command output" })
+    }
+  }
+
   const commandPatterns = createMemo(() => extractPatternsFromCommand(command()))
 
   const saveCommandRules = (allowed: string[], denied: string[]) => {
@@ -583,6 +602,16 @@ const BashTool: Component<ToolProps> = (props) => {
                 }
               >
                 Terminal
+              </Button>
+            </Tooltip>
+            <Tooltip value="Open command transcript" placement="top">
+              <Button variant="ghost" size="small" onClick={openTranscript}>
+                Transcript
+              </Button>
+            </Tooltip>
+            <Tooltip value="Copy command output" placement="top">
+              <Button variant="ghost" size="small" onClick={() => void copyOutput()}>
+                Copy Output
               </Button>
             </Tooltip>
           </div>

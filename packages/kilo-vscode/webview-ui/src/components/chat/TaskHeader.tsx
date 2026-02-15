@@ -20,6 +20,7 @@ export const TaskHeader: Component = () => {
   const busy = createMemo(() => session.status() === "busy")
   const canCompact = createMemo(() => !busy() && hasMessages() && !!session.selected())
   const canSeeChanges = createMemo(() => !busy() && hasMessages())
+  const canOpenCheckpoints = createMemo(() => !busy() && hasMessages())
 
   const cost = createMemo(() => {
     const total = session.totalCost()
@@ -48,6 +49,16 @@ export const TaskHeader: Component = () => {
           <Tooltip value="Open Source Control changes" placement="bottom">
             <Button size="small" variant="ghost" disabled={!canSeeChanges()} onClick={() => session.seeNewChanges()}>
               See New Changes
+            </Button>
+          </Tooltip>
+          <Tooltip value="Open checkpoint restore menu" placement="bottom">
+            <Button
+              size="small"
+              variant="ghost"
+              disabled={!canOpenCheckpoints()}
+              onClick={() => session.openCheckpointPicker()}
+            >
+              Checkpoints
             </Button>
           </Tooltip>
           <Show when={cost()}>

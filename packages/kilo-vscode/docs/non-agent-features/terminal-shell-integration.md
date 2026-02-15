@@ -17,3 +17,15 @@
 ## Implementation notes
 
 - Some shell integration may live outside `src/services` (for example in tool implementations), but is a foundational automation substrate.
+
+## Current state
+
+- Command-tool rows expose integrated terminal bridge actions (`Terminal`) with optional cwd/command handoff.
+- Command rows render execution metadata (`cwd`, `exit`, `duration`) and status chips.
+- Command-tool rows now include transcript affordances:
+  - `Transcript` opens a dedicated command transcript preview
+  - `Copy Output` copies command output directly from the tool row
+
+## Remaining gaps
+
+- Full parity for richer streaming terminal transcript UX across very long-running sessions.

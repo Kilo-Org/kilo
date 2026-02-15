@@ -505,6 +505,7 @@
     "test:integration": "bun test tests/integration",
     "test:themes": "bun test tests/unit/theme-contract.test.ts",
     "audit:bundle": "node scripts/bundle-size-audit.mjs",
+    "audit:migration-plan": "node scripts/verify-migration-plan-complete.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint src",

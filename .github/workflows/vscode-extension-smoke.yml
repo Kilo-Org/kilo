@@ -52,6 +52,9 @@ jobs:
       - name: Theme contract tests
         run: bun run --cwd packages/kilo-vscode test:themes
 
+      - name: Migration plan completion check
+        run: bun run --cwd packages/kilo-vscode audit:migration-plan
+
       - name: Build package
         run: bun run --cwd packages/kilo-vscode package
 

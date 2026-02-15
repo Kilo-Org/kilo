@@ -887,6 +887,11 @@ export interface OpenMarkdownPreviewRequest {
   text: string
 }
 
+export interface OpenImageRequest {
+  type: "openImage"
+  text: string
+}
+
 export interface CancelLoginRequest {
   type: "cancelLogin"
 }
@@ -1245,6 +1250,7 @@ export type WebviewMessage =
   | RefreshProfileRequest
   | OpenExternalRequest
   | OpenMarkdownPreviewRequest
+  | OpenImageRequest
   | CancelLoginRequest
   | SetOrganizationRequest
   | WebviewReadyRequest

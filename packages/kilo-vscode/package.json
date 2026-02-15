@@ -2,20 +2,69 @@
   "name": "kilo-code",
   "displayName": "Kilo Code",
   "description": "Kilo Code AI Agent & Autocomplete",
-  "version": "7.0.21",
   "publisher": "kilocode",
+  "version": "1.0.21",
+  "icon": "assets/icons/kilo-dark.png",
+  "author": {
+    "name": "Kilo Code"
+  },
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Kilo-Org/kilo.git",
     "directory": "packages/kilo-vscode"
   },
+  "bugs": {
+    "url": "https://github.com/Kilo-Org/kilo/issues"
+  },
+  "homepage": "https://github.com/Kilo-Org/kilo/tree/dev/packages/kilo-vscode",
   "engines": {
-    "vscode": "^1.108.0"
+    "vscode": "^1.107.0"
   },
   "categories": [
-    "Other"
+    "AI",
+    "Chat",
+    "Programming Languages",
+    "Education",
+    "Testing"
   ],
-  "activationEvents": [],
+  "keywords": [
+    "kilo",
+    "kilocode",
+    "ai",
+    "agent",
+    "autocomplete",
+    "mcp",
+    "coding"
+  ],
+  "activationEvents": [
+    "onView:kilo-code.new.sidebarView",
+    "onCommand:kilo-code.new.plusButtonClicked",
+    "onCommand:kilo-code.new.agentManagerOpen",
+    "onCommand:kilo-code.new.marketplaceButtonClicked",
+    "onCommand:kilo-code.new.historyButtonClicked",
+    "onCommand:kilo-code.new.profileButtonClicked",
+    "onCommand:kilo-code.new.settingsButtonClicked",
+    "onCommand:kilo-code.new.openInTab",
+    "onCommand:kilo-code.new.openWorkspaceTerminal",
+    "onCommand:kilo-code.new.openSlashCommandPicker",
+    "onCommand:kilo-code.new.searchWorkspace",
+    "onCommand:kilo-code.new.ingestUrlToChat",
+    "onCommand:kilo-code.new.semanticSearch",
+    "onCommand:kilo-code.new.rebuildCodeIndex",
+    "onCommand:kilo-code.new.integration.openGitHubRepo",
+    "onCommand:kilo-code.new.integration.createPullRequest",
+    "onCommand:kilo-code.new.security.scanWorkspace",
+    "onCommand:kilo-code.new.showContributionReport",
+    "onCommand:kilo-code.new.clearContributionReport",
+    "onCommand:kilo-code.new.autocomplete.generateSuggestions",
+    "onCommand:kilo-code.new.initializeRepository",
+    "onCommand:kilo-code.new.generateCommitMessage",
+    "onCommand:kilo-code.new.reviewChanges",
+    "onCommand:kilo-code.new.codeAction.explainSelection",
+    "onCommand:kilo-code.new.codeAction.fixSelection",
+    "onCommand:kilo-code.new.codeAction.improveSelection"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -76,8 +125,93 @@
         }
       },
       {
+        "command": "kilo-code.new.openWorkspaceTerminal",
+        "title": "Open Kilo Terminal",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.openSlashCommandPicker",
+        "title": "Open Slash Command Picker",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.searchWorkspace",
+        "title": "Search Workspace",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.ingestUrlToChat",
+        "title": "Ingest URL Into Chat",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.semanticSearch",
+        "title": "Semantic Search",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.rebuildCodeIndex",
+        "title": "Rebuild Code Index",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.integration.openGitHubRepo",
+        "title": "Open GitHub Repository",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.integration.createPullRequest",
+        "title": "Create Pull Request",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.security.scanWorkspace",
+        "title": "Scan Workspace for Secrets",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.showContributionReport",
+        "title": "Show AI Contribution Report",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.clearContributionReport",
+        "title": "Clear AI Contribution Report",
+        "category": "Kilo Code"
+      },
+      {
         "command": "kilo-code.new.autocomplete.generateSuggestions",
         "title": "Generate Suggested Edits",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.initializeRepository",
+        "title": "Initialize Repository",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.generateCommitMessage",
+        "title": "Generate Commit Message",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.reviewChanges",
+        "title": "Review Changes",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.codeAction.explainSelection",
+        "title": "Explain Selection",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.codeAction.fixSelection",
+        "title": "Fix Selection",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.codeAction.improveSelection",
+        "title": "Improve Selection",
         "category": "Kilo Code"
       }
     ],
@@ -119,6 +253,35 @@
           "command": "kilo-code.new.openInTab",
           "group": "navigation",
           "when": "true"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "kilo-code.new.codeAction.explainSelection",
+          "group": "navigation@10",
+          "when": "editorHasSelection && resourceScheme == file"
+        },
+        {
+          "command": "kilo-code.new.codeAction.fixSelection",
+          "group": "navigation@11",
+          "when": "editorHasSelection && resourceScheme == file"
+        },
+        {
+          "command": "kilo-code.new.codeAction.improveSelection",
+          "group": "navigation@12",
+          "when": "editorHasSelection && resourceScheme == file"
+        }
+      ],
+      "scm/title": [
+        {
+          "command": "kilo-code.new.generateCommitMessage",
+          "group": "navigation@10",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "kilo-code.new.reviewChanges",
+          "group": "navigation@11",
+          "when": "scmProvider == git"
         }
       ]
     },
@@ -177,6 +340,27 @@
           "type": "string",
           "default": "kilo/auto",
           "description": "Default model ID for new sessions"
+        },
+        "kilo-code.new.model.preferGatewayDefault": {
+          "type": "boolean",
+          "default": false,
+          "description": "Prefer the Kilo Gateway provider default model for new sessions when available."
+        },
+        "kilo-code.new.allowedCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Command prefixes that can be auto-approved for execute operations."
+        },
+        "kilo-code.new.deniedCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Command prefixes that are auto-denied for execute operations."
         },
         "kilo-code.new.autocomplete.enableAutoTrigger": {
           "type": "boolean",
@@ -249,33 +433,64 @@
             "none"
           ],
           "description": "Sound to play on errors"
+        },
+        "kilo-code.new.git.commitMessageExcludeGlobs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/*.lock",
+            "**/yarn.lock"
+          ],
+          "description": "Glob patterns excluded from staged patch excerpts when generating commit messages."
+        },
+        "kilo-code.new.codeActions.explainTemplate": {
+          "type": "string",
+          "default": "Explain this code selection.\nFocus on purpose, control flow, edge cases, and any risks.\nFile: {file}\nSelection: {selection}\n\n{code_block}",
+          "description": "Template used for Explain Selection code actions. Placeholders: {file}, {selection}, {language}, {code}, {code_block}, {diagnostic}."
+        },
+        "kilo-code.new.codeActions.fixTemplate": {
+          "type": "string",
+          "default": "Find and fix issues in this code selection.\nReturn concrete fixes and summarize what was changed.\nFile: {file}\nSelection: {selection}\nDiagnostic: {diagnostic}\n\n{code_block}",
+          "description": "Template used for Fix Selection and diagnostics quick-fix code actions. Placeholders: {file}, {selection}, {language}, {code}, {code_block}, {diagnostic}."
+        },
+        "kilo-code.new.codeActions.improveTemplate": {
+          "type": "string",
+          "default": "Improve this code selection while preserving behavior.\nFocus on readability, maintainability, and performance where appropriate.\nFile: {file}\nSelection: {selection}\n\n{code_block}",
+          "description": "Template used for Improve Selection code actions. Placeholders: {file}, {selection}, {language}, {code}, {code_block}, {diagnostic}."
         }
       }
     }
   },
   "scripts": {
-    "prepare:cli-binary": "node script/local-bin.mjs",
-    "compile": "pnpm run prepare:cli-binary && pnpm run check-types && pnpm run lint && node esbuild.js",
+    "vscode:prepublish": "npm run package",
+    "prepare:cli-binary": "node scripts/prepare-cli-binary.mjs",
+    "compile": "npm run prepare:cli-binary && npm run check-types && npm run lint && node esbuild.js",
     "watch": "npm-run-all -p watch:*",
-    "watch:esbuild": "pnpm run prepare:cli-binary && node esbuild.js --watch",
+    "watch:esbuild": "npm run prepare:cli-binary && node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-    "package": "pnpm run prepare:cli-binary && pnpm run check-types && pnpm run lint && node esbuild.js --production",
+    "package": "npm run prepare:cli-binary && npm run check-types && npm run lint && node esbuild.js --production",
+    "vsix": "npm run vscode:prepublish && vsce package --no-dependencies",
+    "vsix:local": "npm run vscode:prepublish && vsce package --no-dependencies --out kilo-code-local.vsix",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "test:unit": "bun test tests/unit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "update-backend": "node scripts/prepare-cli-binary.mjs --force"
   },
   "devDependencies": {
     "@types/diff": "^6.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/qrcode": "^1.5.6",
-    "@types/vscode": "^1.108.0",
+    "@types/vscode": "^1.107.0",
+    "@vscode/vsce": "^3.7.1",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "esbuild": "^0.27.2",
@@ -293,7 +508,6 @@
     "@kilocode/kilo-i18n": "file:../kilo-i18n",
     "@kilocode/kilo-ui": "file:../kilo-ui",
     "@kilocode/sdk": "file:../sdk/js",
-    "@opencode-ai/ui": "file:../ui",
     "diff": "^7.0.0",
     "dotenv": "^16.4.7",
     "eventsource": "^2.0.2",
@@ -301,11 +515,14 @@
     "ignore": "^7.0.3",
     "js-tiktoken": "^1.0.18",
     "lru-cache": "^11.0.2",
-    "quick-lru": "^7.0.0",
+    "mermaid": "^11.12.0",
     "openai": "^4.85.4",
+    "quick-lru": "^7.0.0",
     "solid-js": "^1.9.11",
+    "tar-fs": "3.1.1",
     "uri-js": "^4.4.1",
     "web-tree-sitter": "^0.24.7",
+    "yaml": "2.8.2",
     "zod": "^3.24.2"
   }
 }

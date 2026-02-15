@@ -27,6 +27,7 @@ const MAX_COMMIT_VARIATION_MEMORY = 4
 const COMMIT_REGENERATE_ACTION = "Regenerate"
 const COMMIT_COPY_ACTION = "Copy to Clipboard"
 const DEFAULT_COMMIT_PATCH_EXCLUDE_GLOBS = ["**/*.lock", "**/yarn.lock"] as const
+const URL_INGESTION_MAX_CHARS = 16_000
 const DEFAULT_CODE_ACTION_TEMPLATES = {
   explain: [
     "Explain this code selection.",
@@ -164,6 +165,9 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("kilo-code.new.searchWorkspace", () => {
       return searchWorkspace(workspaceSearchService)
     }),
+    vscode.commands.registerCommand("kilo-code.new.ingestUrlToChat", () => {
+      return ingestUrlToChat(provider)
+    }),
     vscode.commands.registerCommand("kilo-code.new.semanticSearch", () => {
       return semanticSearch(workspaceSearchService, codeIndexService)
     }),
@@ -232,6 +236,118 @@ async function openSlashCommandPicker(provider: KiloProvider): Promise<void> {
   await vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
   provider.postMessage({ type: "navigate", view: "newTask" })
   provider.postMessage({ type: "prefillPrompt", text: "/" })
+}
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+}
+
+function htmlToPlainText(html: string): string {
+  const withoutScripts = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+
+  const withBreaks = withoutScripts
+    .replace(/<(br|hr)\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|section|article|header|footer|aside|main|h[1-6]|tr)>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "- ")
+    .replace(/<\/li>/gi, "\n")
+
+  const text = withBreaks.replace(/<[^>]+>/g, " ")
+  return decodeHtmlEntities(text)
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim()
+}
+
+async function ingestUrlToChat(provider: KiloProvider): Promise<void> {
+  const value = await vscode.window.showInputBox({
+    title: "Ingest URL Into Chat",
+    placeHolder: "https://example.com/article",
+    prompt: "Fetch a URL and prefill the chat prompt with extracted content",
+    validateInput: (candidate) => {
+      const trimmed = candidate.trim()
+      if (!trimmed) {
+        return "Enter a URL"
+      }
+      try {
+        const parsed = new URL(trimmed)
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          return "Only http/https URLs are supported"
+        }
+        return undefined
+      } catch {
+        return "Enter a valid URL"
+      }
+    },
+  })
+
+  if (!value) {
+    return
+  }
+
+  const targetUrl = value.trim()
+  let parsed: URL
+  try {
+    parsed = new URL(targetUrl)
+  } catch {
+    void vscode.window.showErrorMessage("Invalid URL")
+    return
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    void vscode.window.showErrorMessage("Only http/https URLs are supported.")
+    return
+  }
+
+  try {
+    const extracted = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: "Fetching URL content for chat…",
+      },
+      async () => {
+        const response = await fetch(parsed.toString(), { redirect: "follow" })
+        if (!response.ok) {
+          throw new Error(`Request failed (${response.status})`)
+        }
+
+        const contentType = (response.headers.get("content-type") ?? "").toLowerCase()
+        const body = await response.text()
+        const normalized = contentType.includes("text/html") ? htmlToPlainText(body) : body.trim()
+        const clipped = normalized.slice(0, URL_INGESTION_MAX_CHARS).trim()
+        if (!clipped) {
+          throw new Error("URL returned no readable content")
+        }
+        return clipped
+      },
+    )
+
+    await vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
+    provider.postMessage({ type: "navigate", view: "newTask" })
+    provider.postMessage({
+      type: "prefillPrompt",
+      text: [
+        `Use the fetched URL content below as context: ${parsed.toString()}`,
+        "",
+        extracted,
+      ].join("\n"),
+    })
+    void vscode.window.showInformationMessage("URL content added to the chat composer.")
+  } catch (error) {
+    logger.error("[Kilo New] Failed to ingest URL", error)
+    void vscode.window.showErrorMessage(
+      `Failed to ingest URL: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
 }
 
 async function initializeRepository(connectionService: KiloConnectionService, provider: KiloProvider): Promise<void> {

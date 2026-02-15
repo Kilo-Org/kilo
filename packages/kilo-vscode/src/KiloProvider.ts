@@ -452,6 +452,11 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             await this.handleOpenMarkdownPreview(message.text)
           }
           break
+        case "openImage":
+          if (typeof message.text === "string") {
+            await this.handleOpenImage(message.text)
+          }
+          break
         case "openFileAttachment": {
           const url = z.string().startsWith("file://").safeParse(message.url)
           if (url.success) {
@@ -846,6 +851,51 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       await vscode.commands.executeCommand("vscode.open", vscode.Uri.parse(fileUrl))
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to open file attachment:", error)
+    }
+  }
+
+  private inferDataUrlMime(dataUrl: string): string | undefined {
+    const match = /^data:([^;,]+)?(?:;charset=[^;,]+)?(?:;base64)?,/i.exec(dataUrl)
+    if (!match?.[1]) {
+      return undefined
+    }
+    return match[1].toLowerCase()
+  }
+
+  private async handleOpenImage(rawValue: string): Promise<void> {
+    const value = rawValue.trim()
+    if (!value) {
+      return
+    }
+
+    try {
+      if (value.startsWith("file://")) {
+        await this.handleOpenFileAttachment(value)
+        return
+      }
+
+      if (value.startsWith("http://") || value.startsWith("https://")) {
+        const parsed = parseAllowedOpenExternalUrl(value)
+        if (parsed) {
+          await vscode.env.openExternal(vscode.Uri.parse(parsed))
+        }
+        return
+      }
+
+      if (!value.startsWith("data:")) {
+        return
+      }
+
+      await fs.mkdir(this.attachmentTempDir, { recursive: true })
+      const mime = this.inferDataUrlMime(value) ?? "image/png"
+      const extension = ATTACHMENT_MIME_TO_EXT[mime] ?? ".png"
+      const fileName = `kilo-image-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${extension}`
+      const filePath = path.join(this.attachmentTempDir, fileName)
+      const bytes = await this.readAttachmentBytes(value)
+      await fs.writeFile(filePath, Buffer.from(bytes))
+      await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(filePath))
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to open image:", error)
     }
   }
 

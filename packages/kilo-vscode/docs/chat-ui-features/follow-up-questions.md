@@ -4,7 +4,7 @@ Suggested replies presented as interactive chips/buttons.
 
 ## Status
 
-🔨 Partial
+✅ Done
 
 ## Location
 
@@ -26,10 +26,11 @@ Suggested replies presented as interactive chips/buttons.
 - `Shift+Click` or the `Edit` action pre-fills the suggestion into the prompt input for manual editing
 - Suggestions now support mode badges and mode switching when an available agent matches the suggestion intent
 - Added 60s auto-approval countdown for the first suggestion with cancellation on prompt interaction or manual suggestion selection
+- Extension host now generates context-aware suggestion payloads from session history and emits them to the webview on session load/idle
 
 ## Remaining Gaps
 
-- Suggestions are currently heuristic/static (not backend-generated from turn context)
+- None for migration-plan parity scope
 
 ## Suggested migration
 

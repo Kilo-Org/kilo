@@ -2,15 +2,26 @@
 
 Interactive controls for browser automation sessions surfaced in the chat UI.
 
+## Status
+
+✅ Done
+
 ## Location
 
-- Implied from browser session components (to be located/confirmed)
+- [`webview-ui/src/components/chat/Message.tsx`](../../webview-ui/src/components/chat/Message.tsx:1)
+- [`webview-ui/src/components/common/ImageViewer.tsx`](../../webview-ui/src/components/common/ImageViewer.tsx:1)
 
 ## Interactions
 
 - Interactive controls for browser automation sessions
 - Action replay and control buttons
 - Screenshot viewing
+
+## Current Progress
+
+- Browser-related tool rows now expose `Replay` controls that prefill+send action replay prompts
+- Linked screenshot/image resources from tool metadata/output can be previewed inline via the shared image viewer
+- Existing link-open/copy actions remain available for non-image resources
 
 ## Suggested migration
 

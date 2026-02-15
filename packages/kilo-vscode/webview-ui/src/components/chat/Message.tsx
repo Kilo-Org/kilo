@@ -25,6 +25,7 @@ import { useLanguage } from "../../context/language"
 import { useServer } from "../../context/server"
 import { useVSCode } from "../../context/vscode"
 import { ImageViewer } from "../common/ImageViewer"
+import { MermaidBlock } from "../common/MermaidBlock"
 import type { FileAttachment, Message as MessageType } from "../../types/messages"
 import type { Message as SDKMessage, Part as SDKPart } from "@kilocode/sdk/v2"
 
@@ -404,6 +405,55 @@ function normalizeResourceLink(value: string): string | undefined {
   return undefined
 }
 
+function isImageResourceLink(value: string): boolean {
+  if (value.startsWith("data:image/")) {
+    return true
+  }
+
+  if (value.startsWith("file://")) {
+    return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(value)
+  }
+
+  try {
+    const parsed = new URL(value)
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return false
+    }
+    return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(parsed.pathname)
+  } catch {
+    return false
+  }
+}
+
+function isBrowserTool(tool: string): boolean {
+  return /(browser|playwright|navigate|click|screenshot|webfetch|websearch)/i.test(tool)
+}
+
+function extractBrowserReplayPrompt(props: ToolProps): string | undefined {
+  if (!isBrowserTool(props.tool)) {
+    return undefined
+  }
+
+  const input = props.input ?? {}
+  const directAction =
+    (typeof input.action === "string" && input.action.trim()) ||
+    (typeof input.command === "string" && input.command.trim()) ||
+    (typeof input.query === "string" && input.query.trim()) ||
+    (typeof input.url === "string" && input.url.trim()) ||
+    (typeof input.href === "string" && input.href.trim())
+
+  if (directAction) {
+    return `Replay this browser action and report the result:\n\n${directAction}`
+  }
+
+  if (typeof props.output === "string" && props.output.trim().length > 0) {
+    const excerpt = props.output.trim().slice(0, 400)
+    return `Replay the previous browser interaction based on this result and continue:\n\n${excerpt}`
+  }
+
+  return "Replay the previous browser interaction and continue from where it stopped."
+}
+
 function addResourceLink(values: Set<string>, value: unknown) {
   if (typeof value !== "string") {
     return
@@ -742,6 +792,7 @@ function registerOpenFileInlineAction(toolName: string) {
     const language = useLanguage()
     const vscode = useVSCode()
     const [showInlineDiff, setShowInlineDiff] = createSignal(false)
+    const [viewerFile, setViewerFile] = createSignal<FileAttachment | null>(null)
     const filePaths = createMemo(() => getToolFilePaths(props))
     const diffTargets = createMemo(() => getToolDiffTargets(props))
     const diffPreviews = createMemo(() => diffTargets().map((target) => buildInlineDiffPreview(target)))
@@ -754,6 +805,8 @@ function registerOpenFileInlineAction(toolName: string) {
     const resourceLinks = createMemo(() => getToolResourceLinks(props))
     const primaryPath = createMemo(() => filePaths()[0])
     const primaryResource = createMemo(() => resourceLinks()[0])
+    const primaryImageResource = createMemo(() => resourceLinks().find((value) => isImageResourceLink(value)))
+    const browserReplayPrompt = createMemo(() => extractBrowserReplayPrompt(props))
     const mcpContext = createMemo(() => {
       if (props.tool !== "mcp") {
         return null
@@ -837,6 +890,18 @@ function registerOpenFileInlineAction(toolName: string) {
       if (!target) {
         return
       }
+      if (isImageResourceLink(target)) {
+        if (target.startsWith("file://")) {
+          vscode.postMessage({ type: "openFilePath", path: target })
+          return
+        }
+        setViewerFile({
+          mime: "image/*",
+          url: target,
+          previewUrl: target.startsWith("file://") ? undefined : target,
+        })
+        return
+      }
       if (target.startsWith("file://")) {
         vscode.postMessage({ type: "openFilePath", path: target })
         return
@@ -888,6 +953,62 @@ function registerOpenFileInlineAction(toolName: string) {
       }
     }
 
+    const replayBrowserAction = () => {
+      const prompt = browserReplayPrompt()
+      if (!prompt) {
+        return
+      }
+      window.dispatchEvent(
+        new CustomEvent("kilo:prompt-prefill", {
+          detail: {
+            text: prompt,
+            autoSend: true,
+          },
+        }),
+      )
+      showToast({
+        variant: "default",
+        title: "Replaying browser action",
+      })
+    }
+
+    const openPreviewImage = () => {
+      const target = primaryImageResource()
+      if (!target) {
+        return
+      }
+      if (target.startsWith("file://")) {
+        vscode.postMessage({ type: "openFilePath", path: target })
+        return
+      }
+      setViewerFile({
+        mime: "image/*",
+        url: target,
+        previewUrl: target.startsWith("file://") ? undefined : target,
+      })
+    }
+
+    const openViewerImage = (url: string) => {
+      if (url.startsWith("file://")) {
+        vscode.postMessage({ type: "openFilePath", path: url })
+        return
+      }
+      if (url.startsWith("data:")) {
+        vscode.postMessage({ type: "openImage", text: url })
+        return
+      }
+      vscode.postMessage({ type: "openExternal", url })
+    }
+
+    const copyViewerPath = async (url: string) => {
+      try {
+        await navigator.clipboard.writeText(url)
+        showToast({ variant: "success", title: "Path copied" })
+      } catch {
+        showToast({ variant: "error", title: "Failed to copy path" })
+      }
+    }
+
     return (
       <div class="tool-inline-actions-container">
         <Show when={primaryPath() || diffTargets().length > 0 || primaryResource()}>
@@ -932,6 +1053,20 @@ function registerOpenFileInlineAction(toolName: string) {
               </span>
             </Show>
             <Show when={primaryResource()}>
+              <Show when={browserReplayPrompt()}>
+                <Tooltip value="Replay browser action" placement="top">
+                  <Button variant="ghost" size="small" onClick={replayBrowserAction} aria-label="Replay browser action">
+                    Replay
+                  </Button>
+                </Tooltip>
+              </Show>
+              <Show when={primaryImageResource()}>
+                <Tooltip value="Preview linked image" placement="top">
+                  <Button variant="ghost" size="small" onClick={openPreviewImage} aria-label="Preview linked image">
+                    Preview
+                  </Button>
+                </Tooltip>
+              </Show>
               <Tooltip value="Open linked resource" placement="top">
                 <Button variant="ghost" size="small" onClick={openResource} aria-label="Open linked resource">
                   Open Link
@@ -1001,6 +1136,20 @@ function registerOpenFileInlineAction(toolName: string) {
             </Show>
           </div>
         </Show>
+        <ImageViewer
+          file={viewerFile()}
+          onClose={() => setViewerFile(null)}
+          onOpenFile={openViewerImage}
+          onCopyPath={copyViewerPath}
+          onSaveFile={(file) =>
+            vscode.postMessage({
+              type: "saveFileAttachment",
+              url: file.url,
+              name: file.name,
+              mime: file.mime,
+            })
+          }
+        />
         <Show when={showInlineDiff() && diffPreviews().length > 0}>
           <div class="tool-inline-diff-panel">
             <For each={diffPreviews().slice(0, 3)}>
@@ -1186,6 +1335,33 @@ export const Message: Component<MessageProps> = (props) => {
     } catch {
       showToast({ variant: "error", title: "Failed to copy Mermaid code" })
     }
+  }
+
+  const requestMermaidFix = (code: string, error?: string) => {
+    const prompt = [
+      "Fix this Mermaid diagram syntax and return only a corrected Mermaid code block.",
+      error ? `Error: ${error}` : "",
+      "",
+      "```mermaid",
+      code,
+      "```",
+    ]
+      .filter((line) => line.length > 0)
+      .join("\n")
+
+    window.dispatchEvent(
+      new CustomEvent("kilo:prompt-prefill", {
+        detail: {
+          text: prompt,
+          autoSend: true,
+        },
+      }),
+    )
+    showToast({
+      variant: "default",
+      title: "Mermaid fix requested",
+      description: "Sent a Mermaid syntax-fix request to the current session.",
+    })
   }
 
   const copyMessage = async () => {
@@ -1383,7 +1559,18 @@ export const Message: Component<MessageProps> = (props) => {
           </Show>
           <Show
             when={props.message.role === "user" && isEditingUserMessage()}
-            fallback={<KiloMessage message={props.message as unknown as SDKMessage} parts={parts()} />}
+            fallback={
+              <>
+                <KiloMessage message={props.message as unknown as SDKMessage} parts={parts()} />
+                <Show when={props.message.role === "assistant" && mermaidBlocks().length > 0}>
+                  <div class="message-mermaid-list">
+                    <For each={mermaidBlocks()}>
+                      {(block, index) => <MermaidBlock code={block} index={index()} onFixWithAI={requestMermaidFix} />}
+                    </For>
+                  </div>
+                </Show>
+              </>
+            }
           >
             <div class="message-inline-editor">
               <textarea

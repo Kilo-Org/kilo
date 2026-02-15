@@ -2,10 +2,13 @@
 
 Interactive actions around Mermaid diagram rendering, error handling, and AI-assisted fixes.
 
+## Status
+
+✅ Done
+
 ## Location
 
 - [`webview-ui/src/components/common/MermaidBlock.tsx`](../../webview-ui/src/components/common/MermaidBlock.tsx:1)
-- [`webview-ui/src/components/common/MermaidButton.tsx`](../../webview-ui/src/components/common/MermaidButton.tsx:1)
 - [`webview-ui/src/components/chat/Message.tsx`](../../webview-ui/src/components/chat/Message.tsx:1)
 
 ## Interactions
@@ -29,13 +32,16 @@ Interactive actions around Mermaid diagram rendering, error handling, and AI-ass
 
 ## Current Progress
 
-- Assistant markdown is now scanned for fenced Mermaid blocks in chat rows
-- Added quick actions to:
-  - open Mermaid blocks in VS Code markdown preview
-  - copy Mermaid source code from the first block
+- Assistant markdown is scanned for fenced Mermaid blocks in chat rows
+- Added inline Mermaid rendering blocks with loading/error states
+- Added diagram actions:
+  - view/hide Mermaid code
+  - copy Mermaid source
+  - open rendered diagram as PNG
+  - export rendered diagram as PNG
+  - request "Fix with AI" via auto-send prompt to current session
+- Existing actions for markdown preview and Mermaid-source copy remain available in message controls/context menu
 
 ## Remaining Gaps
 
-- No inline rendered Mermaid canvas in the webview
-- No "Fix with AI" mermaid syntax repair flow
-- No export/open-as-PNG integration
+- None for migration-plan parity scope

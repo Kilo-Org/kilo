@@ -51,6 +51,7 @@ const ATTACHMENT_MIME_TO_EXT: Record<string, string> = {
   "application/pdf": ".pdf",
 }
 const MAX_PASTED_ATTACHMENT_BYTES = 10 * 1024 * 1024
+const SESSION_HISTORY_CACHE_KEY = "kilo-code.new.session-history-cache.v1"
 
 type GitResource = { resourceUri: vscode.Uri }
 type GitRepository = {
@@ -63,6 +64,22 @@ type GitRepository = {
 }
 type GitApi = { repositories: GitRepository[] }
 type GitExtensionExports = { getAPI(version: 1): GitApi }
+
+const webviewSessionSchema = z.object({
+  id: z.string(),
+  title: z.string().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  summary: z
+    .object({
+      additions: z.number(),
+      deletions: z.number(),
+      files: z.number(),
+    })
+    .optional(),
+})
+
+const webviewSessionsSchema = z.array(webviewSessionSchema)
 
 export class KiloProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "kilo-code.new.sidebarView"
@@ -1448,6 +1465,18 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   private async handleLoadSessions(): Promise<void> {
     const client = await this.ensureHttpClient()
     if (!client) {
+      const cachedSessions = this.readCachedSessions()
+      if (cachedSessions.length > 0) {
+        this.postMessage({
+          type: "sessionsLoaded",
+          sessions: cachedSessions,
+        })
+        this.postMessage({
+          type: "error",
+          message: "Not connected to CLI backend. Showing cached session history.",
+        })
+        return
+      }
       this.postMessage({
         type: "error",
         message: "Not connected to CLI backend",
@@ -1458,11 +1487,13 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     try {
       const workspaceDir = this.getWorkspaceDirectory()
       const sessions = await client.listSessions(workspaceDir)
+      const webviewSessions = sessions.map((session) => this.sessionToWebview(session))
 
       this.postMessage({
         type: "sessionsLoaded",
-        sessions: sessions.map((s) => this.sessionToWebview(s)),
+        sessions: webviewSessions,
       })
+      await this.writeCachedSessions(webviewSessions)
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to load sessions:", error)
       this.postMessage({
@@ -1489,6 +1520,33 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   private parseMarketplaceParameters(rawParameters: unknown): Record<string, unknown> {
     const parsed = z.record(z.string(), z.unknown()).safeParse(rawParameters)
     return parsed.success ? parsed.data : {}
+  }
+
+  private readCachedSessions(): Array<{
+    id: string
+    title?: string
+    createdAt: string
+    updatedAt: string
+    summary?: { additions: number; deletions: number; files: number }
+  }> {
+    const raw = this.extensionContext.globalState.get<unknown>(SESSION_HISTORY_CACHE_KEY)
+    const parsed = webviewSessionsSchema.safeParse(raw)
+    if (!parsed.success) {
+      return []
+    }
+    return parsed.data
+  }
+
+  private async writeCachedSessions(
+    sessions: Array<{
+      id: string
+      title?: string
+      createdAt: string
+      updatedAt: string
+      summary?: { additions: number; deletions: number; files: number }
+    }>,
+  ): Promise<void> {
+    await this.extensionContext.globalState.update(SESSION_HISTORY_CACHE_KEY, sessions.slice(0, 200))
   }
 
   private handleTelemetryEvent(rawEvent: unknown, rawProperties?: unknown): void {

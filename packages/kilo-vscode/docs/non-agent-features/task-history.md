@@ -22,8 +22,8 @@ Basic session history exists:
 
 - [`SessionList.tsx`](../../webview-ui/src/components/history/SessionList.tsx) — now uses kilo-ui `List` component with keyboard navigation and fuzzy search; lists sessions with relative dates, duration/cost/model pills, and diff summary metadata
 - [`session.tsx`](../../webview-ui/src/context/session.tsx) — create, list, select, load messages
+- Extension host now caches normalized session history snapshots in global state and serves that cache when the CLI backend is temporarily unavailable.
 
 ## Gaps
 
-- Session list may not persist across restarts (depends on CLI session storage)
-- Need to verify CLI session persistence behaviour
+- Need deeper verification of CLI-backed persistence behavior across multi-workspace and long-retention scenarios

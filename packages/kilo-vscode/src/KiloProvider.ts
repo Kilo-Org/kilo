@@ -1705,6 +1705,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     return parsed.success ? parsed.data : {}
   }
 
+  private sessionHistoryCacheKey(workspaceDir?: string): string {
+    const root = workspaceDir || this.getWorkspaceDirectory()
+    const encoded = Buffer.from(root).toString("base64url")
+    return `${SESSION_HISTORY_CACHE_KEY}.${encoded}`
+  }
+
   private parseExtensionPolicy(
     extensionSettings: unknown,
   ): {
@@ -1840,7 +1846,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     metadata?: { cost?: number; model?: string; messageCount?: number }
     summary?: { additions: number; deletions: number; files: number }
   }> {
-    const raw = this.extensionContext.globalState.get<unknown>(SESSION_HISTORY_CACHE_KEY)
+    const raw = this.extensionContext.globalState.get<unknown>(this.sessionHistoryCacheKey())
     const parsed = webviewSessionsSchema.safeParse(raw)
     if (!parsed.success) {
       return []
@@ -1859,7 +1865,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       summary?: { additions: number; deletions: number; files: number }
     }>,
   ): Promise<void> {
-    await this.extensionContext.globalState.update(SESSION_HISTORY_CACHE_KEY, sessions.slice(0, 200))
+    await this.extensionContext.globalState.update(this.sessionHistoryCacheKey(), sessions.slice(0, 200))
   }
 
   private handleTelemetryEvent(rawEvent: unknown, rawProperties?: unknown): void {

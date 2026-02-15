@@ -38,6 +38,12 @@ interface DurationOption {
   label: string
 }
 
+interface ScopeOption {
+  value: string
+  label: string
+  tools: readonly string[]
+}
+
 const LEVEL_OPTIONS: LevelOption[] = [
   { value: "allow", label: "Allow" },
   { value: "ask", label: "Ask" },
@@ -70,16 +76,25 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   doom_loop: "Continue after repeated failures",
 }
 
+const SCOPE_OPTIONS: ScopeOption[] = [
+  { value: "editScope", label: "Edit Scope", tools: ["edit", "todowrite", "task", "skill"] },
+  { value: "shellScope", label: "Shell Scope", tools: ["bash"] },
+  { value: "networkScope", label: "Network Scope", tools: ["webfetch", "websearch", "codesearch"] },
+  { value: "filesystemScope", label: "Filesystem Scope", tools: ["read", "list", "glob", "grep", "external_directory"] },
+]
+
 const AutoApproveTab: Component = () => {
   const language = useLanguage()
   const { config, updateConfig } = useConfig()
   const [tempMinutes, setTempMinutes] = createSignal(15)
+  const [tempScope, setTempScope] = createSignal(SCOPE_OPTIONS[0].value)
   const [tempUntil, setTempUntil] = createSignal<number | null>(null)
-  const [tempPreviousEditLevel, setTempPreviousEditLevel] = createSignal<PermissionLevel | null>(null)
+  const [tempPreviousLevels, setTempPreviousLevels] = createSignal<Record<string, PermissionLevel>>({})
   const [now, setNow] = createSignal(Date.now())
   let countdownTimer: ReturnType<typeof setInterval> | undefined
 
   const permissions = createMemo(() => config().permission ?? {})
+  const activeTempScope = createMemo(() => SCOPE_OPTIONS.find((scope) => scope.value === tempScope()) ?? SCOPE_OPTIONS[0])
 
   const getLevel = (tool: string): PermissionLevel => {
     return permissions()[tool] ?? permissions()["*"] ?? "ask"
@@ -89,6 +104,14 @@ const AutoApproveTab: Component = () => {
     updateConfig({
       permission: { ...permissions(), [tool]: level },
     })
+  }
+
+  const setScopePermissions = (scopeTools: readonly string[], level: PermissionLevel) => {
+    const next = { ...permissions() } as Record<string, PermissionLevel>
+    for (const tool of scopeTools) {
+      next[tool] = level
+    }
+    updateConfig({ permission: next })
   }
 
   const setAll = (level: PermissionLevel) => {
@@ -122,18 +145,20 @@ const AutoApproveTab: Component = () => {
   })
 
   const stopTemporaryAutoApprove = () => {
-    const previous = tempPreviousEditLevel()
+    const previous = tempPreviousLevels()
     const current = permissions()
-    if (previous) {
+    const previousEntries = Object.entries(previous)
+    if (previousEntries.length > 0) {
+      const restored = { ...current } as Record<string, PermissionLevel>
+      for (const [tool, level] of previousEntries) {
+        restored[tool] = level
+      }
       updateConfig({
-        permission: {
-          ...current,
-          edit: previous,
-        },
+        permission: restored,
       })
     }
     setTempUntil(null)
-    setTempPreviousEditLevel(null)
+    setTempPreviousLevels({})
   }
 
   const startTemporaryAutoApprove = () => {
@@ -141,13 +166,19 @@ const AutoApproveTab: Component = () => {
     if (!Number.isFinite(durationMs) || durationMs <= 0) {
       return
     }
-    setTempPreviousEditLevel(getLevel("edit"))
+    const scope = activeTempScope()
+    const previous: Record<string, PermissionLevel> = {}
+    for (const tool of scope.tools) {
+      previous[tool] = getLevel(tool)
+    }
+    setTempPreviousLevels(previous)
     setTempUntil(Date.now() + durationMs)
+    const nextPermissions = { ...permissions() } as Record<string, PermissionLevel>
+    for (const tool of scope.tools) {
+      nextPermissions[tool] = "allow"
+    }
     updateConfig({
-      permission: {
-        ...permissions(),
-        edit: "allow",
-      },
+      permission: nextPermissions,
     })
   }
 
@@ -206,11 +237,21 @@ const AutoApproveTab: Component = () => {
 
       <Card>
         <div style={{ display: "flex", "flex-direction": "column", gap: "8px" }}>
-          <div style={{ "font-weight": "600" }}>Temporary edit auto-approval</div>
+          <div style={{ "font-weight": "600" }}>Temporary scoped auto-approval</div>
           <div style={{ "font-size": "11px", color: "var(--text-weak-base, var(--vscode-descriptionForeground))" }}>
-            Allow `edit` actions for a limited time window, then automatically restore the previous permission level.
+            Allow a selected scope of tools for a limited time window, then automatically restore previous levels.
           </div>
           <div style={{ display: "flex", gap: "8px", "align-items": "center", "flex-wrap": "wrap" }}>
+            <Select
+              options={SCOPE_OPTIONS}
+              current={SCOPE_OPTIONS.find((option) => option.value === tempScope())}
+              value={(option) => option.value}
+              label={(option) => option.label}
+              onSelect={(option) => option && setTempScope(option.value)}
+              variant="secondary"
+              size="small"
+              triggerVariant="settings"
+            />
             <Select
               options={TEMP_DURATION_OPTIONS}
               current={TEMP_DURATION_OPTIONS.find((option) => option.value === tempMinutes())}
@@ -221,7 +262,7 @@ const AutoApproveTab: Component = () => {
               size="small"
               triggerVariant="settings"
             />
-            <Tooltip value="Start temporary edit auto-approval" placement="top">
+            <Tooltip value="Start temporary scoped auto-approval" placement="top">
               <Button size="small" variant="secondary" onClick={startTemporaryAutoApprove} disabled={tempUntil() !== null}>
                 Start window
               </Button>
@@ -235,7 +276,49 @@ const AutoApproveTab: Component = () => {
               <strong>Status:</strong> {tempUntil() ? `active (${remainingLabel()} left)` : "off"}
             </div>
           </div>
+          <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
+            Scope tools: {activeTempScope().tools.join(", ")}
+          </div>
         </div>
+      </Card>
+
+      <div style={{ "margin-top": "12px" }} />
+
+      <Card>
+        <div style={{ "font-weight": "600", "margin-bottom": "8px" }}>Grouped scope controls</div>
+        <For each={SCOPE_OPTIONS}>
+          {(scope, index) => (
+            <div
+              data-slot="settings-row"
+              style={{
+                display: "flex",
+                "align-items": "center",
+                "justify-content": "space-between",
+                padding: "8px 0",
+                "border-bottom": index() < SCOPE_OPTIONS.length - 1 ? "1px solid var(--border-weak-base)" : "none",
+                gap: "10px",
+              }}
+            >
+              <div style={{ flex: 1, "min-width": 0 }}>
+                <div style={{ "font-size": "12px", "font-weight": "500" }}>{scope.label}</div>
+                <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
+                  {scope.tools.join(", ")}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <Button size="small" variant="ghost" onClick={() => setScopePermissions(scope.tools, "allow")}>
+                  Allow
+                </Button>
+                <Button size="small" variant="ghost" onClick={() => setScopePermissions(scope.tools, "ask")}>
+                  Ask
+                </Button>
+                <Button size="small" variant="ghost" onClick={() => setScopePermissions(scope.tools, "deny")}>
+                  Deny
+                </Button>
+              </div>
+            </div>
+          )}
+        </For>
       </Card>
 
       <div style={{ "margin-top": "12px" }} />

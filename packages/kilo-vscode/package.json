@@ -57,6 +57,7 @@
     "onCommand:kilo-code.new.security.scanWorkspace",
     "onCommand:kilo-code.new.showContributionReport",
     "onCommand:kilo-code.new.clearContributionReport",
+    "onCommand:kilo-code.new.settingsSyncDiagnostics",
     "onCommand:kilo-code.new.autocomplete.generateSuggestions",
     "onCommand:kilo-code.new.initializeRepository",
     "onCommand:kilo-code.new.generateCommitMessage",
@@ -177,6 +178,11 @@
       {
         "command": "kilo-code.new.clearContributionReport",
         "title": "Clear AI Contribution Report",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.settingsSyncDiagnostics",
+        "title": "Show Settings Sync Diagnostics",
         "category": "Kilo Code"
       },
       {

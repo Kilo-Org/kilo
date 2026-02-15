@@ -11,7 +11,7 @@ import { registerAutocompleteProvider } from "./services/autocomplete"
 import { KiloCodeActionProvider, KILO_CODE_ACTION_COMMANDS } from "./services/code-actions/KiloCodeActionProvider"
 import { BrowserAutomationService } from "./services/browser-automation"
 import { AutoPurgeService } from "./services/auto-purge"
-import { initializeSettingsSync } from "./services/settings-sync"
+import { initializeSettingsSync, readSettingsSyncDiagnostics } from "./services/settings-sync"
 import { WorkspaceSearchService, SimpleCodeIndexService, type SearchMatch } from "./services/search/workspace-search"
 import {
   ContributionTracker,
@@ -89,6 +89,7 @@ export function activate(context: vscode.ExtensionContext) {
   browserAutomationService.syncWithSettings()
   const autoPurgeService = new AutoPurgeService({
     tempAttachmentsDir: path.join(os.tmpdir(), "kilo-code-vscode-attachments"),
+    extensionContext: context,
   })
   autoPurgeService.start()
   const workspaceSearchService = new WorkspaceSearchService()
@@ -189,6 +190,9 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("kilo-code.new.clearContributionReport", () => {
       return clearContributionReport(contributionTracker)
     }),
+    vscode.commands.registerCommand("kilo-code.new.settingsSyncDiagnostics", () => {
+      return showSettingsSyncDiagnostics(context)
+    }),
     vscode.commands.registerCommand("kilo-code.new.openSlashCommandPicker", () => {
       return openSlashCommandPicker(provider)
     }),
@@ -236,6 +240,22 @@ async function openSlashCommandPicker(provider: KiloProvider): Promise<void> {
   await vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
   provider.postMessage({ type: "navigate", view: "newTask" })
   provider.postMessage({ type: "prefillPrompt", text: "/" })
+}
+
+async function showSettingsSyncDiagnostics(context: vscode.ExtensionContext): Promise<void> {
+  const diagnostics = readSettingsSyncDiagnostics(context)
+  const document = await vscode.workspace.openTextDocument({
+    language: "json",
+    content: JSON.stringify(
+      {
+        generatedAt: new Date().toISOString(),
+        ...diagnostics,
+      },
+      null,
+      2,
+    ),
+  })
+  await vscode.window.showTextDocument(document, { preview: true })
 }
 
 function decodeHtmlEntities(value: string): string {

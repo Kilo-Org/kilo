@@ -1,4 +1,4 @@
-import { Component } from "solid-js"
+import { Component, Show } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { showToast } from "@kilocode/kilo-ui/toast"
@@ -258,6 +258,34 @@ const AboutKiloCodeTab: Component<AboutKiloCodeTabProps> = (props) => {
         <p style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)", margin: "0 0 6px 0" }}>
           MDM enforced: {props.extensionPolicy?.mdmEnforced ? "Yes" : "No"}
         </p>
+        <Show when={props.extensionPolicy?.mdm}>
+          {(mdm) => (
+            <>
+              <p style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)", margin: "0 0 6px 0" }}>
+                MDM requires cloud auth: {mdm().requiredCloudAuth ? "Yes" : "No"}
+              </p>
+              <Show when={mdm().requiredOrganizationId}>
+                {(requiredOrg) => (
+                  <p
+                    style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)", margin: "0 0 6px 0" }}
+                  >
+                    Required organization: {requiredOrg()}
+                  </p>
+                )}
+              </Show>
+              <p
+                style={{
+                  "font-size": "12px",
+                  color: mdm().compliant ? "var(--vscode-descriptionForeground)" : "var(--vscode-errorForeground)",
+                  margin: "0 0 6px 0",
+                }}
+              >
+                MDM compliance: {mdm().compliant ? "Compliant" : "Non-compliant"}
+                {!mdm().compliant && mdm().reason ? ` (${mdm().reason})` : ""}
+              </p>
+            </>
+          )}
+        </Show>
         <p style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)", margin: 0 }}>
           Feature flags: {props.extensionPolicy?.featureFlags ? Object.keys(props.extensionPolicy.featureFlags).length : 0}
         </p>

@@ -10,6 +10,7 @@ import {
   type Config,
   type HttpClient,
   type McpConfig,
+  type ProfileData,
   type SessionInfo,
   type SSEEvent,
   type KiloConnectionService,
@@ -29,7 +30,10 @@ import {
   type SettingsValidationIssue,
 } from "./services/settings/validation"
 import { MarketplaceService, marketplaceItemSchema, type MarketplaceItem } from "./services/marketplace"
+import { evaluateMdmCompliance, loadMdmPolicyConfig, type MdmPolicyConfig } from "./services/mdm/mdm-policy"
 const RETRY_ACTION_LABEL = "Retry"
+const OPEN_PROFILE_ACTION_LABEL = "Open Profile"
+const SIGN_IN_ACTION_LABEL = "Sign In"
 const NOTIFICATION_DEDUPE_MS = 10_000
 const ATTACHMENT_EXT_TO_MIME: Record<string, string> = {
   ".png": "image/png",
@@ -133,6 +137,10 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   private cachedConfigMessage: unknown = null
   /** Cached extension policy payload for org/MDM-aware UX gating */
   private cachedExtensionPolicyMessage: unknown = null
+  /** Local machine policy loaded from MDM config files when present. */
+  private mdmPolicy: MdmPolicyConfig | null = null
+  /** Most recent cloud profile payload; undefined means unknown/not fetched yet. */
+  private latestProfileData: ProfileData | null | undefined = undefined
 
   private trackedSessionIds: Set<string> = new Set()
   private unsubscribeEvent: (() => void) | null = null
@@ -160,6 +168,69 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     } catch {
       return null
     }
+  }
+
+  private async loadMdmPolicy(): Promise<void> {
+    try {
+      this.mdmPolicy = await loadMdmPolicyConfig(this.extensionContext.extensionMode !== vscode.ExtensionMode.Production)
+      if (this.mdmPolicy) {
+        logger.info(`[Kilo New] MDM policy loaded from ${this.mdmPolicy.sourcePath}`)
+      }
+    } catch (error) {
+      this.mdmPolicy = null
+      logger.error("[Kilo New] Failed to load MDM policy:", error)
+    }
+  }
+
+  private async pushProfileData(profileData: ProfileData | null): Promise<void> {
+    this.latestProfileData = profileData
+    this.postMessage({ type: "profileData", data: profileData })
+    await this.fetchAndSendExtensionPolicy()
+  }
+
+  private async ensureMdmComplianceOrReject(action: "create-session" | "send-message"): Promise<boolean> {
+    if (!this.mdmPolicy?.requireCloudAuth) {
+      return true
+    }
+
+    const client = this.httpClient
+    if (this.latestProfileData === undefined && client) {
+      try {
+        const profileData = await client.getProfile()
+        await this.pushProfileData(profileData)
+      } catch (error) {
+        logger.debug("[Kilo New] Failed to fetch profile for MDM compliance check", error)
+      }
+    }
+
+    const compliance = evaluateMdmCompliance(this.mdmPolicy, this.latestProfileData)
+    if (compliance.compliant) {
+      return true
+    }
+
+    const actionLabel = action === "create-session" ? "create a new task" : "send messages"
+    const message = `${compliance.reason} Unable to ${actionLabel}.`
+    this.postMessage({ type: "error", message })
+    this.postMessage({ type: "navigate", view: "profile" })
+
+    if (this.shouldShowNotification(`mdm-noncompliant:${compliance.reason}`)) {
+      void vscode.window
+        .showWarningMessage(message, OPEN_PROFILE_ACTION_LABEL, SIGN_IN_ACTION_LABEL)
+        .then((selection) => {
+          if (selection === OPEN_PROFILE_ACTION_LABEL) {
+            void vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
+            this.postMessage({ type: "navigate", view: "profile" })
+            return
+          }
+          if (selection === SIGN_IN_ACTION_LABEL) {
+            void vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
+            this.postMessage({ type: "navigate", view: "profile" })
+            void this.handleLogin()
+          }
+        })
+    }
+
+    return false
   }
 
   /**
@@ -211,10 +282,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       try {
         const profileData = await this.httpClient.getProfile()
         logger.debug("[Kilo New] KiloProvider: 👤 syncWebviewState profile:", profileData ? "received" : "null")
-        this.postMessage({
-          type: "profileData",
-          data: profileData,
-        })
+        await this.pushProfileData(profileData)
       } catch (error) {
         logger.error("[Kilo New] KiloProvider: ❌ syncWebviewState failed to fetch profile:", error)
       }
@@ -1170,6 +1238,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
+      await this.loadMdmPolicy()
 
       // Connect the shared service (no-op if already connected)
       await this.connectionService.connect(workspaceDir)
@@ -1206,7 +1275,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             const client = this.httpClient
             if (client) {
               const profileData = await client.getProfile()
-              this.postMessage({ type: "profileData", data: profileData })
+              await this.pushProfileData(profileData)
             }
             await this.syncWebviewState("sse-connected")
           } catch (error) {
@@ -1313,6 +1382,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         type: "error",
         message: "Not connected to CLI backend",
       })
+      return
+    }
+    if (!(await this.ensureMdmComplianceOrReject("create-session"))) {
       return
     }
 
@@ -1640,6 +1712,13 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     allowList?: { allowAll: boolean; providers: Record<string, { allowAll: boolean; models?: string[] }> }
     featureFlags?: Record<string, boolean>
     mdmEnforced?: boolean
+    mdm?: {
+      requiredCloudAuth: boolean
+      requiredOrganizationId?: string
+      compliant: boolean
+      reason?: string
+      sourcePath?: string
+    }
     organizationRaw?: Record<string, unknown>
     userRaw?: Record<string, unknown>
   } | null {
@@ -1686,12 +1765,24 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       directRecord.mdmPolicy,
       directRecord.mdmEnforced,
     ]
-    const mdmEnforced = mdmSources.some((value) => value === true || (typeof value === "object" && value !== null))
+    const mdmEnforced =
+      mdmSources.some((value) => value === true || (typeof value === "object" && value !== null)) ||
+      !!this.mdmPolicy?.requireCloudAuth
+    const mdmCompliance = evaluateMdmCompliance(this.mdmPolicy, this.latestProfileData)
+    const mdmDetails = this.mdmPolicy
+      ? {
+          requiredCloudAuth: this.mdmPolicy.requireCloudAuth,
+          ...(this.mdmPolicy.organizationId ? { requiredOrganizationId: this.mdmPolicy.organizationId } : {}),
+          compliant: mdmCompliance.compliant,
+          ...(!mdmCompliance.compliant ? { reason: mdmCompliance.reason } : {}),
+          sourcePath: this.mdmPolicy.sourcePath,
+        }
+      : undefined
 
     const hasOrganization = Object.keys(organizationRaw).length > 0
     const hasUser = Object.keys(userRaw).length > 0
     const hasFeatureFlags = Object.keys(featureFlags).length > 0
-    if (!allowList && !hasFeatureFlags && !mdmEnforced && !hasOrganization && !hasUser) {
+    if (!allowList && !hasFeatureFlags && !mdmEnforced && !mdmDetails && !hasOrganization && !hasUser) {
       return null
     }
 
@@ -1700,6 +1791,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       ...(allowList ? { allowList } : {}),
       ...(hasFeatureFlags ? { featureFlags } : {}),
       ...(mdmEnforced ? { mdmEnforced: true } : {}),
+      ...(mdmDetails ? { mdm: mdmDetails } : {}),
       ...(hasOrganization ? { organizationRaw } : {}),
       ...(hasUser ? { userRaw } : {}),
     }
@@ -1708,9 +1800,13 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   private async fetchAndSendExtensionPolicy(): Promise<void> {
     const client = this.httpClient ?? (await this.ensureHttpClient())
     if (!client) {
-      if (this.cachedExtensionPolicyMessage) {
-        this.postMessage(this.cachedExtensionPolicyMessage)
+      const policy = this.parseExtensionPolicy(undefined)
+      const message = {
+        type: "extensionPolicyLoaded",
+        policy,
       }
+      this.cachedExtensionPolicyMessage = message
+      this.postMessage(message)
       return
     }
 
@@ -1725,9 +1821,10 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       this.postMessage(message)
     } catch (error) {
       logger.debug("[Kilo New] KiloProvider: Failed to fetch extension policy settings", error)
+      const fallbackPolicy = this.parseExtensionPolicy(undefined)
       const message = {
         type: "extensionPolicyLoaded",
-        policy: null,
+        policy: fallbackPolicy,
       }
       this.cachedExtensionPolicyMessage = message
       this.postMessage(message)
@@ -2413,6 +2510,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       })
       return
     }
+    if (!(await this.ensureMdmComplianceOrReject("send-message"))) {
+      return
+    }
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
@@ -2887,9 +2987,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
       // Step 4: Fetch profile and push to webview
       const profileData = await client.getProfile()
-      this.postMessage({ type: "profileData", data: profileData })
+      await this.pushProfileData(profileData)
       this.postMessage({ type: "deviceAuthComplete" })
-      await this.fetchAndSendExtensionPolicy()
 
       // Step 5: If user has organizations, navigate to profile view so they can pick one
       if (profileData?.profile.organizations && profileData.profile.organizations.length > 0) {
@@ -2960,7 +3059,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       await writeLastProviderAuth(this.extensionContext, id)
       await this.fetchAndSendProviders()
       if (id === "kilo") {
-        this.postMessage({ type: "profileData", data: null })
+        await this.pushProfileData(null)
       }
       this.postMessage({ type: "providerAuthResult", providerID: id, action: "disconnect", success: true })
     } catch (error) {
@@ -2994,14 +3093,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       logger.error("[Kilo New] KiloProvider: Failed to switch organization:", error)
       // Re-fetch current profile to reset webview state (clears switching indicator)
       const profileData = await client.getProfile()
-      this.postMessage({ type: "profileData", data: profileData })
+      await this.pushProfileData(profileData)
       return
     }
 
     // Org switch succeeded — refresh profile and providers independently (best-effort)
     try {
       const profileData = await client.getProfile()
-      this.postMessage({ type: "profileData", data: profileData })
+      await this.pushProfileData(profileData)
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to refresh profile after org switch:", error)
     }
@@ -3025,11 +3124,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     logger.debug("[Kilo New] KiloProvider: 🚪 Logging out...")
     await client.removeAuth("kilo")
     logger.debug("[Kilo New] KiloProvider: 🚪 Logged out successfully")
-    this.postMessage({
-      type: "profileData",
-      data: null,
-    })
-    await this.fetchAndSendExtensionPolicy()
+    await this.pushProfileData(null)
   }
 
   /**
@@ -3043,10 +3138,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
     logger.debug("[Kilo New] KiloProvider: 🔄 Refreshing profile...")
     const profileData = await client.getProfile()
-    this.postMessage({
-      type: "profileData",
-      data: profileData,
-    })
+    await this.pushProfileData(profileData)
   }
 
   /**

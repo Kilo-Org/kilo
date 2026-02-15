@@ -231,6 +231,13 @@ export interface ExtensionPolicy {
   allowList?: OrganizationAllowList
   featureFlags?: Record<string, boolean>
   mdmEnforced?: boolean
+  mdm?: {
+    requiredCloudAuth: boolean
+    requiredOrganizationId?: string
+    compliant: boolean
+    reason?: string
+    sourcePath?: string
+  }
   organizationRaw?: Record<string, unknown>
   userRaw?: Record<string, unknown>
 }

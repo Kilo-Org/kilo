@@ -417,6 +417,52 @@ body,
   border-color: var(--vscode-focusBorder);
 }
 
+.message-inline-editor-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.message-inline-editor-select {
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 4px;
+  background: var(--vscode-dropdown-background, var(--vscode-input-background));
+  color: var(--vscode-foreground);
+  font-size: 12px;
+  padding: 2px 6px;
+}
+
+.message-inline-editor-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.message-inline-editor-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  padding: 5px 6px;
+}
+
+.message-inline-editor-file code {
+  max-width: 52%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.message-inline-editor-file > div {
+  display: flex;
+  gap: 4px;
+}
+
 .message-inline-editor-actions {
   display: flex;
   justify-content: flex-end;

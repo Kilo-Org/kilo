@@ -314,6 +314,7 @@ export const PromptInput: Component = () => {
       files?: FileAttachment[]
       providerID?: string
       modelID?: string
+      agent?: string
       autoSend?: boolean
     }>
     const textValue = custom.detail?.text
@@ -328,6 +329,9 @@ export const PromptInput: Component = () => {
     }
     if (custom.detail?.providerID && custom.detail?.modelID) {
       session.selectModel(custom.detail.providerID, custom.detail.modelID)
+    }
+    if (typeof custom.detail?.agent === "string" && custom.detail.agent.trim().length > 0) {
+      session.selectAgent(custom.detail.agent.trim())
     }
     setPendingAutoSend(!!custom.detail?.autoSend)
     requestAnimationFrame(() => {

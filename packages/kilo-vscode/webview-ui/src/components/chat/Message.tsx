@@ -1163,6 +1163,8 @@ export const Message: Component<MessageProps> = (props) => {
   const mermaidBlocks = createMemo(() => extractMermaidBlocks(previewMarkdown()))
   const [isEditingUserMessage, setIsEditingUserMessage] = createSignal(false)
   const [editingText, setEditingText] = createSignal("")
+  const [editingFiles, setEditingFiles] = createSignal<FileAttachment[]>([])
+  const [editingAgent, setEditingAgent] = createSignal("")
 
   const openMermaidPreview = () => {
     if (mermaidBlocks().length === 0) {
@@ -1200,12 +1202,47 @@ export const Message: Component<MessageProps> = (props) => {
     }
   }
 
+  const copyEditingFilePath = async (file: FileAttachment) => {
+    try {
+      await navigator.clipboard.writeText(file.url)
+      showToast({ variant: "success", title: "Path copied" })
+    } catch {
+      showToast({ variant: "error", title: "Failed to copy path" })
+    }
+  }
+
+  const openEditingFile = (file: FileAttachment) => {
+    if (file.url.startsWith("file://")) {
+      vscode.postMessage({ type: "openFileAttachment", url: file.url })
+      return
+    }
+    if (file.url.startsWith("https://")) {
+      vscode.postMessage({ type: "openExternal", url: file.url })
+      return
+    }
+    vscode.postMessage({ type: "openFilePath", path: file.url })
+  }
+
+  const availableEditAgents = createMemo(() => {
+    const names = session
+      .agents()
+      .map((agent) => agent.name?.trim())
+      .filter((name): name is string => !!name)
+    const selected = session.selectedAgent().trim()
+    if (selected && !names.includes(selected)) {
+      names.unshift(selected)
+    }
+    return Array.from(new Set(names))
+  })
+
   const startInlineEdit = () => {
     if (props.message.role !== "user") {
       return
     }
     const value = userMessageText()
     setEditingText(value)
+    setEditingFiles(fileParts().map((part) => filePartToAttachment(part)))
+    setEditingAgent(session.selectedAgent())
     setIsEditingUserMessage(true)
   }
 
@@ -1220,7 +1257,8 @@ export const Message: Component<MessageProps> = (props) => {
       setIsEditingUserMessage(false)
       return
     }
-    const attachments = fileParts().map((part) => filePartToAttachment(part))
+    const attachments = editingFiles()
+    const selectedAgent = editingAgent().trim()
     session.revertMessage(props.message.id)
     window.dispatchEvent(
       new CustomEvent("kilo:prompt-prefill", {
@@ -1229,6 +1267,7 @@ export const Message: Component<MessageProps> = (props) => {
           files: attachments,
           providerID: props.message.providerID,
           modelID: props.message.modelID,
+          agent: selectedAgent || undefined,
           autoSend,
         },
       }),
@@ -1365,6 +1404,46 @@ export const Message: Component<MessageProps> = (props) => {
                 rows={4}
                 spellcheck={false}
               />
+              <Show when={availableEditAgents().length > 1}>
+                <label class="message-inline-editor-meta">
+                  <span>Mode</span>
+                  <select
+                    class="message-inline-editor-select"
+                    value={editingAgent()}
+                    onChange={(event) => setEditingAgent((event.target as HTMLSelectElement).value)}
+                  >
+                    <For each={availableEditAgents()}>
+                      {(agentName) => <option value={agentName}>{agentName}</option>}
+                    </For>
+                  </select>
+                </label>
+              </Show>
+              <Show when={editingFiles().length > 0}>
+                <div class="message-inline-editor-files">
+                  <For each={editingFiles()}>
+                    {(file) => (
+                      <div class="message-inline-editor-file">
+                        <code title={file.url}>{file.name ?? file.url}</code>
+                        <div>
+                          <Button variant="ghost" size="small" onClick={() => openEditingFile(file)}>
+                            Open
+                          </Button>
+                          <Button variant="ghost" size="small" onClick={() => void copyEditingFilePath(file)}>
+                            Copy
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="small"
+                            onClick={() => setEditingFiles((current) => current.filter((entry) => entry.url !== file.url))}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
               <div class="message-inline-editor-actions">
                 <Button variant="ghost" size="small" onClick={cancelInlineEdit}>
                   {language.t("common.cancel")}

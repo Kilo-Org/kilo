@@ -1,6 +1,8 @@
+import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
 import { type HttpClient, type SessionInfo, type SSEEvent, type KiloConnectionService } from "./services/cli-backend"
+import type { EditorContext } from "./services/cli-backend/types"
 import { handleChatCompletionRequest } from "./services/autocomplete/chat-autocomplete/handleChatCompletionRequest"
 import { handleChatCompletionAccepted } from "./services/autocomplete/chat-autocomplete/handleChatCompletionAccepted"
 import { buildWebviewHtml } from "./utils"
@@ -983,10 +985,13 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
 
       parts.push({ type: "text", text })
 
+      const editorContext = this.gatherEditorContext()
+
       await this.httpClient.sendMessage(targetSessionID, parts, workspaceDir, {
         providerID,
         modelID,
         agent,
+        editorContext,
       })
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to send message:", error)
@@ -1498,6 +1503,67 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     void this.webview.postMessage(message).then(undefined, (error) => {
       console.error("[Kilo New] KiloProvider: ❌ postMessage failed", error)
     })
+  }
+
+  /**
+   * Gather VS Code editor context to send alongside messages to the CLI backend.
+   */
+  private gatherEditorContext(): EditorContext {
+    const workspaceDir = this.getWorkspaceDirectory()
+    const toRelative = (fsPath: string): string | undefined => {
+      if (!workspaceDir) {
+        return undefined
+      }
+      const relative = path.relative(workspaceDir, fsPath)
+      if (relative.startsWith("..")) {
+        return undefined
+      }
+      return relative
+    }
+
+    // Visible files
+    const visibleFiles = vscode.window.visibleTextEditors
+      .map((e) => e.document.uri)
+      .filter((uri) => uri.scheme === "file")
+      .map((uri) => toRelative(uri.fsPath))
+      .filter((p): p is string => p !== undefined)
+
+    // Open tabs (deduplicated)
+    const openTabSet = new Set<string>()
+    for (const group of vscode.window.tabGroups.all) {
+      for (const tab of group.tabs) {
+        const input = tab.input
+        if (input && typeof input === "object" && "uri" in input) {
+          const uri = (input as { uri: vscode.Uri }).uri
+          if (uri.scheme === "file") {
+            const rel = toRelative(uri.fsPath)
+            if (rel) {
+              openTabSet.add(rel)
+            }
+          }
+        }
+      }
+    }
+    const openTabs = [...openTabSet]
+
+    // Active file
+    const activeEditor = vscode.window.activeTextEditor
+    const activeFile =
+      activeEditor?.document.uri.scheme === "file" ? toRelative(activeEditor.document.uri.fsPath) : undefined
+
+    // Shell
+    const shell = vscode.env.shell || undefined
+
+    // Timezone
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined
+
+    return {
+      ...(visibleFiles.length > 0 ? { visibleFiles } : {}),
+      ...(openTabs.length > 0 ? { openTabs } : {}),
+      ...(activeFile ? { activeFile } : {}),
+      ...(shell ? { shell } : {}),
+      ...(timezone ? { timezone } : {}),
+    }
   }
 
   /**

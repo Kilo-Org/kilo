@@ -3,6 +3,7 @@ import { inspect } from "node:util"
 
 type LogLevel = "debug" | "info" | "warn" | "error"
 
+// Central logger keeps console output while also writing to a VS Code output channel.
 let outputChannel: vscode.OutputChannel | undefined
 let debugEnabled = false
 

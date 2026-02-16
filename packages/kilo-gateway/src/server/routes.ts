@@ -8,7 +8,6 @@
 
 import { fetchProfile, fetchBalance, fetchExtensionSettings } from "../api/profile.js"
 import { fetchKilocodeNotifications, KilocodeNotificationSchema } from "../api/notifications.js"
-import { fetchRemoteSessionMessages, fetchRemoteSessions } from "../api/remote-sessions.js"
 import { KILO_API_BASE } from "../api/constants.js"
 
 // Type definitions for OpenCode dependencies (injected at runtime)
@@ -73,6 +72,7 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
   }
 
   function getOrganizationId(auth: any): string | undefined {
+    // OAuth stores the currently selected organization context in accountId.
     return auth?.type === "oauth" ? auth.accountId : undefined
   }
 
@@ -300,96 +300,6 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
         const organizationId = getOrganizationId(auth)
         const settings = await fetchExtensionSettings(token, organizationId)
         return c.json(settings)
-      },
-    )
-    .get(
-      "/remote-sessions",
-      describeRoute({
-        summary: "List remote sessions",
-        description: "Fetch cloud-synced remote sessions for Agent Manager",
-        operationId: "kilo.remoteSessions.list",
-        responses: {
-          200: {
-            description: "Remote sessions",
-            content: {
-              "application/json": {
-                schema: resolver(
-                  z.object({
-                    sessions: z.array(z.unknown()),
-                  }),
-                ),
-              },
-            },
-          },
-          ...errors(400, 401),
-        },
-      }),
-      validator(
-        "query",
-        z.object({
-          limit: z.coerce.number().int().min(1).max(100).optional(),
-        }),
-      ),
-      async (c: any) => {
-        const auth = await Auth.get("kilo")
-        if (!auth) {
-          return c.json({ error: "Not authenticated with Kilo Gateway" }, 401)
-        }
-
-        const token = getToken(auth)
-        if (!token) {
-          return c.json({ error: "No valid token found" }, 401)
-        }
-
-        const organizationId = getOrganizationId(auth)
-        const limit = c.req.valid("query").limit ?? 50
-        const sessions = await fetchRemoteSessions(token, limit, organizationId)
-        return c.json({ sessions })
-      },
-    )
-    .get(
-      "/remote-sessions/:sessionID/messages",
-      describeRoute({
-        summary: "Get remote session messages",
-        description: "Fetch cloud session transcript messages for Agent Manager local continuation",
-        operationId: "kilo.remoteSessions.messages",
-        responses: {
-          200: {
-            description: "Remote session messages",
-            content: {
-              "application/json": {
-                schema: resolver(
-                  z.object({
-                    messages: z.array(z.unknown()),
-                  }),
-                ),
-              },
-            },
-          },
-          ...errors(400, 401),
-        },
-      }),
-      validator(
-        "param",
-        z.object({
-          sessionID: z.string().min(1),
-        }),
-      ),
-      async (c: any) => {
-        const auth = await Auth.get("kilo")
-        if (!auth) {
-          return c.json({ error: "Not authenticated with Kilo Gateway" }, 401)
-        }
-
-        const token = getToken(auth)
-        if (!token) {
-          return c.json({ error: "No valid token found" }, 401)
-        }
-
-        const organizationId = getOrganizationId(auth)
-        const sessionID = c.req.valid("param").sessionID
-        const messages = await fetchRemoteSessionMessages(token, sessionID, organizationId)
-        return c.json({ messages })
       },
     )
     .get(

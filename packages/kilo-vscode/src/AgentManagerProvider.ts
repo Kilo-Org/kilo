@@ -12,6 +12,7 @@ import type {
   MessageInfo,
   MessagePart,
   PermissionRequest,
+  ProviderListResponse,
   RemoteSessionMessage,
   RemoteSessionInfo,
   SessionInfo,
@@ -32,6 +33,7 @@ type AgentManagerWebviewToExtensionMessage =
       type: "createSession"
       prompt?: string
       agent?: string
+      model?: string
       parallel?: boolean
       branch?: string
       versions?: number
@@ -73,6 +75,14 @@ type AgentManagerSessionRow = {
   canSendMessage: boolean
 }
 
+type AgentManagerModelOption = {
+  value: string
+  providerID: string
+  modelID: string
+  label: string
+  description?: string
+}
+
 type WorktreeRecord = {
   path: string
   branch: string
@@ -112,6 +122,8 @@ type AgentManagerExtensionToWebviewMessage =
       type: "agentManagerData"
       sessions: AgentManagerSessionRow[]
       agents: Array<{ name: string; description?: string }>
+      models: AgentManagerModelOption[]
+      defaultModel?: string
       defaultAgent: string
       workspaceDir: string
       errors?: string[]
@@ -300,6 +312,7 @@ export class AgentManagerProvider implements vscode.Disposable {
           message.branch,
           message.versions,
           message.yoloMode,
+          message.model,
           message.images,
         )
         return
@@ -409,9 +422,14 @@ export class AgentManagerProvider implements vscode.Disposable {
       const directories = [workspaceDir, ...worktreeRecords.map((worktree) => worktree.path)]
       const uniqueDirectories = [...new Set(directories)]
 
-      const [agents, config, ...sessionResults] = await Promise.all([
+      const [agents, config, providers, ...sessionResults] = await Promise.all([
         client.listAgents(workspaceDir),
         client.getConfig(workspaceDir).catch(() => undefined),
+        client.listProviders(workspaceDir).catch((error) => {
+          const message = error instanceof Error ? error.message : String(error)
+          errors.push(`Failed to load models: ${message}`)
+          return undefined
+        }),
         ...uniqueDirectories.map(async (directory) => {
           try {
             const sessions = await client.listSessions(directory)
@@ -491,11 +509,14 @@ export class AgentManagerProvider implements vscode.Disposable {
           this.pendingPermissionsBySession.delete(sessionID)
         }
       }
+      const modelData = providers ? this.toModelOptions(providers) : { options: [], defaultValue: undefined }
 
       this.postMessage({
         type: "agentManagerData",
         sessions: [...byId.values()].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)),
         agents: this.toVisibleAgents(agents),
+        models: modelData.options,
+        defaultModel: modelData.defaultValue,
         defaultAgent: this.getDefaultAgent(agents, config?.default_agent),
         workspaceDir,
         ...(errors.length > 0 ? { errors } : {}),
@@ -514,6 +535,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     rawBranch?: string,
     rawVersions?: number,
     _rawYoloMode?: boolean,
+    rawModel?: string,
     rawImages?: string[],
   ): Promise<void> {
     const workspaceDir = this.getWorkspaceDirectory()
@@ -524,6 +546,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     const requestedVersions = typeof rawVersions === "number" && Number.isFinite(rawVersions) ? Math.floor(rawVersions) : 1
     const versions = Math.min(8, Math.max(1, requestedVersions))
     const useWorktree = !!parallel || versions > 1
+    const modelSelection = this.parseModelSelection(rawModel)
 
     try {
       const client = await this.getClient(workspaceDir)
@@ -545,10 +568,11 @@ export class AgentManagerProvider implements vscode.Disposable {
               workspaceDir,
               prompt,
               agent,
+              modelSelection,
               branch: versionBranch,
               images,
             })
-          : await this.createDefaultSession({ client, workspaceDir, prompt, agent, images })
+          : await this.createDefaultSession({ client, workspaceDir, prompt, agent, modelSelection, images })
         created.push(next)
 
         captureTelemetryEvent("Agent Manager Session Started", {
@@ -621,6 +645,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     workspaceDir: string
     prompt: string
     agent?: string
+    modelSelection?: { providerID: string; modelID: string }
     images?: string[]
   }): Promise<{ sessionID: string; message?: string }> {
     const session = await input.client.createSession(input.workspaceDir)
@@ -634,6 +659,8 @@ export class AgentManagerProvider implements vscode.Disposable {
     if (parts.length > 0) {
       await input.client.sendMessage(session.id, parts, input.workspaceDir, {
         agent: input.agent,
+        providerID: input.modelSelection?.providerID,
+        modelID: input.modelSelection?.modelID,
       })
     }
 
@@ -645,6 +672,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     workspaceDir: string
     prompt: string
     agent?: string
+    modelSelection?: { providerID: string; modelID: string }
     branch?: string
     images?: string[]
   }): Promise<{ sessionID: string; message?: string }> {
@@ -689,6 +717,8 @@ export class AgentManagerProvider implements vscode.Disposable {
     if (parts.length > 0) {
       await input.client.sendMessage(session.id, parts, worktreePath, {
         agent: input.agent,
+        providerID: input.modelSelection?.providerID,
+        modelID: input.modelSelection?.modelID,
       })
     }
 
@@ -1257,6 +1287,126 @@ echo "Setting up worktree: $WORKTREE_PATH"
       return configuredDefaultAgent
     }
     return visible[0]?.name ?? "code"
+  }
+
+  private encodeModelSelection(providerID: string, modelID: string): string {
+    return `${providerID}::${modelID}`
+  }
+
+  private parseModelSelection(rawSelection?: string): { providerID: string; modelID: string } | undefined {
+    if (typeof rawSelection !== "string") {
+      return undefined
+    }
+    const trimmed = rawSelection.trim()
+    if (!trimmed) {
+      return undefined
+    }
+    const divider = trimmed.indexOf("::")
+    if (divider <= 0 || divider >= trimmed.length - 2) {
+      return undefined
+    }
+    const providerID = trimmed.slice(0, divider).trim()
+    const modelID = trimmed.slice(divider + 2).trim()
+    if (!providerID || !modelID) {
+      return undefined
+    }
+    return { providerID, modelID }
+  }
+
+  private toModelOptions(providers: ProviderListResponse): { options: AgentManagerModelOption[]; defaultValue?: string } {
+    const normalized: Record<string, ProviderListResponse["all"][string]> = {}
+    for (const provider of Object.values(providers.all ?? {})) {
+      if (provider && typeof provider.id === "string" && provider.id.trim().length > 0) {
+        normalized[provider.id] = provider
+      }
+    }
+
+    const options: AgentManagerModelOption[] = []
+    for (const provider of Object.values(normalized)) {
+      const models = provider.models ?? {}
+      for (const [modelKey, model] of Object.entries(models)) {
+        const modelID =
+          typeof model?.id === "string" && model.id.trim().length > 0 ? model.id.trim() : modelKey.trim()
+        if (!modelID) {
+          continue
+        }
+        const label =
+          typeof model?.name === "string" && model.name.trim().length > 0 ? model.name.trim() : modelID
+        const contextLength =
+          typeof model?.limit?.context === "number"
+            ? model.limit.context
+            : typeof model?.contextLength === "number"
+              ? model.contextLength
+              : undefined
+        const contextLabel =
+          typeof contextLength === "number" && Number.isFinite(contextLength) && contextLength > 0
+            ? `${Math.max(1, Math.floor(contextLength / 1000))}K context`
+            : undefined
+        const providerLabel =
+          typeof provider.name === "string" && provider.name.trim().length > 0 ? provider.name.trim() : provider.id
+        const description = contextLabel ? `${providerLabel} · ${contextLabel}` : providerLabel
+
+        options.push({
+          value: this.encodeModelSelection(provider.id, modelID),
+          providerID: provider.id,
+          modelID,
+          label,
+          description,
+        })
+      }
+    }
+
+    if (options.length === 0) {
+      return { options }
+    }
+
+    const validValues = new Set(options.map((option) => option.value))
+    const isValidSelection = (selection: { providerID: string; modelID: string } | undefined): selection is { providerID: string; modelID: string } => {
+      return !!selection && validValues.has(this.encodeModelSelection(selection.providerID, selection.modelID))
+    }
+
+    const firstValidDefaultFromBackend = (): { providerID: string; modelID: string } | undefined => {
+      for (const [providerID, modelID] of Object.entries(providers.default ?? {})) {
+        const candidate = { providerID, modelID }
+        if (isValidSelection(candidate)) {
+          return candidate
+        }
+      }
+      return undefined
+    }
+
+    const firstModelFromCatalog = (): { providerID: string; modelID: string } => ({
+      providerID: options[0].providerID,
+      modelID: options[0].modelID,
+    })
+
+    const modelConfig = vscode.workspace.getConfiguration("kilo-code.new.model")
+    const configuredProviderID = modelConfig.get<string>("providerID", "kilo")
+    const configuredModelID = modelConfig.get<string>("modelID", "kilo/auto")
+    const preferGatewayDefault = modelConfig.get<boolean>("preferGatewayDefault", false)
+    const configuredIsFallback = configuredProviderID === "kilo" && configuredModelID === "kilo/auto"
+    const gatewayDefaultModelID = providers.default?.kilo
+
+    let defaultSelection: { providerID: string; modelID: string } = {
+      providerID: configuredProviderID,
+      modelID: configuredModelID,
+    }
+    if ((configuredIsFallback || preferGatewayDefault) && gatewayDefaultModelID) {
+      defaultSelection = { providerID: "kilo", modelID: gatewayDefaultModelID }
+    }
+
+    if (!isValidSelection(defaultSelection)) {
+      const gatewayFallback =
+        gatewayDefaultModelID && isValidSelection({ providerID: "kilo", modelID: gatewayDefaultModelID })
+          ? { providerID: "kilo", modelID: gatewayDefaultModelID }
+          : undefined
+      defaultSelection = gatewayFallback ?? firstValidDefaultFromBackend() ?? firstModelFromCatalog()
+    }
+
+    return {
+      options,
+      defaultValue: this.encodeModelSelection(defaultSelection.providerID, defaultSelection.modelID),
+    }
   }
 
   private async loadSessionMessages(sessionID?: string): Promise<void> {
@@ -3092,12 +3242,200 @@ echo "Setting up worktree: $WORKTREE_PATH"
       background: color-mix(in srgb, var(--vscode-editor-background) 40%, black 60%);
     }
 
-    .am-inline-select {
-      min-height: 28px;
+    .am-selector-chevron {
+      transition: transform 0.15s;
+      opacity: 0.7;
+      margin-left: 2px;
+      flex: none;
+    }
+
+    .am-selector-chevron.am-open {
+      transform: rotate(180deg);
+    }
+
+    .am-mode-selector {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      width: 100%;
+      min-width: 120px;
       max-width: 220px;
-      font-size: 12px;
-      padding: 3px 6px;
+    }
+
+    .am-mode-selector-trigger {
+      width: 100%;
+      min-height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+      padding: 4px 8px;
+      background: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border);
       border-radius: 4px;
+      color: var(--vscode-input-foreground);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .am-mode-selector-trigger:hover:not(:disabled) {
+      border-color: var(--vscode-focusBorder);
+    }
+
+    .am-mode-selector-trigger:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .am-mode-selector-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      text-align: left;
+    }
+
+    .am-mode-selector-content {
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      margin-bottom: 4px;
+      min-width: 220px;
+      max-height: 250px;
+      overflow-y: auto;
+      background: var(--vscode-dropdown-background);
+      border: 1px solid var(--vscode-dropdown-border);
+      border-radius: 4px;
+      box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
+      z-index: 100;
+    }
+
+    .am-mode-selector-content[hidden] {
+      display: none;
+    }
+
+    .am-mode-selector-option {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 6px 10px;
+      border: none;
+      text-align: left;
+      background: transparent;
+      color: var(--vscode-dropdown-foreground);
+      cursor: pointer;
+      transition: background 0.1s;
+      font-size: 12px;
+    }
+
+    .am-mode-selector-option:hover:not(:disabled) {
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .am-mode-selector-option.am-selected {
+      background: var(--vscode-list-activeSelectionBackground);
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .am-selector-option-title {
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .am-selector-option-description {
+      font-size: 11px;
+      opacity: 0.75;
+      line-height: 1.25;
+    }
+
+    .am-model-selector-row {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      margin-top: 8px;
+    }
+
+    .am-model-selector {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      max-width: min(100%, 360px);
+    }
+
+    .am-model-selector-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 28px;
+      max-width: 360px;
+      padding: 4px 8px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      opacity: 0.6;
+    }
+
+    .am-model-selector-trigger:hover:not(:disabled) {
+      opacity: 1;
+      color: var(--vscode-foreground);
+      background-color: rgba(255, 255, 255, 0.03);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .am-model-selector-trigger:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .am-model-selector-content {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 4px;
+      min-width: 260px;
+      max-width: min(100vw - 80px, 420px);
+      max-height: 250px;
+      overflow-y: auto;
+      background: var(--vscode-dropdown-background);
+      border: 1px solid var(--vscode-dropdown-border);
+      border-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      z-index: 100;
+    }
+
+    .am-model-selector-content[hidden] {
+      display: none;
+    }
+
+    .am-model-selector-option {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 6px 10px;
+      border: none;
+      text-align: left;
+      background: transparent;
+      color: var(--vscode-dropdown-foreground);
+      cursor: pointer;
+      transition: background 0.1s;
+      font-size: 12px;
+    }
+
+    .am-model-selector-option:hover:not(:disabled) {
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .am-model-selector-option.am-selected {
+      background: var(--vscode-list-activeSelectionBackground);
+      color: var(--vscode-list-activeSelectionForeground);
     }
 
     .am-run-mode-dropdown-inline {
@@ -3317,7 +3655,9 @@ echo "Setting up worktree: $WORKTREE_PATH"
     const state = {
       sessions: [],
       agents: [],
+      models: [],
       defaultAgent: "code",
+      defaultModel: "",
       workspaceDir: "",
       warnings: [],
       busy: false,
@@ -3326,6 +3666,7 @@ echo "Setting up worktree: $WORKTREE_PATH"
       createDraft: {
         prompt: "",
         agent: "code",
+        model: "",
         parallel: false,
         branch: "",
         versions: 1,
@@ -3452,6 +3793,33 @@ echo "Setting up worktree: $WORKTREE_PATH"
     function toAgentOptions() {
       const fallback = state.defaultAgent || "code"
       return state.agents.length > 0 ? state.agents : [{ name: fallback, description: "" }]
+    }
+
+    function toModelOptions() {
+      return Array.isArray(state.models) ? state.models : []
+    }
+
+    function getDefaultModelValue() {
+      const options = toModelOptions()
+      if (options.length === 0) {
+        return ""
+      }
+      const configuredDefault = typeof state.defaultModel === "string" ? state.defaultModel : ""
+      if (configuredDefault && options.some((option) => option.value === configuredDefault)) {
+        return configuredDefault
+      }
+      return options[0].value
+    }
+
+    function getCurrentModelOption() {
+      const options = toModelOptions()
+      if (options.length === 0) {
+        return null
+      }
+      const fallback = getDefaultModelValue()
+      const value =
+        typeof state.createDraft.model === "string" && state.createDraft.model ? state.createDraft.model : fallback
+      return options.find((option) => option.value === value) || options[0]
     }
 
     function getSessionById(sessionID) {
@@ -4300,6 +4668,8 @@ echo "Setting up worktree: $WORKTREE_PATH"
 
       const options = toAgentOptions()
       const selectedAgent = state.createDraft.agent || state.defaultAgent || options[0].name
+      const selectedModelOption = getCurrentModelOption()
+      state.createDraft.model = selectedModelOption ? selectedModelOption.value : ""
 
       const prompt = document.createElement("textarea")
       prompt.className = "text-area am-prompt-input"
@@ -4415,19 +4785,89 @@ echo "Setting up worktree: $WORKTREE_PATH"
       actions.appendChild(createImageInput)
       actions.appendChild(addCreateImageBtn)
 
-      const modeSelect = document.createElement("select")
-      modeSelect.className = "select-input am-inline-select"
-      for (const agent of options) {
-        const option = document.createElement("option")
-        option.value = agent.name
-        option.textContent = agent.description ? agent.name + " - " + agent.description : agent.name
-        option.selected = agent.name === selectedAgent
-        modeSelect.appendChild(option)
+      const modeSelector = document.createElement("div")
+      modeSelector.className = "am-mode-selector"
+
+      const modeTrigger = document.createElement("button")
+      modeTrigger.type = "button"
+      modeTrigger.className = "am-mode-selector-trigger"
+      modeTrigger.title = "Select mode"
+      modeTrigger.setAttribute("aria-label", "Select mode")
+      modeTrigger.disabled = state.busy
+
+      const modeLabel = document.createElement("span")
+      modeLabel.className = "am-mode-selector-label"
+
+      const modeChevron = document.createElement("span")
+      modeChevron.className = "am-selector-chevron"
+      modeChevron.textContent = "▾"
+
+      const modeMenu = document.createElement("div")
+      modeMenu.className = "am-mode-selector-content"
+      modeMenu.hidden = true
+
+      const closeModeMenu = () => {
+        modeMenu.hidden = true
+        modeChevron.classList.remove("am-open")
       }
-      modeSelect.addEventListener("change", () => {
-        state.createDraft.agent = modeSelect.value
+
+      const updateModeTrigger = () => {
+        const current = options.find((agent) => agent.name === state.createDraft.agent) || options[0]
+        modeLabel.textContent = current?.name || selectedAgent || "code"
+      }
+
+      const renderModeOptions = () => {
+        clearNode(modeMenu)
+        for (const agent of options) {
+          const option = document.createElement("button")
+          option.type = "button"
+          option.className =
+            agent.name === state.createDraft.agent
+              ? "am-mode-selector-option am-selected"
+              : "am-mode-selector-option"
+
+          const optionTitle = document.createElement("span")
+          optionTitle.className = "am-selector-option-title"
+          optionTitle.textContent = agent.name
+          option.appendChild(optionTitle)
+
+          if (agent.description) {
+            const optionDescription = document.createElement("span")
+            optionDescription.className = "am-selector-option-description"
+            optionDescription.textContent = agent.description
+            option.appendChild(optionDescription)
+          }
+
+          option.addEventListener("click", () => {
+            state.createDraft.agent = agent.name
+            closeModeMenu()
+            updateModeTrigger()
+            renderModeOptions()
+          })
+
+          modeMenu.appendChild(option)
+        }
+      }
+
+      modeTrigger.addEventListener("click", (event) => {
+        event.preventDefault()
+        modeMenu.hidden = !modeMenu.hidden
+        modeChevron.classList.toggle("am-open", !modeMenu.hidden)
       })
-      actions.appendChild(modeSelect)
+      modeSelector.addEventListener("focusout", (event) => {
+        if (!modeSelector.contains(event.relatedTarget)) {
+          closeModeMenu()
+        }
+      })
+
+      state.createDraft.agent = selectedAgent
+      updateModeTrigger()
+      renderModeOptions()
+      modeTrigger.appendChild(modeLabel)
+      modeTrigger.appendChild(modeChevron)
+      modeSelector.appendChild(modeTrigger)
+      modeSelector.appendChild(modeMenu)
+      actions.appendChild(modeSelector)
 
       const yoloBtn = document.createElement("button")
       yoloBtn.type = "button"
@@ -4595,7 +5035,8 @@ echo "Setting up worktree: $WORKTREE_PATH"
         vscode.postMessage({
           type: "createSession",
           prompt: text,
-          agent: modeSelect.value || state.defaultAgent,
+          agent: state.createDraft.agent || state.defaultAgent,
+          model: state.createDraft.model || "",
           parallel: !!state.createDraft.parallel || Number(state.createDraft.versions || 1) > 1,
           branch: state.createDraft.branch || "",
           versions: Number(state.createDraft.versions || 1),
@@ -4611,6 +5052,98 @@ echo "Setting up worktree: $WORKTREE_PATH"
       inputShell.appendChild(imagesRow)
       inputShell.appendChild(toolbar)
       form.appendChild(inputShell)
+
+      const modelOptions = toModelOptions()
+      if (modelOptions.length > 0) {
+        const modelSelectorRow = document.createElement("div")
+        modelSelectorRow.className = "am-model-selector-row"
+
+        const modelSelector = document.createElement("div")
+        modelSelector.className = "am-model-selector"
+
+        const modelTrigger = document.createElement("button")
+        modelTrigger.type = "button"
+        modelTrigger.className = "am-model-selector-trigger"
+        modelTrigger.title = "Select model"
+        modelTrigger.setAttribute("aria-label", "Select model")
+        modelTrigger.disabled = state.busy
+
+        const modelLabel = document.createElement("span")
+        modelLabel.className = "am-mode-selector-label"
+
+        const modelChevron = document.createElement("span")
+        modelChevron.className = "am-selector-chevron"
+        modelChevron.textContent = "▾"
+
+        const modelMenu = document.createElement("div")
+        modelMenu.className = "am-model-selector-content"
+        modelMenu.hidden = true
+
+        const closeModelMenu = () => {
+          modelMenu.hidden = true
+          modelChevron.classList.remove("am-open")
+        }
+
+        const updateModelTrigger = () => {
+          const selected = modelOptions.find((option) => option.value === state.createDraft.model) || modelOptions[0]
+          state.createDraft.model = selected.value
+          modelLabel.textContent = selected.label
+        }
+
+        const renderModelOptions = () => {
+          clearNode(modelMenu)
+          for (const optionValue of modelOptions) {
+            const option = document.createElement("button")
+            option.type = "button"
+            option.className =
+              optionValue.value === state.createDraft.model
+                ? "am-model-selector-option am-selected"
+                : "am-model-selector-option"
+
+            const optionTitle = document.createElement("span")
+            optionTitle.className = "am-selector-option-title"
+            optionTitle.textContent = optionValue.label
+            option.appendChild(optionTitle)
+
+            if (optionValue.description) {
+              const optionDescription = document.createElement("span")
+              optionDescription.className = "am-selector-option-description"
+              optionDescription.textContent = optionValue.description
+              option.appendChild(optionDescription)
+            }
+
+            option.addEventListener("click", () => {
+              state.createDraft.model = optionValue.value
+              closeModelMenu()
+              updateModelTrigger()
+              renderModelOptions()
+            })
+
+            modelMenu.appendChild(option)
+          }
+        }
+
+        modelTrigger.addEventListener("click", (event) => {
+          event.preventDefault()
+          modelMenu.hidden = !modelMenu.hidden
+          modelChevron.classList.toggle("am-open", !modelMenu.hidden)
+        })
+        modelSelector.addEventListener("focusout", (event) => {
+          if (!modelSelector.contains(event.relatedTarget)) {
+            closeModelMenu()
+          }
+        })
+
+        updateModelTrigger()
+        renderModelOptions()
+        modelTrigger.appendChild(modelLabel)
+        modelTrigger.appendChild(modelChevron)
+        modelSelector.appendChild(modelTrigger)
+        modelSelector.appendChild(modelMenu)
+        modelSelectorRow.appendChild(modelSelector)
+        form.appendChild(modelSelectorRow)
+      }
+
       updateRunModeTrigger()
       updateVersionsTrigger()
       updateBranchButton()
@@ -4705,11 +5238,19 @@ echo "Setting up worktree: $WORKTREE_PATH"
       if (message.type === "agentManagerData") {
         state.sessions = Array.isArray(message.sessions) ? message.sessions : []
         state.agents = Array.isArray(message.agents) ? message.agents : []
+        state.models = Array.isArray(message.models) ? message.models : []
         state.defaultAgent = typeof message.defaultAgent === "string" && message.defaultAgent ? message.defaultAgent : "code"
+        state.defaultModel = typeof message.defaultModel === "string" ? message.defaultModel : ""
         state.workspaceDir = typeof message.workspaceDir === "string" ? message.workspaceDir : ""
         state.warnings = Array.isArray(message.errors) ? message.errors : []
         if (!state.createDraft.agent || !toAgentOptions().some((agent) => agent.name === state.createDraft.agent)) {
           state.createDraft.agent = state.defaultAgent
+        }
+        const modelOptions = toModelOptions()
+        if (modelOptions.length === 0) {
+          state.createDraft.model = ""
+        } else if (!state.createDraft.model || !modelOptions.some((option) => option.value === state.createDraft.model)) {
+          state.createDraft.model = getDefaultModelValue()
         }
         setBusy(false)
         renderAll()

@@ -19,13 +19,31 @@ async function readSize(targetPath) {
   return stats.size
 }
 
+const PREFERRED_VSIX_NAME = "kilo-code-local.vsix"
+
 async function findVsix(packageRoot) {
   const entries = await fs.readdir(packageRoot, { withFileTypes: true })
-  const candidates = entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".vsix"))
-    .map((entry) => entry.name)
-    .sort()
-  return candidates.at(-1) ?? null
+  const candidates = entries.filter((entry) => entry.isFile() && entry.name.endsWith(".vsix"))
+  if (candidates.length === 0) {
+    return null
+  }
+
+  // Prefer the deterministic local artifact produced by `npm run vsix:local`.
+  const preferred = candidates.find((entry) => entry.name === PREFERRED_VSIX_NAME)
+  if (preferred) {
+    return preferred.name
+  }
+
+  // Otherwise pick the most recently modified artifact.
+  const withStats = await Promise.all(
+    candidates.map(async (entry) => {
+      const fullPath = path.join(packageRoot, entry.name)
+      const stats = await fs.stat(fullPath)
+      return { name: entry.name, mtimeMs: stats.mtimeMs }
+    }),
+  )
+  withStats.sort((a, b) => b.mtimeMs - a.mtimeMs)
+  return withStats[0]?.name ?? null
 }
 
 async function main() {

@@ -56,19 +56,17 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
   const { Hono, describeRoute, validator, resolver, errors, Auth, z } = deps
 
   function getToken(auth: any): string | undefined {
-    if (!auth) {
-      return undefined
+    if (!auth) return undefined
+    switch (auth.type) {
+      case "api":
+        return auth.key
+      case "oauth":
+        return auth.access
+      case "wellknown":
+        return auth.token
+      default:
+        return undefined
     }
-    if (auth.type === "api") {
-      return auth.key
-    }
-    if (auth.type === "oauth") {
-      return auth.access
-    }
-    if (auth.type === "wellknown") {
-      return auth.token
-    }
-    return undefined
   }
 
   function getSelectedOrganizationId(auth: any): string | undefined {
@@ -293,14 +291,9 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
       }),
       async (c: any) => {
         const auth = await Auth.get("kilo")
-        if (!auth) {
-          return c.json({ error: "Not authenticated with Kilo Gateway" }, 401)
-        }
-
+        if (!auth) return c.json({ error: "Not authenticated with Kilo Gateway" }, 401)
         const token = getToken(auth)
-        if (!token) {
-          return c.json({ error: "No valid token found" }, 401)
-        }
+        if (!token) return c.json({ error: "No valid token found" }, 401)
 
         const organizationId = getSelectedOrganizationId(auth)
         const settings = await fetchExtensionSettings(token, organizationId)

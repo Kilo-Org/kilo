@@ -136,11 +136,7 @@ export async function fetchExtensionSettings(
     throw new Error(`Failed to fetch extension settings: ${response.status}`)
   }
 
-  const data = (await response.json()) as { organization?: unknown; user?: unknown }
-  return {
-    organization: data.organization,
-    user: data.user,
-  }
+  return (await response.json()) as { organization?: unknown; user?: unknown }
 }
 
 /**

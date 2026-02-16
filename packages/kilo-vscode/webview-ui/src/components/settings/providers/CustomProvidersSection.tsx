@@ -6,6 +6,7 @@ import { TextField } from "@kilocode/kilo-ui/text-field"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { showToast } from "@kilocode/kilo-ui/toast"
 import type { ProviderConfig } from "../../../types/messages"
+import { useLanguage } from "../../../context/language"
 import {
   createEmptyCustomProviderDraft,
   draftToProviderConfig,
@@ -19,6 +20,7 @@ interface CustomProvidersSectionProps {
 }
 
 const CustomProvidersSection: Component<CustomProvidersSectionProps> = (props) => {
+  const language = useLanguage()
   const [editingProviderID, setEditingProviderID] = createSignal<string | null>(null)
   const [draft, setDraft] = createSignal<CustomProviderDraft>(createEmptyCustomProviderDraft())
 
@@ -36,7 +38,11 @@ const CustomProvidersSection: Component<CustomProvidersSectionProps> = (props) =
   const upsertProvider = () => {
     const parsed = draftToProviderConfig(draft())
     if (!parsed.ok) {
-      showToast({ variant: "error", title: "Invalid provider configuration", description: parsed.error })
+      showToast({
+        variant: "error",
+        title: language.t("settings.providers.custom.toast.invalid"),
+        description: parsed.error,
+      })
       return
     }
 
@@ -50,7 +56,9 @@ const CustomProvidersSection: Component<CustomProvidersSectionProps> = (props) =
     props.onChange(Object.keys(nextProviders).length > 0 ? nextProviders : undefined)
     showToast({
       variant: "success",
-      title: previousID ? "Provider updated" : "Provider added",
+      title: previousID
+        ? language.t("settings.providers.custom.toast.updated")
+        : language.t("settings.providers.custom.toast.added"),
       description: parsed.id,
     })
     resetDraft()
@@ -70,7 +78,7 @@ const CustomProvidersSection: Component<CustomProvidersSectionProps> = (props) =
       resetDraft()
     }
 
-    showToast({ variant: "success", title: "Provider removed", description: id })
+    showToast({ variant: "success", title: language.t("settings.providers.custom.toast.removed"), description: id })
   }
 
   const summarizeProvider = (provider: ProviderConfig): string => {
@@ -79,22 +87,22 @@ const CustomProvidersSection: Component<CustomProvidersSectionProps> = (props) =
     const parts: string[] = []
 
     if (provider.name) {
-      parts.push(`name: ${provider.name}`)
+      parts.push(`${language.t("settings.providers.custom.summary.name")}: ${provider.name}`)
     }
     if (provider.api) {
-      parts.push(`api: ${provider.api}`)
+      parts.push(`${language.t("settings.providers.custom.summary.api")}: ${provider.api}`)
     }
     if (baseURL) {
-      parts.push(`base: ${baseURL}`)
+      parts.push(`${language.t("settings.providers.custom.summary.base")}: ${baseURL}`)
     }
     if (apiKey) {
-      parts.push("api_key: *****")
+      parts.push(`${language.t("settings.providers.custom.summary.apiKey")}: *****`)
     }
     if ((provider.whitelist?.length ?? 0) > 0) {
-      parts.push(`allow: ${provider.whitelist!.length}`)
+      parts.push(`${language.t("settings.providers.custom.summary.allow")}: ${provider.whitelist!.length}`)
     }
     if ((provider.blacklist?.length ?? 0) > 0) {
-      parts.push(`deny: ${provider.blacklist!.length}`)
+      parts.push(`${language.t("settings.providers.custom.summary.deny")}: ${provider.blacklist!.length}`)
     }
 
     return parts.join(" · ")
@@ -102,7 +110,7 @@ const CustomProvidersSection: Component<CustomProvidersSectionProps> = (props) =
 
   return (
     <>
-      <h4 style={{ "margin-top": "16px", "margin-bottom": "8px" }}>Custom Provider Configuration</h4>
+      <h4 style={{ "margin-top": "16px", "margin-bottom": "8px" }}>{language.t("settings.providers.custom.title")}</h4>
       <Card>
         <div
           style={{
@@ -112,83 +120,82 @@ const CustomProvidersSection: Component<CustomProvidersSectionProps> = (props) =
             "border-bottom": "1px solid var(--border-weak-base)",
           }}
         >
-          Configure custom providers in `config.provider`. Supports provider metadata, runtime options, allow/deny
-          lists, and per-model overrides JSON.
+          {language.t("settings.providers.custom.description")}
         </div>
 
         <div style={{ display: "flex", "flex-direction": "column", gap: "8px", padding: "8px 0" }}>
           <TextField
             value={draft().id}
-            placeholder="Provider ID (required)"
+            placeholder={language.t("settings.providers.custom.field.id")}
             onChange={(value) => updateDraft("id", value)}
           />
           <TextField
             value={draft().name}
-            placeholder="Display name (optional)"
+            placeholder={language.t("settings.providers.custom.field.name")}
             onChange={(value) => updateDraft("name", value)}
           />
           <TextField
             value={draft().api}
-            placeholder='Adapter API name (optional, e.g. "openai")'
+            placeholder={language.t("settings.providers.custom.field.api")}
             onChange={(value) => updateDraft("api", value)}
           />
           <TextField
             value={draft().npm}
-            placeholder='NPM package (optional, e.g. "@ai-sdk/openai-compatible")'
+            placeholder={language.t("settings.providers.custom.field.npm")}
             onChange={(value) => updateDraft("npm", value)}
           />
           <TextField
             value={draft().apiKey}
-            placeholder="API key (optional)"
+            placeholder={language.t("settings.providers.custom.field.apiKey")}
             onChange={(value) => updateDraft("apiKey", value)}
           />
           <TextField
             value={draft().baseURL}
-            placeholder="Base URL (optional)"
+            placeholder={language.t("settings.providers.custom.field.baseUrl")}
             onChange={(value) => updateDraft("baseURL", value)}
           />
           <TextField
             value={draft().enterpriseUrl}
-            placeholder="Enterprise URL (optional)"
+            placeholder={language.t("settings.providers.custom.field.enterpriseUrl")}
             onChange={(value) => updateDraft("enterpriseUrl", value)}
           />
           <TextField
             value={draft().timeout}
-            placeholder="Request timeout in ms (optional)"
+            placeholder={language.t("settings.providers.custom.field.timeout")}
             onChange={(value) => updateDraft("timeout", value)}
           />
           <TextField
             value={draft().setCacheKey}
-            placeholder='setCacheKey (optional: "true" or "false")'
+            placeholder={language.t("settings.providers.custom.field.setCacheKey")}
             onChange={(value) => updateDraft("setCacheKey", value)}
           />
           <TextField
             value={draft().env}
-            placeholder="Environment vars list (optional, one per line or comma-separated)"
+            placeholder={language.t("settings.providers.custom.field.env")}
             multiline
             onChange={(value) => updateDraft("env", value)}
           />
           <TextField
             value={draft().whitelist}
-            placeholder="Model allowlist (optional, one per line or comma-separated)"
+            placeholder={language.t("settings.providers.custom.field.allow")}
             multiline
             onChange={(value) => updateDraft("whitelist", value)}
           />
           <TextField
             value={draft().blacklist}
-            placeholder="Model denylist (optional, one per line or comma-separated)"
+            placeholder={language.t("settings.providers.custom.field.deny")}
             multiline
             onChange={(value) => updateDraft("blacklist", value)}
           />
           <TextField
             value={draft().modelsJson}
-            placeholder="Models JSON (optional object)"
+            placeholder={language.t("settings.providers.custom.field.modelsJson")}
             multiline
             onChange={(value) => updateDraft("modelsJson", value)}
           />
           <TextField
             value={draft().optionsJson}
-            placeholder="Extra options JSON (optional object)"
+            placeholder={language.t("settings.providers.custom.field.optionsJson")}
             multiline
             onChange={(value) => updateDraft("optionsJson", value)}
           />
@@ -196,15 +203,23 @@ const CustomProvidersSection: Component<CustomProvidersSectionProps> = (props) =
 
         <div style={{ display: "flex", "justify-content": "flex-end", gap: "8px", "padding-bottom": "8px" }}>
           {editingProviderID() ? (
-            <Tooltip value="Cancel provider editing" placement="top">
+            <Tooltip value={language.t("settings.providers.custom.action.cancelTooltip")} placement="top">
               <Button size="small" variant="ghost" onClick={resetDraft}>
-                Cancel
+                {language.t("common.cancel")}
               </Button>
             </Tooltip>
           ) : null}
-          <Tooltip value={editingProviderID() ? "Save provider changes" : "Add custom provider"} placement="top">
+          <Tooltip
+            value={
+              editingProviderID()
+                ? language.t("settings.providers.custom.action.saveTooltip")
+                : language.t("settings.providers.custom.action.addTooltip")
+            }
+            placement="top">
             <Button size="small" onClick={upsertProvider} disabled={!draft().id.trim()}>
-              {editingProviderID() ? "Update Provider" : "Add Provider"}
+              {editingProviderID()
+                ? language.t("settings.providers.custom.action.update")
+                : language.t("settings.providers.custom.action.add")}
             </Button>
           </Tooltip>
         </div>
@@ -237,18 +252,18 @@ const CustomProvidersSection: Component<CustomProvidersSectionProps> = (props) =
                 </div>
               </div>
               <div style={{ display: "flex", gap: "4px" }}>
-                <Tooltip value="Edit provider" placement="top">
+                <Tooltip value={language.t("settings.providers.custom.action.editTooltip")} placement="top">
                   <Button size="small" variant="ghost" onClick={() => editProvider(id, providerConfig)}>
-                    Edit
+                    {language.t("common.edit")}
                   </Button>
                 </Tooltip>
-                <Tooltip value="Delete" placement="top">
+                <Tooltip value={language.t("common.delete")} placement="top">
                   <IconButton
                     size="small"
                     variant="ghost"
                     icon="close"
                     onClick={() => removeProvider(id)}
-                    aria-label="Delete"
+                    aria-label={language.t("common.delete")}
                   />
                 </Tooltip>
               </div>

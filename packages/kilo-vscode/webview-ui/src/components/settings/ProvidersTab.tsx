@@ -5,6 +5,7 @@ import { Button } from "@kilocode/kilo-ui/button"
 import { IconButton } from "@kilocode/kilo-ui/icon-button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { Switch } from "@kilocode/kilo-ui/switch"
+import { TextField } from "@kilocode/kilo-ui/text-field"
 import { showToast } from "@kilocode/kilo-ui/toast"
 import { useConfig } from "../../context/config"
 import { useProvider } from "../../context/provider"
@@ -37,6 +38,10 @@ function parseModelConfig(raw: string | undefined): ModelSelection | null {
   return { providerID: raw.slice(0, slash), modelID: raw.slice(slash + 1) }
 }
 
+function formatProviderOptionLabel(name: string, id: string) {
+  return name && name !== id ? `${name} (${id})` : id
+}
+
 const SettingsRow: Component<{ label: string; description: string; last?: boolean; children: any }> = (props) => (
   <div
     data-slot="settings-row"
@@ -66,13 +71,16 @@ const ProvidersTab: Component = () => {
   const vscode = useVSCode()
 
   const providerOptions = createMemo<ProviderOption[]>(() =>
-    Object.keys(provider.providers())
-      .sort()
-      .map((id) => ({ value: id, label: id })),
+    Object.values(provider.providers())
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((entry) => ({ value: entry.id, label: formatProviderOptionLabel(entry.name, entry.id) })),
   )
 
   const [newDisabled, setNewDisabled] = createSignal<ProviderOption | undefined>()
   const [newEnabled, setNewEnabled] = createSignal<ProviderOption | undefined>()
+  const [disabledFilter, setDisabledFilter] = createSignal("")
+  const [enabledFilter, setEnabledFilter] = createSignal("")
   const [preferGatewayDefault, setPreferGatewayDefault] = createSignal(false)
   const [providerDiagnostics, setProviderDiagnostics] = createSignal<Record<string, ProviderDiagnostic>>({})
   const [providerDiagnosticHistory, setProviderDiagnosticHistory] = createSignal<
@@ -84,6 +92,24 @@ const ProvidersTab: Component = () => {
   const enabledProviders = () => config().enabled_providers ?? []
   const enterpriseAllowList = createMemo(() => server.extensionPolicy()?.allowList)
   const enterprisePolicyActive = createMemo(() => !!enterpriseAllowList() && !enterpriseAllowList()!.allowAll)
+  const providerLabelByID = createMemo(() => {
+    const entries = providerOptions().map((option) => [option.value, option.label] as const)
+    return Object.fromEntries(entries)
+  })
+  const providerDisplayLabel = (providerID: string) => providerLabelByID()[providerID] ?? providerID
+  const matchesProviderFilter = (option: ProviderOption, query: string) => {
+    const normalized = query.trim().toLowerCase()
+    if (!normalized) {
+      return true
+    }
+    return option.value.toLowerCase().includes(normalized) || option.label.toLowerCase().includes(normalized)
+  }
+  const availableDisabledOptions = createMemo(() =>
+    providerOptions().filter((option) => !disabledProviders().includes(option.value) && matchesProviderFilter(option, disabledFilter())),
+  )
+  const availableEnabledOptions = createMemo(() =>
+    providerOptions().filter((option) => !enabledProviders().includes(option.value) && matchesProviderFilter(option, enabledFilter())),
+  )
 
   const diagnosticStorageKey = createMemo(() => {
     const currentOrg = server.profileData()?.currentOrgId ?? "personal"
@@ -151,16 +177,22 @@ const ProvidersTab: Component = () => {
         ...history.map((entry) => `${new Date(entry.at).toISOString()} [${entry.level}] ${entry.message}`),
       ]
       await navigator.clipboard.writeText(lines.join("\n"))
-      showToast({ variant: "success", title: "Provider diagnostics copied", description: providerID })
+      showToast({
+        variant: "success",
+        title: language.t("settings.providers.connection.toast.diagnosticsCopied"),
+        description: providerID,
+      })
     } catch {
-      showToast({ variant: "error", title: "Failed to copy provider diagnostics" })
+      showToast({ variant: "error", title: language.t("settings.providers.connection.toast.diagnosticsCopyFailed") })
     }
   }
 
   const testProviderConnection = (providerID: string, connected: boolean) => {
     pushProviderDiagnostic(providerID, {
       level: "info",
-      message: connected ? "Connection check requested (refreshing provider catalog)" : "Connection check requested (connect flow)",
+      message: connected
+        ? language.t("settings.providers.connection.check.connected")
+        : language.t("settings.providers.connection.check.disconnected"),
     })
     if (connected) {
       provider.refresh()
@@ -191,7 +223,9 @@ const ProvidersTab: Component = () => {
         if (previous !== isConnected) {
           pushProviderDiagnostic(providerID, {
             level: isConnected ? "success" : "info",
-            message: isConnected ? "Provider reported connected by backend" : "Provider reported disconnected by backend",
+            message: isConnected
+              ? language.t("settings.providers.connection.report.connected")
+              : language.t("settings.providers.connection.report.disconnected"),
           })
         }
       }
@@ -208,11 +242,16 @@ const ProvidersTab: Component = () => {
         level: "success",
         message:
           message.message ??
-          (message.action === "connect" ? "Connected successfully through provider auth flow" : "Disconnected successfully"),
+          (message.action === "connect"
+            ? language.t("settings.providers.connection.auth.connected")
+            : language.t("settings.providers.connection.auth.disconnected")),
       })
       showToast({
         variant: "success",
-        title: message.action === "connect" ? "Provider connected" : "Provider disconnected",
+        title:
+          message.action === "connect"
+            ? language.t("settings.providers.connection.toast.connected")
+            : language.t("settings.providers.connection.toast.disconnected"),
         description: message.providerID,
       })
       provider.refresh()
@@ -221,11 +260,14 @@ const ProvidersTab: Component = () => {
 
     pushProviderDiagnostic(message.providerID, {
       level: "error",
-      message: message.message ?? "Connection failed",
+      message: message.message ?? language.t("settings.providers.connection.auth.failed"),
     })
     showToast({
       variant: "error",
-      title: message.action === "connect" ? "Provider connect failed" : "Provider disconnect failed",
+      title:
+        message.action === "connect"
+          ? language.t("settings.providers.connection.toast.connectFailed")
+          : language.t("settings.providers.connection.toast.disconnectFailed"),
       description: message.message ?? message.providerID,
     })
   })
@@ -318,7 +360,9 @@ const ProvidersTab: Component = () => {
   })
   const gatewayDefaultButtonLabel = createMemo(() => {
     const selection = gatewayDefault()
-    return selection ? `Use ${selection.modelID}` : "No gateway default"
+    return selection
+      ? language.t("settings.providers.startup.useGateway.button", { model: selection.modelID })
+      : language.t("settings.providers.startup.useGateway.none")
   })
 
   const addToList = (key: "disabled_providers" | "enabled_providers", value: string) => {
@@ -350,7 +394,7 @@ const ProvidersTab: Component = () => {
     vscode.postMessage({ type: "updateSetting", key: "model.modelID", value: selection.modelID })
     showToast({
       variant: "success",
-      title: "Startup model updated",
+      title: language.t("settings.providers.startup.toast.updated"),
       description: `${selection.providerID}/${selection.modelID}`,
     })
   }
@@ -359,14 +403,14 @@ const ProvidersTab: Component = () => {
     const elapsedMs = Date.now() - timestamp
     const elapsedSeconds = Math.max(1, Math.round(elapsedMs / 1000))
     if (elapsedSeconds < 60) {
-      return `${elapsedSeconds}s ago`
+      return language.t("settings.providers.time.secondsAgo", { value: elapsedSeconds })
     }
     const elapsedMinutes = Math.round(elapsedSeconds / 60)
     if (elapsedMinutes < 60) {
-      return `${elapsedMinutes}m ago`
+      return language.t("settings.providers.time.minutesAgo", { value: elapsedMinutes })
     }
     const elapsedHours = Math.round(elapsedMinutes / 60)
-    return `${elapsedHours}h ago`
+    return language.t("settings.providers.time.hoursAgo", { value: elapsedHours })
   }
 
   return (
@@ -375,7 +419,7 @@ const ProvidersTab: Component = () => {
         {() => (
           <Card style={{ "margin-bottom": "16px" }}>
             <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>
-              Organization policy is enforcing provider allowlists. Some providers or models may be restricted.
+              {language.t("settings.providers.enterprisePolicy.note")}
             </div>
           </Card>
         )}
@@ -422,20 +466,22 @@ const ProvidersTab: Component = () => {
                 <div
                   style={{ "font-size": "11px", color: "var(--text-weak-base, var(--vscode-descriptionForeground))" }}
                 >
-                  {item.modelCount} models
-                  {item.defaultModelName ? ` · default: ${item.defaultModelName}` : ""}
+                  {language.t("settings.providers.catalog.modelsCount", { count: item.modelCount })}
+                  {item.defaultModelName
+                    ? ` · ${language.t("settings.providers.catalog.defaultModel", { model: item.defaultModelName })}`
+                    : ""}
                 </div>
                 <For each={item.policyModels && item.policyModels.length > 0 ? [item.policyModels] : []}>
                   {(models) => (
                     <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)", "margin-top": "2px" }}>
-                      Policy models: {models.join(", ")}
+                      {language.t("settings.providers.catalog.policyModels", { models: models.join(", ") })}
                     </div>
                   )}
                 </For>
                 <For each={item.policyBlocked ? [0] : []}>
                   {() => (
                     <div style={{ "font-size": "11px", color: "var(--vscode-errorForeground)", "margin-top": "2px" }}>
-                      Blocked by organization policy
+                      {language.t("settings.providers.catalog.policyBlocked")}
                     </div>
                   )}
                 </For>
@@ -450,7 +496,10 @@ const ProvidersTab: Component = () => {
                             : "var(--vscode-errorForeground)",
                       }}
                     >
-                      {diagnostic.level === "success" ? "OK" : "Error"}: {diagnostic.message} ·{" "}
+                      {diagnostic.level === "success"
+                        ? language.t("settings.providers.catalog.diagnostic.ok")
+                        : language.t("settings.providers.catalog.diagnostic.error")}
+                      : {diagnostic.message} ·{" "}
                       {formatDiagnosticTime(diagnostic.at)}
                     </div>
                   )}
@@ -464,7 +513,7 @@ const ProvidersTab: Component = () => {
                       "user-select": "none",
                     }}
                   >
-                    Diagnostics history
+                    {language.t("settings.providers.catalog.diagnostic.history")}
                   </summary>
                   <div style={{ "margin-top": "4px", display: "flex", "flex-direction": "column", gap: "3px" }}>
                     <For each={(providerDiagnosticHistory()[item.id] ?? []).slice().reverse().slice(0, 8)}>
@@ -488,7 +537,7 @@ const ProvidersTab: Component = () => {
                     <For each={(providerDiagnosticHistory()[item.id] ?? []).length === 0 ? [0] : []}>
                       {() => (
                         <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
-                          No diagnostics recorded yet.
+                          {language.t("settings.providers.catalog.diagnostic.empty")}
                         </div>
                       )}
                     </For>
@@ -511,29 +560,37 @@ const ProvidersTab: Component = () => {
                     ? language.t("settings.aboutKiloCode.status.connected")
                     : language.t("settings.aboutKiloCode.status.disconnected")}
                 </span>
-                <Tooltip value="Run provider connection check" placement="top">
+                <Tooltip value={language.t("settings.providers.action.test.tooltip")} placement="top">
                   <Button
                     size="small"
                     variant="ghost"
                     onClick={() => testProviderConnection(item.id, item.connected)}
                     disabled={item.policyBlocked && !item.connected}
                   >
-                    Test
+                    {language.t("settings.providers.action.test.button")}
                   </Button>
                 </Tooltip>
-                <Tooltip value="Copy provider diagnostics" placement="top">
+                <Tooltip value={language.t("settings.providers.action.copy.tooltip")} placement="top">
                   <Button size="small" variant="ghost" onClick={() => void copyProviderDiagnostics(item.id)}>
-                    Copy
+                    {language.t("settings.providers.action.copy.button")}
                   </Button>
                 </Tooltip>
-                <Tooltip value={item.connected ? "Disconnect provider" : "Connect provider"} placement="top">
+                <Tooltip
+                  value={
+                    item.connected
+                      ? language.t("settings.providers.action.disconnect.tooltip")
+                      : language.t("settings.providers.action.connect.tooltip")
+                  }
+                  placement="top">
                   <Button
                     size="small"
                     variant="ghost"
                     onClick={() => (item.connected ? disconnectProvider(item.id) : connectProvider(item.id))}
                     disabled={item.policyBlocked && !item.connected}
                   >
-                    {item.connected ? "Disconnect" : "Connect"}
+                    {item.connected
+                      ? language.t("settings.providers.action.disconnect.button")
+                      : language.t("settings.providers.action.connect.button")}
                   </Button>
                 </Tooltip>
               </div>
@@ -552,18 +609,20 @@ const ProvidersTab: Component = () => {
 
       {/* Model selection */}
       <Card style={{ "margin-top": "16px" }}>
-        <SettingsRow label="Default Model" description="Primary model for conversations">
+        <SettingsRow
+          label={language.t("settings.providers.model.default.label")}
+          description={language.t("settings.providers.model.default.description")}>
           <ModelSelectorBase
             value={parseModelConfig(config().model)}
             onSelect={handleModelSelect("model")}
             placement="bottom-start"
             allowClear
-            clearLabel="Not set (use server default)"
+            clearLabel={language.t("settings.providers.model.clearLabel")}
           />
         </SettingsRow>
         <SettingsRow
-          label="Small Model"
-          description="Lightweight model for title generation and other quick tasks"
+          label={language.t("settings.providers.model.small.label")}
+          description={language.t("settings.providers.model.small.description")}
           last
         >
           <ModelSelectorBase
@@ -571,7 +630,7 @@ const ProvidersTab: Component = () => {
             onSelect={handleModelSelect("small_model")}
             placement="bottom-start"
             allowClear
-            clearLabel="Not set (use server default)"
+            clearLabel={language.t("settings.providers.model.clearLabel")}
           />
         </SettingsRow>
       </Card>
@@ -579,8 +638,8 @@ const ProvidersTab: Component = () => {
       {/* Startup model defaults for new sessions */}
       <Card style={{ "margin-top": "16px" }}>
         <SettingsRow
-          label="Startup Model (New Sessions)"
-          description="Default model preselected when you open a new chat session"
+          label={language.t("settings.providers.startup.label")}
+          description={language.t("settings.providers.startup.description")}
         >
           <ModelSelectorBase
             value={startupSelection()}
@@ -594,8 +653,8 @@ const ProvidersTab: Component = () => {
           />
         </SettingsRow>
         <SettingsRow
-          label="Prefer Kilo Gateway Default"
-          description="When enabled, startup model automatically follows the backend Kilo Gateway default."
+          label={language.t("settings.providers.startup.preferGateway.label")}
+          description={language.t("settings.providers.startup.preferGateway.description")}
         >
           <Switch
             checked={preferGatewayDefault()}
@@ -605,15 +664,15 @@ const ProvidersTab: Component = () => {
             }}
             hideLabel
           >
-            Prefer Kilo Gateway Default
+            {language.t("settings.providers.startup.preferGateway.label")}
           </Switch>
         </SettingsRow>
         <SettingsRow
-          label="Use Kilo Gateway Default"
-          description="Pin startup model to the backend default model for Kilo Gateway"
+          label={language.t("settings.providers.startup.useGateway.label")}
+          description={language.t("settings.providers.startup.useGateway.description")}
           last
         >
-          <Tooltip value="Use the default model exposed by the Kilo Gateway provider" placement="top">
+          <Tooltip value={language.t("settings.providers.startup.useGateway.tooltip")} placement="top">
             <Button
               size="small"
               variant="ghost"
@@ -636,7 +695,7 @@ const ProvidersTab: Component = () => {
         {() => (
           <Card style={{ "margin-top": "16px" }}>
             <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>
-              Custom provider editing is disabled while organization allowlist policy is active.
+              {language.t("settings.providers.custom.policyLocked")}
             </div>
           </Card>
         )}
@@ -650,7 +709,7 @@ const ProvidersTab: Component = () => {
       </Show>
 
       {/* Disabled providers */}
-      <h4 style={{ "margin-top": "16px", "margin-bottom": "8px" }}>Disabled Providers</h4>
+      <h4 style={{ "margin-top": "16px", "margin-bottom": "8px" }}>{language.t("settings.providers.disabled.title")}</h4>
       <Card>
         <div
           style={{
@@ -660,7 +719,15 @@ const ProvidersTab: Component = () => {
             "border-bottom": "1px solid var(--border-weak-base)",
           }}
         >
-          Providers to hide from the provider list
+          {language.t("settings.providers.disabled.description")}
+        </div>
+        <div style={{ padding: "8px 0 0" }}>
+          <TextField
+            value={disabledFilter()}
+            placeholder={language.t("settings.providers.list.searchPlaceholder")}
+            onChange={setDisabledFilter}
+            aria-label={language.t("settings.providers.list.searchAria")}
+          />
         </div>
         <div
           class="providers-inline-add-row"
@@ -674,7 +741,7 @@ const ProvidersTab: Component = () => {
         >
           <div style={{ flex: 1 }}>
             <Select
-              options={providerOptions().filter((o) => !disabledProviders().includes(o.value))}
+              options={availableDisabledOptions()}
               current={newDisabled()}
               value={(o) => o.value}
               label={(o) => o.label}
@@ -682,10 +749,10 @@ const ProvidersTab: Component = () => {
               variant="secondary"
               size="small"
               triggerVariant="settings"
-              placeholder="Select provider…"
+              placeholder={language.t("settings.providers.list.selectPlaceholder")}
             />
           </div>
-          <Tooltip value="Add selected provider to hidden list" placement="top">
+          <Tooltip value={language.t("settings.providers.disabled.addTooltip")} placement="top">
             <Button
               size="small"
               onClick={() => {
@@ -695,7 +762,7 @@ const ProvidersTab: Component = () => {
                 }
               }}
             >
-              Add
+              {language.t("settings.providers.list.add")}
             </Button>
           </Tooltip>
         </div>
@@ -712,7 +779,7 @@ const ProvidersTab: Component = () => {
                   index() < disabledProviders().length - 1 ? "1px solid var(--border-weak-base)" : "none",
               }}
             >
-              <span style={{ "font-size": "12px" }}>{id}</span>
+              <span style={{ "font-size": "12px" }}>{providerDisplayLabel(id)}</span>
               <Tooltip value={language.t("common.delete")} placement="top">
                 <IconButton
                   size="small"
@@ -728,7 +795,7 @@ const ProvidersTab: Component = () => {
       </Card>
 
       {/* Enabled providers (allowlist) */}
-      <h4 style={{ "margin-top": "16px", "margin-bottom": "8px" }}>Enabled Providers (Allowlist)</h4>
+      <h4 style={{ "margin-top": "16px", "margin-bottom": "8px" }}>{language.t("settings.providers.enabled.title")}</h4>
       <Card>
         <div
           style={{
@@ -738,7 +805,15 @@ const ProvidersTab: Component = () => {
             "border-bottom": "1px solid var(--border-weak-base)",
           }}
         >
-          If set, only these providers will be available (exclusive allowlist)
+          {language.t("settings.providers.enabled.description")}
+        </div>
+        <div style={{ padding: "8px 0 0" }}>
+          <TextField
+            value={enabledFilter()}
+            placeholder={language.t("settings.providers.list.searchPlaceholder")}
+            onChange={setEnabledFilter}
+            aria-label={language.t("settings.providers.list.searchAria")}
+          />
         </div>
         <div
           class="providers-inline-add-row"
@@ -752,7 +827,7 @@ const ProvidersTab: Component = () => {
         >
           <div style={{ flex: 1 }}>
             <Select
-              options={providerOptions().filter((o) => !enabledProviders().includes(o.value))}
+              options={availableEnabledOptions()}
               current={newEnabled()}
               value={(o) => o.value}
               label={(o) => o.label}
@@ -760,10 +835,10 @@ const ProvidersTab: Component = () => {
               variant="secondary"
               size="small"
               triggerVariant="settings"
-              placeholder="Select provider…"
+              placeholder={language.t("settings.providers.list.selectPlaceholder")}
             />
           </div>
-          <Tooltip value="Add selected provider to allowlist" placement="top">
+          <Tooltip value={language.t("settings.providers.enabled.addTooltip")} placement="top">
             <Button
               size="small"
               onClick={() => {
@@ -773,7 +848,7 @@ const ProvidersTab: Component = () => {
                 }
               }}
             >
-              Add
+              {language.t("settings.providers.list.add")}
             </Button>
           </Tooltip>
         </div>
@@ -789,7 +864,7 @@ const ProvidersTab: Component = () => {
                 "border-bottom": index() < enabledProviders().length - 1 ? "1px solid var(--border-weak-base)" : "none",
               }}
             >
-              <span style={{ "font-size": "12px" }}>{id}</span>
+              <span style={{ "font-size": "12px" }}>{providerDisplayLabel(id)}</span>
               <Tooltip value={language.t("common.delete")} placement="top">
                 <IconButton
                   size="small"

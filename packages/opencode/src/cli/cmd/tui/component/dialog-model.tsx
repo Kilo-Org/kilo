@@ -19,6 +19,7 @@ const KILO_RECOMMENDED_MODELS = [
   "google/gemini-3-pro-preview",
   "google/gemini-3-flash-preview",
   "mistralai/devstral-2512",
+  "x-ai/grok-code-fast-1-optimized",
 ]
 // kilocode_change end
 

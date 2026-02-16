@@ -649,7 +649,7 @@ pub fn run() {
 
     #[cfg(all(target_os = "macos", not(debug_assertions)))]
     let _ = std::process::Command::new("killall")
-        .arg("opencode-cli")
+        .arg("kilo-cli")
         .output();
 
     let mut builder = tauri::Builder::default()
@@ -731,7 +731,7 @@ async fn initialize(app: AppHandle) {
 
     tracing::info!("Main and loading windows created");
 
-    let sqlite_enabled = option_env!("OPENCODE_SQLITE").is_some();
+    let sqlite_enabled = option_env!("KILO_SQLITE").is_some();
 
     let loading_task = tokio::spawn({
         let init_tx = init_tx.clone();
@@ -925,9 +925,9 @@ async fn setup_server_connection(app: AppHandle) -> ServerConnection {
 }
 
 fn get_sidecar_port() -> u32 {
-    option_env!("OPENCODE_PORT")
+    option_env!("KILO_PORT")
         .map(|s| s.to_string())
-        .or_else(|| std::env::var("OPENCODE_PORT").ok())
+        .or_else(|| std::env::var("KILO_PORT").ok())
         .and_then(|port_str| port_str.parse().ok())
         .unwrap_or_else(|| {
             TcpListener::bind("127.0.0.1:0")

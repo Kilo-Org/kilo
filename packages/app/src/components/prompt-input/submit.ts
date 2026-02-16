@@ -1,6 +1,6 @@
 import { Accessor } from "solid-js"
 import { useNavigate, useParams } from "@solidjs/router"
-import { createOpencodeClient, type Message } from "@opencode-ai/sdk/v2/client"
+import { createOpencodeClient, type Message } from "@kilocode/sdk/v2/client"
 import { showToast } from "@opencode-ai/ui/toast"
 import { base64Encode } from "@opencode-ai/util/encode"
 import { useLocal } from "@/context/local"

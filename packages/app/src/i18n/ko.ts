@@ -109,7 +109,7 @@ export const dict = {
   "dialog.model.manage": "모델 관리",
   "dialog.model.manage.description": "모델 선택기에 표시할 모델 사용자 지정",
 
-  "dialog.model.unpaid.freeModels.title": "OpenCode에서 제공하는 무료 모델",
+  "dialog.model.unpaid.freeModels.title": "Kilo에서 제공하는 무료 모델",
   "dialog.model.unpaid.addMore.title": "인기 공급자의 모델 추가",
 
   "dialog.provider.viewAll": "더 많은 공급자 보기",
@@ -122,7 +122,7 @@ export const dict = {
   "provider.connect.status.waiting": "인증 대기 중...",
   "provider.connect.status.failed": "인증 실패: {{error}}",
   "provider.connect.apiKey.description":
-    "{{provider}} API 키를 입력하여 계정을 연결하고 OpenCode에서 {{provider}} 모델을 사용하세요.",
+    "{{provider}} API 키를 입력하여 계정을 연결하고 Kilo에서 {{provider}} 모델을 사용하세요.",
   "provider.connect.apiKey.label": "{{provider}} API 키",
   "provider.connect.apiKey.placeholder": "API 키",
   "provider.connect.apiKey.required": "API 키가 필요합니다",
@@ -135,7 +135,7 @@ export const dict = {
   "provider.connect.oauth.code.visit.prefix": "",
   "provider.connect.oauth.code.visit.link": "이 링크",
   "provider.connect.oauth.code.visit.suffix":
-    "를 방문하여 인증 코드를 받아 계정을 연결하고 OpenCode에서 {{provider}} 모델을 사용하세요.",
+    "를 방문하여 인증 코드를 받아 계정을 연결하고 Kilo에서 {{provider}} 모델을 사용하세요.",
   "provider.connect.oauth.code.label": "{{method}} 인증 코드",
   "provider.connect.oauth.code.placeholder": "인증 코드",
   "provider.connect.oauth.code.required": "인증 코드가 필요합니다",
@@ -143,7 +143,7 @@ export const dict = {
   "provider.connect.oauth.auto.visit.prefix": "",
   "provider.connect.oauth.auto.visit.link": "이 링크",
   "provider.connect.oauth.auto.visit.suffix":
-    "를 방문하고 아래 코드를 입력하여 계정을 연결하고 OpenCode에서 {{provider}} 모델을 사용하세요.",
+    "를 방문하고 아래 코드를 입력하여 계정을 연결하고 Kilo에서 {{provider}} 모델을 사용하세요.",
   "provider.connect.oauth.auto.confirmationCode": "확인 코드",
   "provider.connect.toast.connected.title": "{{provider}} 연결됨",
   "provider.connect.toast.connected.description": "이제 {{provider}} 모델을 사용할 수 있습니다.",
@@ -258,7 +258,7 @@ export const dict = {
   "dialog.directory.empty": "폴더 없음",
 
   "dialog.server.title": "서버",
-  "dialog.server.description": "이 앱이 연결할 OpenCode 서버를 전환합니다.",
+  "dialog.server.description": "이 앱이 연결할 Kilo 서버를 전환합니다.",
   "dialog.server.search.placeholder": "서버 검색",
   "dialog.server.empty": "서버 없음",
   "dialog.server.add.title": "서버 추가",
@@ -366,7 +366,7 @@ export const dict = {
   "toast.session.listFailed.title": "{{project}}에 대한 세션을 로드하지 못했습니다",
 
   "toast.update.title": "업데이트 가능",
-  "toast.update.description": "OpenCode의 새 버전({{version}})을 설치할 수 있습니다.",
+  "toast.update.description": "Kilo의 새 버전({{version}})을 설치할 수 있습니다.",
   "toast.update.action.installRestart": "설치 및 다시 시작",
   "toast.update.action.notYet": "나중에",
 
@@ -377,7 +377,7 @@ export const dict = {
   "error.page.action.checking": "확인 중...",
   "error.page.action.checkUpdates": "업데이트 확인",
   "error.page.action.updateTo": "{{version}} 버전으로 업데이트",
-  "error.page.report.prefix": "이 오류를 OpenCode 팀에 제보해 주세요: ",
+  "error.page.report.prefix": "이 오류를 Kilo 팀에 제보해 주세요: ",
   "error.page.report.discord": "Discord",
   "error.page.version": "버전: {{version}}",
 
@@ -395,7 +395,7 @@ export const dict = {
   "error.chain.didYouMean": "혹시 {{suggestions}}을(를) 의미하셨나요?",
   "error.chain.modelNotFound": "모델을 찾을 수 없음: {{provider}}/{{model}}",
   "error.chain.checkConfig": "구성(opencode.json)의 공급자/모델 이름을 확인하세요",
-  "error.chain.mcpFailed": 'MCP 서버 "{{name}}" 실패. 참고: OpenCode는 아직 MCP 인증을 지원하지 않습니다.',
+  "error.chain.mcpFailed": 'MCP 서버 "{{name}}" 실패. 참고: Kilo는 아직 MCP 인증을 지원하지 않습니다.',
   "error.chain.providerAuthFailed": "공급자 인증 실패 ({{provider}}): {{message}}",
   "error.chain.providerInitFailed": '공급자 "{{provider}}" 초기화 실패. 자격 증명과 구성을 확인하세요.',
   "error.chain.configJsonInvalid": "{{path}}의 구성 파일이 유효한 JSON(C)가 아닙니다",
@@ -503,12 +503,12 @@ export const dict = {
   "sidebar.workspaces.enable": "작업 공간 활성화",
   "sidebar.workspaces.disable": "작업 공간 비활성화",
   "sidebar.gettingStarted.title": "시작하기",
-  "sidebar.gettingStarted.line1": "OpenCode에는 무료 모델이 포함되어 있어 즉시 시작할 수 있습니다.",
+  "sidebar.gettingStarted.line1": "Kilo에는 무료 모델이 포함되어 있어 즉시 시작할 수 있습니다.",
   "sidebar.gettingStarted.line2": "Claude, GPT, Gemini 등을 포함한 모델을 사용하려면 공급자를 연결하세요.",
   "sidebar.project.recentSessions": "최근 세션",
   "sidebar.project.viewAllSessions": "모든 세션 보기",
 
-  "app.name.desktop": "OpenCode Desktop",
+  "app.name.desktop": "Kilo Desktop",
   "settings.section.desktop": "데스크톱",
   "settings.section.server": "서버",
   "settings.tab.general": "일반",
@@ -520,11 +520,11 @@ export const dict = {
   "settings.general.section.sounds": "효과음",
 
   "settings.general.row.language.title": "언어",
-  "settings.general.row.language.description": "OpenCode 표시 언어 변경",
+  "settings.general.row.language.description": "Kilo 표시 언어 변경",
   "settings.general.row.appearance.title": "모양",
-  "settings.general.row.appearance.description": "기기에서 OpenCode가 보이는 방식 사용자 지정",
+  "settings.general.row.appearance.description": "기기에서 Kilo가 보이는 방식 사용자 지정",
   "settings.general.row.theme.title": "테마",
-  "settings.general.row.theme.description": "OpenCode 테마 사용자 지정",
+  "settings.general.row.theme.description": "Kilo 테마 사용자 지정",
   "settings.general.row.font.title": "글꼴",
   "settings.general.row.font.description": "코드 블록에 사용되는 고정폭 글꼴 사용자 지정",
 
@@ -532,13 +532,13 @@ export const dict = {
   "settings.general.row.releaseNotes.description": "업데이트 후 '새 소식' 팝업 표시",
 
   "settings.updates.row.startup.title": "시작 시 업데이트 확인",
-  "settings.updates.row.startup.description": "OpenCode를 실행할 때 업데이트를 자동으로 확인합니다",
+  "settings.updates.row.startup.description": "Kilo를 실행할 때 업데이트를 자동으로 확인합니다",
   "settings.updates.row.check.title": "업데이트 확인",
   "settings.updates.row.check.description": "업데이트를 수동으로 확인하고, 사용 가능하면 설치합니다",
   "settings.updates.action.checkNow": "지금 확인",
   "settings.updates.action.checking": "확인 중...",
   "settings.updates.toast.latest.title": "최신 상태입니다",
-  "settings.updates.toast.latest.description": "현재 최신 버전의 OpenCode를 사용 중입니다.",
+  "settings.updates.toast.latest.description": "현재 최신 버전의 Kilo를 사용 중입니다.",
 
   "font.option.ibmPlexMono": "IBM Plex Mono",
   "font.option.cascadiaCode": "Cascadia Code",

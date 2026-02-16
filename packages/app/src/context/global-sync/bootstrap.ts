@@ -7,7 +7,7 @@ import {
   type ProviderListResponse,
   type QuestionRequest,
   createOpencodeClient,
-} from "@opencode-ai/sdk/v2/client"
+} from "@kilocode/sdk/v2/client"
 import { batch } from "solid-js"
 import { reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import { retry } from "@opencode-ai/util/retry"

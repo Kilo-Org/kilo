@@ -5,7 +5,7 @@ use tauri_plugin_shell::{
 };
 use tokio::sync::oneshot;
 
-const CLI_INSTALL_DIR: &str = ".opencode/bin";
+const CLI_INSTALL_DIR: &str = ".kilo/bin";
 const CLI_BINARY_NAME: &str = "opencode";
 
 #[derive(serde::Deserialize)]
@@ -43,7 +43,7 @@ pub fn get_sidecar_path(app: &tauri::AppHandle) -> std::path::PathBuf {
         .expect("Failed to get current binary")
         .parent()
         .expect("Failed to get parent dir")
-        .join("opencode-cli")
+        .join("kilo-cli")
 }
 
 fn is_cli_installed() -> bool {
@@ -158,12 +158,12 @@ pub fn create_command(app: &tauri::AppHandle, args: &str) -> Command {
     #[cfg(target_os = "windows")]
     return app
         .shell()
-        .sidecar("opencode-cli")
+        .sidecar("kilo-cli")
         .unwrap()
         .args(args.split_whitespace())
-        .env("OPENCODE_EXPERIMENTAL_ICON_DISCOVERY", "true")
-        .env("OPENCODE_EXPERIMENTAL_FILEWATCHER", "true")
-        .env("OPENCODE_CLIENT", "desktop")
+        .env("KILO_EXPERIMENTAL_ICON_DISCOVERY", "true")
+        .env("KILO_EXPERIMENTAL_FILEWATCHER", "true")
+        .env("KILO_CLIENT", "desktop")
         .env("XDG_STATE_HOME", &state_dir);
 
     #[cfg(not(target_os = "windows"))]
@@ -179,9 +179,9 @@ pub fn create_command(app: &tauri::AppHandle, args: &str) -> Command {
 
         app.shell()
             .command(&shell)
-            .env("OPENCODE_EXPERIMENTAL_ICON_DISCOVERY", "true")
-            .env("OPENCODE_EXPERIMENTAL_FILEWATCHER", "true")
-            .env("OPENCODE_CLIENT", "desktop")
+            .env("KILO_EXPERIMENTAL_ICON_DISCOVERY", "true")
+            .env("KILO_EXPERIMENTAL_FILEWATCHER", "true")
+            .env("KILO_CLIENT", "desktop")
             .env("XDG_STATE_HOME", &state_dir)
             .args(["-il", "-c", &cmd])
     };
@@ -201,8 +201,8 @@ pub fn serve(
         app,
         format!("--print-logs --log-level WARN serve --hostname {hostname} --port {port}").as_str(),
     )
-    .env("OPENCODE_SERVER_USERNAME", "opencode")
-    .env("OPENCODE_SERVER_PASSWORD", password)
+    .env("KILO_SERVER_USERNAME", "opencode")
+    .env("KILO_SERVER_PASSWORD", password)
     .spawn()
     .expect("Failed to spawn opencode");
 

@@ -7,7 +7,7 @@ import {
   type QuestionRequest,
   TextPart,
   ToolPart,
-} from "@opencode-ai/sdk/v2/client"
+} from "@kilocode/sdk/v2/client"
 import { useData } from "../context"
 import { type UiI18nKey, type UiI18nParams, useI18n } from "../context/i18n"
 

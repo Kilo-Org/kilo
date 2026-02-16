@@ -71,9 +71,13 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
     return undefined
   }
 
-  function getOrganizationId(auth: any): string | undefined {
-    // OAuth stores the currently selected organization context in accountId.
-    return auth?.type === "oauth" ? auth.accountId : undefined
+  function getSelectedOrganizationId(auth: any): string | undefined {
+    if (auth?.type !== "oauth") {
+      return undefined
+    }
+    // OAuth auth can represent users that belong to multiple orgs.
+    // accountId stores the currently selected org context.
+    return typeof auth.accountId === "string" && auth.accountId.length > 0 ? auth.accountId : undefined
   }
 
   const Organization = z.object({
@@ -297,7 +301,7 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
           return c.json({ error: "No valid token found" }, 401)
         }
 
-        const organizationId = getOrganizationId(auth)
+        const organizationId = getSelectedOrganizationId(auth)
         const settings = await fetchExtensionSettings(token, organizationId)
         return c.json(settings)
       },
@@ -327,7 +331,7 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
         const token = getToken(auth)
         if (!token) return c.json([])
 
-        const organizationId = getOrganizationId(auth)
+        const organizationId = getSelectedOrganizationId(auth)
         const notifications = await fetchKilocodeNotifications({
           kilocodeToken: token,
           kilocodeOrganizationId: organizationId,

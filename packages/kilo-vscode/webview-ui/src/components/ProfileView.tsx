@@ -44,6 +44,22 @@ const getInitial = (value: string): string => {
   return trimmed.charAt(0).toUpperCase()
 }
 
+const KiloBrandLogo: Component = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 50 50"
+    width="74"
+    height="74"
+    aria-hidden="true"
+    style={{ opacity: 0.9, "margin-bottom": "2px" }}
+  >
+    <path
+      fill="var(--vscode-descriptionForeground)"
+      d="M0,0v50h50V0H0ZM46.2962963,46.2962963H3.7037037V3.7037037h42.5925926v42.5925926ZM30.5555522,35.9548042h4.6296296v3.7037037h-5.8201058l-2.5132275-2.5132275v-5.8201058h3.7037037v4.6296296ZM38.8888855,35.9548042h-3.7037037v-4.6296296h-4.6296296v-3.7037037h5.8201058l2.5132275,2.5132275v5.8201058ZM23.1481481,30.5557103h-3.7037037v-3.7037037h3.7037037v3.7037037ZM11.1111111,26.8520066h3.7037037v8.3333333h8.3333333v3.7037037h-9.5238095l-2.5132275-2.5132275v-9.5238095ZM38.8888855,19.4444444v3.7037037h-12.037037v-3.7037037h4.1390959v-4.6296296h-4.1390959v-3.7037037h5.3295721l2.5132275,2.5132275v5.8201058h4.1942374ZM14.8148148,15.2777778h4.6296296l3.7037037,3.7037037v4.1666667h-3.7037037v-4.1666667h-4.6296296v4.1666667h-3.7037037v-12.037037h3.7037037v4.1666667ZM23.1481481,15.2777778h-3.7037037v-4.1666667h3.7037037v4.1666667Z"
+    />
+  </svg>
+)
+
 const ProfileView: Component<ProfileViewProps> = (props) => {
   const vscode = useVSCode()
   const language = useLanguage()
@@ -65,7 +81,7 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
     const orgs = props.profileData?.profile.organizations ?? []
     if (orgs.length === 0) return []
     return [
-      { value: PERSONAL, label: "Personal Account" },
+      { value: PERSONAL, label: language.t("profile.account.personal") },
       ...orgs.map((org) => ({ value: org.id, label: org.name, description: org.role })),
     ]
   })
@@ -156,14 +172,6 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
         </Show>
       </div>
 
-      <div
-        style={{
-          height: "1px",
-          background: "var(--vscode-panel-border)",
-          "margin-bottom": "16px",
-        }}
-      />
-
       <Show
         when={props.profileData}
         fallback={
@@ -178,9 +186,10 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                     "align-items": "center",
                     gap: "10px",
                     "text-align": "center",
-                    padding: "12px 4px 6px",
+                    padding: "10px 4px 8px",
                   }}
                 >
+                  <KiloBrandLogo />
                   <h3
                     style={{
                       margin: 0,
@@ -330,7 +339,7 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                     margin: "0 0 8px 0",
                   }}
                 >
-                  Account
+                  {language.t("profile.account.label")}
                 </p>
                 <Select
                   options={orgOptions()}
@@ -346,7 +355,7 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
               </Card>
             </Show>
 
-            <div style={{ display: "flex", gap: "8px" }}>
+            <div style={{ display: "grid", "grid-template-columns": "repeat(auto-fit, minmax(140px, 1fr))", gap: "8px" }}>
               <Button variant="secondary" onClick={handleDashboard} style={{ flex: "1" }}>
                 {language.t("profile.action.dashboard")}
               </Button>
@@ -357,12 +366,12 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
 
             <Show when={data().currentOrgId}>
               <Button variant="secondary" onClick={handleUsageDetails} style={{ width: "100%" }}>
-                Usage Details
+                {language.t("profile.action.usageDetails")}
               </Button>
             </Show>
             <Show when={!data().currentOrgId && (data().profile.organizations?.length ?? 0) === 0}>
               <Button variant="primary" onClick={handleCreateOrganization} style={{ width: "100%" }}>
-                Create Organization
+                {language.t("profile.action.createOrganization")}
               </Button>
             </Show>
 
@@ -426,7 +435,7 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                     color: "var(--vscode-foreground)",
                   }}
                 >
-                  Buy Credits
+                  {language.t("profile.shop.title")}
                 </div>
                 <div
                   style={{
@@ -463,9 +472,9 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                               "border-radius": "999px",
                               "text-transform": "uppercase",
                               "letter-spacing": "0.4px",
-                            }}
-                          >
-                            Popular
+                          }}
+                        >
+                            {language.t("profile.shop.popular")}
                           </div>
                         </Show>
                         <div
@@ -488,7 +497,7 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                             "margin-bottom": "8px",
                           }}
                         >
-                          credits
+                          {language.t("profile.shop.credits")}
                         </div>
                         <Button
                           variant={pkg.popular ? "primary" : "secondary"}
@@ -496,7 +505,7 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                           style={{ width: "100%" }}
                           onClick={() => handleBuyCredits(pkg.credits)}
                         >
-                          Buy
+                          {language.t("profile.shop.action")}
                         </Button>
                       </div>
                     )}
@@ -504,7 +513,7 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                 </div>
                 <div style={{ display: "flex", "justify-content": "center", "margin-top": "10px" }}>
                   <Button variant="ghost" size="small" onClick={handleDashboard}>
-                    View all options
+                    {language.t("profile.shop.viewAll")}
                   </Button>
                 </div>
               </Card>

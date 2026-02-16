@@ -178,6 +178,7 @@ export interface AgentInfo {
   name: string
   description?: string
   mode: "subagent" | "primary" | "all"
+  iconName?: string
   native?: boolean
   hidden?: boolean
   color?: string
@@ -595,6 +596,11 @@ export interface ChatCompletionResultMessage {
   requestId: string
 }
 
+export interface EnhancedPromptMessage {
+  type: "enhancedPrompt"
+  text?: string
+}
+
 export interface QuestionRequestMessage {
   type: "questionRequest"
   question: QuestionRequest
@@ -769,10 +775,28 @@ export interface FollowUpSuggestion {
   mode?: string
 }
 
+export type CodeIndexSystemStatus = "Standby" | "Indexing" | "Indexed" | "Error"
+
+export interface CodeIndexStatus {
+  systemStatus: CodeIndexSystemStatus
+  processedItems: number
+  totalItems: number
+  currentItemUnit: "files"
+  indexedFiles: number
+  createdAt?: string
+  workspacePath?: string
+  message?: string
+}
+
 export interface FollowUpSuggestionsMessage {
   type: "followUpSuggestions"
   sessionID: string
   suggestions: FollowUpSuggestion[]
+}
+
+export interface CodeIndexStatusLoadedMessage {
+  type: "codeIndexStatusLoaded"
+  status: CodeIndexStatus
 }
 
 export type ExtensionMessage =
@@ -802,6 +826,7 @@ export type ExtensionMessage =
   | AgentsLoadedMessage
   | AutocompleteSettingsLoadedMessage
   | ChatCompletionResultMessage
+  | EnhancedPromptMessage
   | QuestionRequestMessage
   | QuestionResolvedMessage
   | QuestionErrorMessage
@@ -823,6 +848,7 @@ export type ExtensionMessage =
   | RulesCatalogLoadedMessage
   | SlashCommandsLoadedMessage
   | FollowUpSuggestionsMessage
+  | CodeIndexStatusLoadedMessage
 
 // ============================================
 // Messages FROM webview TO extension
@@ -976,6 +1002,12 @@ export interface ChatCompletionAcceptedMessage {
   type: "chatCompletionAccepted"
   suggestionLength?: number
 }
+
+export interface EnhancePromptRequestMessage {
+  type: "enhancePrompt"
+  text?: string
+}
+
 export interface UpdateSettingRequest {
   type: "updateSetting"
   key: string
@@ -994,8 +1026,20 @@ export interface RequestSlashCommandsMessage {
   type: "requestSlashCommands"
 }
 
+export interface RequestCodeIndexStatusMessage {
+  type: "requestCodeIndexStatus"
+}
+
 export interface RebuildCodeIndexRequest {
   type: "rebuildCodeIndex"
+}
+
+export interface ClearCodeIndexRequest {
+  type: "clearCodeIndex"
+}
+
+export interface RunSemanticSearchRequest {
+  type: "runSemanticSearch"
 }
 
 export interface UpdateConfigMessage {
@@ -1283,11 +1327,15 @@ export type WebviewMessage =
   | UpdateAutocompleteSettingMessage
   | RequestChatCompletionMessage
   | ChatCompletionAcceptedMessage
+  | EnhancePromptRequestMessage
   | UpdateSettingRequest
   | RequestBrowserSettingsMessage
   | RequestConfigMessage
   | RequestSlashCommandsMessage
+  | RequestCodeIndexStatusMessage
   | RebuildCodeIndexRequest
+  | ClearCodeIndexRequest
+  | RunSemanticSearchRequest
   | UpdateConfigMessage
   | RequestMcpStatusMessage
   | RequestSettingsUiStateMessage

@@ -13,7 +13,12 @@ import { KiloCodeActionProvider, KILO_CODE_ACTION_COMMANDS } from "./services/co
 import { BrowserAutomationService } from "./services/browser-automation"
 import { AutoPurgeService } from "./services/auto-purge"
 import { initializeSettingsSync, readSettingsSyncDiagnostics } from "./services/settings-sync"
-import { WorkspaceSearchService, SimpleCodeIndexService, type SearchMatch } from "./services/search/workspace-search"
+import {
+  WorkspaceSearchService,
+  SimpleCodeIndexService,
+  type SearchMatch,
+  type CodeIndexStatus,
+} from "./services/search/workspace-search"
 import {
   ContributionTracker,
   resolveContributionFilePath,
@@ -176,6 +181,12 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand("kilo-code.new.rebuildCodeIndex", () => {
       return rebuildCodeIndex(codeIndexService)
+    }),
+    vscode.commands.registerCommand("kilo-code.new.clearCodeIndex", () => {
+      return clearCodeIndex(codeIndexService)
+    }),
+    vscode.commands.registerCommand("kilo-code.new.getCodeIndexStatus", () => {
+      return getCodeIndexStatus(codeIndexService)
     }),
     vscode.commands.registerCommand("kilo-code.new.integration.openGitHubRepo", () => {
       return openGitHubRepository()
@@ -1065,13 +1076,18 @@ async function runCodeActionPrompt(
   provider.postMessage({ type: "prefillPrompt", text: prompt })
 }
 
-function getWorkspaceDirOrWarn(): string | null {
+function getWorkspaceDir(): string | null {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
-  if (!workspaceFolder) {
-    void vscode.window.showWarningMessage("Open a workspace folder first.")
-    return null
+  return workspaceFolder?.uri.fsPath ?? null
+}
+
+function getWorkspaceDirOrWarn(): string | null {
+  const workspaceDir = getWorkspaceDir()
+  if (workspaceDir) {
+    return workspaceDir
   }
-  return workspaceFolder.uri.fsPath
+  void vscode.window.showWarningMessage("Open a workspace folder first.")
+  return null
 }
 
 interface SearchQuickPickItem extends vscode.QuickPickItem {
@@ -1214,6 +1230,30 @@ async function rebuildCodeIndex(index: SimpleCodeIndexService): Promise<void> {
   } catch (error) {
     void vscode.window.showErrorMessage(`Failed to rebuild code index: ${error instanceof Error ? error.message : String(error)}`)
   }
+}
+
+async function clearCodeIndex(index: SimpleCodeIndexService): Promise<void> {
+  const workspaceDir = getWorkspaceDirOrWarn()
+  if (!workspaceDir) {
+    return
+  }
+  index.clear(workspaceDir)
+  void vscode.window.showInformationMessage("Code index cleared.")
+}
+
+function getCodeIndexStatus(index: SimpleCodeIndexService): CodeIndexStatus {
+  const workspaceDir = getWorkspaceDir()
+  if (!workspaceDir) {
+    return {
+      systemStatus: "Standby",
+      processedItems: 0,
+      totalItems: 0,
+      currentItemUnit: "files",
+      indexedFiles: 0,
+      message: "Open a workspace folder to build an index.",
+    }
+  }
+  return index.getStatus(workspaceDir)
 }
 
 function normalizeGitRemoteUrl(url: string): string {

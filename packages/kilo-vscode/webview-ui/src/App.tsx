@@ -250,12 +250,12 @@ const AppContent: Component = () => {
           </Switch>
         </Match>
         <Match when={currentView() === "marketplace"}>
-          <MarketplaceView initialTab={marketplaceTab()} />
+          <MarketplaceView initialTab={marketplaceTab()} onBack={() => setCurrentView("newTask")} />
         </Match>
         <Match when={currentView() === "history"}>
           <Switch fallback={<LoadingPanel message={language.t("connection.state.connecting")} />}>
             <Match when={server.connectionState() === "connected"}>
-              <SessionList onSelectSession={handleSelectSession} />
+              <SessionList onSelectSession={handleSelectSession} onBack={() => setCurrentView("newTask")} />
             </Match>
             <Match when={server.connectionState() === "connecting"}>
               <LoadingPanel message={language.t("connection.state.connecting")} />

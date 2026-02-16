@@ -177,6 +177,19 @@ export interface IndexSnapshot {
   files: IndexedFileEntry[]
 }
 
+export type CodeIndexSystemStatus = "Standby" | "Indexing" | "Indexed" | "Error"
+
+export interface CodeIndexStatus {
+  systemStatus: CodeIndexSystemStatus
+  processedItems: number
+  totalItems: number
+  currentItemUnit: "files"
+  indexedFiles: number
+  createdAt?: string
+  workspacePath?: string
+  message?: string
+}
+
 function tokenizePath(filePath: string): string[] {
   const normalized = filePath.toLowerCase()
   const base = path.basename(normalized)
@@ -193,33 +206,132 @@ function tokenizePath(filePath: string): string[] {
 
 export class SimpleCodeIndexService {
   private snapshot: IndexSnapshot | null = null
+  private status: CodeIndexStatus = {
+    systemStatus: "Standby",
+    processedItems: 0,
+    totalItems: 0,
+    currentItemUnit: "files",
+    indexedFiles: 0,
+  }
+  private inFlightRebuild: Promise<IndexSnapshot> | null = null
 
   async rebuild(workspaceDir: string): Promise<IndexSnapshot> {
-    const { stdout } = await execFile("rg", ["--files", "--hidden", "-g", "!.git"], {
-      cwd: workspaceDir,
-      env: process.env,
-      maxBuffer: 16 * 1024 * 1024,
-    })
-    const files = stdout
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .slice(0, 50_000)
-      .map((file) => ({
-        file,
-        tokens: tokenizePath(file),
-      }))
-
-    this.snapshot = {
-      createdAt: new Date().toISOString(),
-      workspace: workspaceDir,
-      files,
+    if (this.inFlightRebuild) {
+      return this.inFlightRebuild
     }
-    return this.snapshot
+
+    this.status = {
+      systemStatus: "Indexing",
+      processedItems: 0,
+      totalItems: 0,
+      currentItemUnit: "files",
+      indexedFiles: 0,
+      workspacePath: workspaceDir,
+      message: undefined,
+    }
+
+    const rebuildPromise = (async () => {
+      try {
+        const { stdout } = await execFile("rg", ["--files", "--hidden", "-g", "!.git"], {
+          cwd: workspaceDir,
+          env: process.env,
+          maxBuffer: 16 * 1024 * 1024,
+        })
+        const files = stdout
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0)
+          .slice(0, 50_000)
+          .map((file) => ({
+            file,
+            tokens: tokenizePath(file),
+          }))
+
+        this.snapshot = {
+          createdAt: new Date().toISOString(),
+          workspace: workspaceDir,
+          files,
+        }
+
+        this.status = {
+          systemStatus: "Indexed",
+          processedItems: files.length,
+          totalItems: files.length,
+          currentItemUnit: "files",
+          indexedFiles: files.length,
+          createdAt: this.snapshot.createdAt,
+          workspacePath: workspaceDir,
+          message: undefined,
+        }
+
+        return this.snapshot
+      } catch (error) {
+        this.status = {
+          systemStatus: "Error",
+          processedItems: 0,
+          totalItems: 0,
+          currentItemUnit: "files",
+          indexedFiles: 0,
+          workspacePath: workspaceDir,
+          message: error instanceof Error ? error.message : String(error),
+        }
+        throw error
+      } finally {
+        this.inFlightRebuild = null
+      }
+    })()
+
+    this.inFlightRebuild = rebuildPromise
+    return rebuildPromise
   }
 
   getSnapshot(): IndexSnapshot | null {
     return this.snapshot
+  }
+
+  clear(workspaceDir?: string): void {
+    if (!workspaceDir || this.snapshot?.workspace === workspaceDir) {
+      this.snapshot = null
+      this.status = {
+        systemStatus: "Standby",
+        processedItems: 0,
+        totalItems: 0,
+        currentItemUnit: "files",
+        indexedFiles: 0,
+        workspacePath: workspaceDir,
+      }
+    }
+  }
+
+  getStatus(workspaceDir?: string): CodeIndexStatus {
+    if (this.inFlightRebuild) {
+      return { ...this.status, systemStatus: "Indexing", workspacePath: workspaceDir ?? this.status.workspacePath }
+    }
+
+    if (!workspaceDir) {
+      return { ...this.status }
+    }
+
+    if (!this.snapshot || this.snapshot.workspace !== workspaceDir) {
+      return {
+        systemStatus: "Standby",
+        processedItems: 0,
+        totalItems: 0,
+        currentItemUnit: "files",
+        indexedFiles: 0,
+        workspacePath: workspaceDir,
+      }
+    }
+
+    return {
+      systemStatus: "Indexed",
+      processedItems: this.snapshot.files.length,
+      totalItems: this.snapshot.files.length,
+      currentItemUnit: "files",
+      indexedFiles: this.snapshot.files.length,
+      createdAt: this.snapshot.createdAt,
+      workspacePath: workspaceDir,
+    }
   }
 
   async search(query: string, workspaceDir: string, maxResults = 50): Promise<Array<{ file: string; score: number }>> {

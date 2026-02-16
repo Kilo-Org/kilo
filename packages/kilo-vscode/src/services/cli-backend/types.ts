@@ -144,6 +144,7 @@ export interface AgentInfo {
   name: string
   description?: string
   mode: "subagent" | "primary" | "all"
+  iconName?: string
   native?: boolean
   hidden?: boolean
   color?: string

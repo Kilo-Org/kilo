@@ -36,6 +36,7 @@ export class HttpClient {
   private readonly baseUrl: string
   private readonly authHeader: string
   private readonly authUsername: string
+  private remoteSessionsUnavailableReason: string | null = null
 
   constructor(config: ServerConfig) {
     this.baseUrl = config.baseUrl
@@ -181,6 +182,26 @@ export class HttpClient {
 
   private looksLikeHtml(value: string): boolean {
     return /^\s*<!doctype\s+html/i.test(value) || /^\s*<html[\s>]/i.test(value)
+  }
+
+  private isHtmlResponseErrorMessage(message: string): boolean {
+    return (
+      message.includes("returned HTML instead of JSON") ||
+      message.includes("Unexpected HTML response from CLI backend")
+    )
+  }
+
+  private async diagnoseKiloRouteAvailability(): Promise<string> {
+    try {
+      await this.request<unknown>("GET", "/kilo/profile")
+      return "Cloud remote sessions endpoint is unavailable on this CLI backend build (but /kilo/profile exists). Update the bundled CLI to a build with /kilo/remote-sessions support."
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (this.isHtmlResponseErrorMessage(message)) {
+        return "CLI backend is serving HTML for /kilo/* routes. This usually means the running CLI build does not include Kilo Gateway API routes (or requests are hitting the web proxy fallback). Rebuild/update the bundled CLI binary."
+      }
+      return "Cloud remote sessions are currently unavailable."
+    }
   }
 
   private makeTimeoutErrorMessage(prefix: string, phase: "connect" | "request", timeoutMs: number): string {
@@ -503,11 +524,34 @@ export class HttpClient {
    * List cloud-synced remote sessions for Agent Manager.
    */
   async listRemoteSessions(limit = 50): Promise<RemoteSessionInfo[]> {
+    if (this.remoteSessionsUnavailableReason) {
+      logger.debug("[Kilo New] HTTP: remote sessions disabled", {
+        reason: this.remoteSessionsUnavailableReason,
+      })
+      return []
+    }
+
     const encodedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(100, Math.floor(limit))) : 50
-    const response = await this.request<{ sessions?: Array<Record<string, unknown>> }>(
-      "GET",
-      `/kilo/remote-sessions?limit=${encodedLimit}`,
-    )
+    let response: { sessions?: Array<Record<string, unknown>> }
+    try {
+      response = await this.request<{ sessions?: Array<Record<string, unknown>> }>(
+        "GET",
+        `/kilo/remote-sessions?limit=${encodedLimit}`,
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!this.isHtmlResponseErrorMessage(message)) {
+        throw error
+      }
+
+      const reason = await this.diagnoseKiloRouteAvailability()
+      this.remoteSessionsUnavailableReason = reason
+      logger.warn("[Kilo New] HTTP: cloud remote sessions unavailable", {
+        reason,
+      })
+      return []
+    }
+
     const raw = Array.isArray(response.sessions) ? response.sessions : []
     return raw.map((session) => ({
       sessionID: typeof session.session_id === "string" ? session.session_id : "",

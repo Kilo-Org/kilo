@@ -2,8 +2,10 @@ import { Component, For, Show, createEffect, createMemo, createSignal, onMount }
 import { createStore, produce } from "solid-js/store"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Card } from "@kilocode/kilo-ui/card"
+import { Icon } from "@kilocode/kilo-ui/icon"
 import { useVSCode } from "../context/vscode"
 import { useServer } from "../context/server"
+import { useLanguage } from "../context/language"
 import type {
   ExtensionMessage,
   MarketplaceInstalledMetadata,
@@ -11,11 +13,7 @@ import type {
   MarketplaceItemType,
 } from "../types/messages"
 
-const TABS: Array<{ type: MarketplaceItemType; label: string }> = [
-  { type: "mcp", label: "MCP" },
-  { type: "mode", label: "Modes" },
-  { type: "skill", label: "Skills" },
-]
+const TABS: readonly MarketplaceItemType[] = ["mcp", "mode", "skill"]
 
 const emptyInstalled: MarketplaceInstalledMetadata = { project: {}, global: {} }
 
@@ -49,9 +47,10 @@ const itemFilterTags = (item: MarketplaceItem): string[] => {
   return Array.from(new Set(tags.filter((tag) => typeof tag === "string" && tag.trim().length > 0)))
 }
 
-const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props) => {
+const MarketplaceView: Component<{ initialTab?: MarketplaceItemType; onBack?: () => void }> = (props) => {
   const vscode = useVSCode()
   const server = useServer()
+  const language = useLanguage()
 
   const [activeTab, setActiveTab] = createSignal<MarketplaceItemType>("mcp")
   const [items, setItems] = createSignal<MarketplaceItem[]>([])
@@ -74,6 +73,7 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
     }
     return profile.profile.organizations.find((org) => org.id === currentOrgId)?.name ?? null
   })
+  const currentOrganizationLabel = createMemo(() => currentOrganizationName() ?? "")
 
   let syncedInitialTab: MarketplaceItemType | undefined
   createEffect(() => {
@@ -118,9 +118,18 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
         }
 
         if (!message.success) {
-          setStatusMessage(message.error || `Failed to ${message.action} marketplace item`)
+          setStatusMessage(
+            message.error ||
+              language.t("marketplace.status.actionFailed", {
+                action: message.action,
+              }),
+          )
         } else {
-          setStatusMessage(`Marketplace ${message.action} succeeded`)
+          setStatusMessage(
+            language.t("marketplace.status.actionSucceeded", {
+              action: message.action,
+            }),
+          )
           requestData()
         }
       }
@@ -221,20 +230,21 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
     setSortBy("name")
   }
 
-  const activeTabLabel = createMemo(() => TABS.find((tab) => tab.type === activeTab())?.label ?? "Marketplace")
+  const tabLabel = (type: MarketplaceItemType) => language.t(`marketplace.tab.${type}`)
+  const activeTabLabel = createMemo(() => tabLabel(activeTab()))
   const activeTabIndex = createMemo(() => {
-    const index = TABS.findIndex((tab) => tab.type === activeTab())
+    const index = TABS.findIndex((tab) => tab === activeTab())
     return index >= 0 ? index : 0
   })
 
   const tabDescription = createMemo(() => {
     if (activeTab() === "mcp") {
-      return "Browse MCP servers for tools, integrations, and workflows."
+      return language.t("marketplace.description.mcp")
     }
     if (activeTab() === "mode") {
-      return "Browse reusable agent modes and install them in one click."
+      return language.t("marketplace.description.mode")
     }
-    return "Browse shared skills and install them locally or globally."
+    return language.t("marketplace.description.skill")
   })
 
   const validateParameters = (item: MarketplaceItem): string[] => {
@@ -264,7 +274,11 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
 
     const missingRequired = validateParameters(item)
     if (missingRequired.length > 0) {
-      setStatusMessage(`Missing required fields: ${missingRequired.join(", ")}`)
+      setStatusMessage(
+        language.t("marketplace.status.missingRequired", {
+          fields: missingRequired.join(", "),
+        }),
+      )
       return
     }
 
@@ -282,9 +296,17 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
   }
 
   const handleRemove = (item: MarketplaceItem, target: "project" | "global") => {
-    const subject = item.type === "mode" ? "mode" : item.type === "mcp" ? "MCP server" : "skill"
+    const subject = language.t(`marketplace.itemType.${item.type}`)
     const label = toItemLabel(item)
-    const confirmed = window.confirm(`Remove ${subject} "${label}" from ${target}?`)
+    const targetLabel =
+      target === "project" ? language.t("marketplace.target.project") : language.t("marketplace.target.global")
+    const confirmed = window.confirm(
+      language.t("marketplace.confirm.remove", {
+        subject,
+        label,
+        target: targetLabel,
+      }),
+    )
     if (!confirmed) {
       return
     }
@@ -399,13 +421,24 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
                 {item.type}
               </span>
               <Show when={item.author}>
-                <span style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
-                  by {item.author}
+                <span
+                  style={{
+                    "font-size": "11px",
+                    color: "var(--vscode-descriptionForeground)",
+                    "max-width": "100%",
+                    overflow: "hidden",
+                    "text-overflow": "ellipsis",
+                    "white-space": "nowrap",
+                  }}
+                >
+                  {language.t("marketplace.card.byAuthor", { author: item.author ?? "" })}
                 </span>
               </Show>
             </div>
-            <div style={{ "font-size": "14px", "font-weight": 600 }}>{displayName}</div>
-            <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>{item.description}</div>
+            <div style={{ "font-size": "14px", "font-weight": 600, "word-break": "break-word" }}>{displayName}</div>
+            <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)", "word-break": "break-word" }}>
+              {item.description}
+            </div>
             <Show when={item.authorUrl && item.type === "mode"}>
               <button
                 type="button"
@@ -421,7 +454,7 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
                   width: "fit-content",
                 }}
               >
-                View author profile
+                {language.t("marketplace.card.viewAuthor")}
               </button>
             </Show>
             <div style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
@@ -450,7 +483,7 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
                     color: "var(--vscode-terminal-ansiGreen, #4ec9b0)",
                   }}
                 >
-                  Project installed
+                  {language.t("marketplace.card.installed.project")}
                 </span>
               </Show>
               <Show when={globalInstalled}>
@@ -464,7 +497,7 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
                     color: "var(--vscode-terminal-ansiGreen, #4ec9b0)",
                   }}
                 >
-                  Global installed
+                  {language.t("marketplace.card.installed.global")}
                 </span>
               </Show>
               <Show when={managedByOrganization}>
@@ -478,14 +511,16 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
                     color: "var(--vscode-descriptionForeground)",
                   }}
                 >
-                  {currentOrganizationName() ? `Managed by ${currentOrganizationName()}` : "Organization managed"}
+                  {currentOrganizationLabel()
+                    ? language.t("marketplace.card.managedBy.organizationNamed", { organization: currentOrganizationLabel() })
+                    : language.t("marketplace.card.managedBy.organization")}
                 </span>
               </Show>
             </div>
           </div>
           <Show when={!!getItemLink(item)}>
             <Button size="small" variant="ghost" onClick={() => openItemLink(item)}>
-              Details
+              {language.t("marketplace.card.details")}
             </Button>
           </Show>
         </div>
@@ -523,7 +558,9 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
 
         <Show when={prerequisites.length > 0}>
           <div style={{ display: "grid", gap: "4px" }}>
-            <span style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>Prerequisites</span>
+            <span style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
+              {language.t("marketplace.card.prerequisites")}
+            </span>
             <ul style={{ margin: 0, padding: "0 0 0 16px", "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>
               <For each={prerequisites}>{(prerequisite) => <li>{prerequisite}</li>}</For>
             </ul>
@@ -532,7 +569,9 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
 
         <Show when={item.type === "mcp" && Array.isArray(item.content) && item.content.length > 0}>
           <label style={{ display: "flex", "flex-direction": "column", gap: "4px", "font-size": "12px" }}>
-            <span style={{ color: "var(--vscode-descriptionForeground)" }}>Installation method</span>
+            <span style={{ color: "var(--vscode-descriptionForeground)" }}>
+              {language.t("marketplace.card.installationMethod")}
+            </span>
             <select
               value={String(selectedMethodByItem[item.id] ?? 0)}
               onChange={(event) => {
@@ -591,9 +630,9 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
           when={!managedByOrganization}
           fallback={
             <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>
-              {currentOrganizationName()
-                ? `This item is managed by ${currentOrganizationName()}.`
-                : "This item is managed by your organization."}
+              {currentOrganizationLabel()
+                ? language.t("marketplace.card.managedNotice.named", { organization: currentOrganizationLabel() })
+                : language.t("marketplace.card.managedNotice.default")}
             </div>
           }
         >
@@ -605,12 +644,12 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
               disabled={isActionPending(item, "project") || isActionPending(item, "global")}
             >
               {projectActionState() === "installing"
-                ? "Installing..."
+                ? language.t("marketplace.action.installing")
                 : projectActionState() === "removing"
-                  ? "Removing..."
+                  ? language.t("marketplace.action.removing")
                   : projectInstalled
-                    ? "Remove Project"
-                    : "Install Project"}
+                    ? language.t("marketplace.action.removeProject")
+                    : language.t("marketplace.action.installProject")}
             </Button>
             <Button
               size="small"
@@ -619,12 +658,12 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
               disabled={isActionPending(item, "project") || isActionPending(item, "global")}
             >
               {globalActionState() === "installing"
-                ? "Installing..."
+                ? language.t("marketplace.action.installing")
                 : globalActionState() === "removing"
-                  ? "Removing..."
+                  ? language.t("marketplace.action.removing")
                   : globalInstalled
-                    ? "Remove Global"
-                    : "Install Global"}
+                    ? language.t("marketplace.action.removeGlobal")
+                    : language.t("marketplace.action.installGlobal")}
             </Button>
           </div>
         </Show>
@@ -644,13 +683,44 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
           "border-bottom": "1px solid var(--vscode-panel-border)",
         }}
       >
-        <div style={{ display: "grid", gap: "2px" }}>
-          <div style={{ "font-size": "16px", "font-weight": 600 }}>Marketplace</div>
+        <div style={{ display: "grid", gap: "8px" }}>
+          <div style={{ display: "flex", "align-items": "center", "justify-content": "space-between", gap: "8px" }}>
+            <div style={{ display: "inline-flex", "align-items": "center", gap: "6px", "min-width": "0" }}>
+              <Show when={props.onBack}>
+                <Button
+                  size="small"
+                  variant="ghost"
+                  onClick={() => props.onBack?.()}
+                  aria-label={language.t("common.goBack")}
+                  title={language.t("common.goBack")}
+                  style={{ "min-width": "26px", margin: "-2px 0 -2px -6px" }}
+                >
+                  <Icon name="arrow-left" />
+                </Button>
+              </Show>
+              <div style={{ "font-size": "16px", "font-weight": 600, "line-height": 1.25 }}>
+                {language.t("marketplace.title")}
+              </div>
+            </div>
+            <Show when={loading()}>
+              <span style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
+                {language.t("marketplace.loading.short")}
+              </span>
+            </Show>
+          </div>
           <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>{tabDescription()}</div>
         </div>
 
         <div style={{ display: "grid", gap: "6px" }}>
-          <div style={{ display: "flex", gap: "8px", "align-items": "center", "justify-content": "space-between" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              "align-items": "center",
+              "justify-content": "space-between",
+              "flex-wrap": "wrap",
+            }}
+          >
             <div
               style={{
                 position: "relative",
@@ -658,6 +728,8 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
                 "align-items": "center",
                 gap: "0",
                 "padding-bottom": "1px",
+                "max-width": "100%",
+                "overflow-x": "auto",
               }}
             >
               <div
@@ -686,33 +758,31 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
                   <button
                     type="button"
                     onClick={() => {
-                      setActiveTab(tab.type)
+                      setActiveTab(tab)
                       setSelectedTags([])
                     }}
-                    aria-label={tab.label}
+                    aria-label={tabLabel(tab)}
                     style={{
                       border: "none",
                       background: "transparent",
                       color:
-                        activeTab() === tab.type ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)",
+                        activeTab() === tab ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)",
                       "font-size": "13px",
-                      "font-weight": activeTab() === tab.type ? "600" : "500",
+                      "font-weight": activeTab() === tab ? "600" : "500",
                       "font-family": "var(--vscode-font-family)",
                       padding: "8px 14px",
                       cursor: "pointer",
                       position: "relative",
                       "z-index": "1",
                       transition: "color 120ms ease",
+                      "white-space": "nowrap",
                     }}
                   >
-                    {tab.label}
+                    {tabLabel(tab)}
                   </button>
                 )}
               </For>
             </div>
-            <Show when={loading()}>
-              <span style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>Loading...</span>
-            </Show>
           </div>
         </div>
       </div>
@@ -729,14 +799,17 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
         }}
       >
         <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
-          {activeTabLabel()} results: {organizationManagedItems().length + catalogItems().length}
+          {language.t("marketplace.results", {
+            tab: activeTabLabel(),
+            count: organizationManagedItems().length + catalogItems().length,
+          })}
         </div>
 
         <input
           value={search()}
           onInput={(event) => setSearch(event.currentTarget.value)}
-          placeholder={`Search ${activeTab()} marketplace...`}
-          aria-label={`Search ${activeTab()} marketplace`}
+          placeholder={language.t("marketplace.search.placeholder", { tab: activeTabLabel() })}
+          aria-label={language.t("marketplace.search.aria", { tab: activeTabLabel() })}
           style={{
             width: "100%",
             padding: "8px 10px",
@@ -748,9 +821,9 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
           }}
         />
 
-        <div style={{ display: "grid", gap: "8px", "grid-template-columns": "1fr 1fr" }}>
+        <div style={{ display: "grid", gap: "8px", "grid-template-columns": "repeat(auto-fit, minmax(170px, 1fr))" }}>
           <label style={{ display: "flex", "flex-direction": "column", gap: "4px", "font-size": "12px" }}>
-            <span style={{ color: "var(--vscode-descriptionForeground)" }}>Install filter</span>
+            <span style={{ color: "var(--vscode-descriptionForeground)" }}>{language.t("marketplace.filter.install")}</span>
             <select
               value={installFilter()}
               onChange={(event) => setInstallFilter(event.currentTarget.value as InstallFilter)}
@@ -763,14 +836,14 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
                 color: "var(--vscode-input-foreground)",
               }}
             >
-              <option value="all">All items</option>
-              <option value="installed">Installed</option>
-              <option value="not_installed">Not installed</option>
+              <option value="all">{language.t("marketplace.filter.install.all")}</option>
+              <option value="installed">{language.t("marketplace.filter.install.installed")}</option>
+              <option value="not_installed">{language.t("marketplace.filter.install.notInstalled")}</option>
             </select>
           </label>
 
           <label style={{ display: "flex", "flex-direction": "column", gap: "4px", "font-size": "12px" }}>
-            <span style={{ color: "var(--vscode-descriptionForeground)" }}>Sort</span>
+            <span style={{ color: "var(--vscode-descriptionForeground)" }}>{language.t("marketplace.filter.sort")}</span>
             <select
               value={sortBy()}
               onChange={(event) => setSortBy(event.currentTarget.value as SortBy)}
@@ -783,8 +856,8 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
                 color: "var(--vscode-input-foreground)",
               }}
             >
-              <option value="name">Name</option>
-              <option value="installed">Installed first</option>
+              <option value="name">{language.t("marketplace.filter.sort.name")}</option>
+              <option value="installed">{language.t("marketplace.filter.sort.installedFirst")}</option>
             </select>
           </label>
         </div>
@@ -806,11 +879,11 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
           >
             <span>
               {activeTab() === "mcp"
-                ? "Need advanced MCP management? Open Settings and go to Agent Behaviour."
-                : "Installed modes can be managed from Settings."}
+                ? language.t("marketplace.notice.mcp")
+                : language.t("marketplace.notice.mode")}
             </span>
             <Button size="small" variant="ghost" onClick={openSettings}>
-              Open Settings
+              {language.t("marketplace.notice.openSettings")}
             </Button>
           </div>
         </Show>
@@ -851,7 +924,7 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
             }}
           >
             <div style={{ "font-size": "24px", opacity: 0.7 }}>↻</div>
-            Loading marketplace catalog...
+            {language.t("marketplace.loading.catalog")}
           </div>
         </Show>
 
@@ -871,11 +944,11 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
           }}
         >
           <div style={{ "font-size": "22px", opacity: 0.7 }}>☰</div>
-          <div>No {activeTab()} items available for the current filters.</div>
+          <div>{language.t("marketplace.empty.filtered", { tab: activeTabLabel() })}</div>
           <Show when={hasActiveFilters()}>
             <div>
               <Button size="small" variant="secondary" onClick={resetFilters}>
-                Clear filters
+                {language.t("marketplace.filter.clear")}
               </Button>
             </div>
           </Show>
@@ -896,7 +969,9 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
                 "white-space": "nowrap",
               }}
             >
-              {currentOrganizationName() ? `${currentOrganizationName()} managed MCPs` : "Organization managed MCPs"}
+              {currentOrganizationLabel()
+                ? language.t("marketplace.section.organizationManaged.named", { organization: currentOrganizationLabel() })
+                : language.t("marketplace.section.organizationManaged.default")}
             </div>
             <div style={{ height: "1px", background: "var(--vscode-panel-border)", flex: 1 }} />
           </div>
@@ -921,7 +996,7 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
                   "white-space": "nowrap",
                 }}
               >
-                Marketplace catalog
+                {language.t("marketplace.section.catalog")}
               </div>
               <div style={{ height: "1px", background: "var(--vscode-panel-border)", flex: 1 }} />
             </div>
@@ -933,7 +1008,7 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
       </Show>
 
         <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)", padding: "8px 0 2px" }}>
-          Spot a Marketplace issue?{" "}
+          {language.t("marketplace.footer.issuePrompt")}{" "}
           <button
             type="button"
             onClick={() =>
@@ -951,7 +1026,7 @@ const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props)
               "text-decoration": "underline",
             }}
           >
-            Open issue template
+            {language.t("marketplace.footer.issueAction")}
           </button>
         </div>
       </div>

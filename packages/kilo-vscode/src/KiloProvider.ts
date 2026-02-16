@@ -21,6 +21,7 @@ import {
 } from "./services/cli-backend"
 import { handleChatCompletionRequest } from "./services/autocomplete/chat-autocomplete/handleChatCompletionRequest"
 import { handleChatCompletionAccepted } from "./services/autocomplete/chat-autocomplete/handleChatCompletionAccepted"
+import { handleEnhancePromptRequest } from "./services/prompt-enhancement/handleEnhancePromptRequest"
 import { readSettingsActiveTab, writeLastProviderAuth, writeSettingsActiveTab } from "./services/settings-sync"
 import { logger } from "./utils/logger"
 import { parseAllowedOpenExternalUrl } from "./utils/open-external"
@@ -125,6 +126,17 @@ const extensionSettingsEnvelopeSchema = z
   })
   .passthrough()
 
+const codeIndexStatusSchema = z.object({
+  systemStatus: z.enum(["Standby", "Indexing", "Indexed", "Error"]),
+  processedItems: z.number(),
+  totalItems: z.number(),
+  currentItemUnit: z.literal("files"),
+  indexedFiles: z.number(),
+  createdAt: z.string().optional(),
+  workspacePath: z.string().optional(),
+  message: z.string().optional(),
+})
+
 interface FollowUpSuggestion {
   id: string
   text: string
@@ -132,7 +144,7 @@ interface FollowUpSuggestion {
 }
 
 export class KiloProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = "kilocode.kilo-code.sidebarView.main"
+  public static readonly viewType = "kilo-code-new-sidebarView-main"
   private static readonly notificationTimestamps = new Map<string, number>()
 
   private webview: vscode.Webview | null = null
@@ -596,8 +608,27 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         case "requestSlashCommands":
           await this.handleRequestSlashCommands()
           break
+        case "requestCodeIndexStatus":
+          await this.handleRequestCodeIndexStatus()
+          break
         case "rebuildCodeIndex":
+          this.postCodeIndexStatus({
+            systemStatus: "Indexing",
+            processedItems: 0,
+            totalItems: 0,
+            currentItemUnit: "files",
+            indexedFiles: 0,
+            workspacePath: this.getWorkspaceDirectory(),
+          })
           await vscode.commands.executeCommand("kilo-code.new.rebuildCodeIndex")
+          await this.handleRequestCodeIndexStatus()
+          break
+        case "clearCodeIndex":
+          await vscode.commands.executeCommand("kilo-code.new.clearCodeIndex")
+          await this.handleRequestCodeIndexStatus()
+          break
+        case "runSemanticSearch":
+          await vscode.commands.executeCommand("kilo-code.new.semanticSearch")
           break
         case "requestMcpStatus":
           await this.fetchAndSendMcpStatus()
@@ -646,6 +677,13 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         case "requestChatCompletion":
           void handleChatCompletionRequest(
             { type: "requestChatCompletion", text: message.text, requestId: message.requestId },
+            { postMessage: (msg) => this.postMessage(msg) },
+            this.connectionService,
+          )
+          break
+        case "enhancePrompt":
+          void handleEnhancePromptRequest(
+            { type: "enhancePrompt", text: message.text },
             { postMessage: (msg) => this.postMessage(msg) },
             this.connectionService,
           )
@@ -2507,6 +2545,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           name: a.name,
           description: a.description,
           mode: a.mode,
+          iconName: a.iconName,
           native: a.native,
           color: a.color,
         })),
@@ -2572,6 +2611,45 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         type: "slashCommandsLoaded",
         commands: [],
         error: error instanceof Error ? error.message : "Failed to fetch slash commands",
+      })
+    }
+  }
+
+  private postCodeIndexStatus(status: z.infer<typeof codeIndexStatusSchema>): void {
+    this.postMessage({
+      type: "codeIndexStatusLoaded",
+      status,
+    })
+  }
+
+  private async handleRequestCodeIndexStatus(): Promise<void> {
+    try {
+      const rawStatus = await vscode.commands.executeCommand("kilo-code.new.getCodeIndexStatus")
+      const parsed = codeIndexStatusSchema.safeParse(rawStatus)
+      if (!parsed.success) {
+        logger.warn("[Kilo New] KiloProvider: Invalid code index status payload")
+        this.postCodeIndexStatus({
+          systemStatus: "Standby",
+          processedItems: 0,
+          totalItems: 0,
+          currentItemUnit: "files",
+          indexedFiles: 0,
+          message: "Code index status unavailable",
+          workspacePath: this.getWorkspaceDirectory(),
+        })
+        return
+      }
+      this.postCodeIndexStatus(parsed.data)
+    } catch (error) {
+      logger.error("[Kilo New] KiloProvider: Failed to fetch code index status:", error)
+      this.postCodeIndexStatus({
+        systemStatus: "Error",
+        processedItems: 0,
+        totalItems: 0,
+        currentItemUnit: "files",
+        indexedFiles: 0,
+        message: error instanceof Error ? error.message : "Failed to fetch code index status",
+        workspacePath: this.getWorkspaceDirectory(),
       })
     }
   }

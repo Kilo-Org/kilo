@@ -5,6 +5,7 @@
 
 import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
+import { Icon } from "@kilocode/kilo-ui/icon"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { ContextMenu } from "@kilocode/kilo-ui/context-menu"
 import { Popover } from "@kilocode/kilo-ui/popover"
@@ -17,8 +18,9 @@ import { useProvider } from "../../context/provider"
 import { useConfig } from "../../context/config"
 import { ModelSelector } from "./ModelSelector"
 import { ModeSwitcher } from "./ModeSwitcher"
+import { CodeIndexPopover } from "./CodeIndexPopover"
 import { ImageViewer } from "../common/ImageViewer"
-import type { FileAttachment, SlashCommandInfo } from "../../types/messages"
+import type { CodeIndexStatus, FileAttachment, SlashCommandInfo } from "../../types/messages"
 
 const AUTOCOMPLETE_DEBOUNCE_MS = 500
 const MIN_TEXT_LENGTH = 3
@@ -95,8 +97,16 @@ export const PromptInput: Component = () => {
   const [slashCommandsRequested, setSlashCommandsRequested] = createSignal(false)
   const [slashSelectedIndex, setSlashSelectedIndex] = createSignal(0)
   const [isRecordingVoice, setIsRecordingVoice] = createSignal(false)
+  const [isEnhancingPrompt, setIsEnhancingPrompt] = createSignal(false)
   const [pendingAutoSend, setPendingAutoSend] = createSignal(false)
   const [thinkingOpen, setThinkingOpen] = createSignal(false)
+  const [codeIndexStatus, setCodeIndexStatus] = createSignal<CodeIndexStatus>({
+    systemStatus: "Standby",
+    processedItems: 0,
+    totalItems: 0,
+    currentItemUnit: "files",
+    indexedFiles: 0,
+  })
   let textareaRef: HTMLTextAreaElement | undefined
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
   let speechRecognition: SpeechRecognitionLike | undefined
@@ -178,6 +188,12 @@ export const PromptInput: Component = () => {
     }
   })
 
+  createEffect(() => {
+    if (!isDisabled()) {
+      vscode.postMessage({ type: "requestCodeIndexStatus" })
+    }
+  })
+
   const variantOptions = createMemo(() => {
     const selected = session.selected()
     const model = provider.findModel(selected)
@@ -207,7 +223,7 @@ export const PromptInput: Component = () => {
 
   const thinkingLabel = createMemo(() => {
     const variant = activeVariantLabel()
-    return variant ? `Thinking: ${variant}` : "Thinking: off"
+    return variant ? language.t("prompt.thinking.label", { variant }) : language.t("prompt.thinking.off")
   })
 
   const setFollowUpAutoApprovePaused = (paused: boolean) => {
@@ -286,9 +302,35 @@ export const PromptInput: Component = () => {
       return
     }
 
+    if (message.type === "enhancedPrompt") {
+      setIsEnhancingPrompt(false)
+      const next = typeof message.text === "string" ? message.text.trim() : ""
+      if (!next) {
+        showToast({ variant: "error", title: language.t("prompt.toast.enhancePromptFailed") })
+        return
+      }
+
+      setText(next)
+      setGhostText("")
+      setFollowUpAutoApprovePaused(next.length > 0)
+      requestAnimationFrame(() => {
+        if (!textareaRef) return
+        textareaRef.value = next
+        adjustHeight()
+        textareaRef.focus()
+        textareaRef.setSelectionRange(next.length, next.length)
+      })
+      return
+    }
+
     if (message.type === "configLoaded" || message.type === "configUpdated") {
       setSlashCommands([])
       setSlashCommandsRequested(false)
+      return
+    }
+
+    if (message.type === "codeIndexStatusLoaded") {
+      setCodeIndexStatus(message.status)
     }
   })
 
@@ -517,6 +559,7 @@ export const PromptInput: Component = () => {
     setText("")
     setGhostText("")
     setAttachments([])
+    setIsEnhancingPrompt(false)
     setPendingAutoSend(false)
     setFollowUpAutoApprovePaused(false)
 
@@ -544,9 +587,68 @@ export const PromptInput: Component = () => {
     vscode.postMessage({ type: "selectFiles" })
   }
 
+  const handleEnhancePrompt = () => {
+    if (isBusy() || isDisabled() || isEnhancingPrompt()) {
+      return
+    }
+
+    const trimmed = text().trim()
+    if (!trimmed) {
+      const suggestion = language.t("prompt.enhance.description")
+      setText(suggestion)
+      setGhostText("")
+      setFollowUpAutoApprovePaused(suggestion.trim().length > 0)
+      requestAnimationFrame(() => {
+        if (!textareaRef) return
+        textareaRef.value = suggestion
+        adjustHeight()
+        textareaRef.focus()
+        textareaRef.setSelectionRange(suggestion.length, suggestion.length)
+      })
+      return
+    }
+
+    setIsEnhancingPrompt(true)
+    vscode.postMessage({ type: "enhancePrompt", text: trimmed })
+  }
+
   const handleRebuildCodeIndex = () => {
-    if (isDisabled()) return
+    if (isDisabled() || isBusy()) return
+    setCodeIndexStatus((prev) => ({
+      ...prev,
+      systemStatus: "Indexing",
+      message: undefined,
+    }))
     vscode.postMessage({ type: "rebuildCodeIndex" })
+    setTimeout(() => vscode.postMessage({ type: "requestCodeIndexStatus" }), 250)
+  }
+
+  const handleClearCodeIndex = () => {
+    if (isDisabled() || isBusy()) return
+    vscode.postMessage({ type: "clearCodeIndex" })
+    setTimeout(() => vscode.postMessage({ type: "requestCodeIndexStatus" }), 250)
+  }
+
+  const handleRunSemanticSearch = () => {
+    if (isDisabled() || isBusy()) return
+    vscode.postMessage({ type: "runSemanticSearch" })
+  }
+
+  const handleOpenCodeIndexSettings = () => {
+    window.postMessage({ type: "action", action: "settingsButtonClicked" }, "*")
+  }
+
+  const handleOpenRules = () => {
+    // TODO(backend): Deep-link directly to rules subtab once sidebar navigation supports subtab routing.
+    window.postMessage({ type: "action", action: "settingsButtonClicked" }, "*")
+  }
+
+  const handleOpenFeedback = () => {
+    // TODO(backend): Replace with native feedback options menu when extension message exists.
+    vscode.postMessage({
+      type: "openExternal",
+      url: "https://github.com/Kilo-Org/kilocode/issues/new/choose",
+    })
   }
 
   const handleRemoveAttachment = (url: string) => {
@@ -762,7 +864,7 @@ export const PromptInput: Component = () => {
                       <ContextMenu.ItemLabel>{language.t("session.header.open.copyPath")}</ContextMenu.ItemLabel>
                     </ContextMenu.Item>
                     <ContextMenu.Item onSelect={() => void handleCopyAttachmentMarkdown(file)}>
-                      <ContextMenu.ItemLabel>Copy Markdown</ContextMenu.ItemLabel>
+                      <ContextMenu.ItemLabel>{language.t("prompt.attachment.copyMarkdown")}</ContextMenu.ItemLabel>
                     </ContextMenu.Item>
                     <ContextMenu.Separator />
                     <ContextMenu.Item onSelect={() => handleRemoveAttachment(file.url)}>
@@ -800,7 +902,7 @@ export const PromptInput: Component = () => {
               </div>
             </Show>
             <Show when={slashPickerOpen()}>
-              <div class="prompt-slash-popover" role="listbox" aria-label="Slash command suggestions">
+              <div class="prompt-slash-popover" role="listbox" aria-label={language.t("prompt.popover.slashAria")}>
                 <Show
                   when={slashSuggestions().length > 0}
                   fallback={<div class="prompt-slash-empty">{language.t("prompt.popover.emptyCommands")}</div>}
@@ -834,24 +936,32 @@ export const PromptInput: Component = () => {
           <div class="prompt-input-mode-anchor">
             <ModeSwitcher />
           </div>
-          <div class="prompt-input-actions">
-            <Tooltip value={language.t("prompt.action.rebuildIndex")} placement="top">
+          <div class="prompt-input-enhance">
+            <Tooltip value={language.t("prompt.action.enhance")} placement="top">
               <Button
                 class="prompt-action-btn"
                 variant="ghost"
                 size="small"
-                onClick={handleRebuildCodeIndex}
-                disabled={isDisabled() || isBusy()}
-                aria-label={language.t("prompt.action.rebuildIndex")}
+                onClick={handleEnhancePrompt}
+                disabled={isDisabled() || isBusy() || isEnhancingPrompt()}
+                aria-label={language.t("prompt.action.enhance")}
               >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                  <ellipse cx="8" cy="3.5" rx="4.75" ry="2.25" />
-                  <path d="M3.25 6.25c0 1.24 2.13 2.25 4.75 2.25s4.75-1.01 4.75-2.25V3.5c0 1.24-2.13 2.25-4.75 2.25S3.25 4.74 3.25 3.5v2.75Z" />
-                  <path d="M3.25 9c0 1.24 2.13 2.25 4.75 2.25S12.75 10.24 12.75 9V6.25c0 1.24-2.13 2.25-4.75 2.25S3.25 7.49 3.25 6.25V9Z" />
-                  <path d="M3.25 11.75c0 1.24 2.13 2.25 4.75 2.25s4.75-1.01 4.75-2.25V9c0 1.24-2.13 2.25-4.75 2.25S3.25 10.24 3.25 9v2.75Z" />
-                </svg>
+                <Icon name="models" size="small" class={isEnhancingPrompt() ? "prompt-enhance-icon-spinning" : undefined} />
               </Button>
             </Tooltip>
+          </div>
+          <div class="prompt-input-actions">
+            <CodeIndexPopover
+              disabled={isDisabled()}
+              busy={isBusy()}
+              status={codeIndexStatus()}
+              t={language.t}
+              onRequestStatus={() => vscode.postMessage({ type: "requestCodeIndexStatus" })}
+              onRebuild={handleRebuildCodeIndex}
+              onClear={handleClearCodeIndex}
+              onRunSemanticSearch={handleRunSemanticSearch}
+              onOpenSettings={handleOpenCodeIndexSettings}
+            />
             <Show
               when={isBusy()}
               fallback={
@@ -954,7 +1064,7 @@ export const PromptInput: Component = () => {
               }
               class="prompt-thinking-popover"
             >
-              <div class="prompt-thinking-list" role="listbox" aria-label="Thinking variants">
+              <div class="prompt-thinking-list" role="listbox" aria-label={language.t("prompt.popover.thinkingAria")}>
                 <button
                   type="button"
                   class={`prompt-thinking-item${!activeVariant() ? " selected" : ""}`}
@@ -984,6 +1094,30 @@ export const PromptInput: Component = () => {
         <Show when={!isDisabled()}>
           <span class="prompt-input-shortcut">{language.t("prompt.hint.sendShortcut")}</span>
         </Show>
+      </div>
+      <div class="prompt-input-meta-controls">
+        <Tooltip value={language.t("prompt.meta.rules")} placement="top">
+          <Button
+            class="prompt-meta-btn"
+            variant="ghost"
+            size="small"
+            onClick={handleOpenRules}
+            aria-label={language.t("prompt.meta.rules")}
+          >
+            <span class="codicon codicon-book" aria-hidden="true" />
+          </Button>
+        </Tooltip>
+        <Tooltip value={language.t("prompt.meta.feedback")} placement="top">
+          <Button
+            class="prompt-meta-btn"
+            variant="ghost"
+            size="small"
+            onClick={handleOpenFeedback}
+            aria-label={language.t("prompt.meta.feedback")}
+          >
+            <span class="codicon codicon-feedback" aria-hidden="true" />
+          </Button>
+        </Tooltip>
       </div>
       <ImageViewer
         file={viewerFile()}

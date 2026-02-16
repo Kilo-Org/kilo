@@ -1,14 +1,9 @@
-/**
- * ModeSwitcher component
- * Popover-based selector for choosing an agent/mode in the chat prompt area.
- * Uses kilo-ui Popover component (Phase 4.5 of UI implementation plan).
- */
-
 import { Component, createMemo, createSignal, For, Show } from "solid-js"
 import { Popover } from "@kilocode/kilo-ui/popover"
 import { Button } from "@kilocode/kilo-ui/button"
 import { useSession } from "../../context/session"
 import { useLanguage } from "../../context/language"
+import type { AgentInfo } from "../../types/messages"
 
 export const ModeSwitcher: Component = () => {
   const session = useSession()
@@ -16,18 +11,12 @@ export const ModeSwitcher: Component = () => {
   const [open, setOpen] = createSignal(false)
   const [search, setSearch] = createSignal("")
 
-  const available = () => session.agents()
-  const hasAgents = () => available().length > 0
+  const available = createMemo(() => session.agents())
+  const hasAgents = createMemo(() => available().length > 0)
 
-  const modeLabel = (mode: string) => {
-    if (mode === "primary") return language.t("mode.label.primary")
-    if (mode === "all") return language.t("mode.label.general")
-    return language.t("mode.label.specialist")
-  }
-
-  const sortedAgents = createMemo(() => {
+  const sortedAgents = createMemo<AgentInfo[]>(() => {
     const agents = [...available()]
-    const rank = (mode: string) => {
+    const rank = (mode: AgentInfo["mode"]) => {
       if (mode === "primary") return 0
       if (mode === "all") return 1
       return 2
@@ -47,10 +36,35 @@ export const ModeSwitcher: Component = () => {
       return sortedAgents()
     }
     return sortedAgents().filter((agent) => {
-      const haystack = `${agent.name} ${agent.description ?? ""} ${modeLabel(agent.mode)}`.toLowerCase()
+      const haystack = `${agent.name} ${agent.description ?? ""}`.toLowerCase()
       return haystack.includes(query)
     })
   })
+
+  const selectedAgent = createMemo(() => {
+    const name = session.selectedAgent()
+    return available().find((agent) => agent.name === name)
+  })
+
+  function codiconForAgent(agent: Pick<AgentInfo, "mode" | "iconName" | "name">): string {
+    const raw = agent.iconName?.trim() ?? ""
+    if (raw.includes("codicon-")) {
+      const className = raw.split(/\s+/).find((token) => token.startsWith("codicon-"))
+      if (className) {
+        return className
+      }
+    }
+
+    const byName = agent.name.toLowerCase()
+    if (byName.includes("ask")) return "codicon-question"
+    if (byName.includes("debug")) return "codicon-bug"
+    if (byName.includes("review")) return "codicon-git-compare"
+    if (byName.includes("architect")) return "codicon-type-hierarchy-sub"
+    if (byName.includes("orchestr")) return "codicon-run-all"
+
+    if (agent.mode === "all") return "codicon-organization"
+    return "codicon-code"
+  }
 
   function pick(name: string) {
     session.selectAgent(name)
@@ -65,21 +79,26 @@ export const ModeSwitcher: Component = () => {
     }
   }
 
-  function openView(action: "marketplaceButtonClicked" | "settingsButtonClicked") {
-    const values = action === "marketplaceButtonClicked" ? { marketplaceTab: "mode" } : undefined
-    window.postMessage({ type: "action", action, values }, "*")
+  function clearSearch() {
+    setSearch("")
+  }
+
+  function openEdit() {
+    window.postMessage({ type: "action", action: "settingsButtonClicked" }, "*")
     setSearch("")
     setOpen(false)
   }
 
   const triggerLabel = () => {
     const name = session.selectedAgent()
-    const agent = available().find((a) => a.name === name)
+    const agent = selectedAgent()
     if (agent) {
       return agent.name
     }
     return name || language.t("mode.default")
   }
+
+  const triggerCodicon = createMemo(() => codiconForAgent(selectedAgent() ?? { name: "code", mode: "primary" }))
 
   return (
     <Show when={hasAgents()}>
@@ -87,14 +106,18 @@ export const ModeSwitcher: Component = () => {
         placement="top-start"
         open={open()}
         onOpenChange={toggleOpen}
+        class="mode-switcher-popover-shell"
         triggerAs={Button}
-        triggerProps={{ variant: "ghost", size: "small", title: triggerLabel() }}
+        triggerProps={{ variant: "ghost", size: "small", title: triggerLabel(), class: "mode-switcher-trigger" }}
         trigger={
           <>
+            <span class="mode-switcher-trigger-chevron" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 4l4 5H4l4-5z" />
+              </svg>
+            </span>
+            <span class={`mode-switcher-trigger-codicon codicon ${triggerCodicon()}`} aria-hidden="true" />
             <span class="mode-switcher-trigger-label">{triggerLabel()}</span>
-            <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ "flex-shrink": "0" }}>
-              <path d="M8 4l4 5H4l4-5z" />
-            </svg>
           </>
         }
       >
@@ -107,6 +130,11 @@ export const ModeSwitcher: Component = () => {
               placeholder={language.t("mode.search.placeholder")}
               aria-label={language.t("mode.search.aria")}
             />
+            <Show when={search().length > 0}>
+              <button type="button" class="mode-switcher-search-clear" onClick={clearSearch} aria-label={language.t("common.close")}>
+                <span class="codicon codicon-close" aria-hidden="true" />
+              </button>
+            </Show>
           </div>
           <div class="mode-switcher-list" role="listbox">
             <Show
@@ -122,31 +150,25 @@ export const ModeSwitcher: Component = () => {
                     onClick={() => pick(agent.name)}
                   >
                     <div class="mode-switcher-item-row">
+                      <span class={`mode-switcher-item-icon codicon ${codiconForAgent(agent)}`} aria-hidden="true" />
                       <div class="mode-switcher-item-main">
-                        <span class="mode-switcher-item-name">{agent.name}</span>
+                        <div class="mode-switcher-item-name">{agent.name}</div>
                         <Show when={agent.description}>
-                          <span class="mode-switcher-item-desc">{agent.description}</span>
+                          <div class="mode-switcher-item-desc">{agent.description}</div>
                         </Show>
                       </div>
-                      <div class="mode-switcher-item-meta">
-                        <span class="mode-switcher-item-tag">{modeLabel(agent.mode)}</span>
-                        <Show when={agent.name === session.selectedAgent()}>
-                          <span class="mode-switcher-item-check">✓</span>
-                        </Show>
-                      </div>
+                      <Show when={agent.name === session.selectedAgent()}>
+                        <span class="mode-switcher-item-check codicon codicon-check" aria-hidden="true" />
+                      </Show>
                     </div>
                   </div>
                 )}
               </For>
             </Show>
-          </div>
-          <div class="mode-switcher-footer">
-            <Button size="small" variant="ghost" onClick={() => openView("marketplaceButtonClicked")}>
-              {language.t("mode.footer.marketplace")}
-            </Button>
-            <Button size="small" variant="ghost" onClick={() => openView("settingsButtonClicked")}>
-              {language.t("mode.footer.settings")}
-            </Button>
+            <div class="mode-switcher-separator" role="separator" />
+            <button type="button" class="mode-switcher-action" onClick={openEdit}>
+              {language.t("common.edit")}
+            </button>
           </div>
         </div>
       </Popover>

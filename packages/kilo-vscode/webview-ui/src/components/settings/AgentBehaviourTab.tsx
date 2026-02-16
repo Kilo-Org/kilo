@@ -2212,6 +2212,8 @@ const AgentBehaviourTab: Component = () => {
         style={{
           display: "flex",
           gap: "0",
+          "flex-wrap": "wrap",
+          "row-gap": "2px",
           "border-bottom": "1px solid var(--vscode-panel-border)",
           "margin-bottom": "16px",
         }}
@@ -2226,6 +2228,7 @@ const AgentBehaviourTab: Component = () => {
                 padding: "8px 16px",
                 border: "none",
                 background: "transparent",
+                "white-space": "nowrap",
                 color:
                   activeSubtab() === subtab.id ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)",
                 "font-size": "13px",

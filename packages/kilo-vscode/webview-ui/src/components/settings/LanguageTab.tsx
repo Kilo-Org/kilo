@@ -7,13 +7,17 @@ type Option = "" | Locale
 
 const LanguageTab: Component = () => {
   const language = useLanguage()
+  const selectedLabel = () => {
+    const selected = language.userOverride()
+    return selected === "" ? language.t("settings.language.auto") : LOCALE_LABELS[selected]
+  }
 
   return (
     <div style={{ padding: "16px" }}>
       <p style={{ "font-size": "13px", "margin-bottom": "12px" }}>{language.t("settings.language.description")}</p>
       <Select
         options={[...options]}
-        current={language.userOverride()}
+        current={options.find((opt) => opt === language.userOverride())}
         label={(opt: Option) => (opt === "" ? language.t("settings.language.auto") : LOCALE_LABELS[opt])}
         value={(opt: Option) => opt}
         onSelect={(opt) => {
@@ -25,6 +29,9 @@ const LanguageTab: Component = () => {
         size="large"
       />
       <p style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)", "margin-top": "8px" }}>
+        {language.t("settings.language.selected", { value: selectedLabel() })}
+      </p>
+      <p style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)", "margin-top": "4px" }}>
         {language.t("settings.language.current")} {LOCALE_LABELS[language.locale()]}
       </p>
     </div>

@@ -26,16 +26,27 @@ type SessionRunStatus = "idle" | "busy" | "retry" | "unknown"
 type AgentManagerWebviewToExtensionMessage =
   | { type: "ready" }
   | { type: "refresh" }
+  | { type: "configureSetupScript" }
   | { type: "loadSessionMessages"; sessionID?: string }
-  | { type: "createSession"; prompt?: string; agent?: string; parallel?: boolean; branch?: string }
-  | { type: "resumeRemoteSession"; sessionID?: string; text?: string }
-  | { type: "sendSessionMessage"; sessionID?: string; text?: string }
+  | {
+      type: "createSession"
+      prompt?: string
+      agent?: string
+      parallel?: boolean
+      branch?: string
+      versions?: number
+      yoloMode?: boolean
+      images?: string[]
+    }
+  | { type: "resumeRemoteSession"; sessionID?: string; text?: string; images?: string[] }
+  | { type: "sendSessionMessage"; sessionID?: string; text?: string; images?: string[] }
   | { type: "respondPermission"; sessionID?: string; permissionID?: string; response?: "once" | "always" | "reject" }
   | { type: "abortSession"; sessionID?: string }
   | { type: "deleteSession"; sessionID?: string }
-  | { type: "bulkAbort"; sessionIDs?: string[] }
-  | { type: "bulkDelete"; sessionIDs?: string[] }
   | { type: "openSession"; sessionID?: string }
+  | { type: "sessionShare"; sessionID?: string }
+  | { type: "renameSession"; sessionID?: string; label?: string }
+  | { type: "showTerminal"; sessionID?: string }
   | { type: "openWorktree"; sessionID?: string }
   | { type: "removeWorktree"; sessionID?: string }
 
@@ -51,6 +62,7 @@ type AgentManagerSessionRow = {
   isWorktree: boolean
   worktreePath?: string
   branch?: string
+  shareURL?: string
   pendingApprovalCount: number
   nextPendingApproval?: {
     id: string
@@ -80,6 +92,7 @@ type PersistedState = {
 
 type AgentManagerAction =
   | "refresh"
+  | "configureSetupScript"
   | "loadSessionMessages"
   | "createSession"
   | "resumeRemoteSession"
@@ -87,9 +100,10 @@ type AgentManagerAction =
   | "respondPermission"
   | "abortSession"
   | "deleteSession"
-  | "bulkAbort"
-  | "bulkDelete"
   | "openSession"
+  | "sessionShare"
+  | "renameSession"
+  | "showTerminal"
   | "openWorktree"
   | "removeWorktree"
 
@@ -158,6 +172,7 @@ export class AgentManagerProvider implements vscode.Disposable {
   private panelDisposables: vscode.Disposable[] = []
   private readonly sessionDirectoryById = new Map<string, string>()
   private readonly sessionStatusById = new Map<string, SessionRunStatus>()
+  private readonly sessionShareById = new Map<string, string>()
   private readonly remoteSessionById = new Map<string, RemoteSessionInfo>()
   private readonly pendingPermissionsBySession = new Map<string, PermissionRequest[]>()
   private refreshTimer: ReturnType<typeof setTimeout> | undefined
@@ -271,17 +286,28 @@ export class AgentManagerProvider implements vscode.Disposable {
       case "refresh":
         await this.refreshData()
         return
+      case "configureSetupScript":
+        await this.configureSetupScript()
+        return
       case "loadSessionMessages":
         await this.loadSessionMessages(message.sessionID)
         return
       case "createSession":
-        await this.createSession(message.prompt, message.agent, message.parallel, message.branch)
+        await this.createSession(
+          message.prompt,
+          message.agent,
+          message.parallel,
+          message.branch,
+          message.versions,
+          message.yoloMode,
+          message.images,
+        )
         return
       case "resumeRemoteSession":
-        await this.resumeRemoteSession(message.sessionID, message.text)
+        await this.resumeRemoteSession(message.sessionID, message.text, message.images)
         return
       case "sendSessionMessage":
-        await this.sendSessionMessage(message.sessionID, message.text)
+        await this.sendSessionMessage(message.sessionID, message.text, message.images)
         return
       case "respondPermission":
         await this.respondPermission(message.sessionID, message.permissionID, message.response)
@@ -292,14 +318,17 @@ export class AgentManagerProvider implements vscode.Disposable {
       case "deleteSession":
         await this.deleteSession(message.sessionID)
         return
-      case "bulkAbort":
-        await this.bulkAbort(message.sessionIDs)
-        return
-      case "bulkDelete":
-        await this.bulkDelete(message.sessionIDs)
-        return
       case "openSession":
         await this.openSessionInMainUI(message.sessionID)
+        return
+      case "sessionShare":
+        await this.sessionShare(message.sessionID)
+        return
+      case "renameSession":
+        await this.renameSession(message.sessionID, message.label)
+        return
+      case "showTerminal":
+        await this.showTerminal(message.sessionID)
         return
       case "openWorktree":
         await this.openWorktree(message.sessionID)
@@ -397,6 +426,7 @@ export class AgentManagerProvider implements vscode.Disposable {
 
       const byId = new Map<string, AgentManagerSessionRow>()
       this.sessionDirectoryById.clear()
+      this.sessionShareById.clear()
       this.remoteSessionById.clear()
 
       let stateDirty = false
@@ -424,6 +454,9 @@ export class AgentManagerProvider implements vscode.Disposable {
             worktreePath,
             branch,
           })
+          if (row.shareURL) {
+            this.sessionShareById.set(row.id, row.shareURL)
+          }
 
           const existing = byId.get(session.id)
           if (!existing || Date.parse(row.updatedAt) > Date.parse(existing.updatedAt)) {
@@ -474,41 +507,71 @@ export class AgentManagerProvider implements vscode.Disposable {
     }
   }
 
-  private async createSession(rawPrompt?: string, rawAgent?: string, parallel?: boolean, rawBranch?: string): Promise<void> {
+  private async createSession(
+    rawPrompt?: string,
+    rawAgent?: string,
+    parallel?: boolean,
+    rawBranch?: string,
+    rawVersions?: number,
+    _rawYoloMode?: boolean,
+    rawImages?: string[],
+  ): Promise<void> {
     const workspaceDir = this.getWorkspaceDirectory()
     const prompt = typeof rawPrompt === "string" ? rawPrompt.trim() : ""
     const agent = typeof rawAgent === "string" && rawAgent.trim().length > 0 ? rawAgent.trim() : undefined
+    void _rawYoloMode
+    const images = this.normalizeImageUrls(rawImages)
+    const requestedVersions = typeof rawVersions === "number" && Number.isFinite(rawVersions) ? Math.floor(rawVersions) : 1
+    const versions = Math.min(8, Math.max(1, requestedVersions))
+    const useWorktree = !!parallel || versions > 1
 
     try {
       const client = await this.getClient(workspaceDir)
+      const branchBase = typeof rawBranch === "string" ? rawBranch.trim() : ""
+      const created: Array<{ sessionID: string; message?: string }> = []
 
-      const created = parallel
-        ? await this.createParallelSession({
-            client,
-            workspaceDir,
-            prompt,
-            agent,
-            branch: typeof rawBranch === "string" ? rawBranch : undefined,
-          })
-        : await this.createDefaultSession({ client, workspaceDir, prompt, agent })
+      for (let index = 0; index < versions; index++) {
+        const versionBranch = useWorktree
+          ? branchBase
+            ? versions > 1
+              ? `${branchBase}-v${index + 1}`
+              : branchBase
+            : undefined
+          : undefined
 
-      captureTelemetryEvent("Agent Manager Session Started", {
-        sessionId: created.sessionID,
-        useWorktree: !!parallel,
-      })
-      this.postActionResult("createSession", true, created.message, created.sessionID)
+        const next = useWorktree
+          ? await this.createParallelSession({
+              client,
+              workspaceDir,
+              prompt,
+              agent,
+              branch: versionBranch,
+              images,
+            })
+          : await this.createDefaultSession({ client, workspaceDir, prompt, agent, images })
+        created.push(next)
+
+        captureTelemetryEvent("Agent Manager Session Started", {
+          sessionId: next.sessionID,
+          useWorktree: useWorktree,
+        })
+      }
+
+      const firstSession = created[0]
+      const message = versions > 1 ? `Started ${versions} parallel sessions` : firstSession?.message
+      this.postActionResult("createSession", true, message, firstSession?.sessionID)
       await this.refreshData()
     } catch (error) {
       logger.error("[Kilo New] AgentManager: failed to create session", error)
       captureTelemetryEvent("Agent Manager Session Error", {
-        useWorktree: !!parallel,
+        useWorktree,
         error: error instanceof Error ? error.message : String(error),
       })
       this.postActionResult("createSession", false, error instanceof Error ? error.message : String(error))
     }
   }
 
-  private async resumeRemoteSession(sessionID?: string, rawText?: string): Promise<void> {
+  private async resumeRemoteSession(sessionID?: string, rawText?: string, rawImages?: string[]): Promise<void> {
     if (!sessionID) {
       this.postActionResult("resumeRemoteSession", false, "Missing session ID")
       return
@@ -521,6 +584,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     }
 
     const workspaceDir = this.getWorkspaceDirectory()
+    const images = this.normalizeImageUrls(rawImages)
     const userPrompt =
       typeof rawText === "string" && rawText.trim().length > 0
         ? rawText.trim()
@@ -530,7 +594,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       const client = await this.getClient(workspaceDir)
       const remoteMessages = await client.getRemoteSessionMessages(sessionID).catch(() => [])
       const messageText = this.buildRemoteContinuationPrompt(remoteSession, remoteMessages, userPrompt)
-      const created = await this.createDefaultSession({ client, workspaceDir, prompt: messageText })
+      const created = await this.createDefaultSession({ client, workspaceDir, prompt: messageText, images })
 
       captureTelemetryEvent("Agent Manager Session Started", {
         sessionId: created.sessionID,
@@ -557,6 +621,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     workspaceDir: string
     prompt: string
     agent?: string
+    images?: string[]
   }): Promise<{ sessionID: string; message?: string }> {
     const session = await input.client.createSession(input.workspaceDir)
     this.sessionDirectoryById.set(session.id, input.workspaceDir)
@@ -565,8 +630,9 @@ export class AgentManagerProvider implements vscode.Disposable {
     state.sessionMeta[session.id] = { directory: input.workspaceDir }
     await this.saveState(input.workspaceDir, state)
 
-    if (input.prompt.length > 0) {
-      await input.client.sendMessage(session.id, [{ type: "text", text: input.prompt }], input.workspaceDir, {
+    const parts = this.buildMessageParts(input.prompt, input.images)
+    if (parts.length > 0) {
+      await input.client.sendMessage(session.id, parts, input.workspaceDir, {
         agent: input.agent,
       })
     }
@@ -580,6 +646,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     prompt: string
     agent?: string
     branch?: string
+    images?: string[]
   }): Promise<{ sessionID: string; message?: string }> {
     await this.assertParallelModeSupported(input.workspaceDir)
 
@@ -618,8 +685,9 @@ export class AgentManagerProvider implements vscode.Disposable {
     }
     await this.saveState(input.workspaceDir, state)
 
-    if (input.prompt.length > 0) {
-      await input.client.sendMessage(session.id, [{ type: "text", text: input.prompt }], worktreePath, {
+    const parts = this.buildMessageParts(input.prompt, input.images)
+    if (parts.length > 0) {
+      await input.client.sendMessage(session.id, parts, worktreePath, {
         agent: input.agent,
       })
     }
@@ -627,20 +695,21 @@ export class AgentManagerProvider implements vscode.Disposable {
     return { sessionID: session.id, message: `Created parallel worktree on branch ${branch}` }
   }
 
-  private async sendSessionMessage(sessionID?: string, rawText?: string): Promise<void> {
+  private async sendSessionMessage(sessionID?: string, rawText?: string, rawImages?: string[]): Promise<void> {
     if (!sessionID) {
       this.postActionResult("sendSessionMessage", false, "Missing session ID")
       return
     }
 
     const text = typeof rawText === "string" ? rawText.trim() : ""
-    if (!text) {
+    const images = this.normalizeImageUrls(rawImages)
+    if (!text && images.length === 0) {
       this.postActionResult("sendSessionMessage", false, "Message cannot be empty", sessionID)
       return
     }
 
     if (this.remoteSessionById.has(sessionID)) {
-      await this.resumeRemoteSession(sessionID, text)
+      await this.resumeRemoteSession(sessionID, text, images)
       return
     }
 
@@ -649,7 +718,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     try {
       const client = await this.getClient(workspaceDir)
       const directory = await this.resolveSessionDirectory(sessionID)
-      await client.sendMessage(sessionID, [{ type: "text", text }], directory)
+      await client.sendMessage(sessionID, this.buildMessageParts(text, images), directory)
       this.postActionResult("sendSessionMessage", true, "Message sent", sessionID)
       await this.refreshData()
     } catch (error) {
@@ -737,6 +806,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       await client.deleteSession(sessionID, directory)
       this.sessionStatusById.delete(sessionID)
       this.sessionDirectoryById.delete(sessionID)
+      this.sessionShareById.delete(sessionID)
       this.pendingPermissionsBySession.delete(sessionID)
 
       const state = await this.loadState(workspaceDir)
@@ -751,72 +821,6 @@ export class AgentManagerProvider implements vscode.Disposable {
       logger.error("[Kilo New] AgentManager: failed to delete session", { sessionID, error })
       this.postActionResult("deleteSession", false, error instanceof Error ? error.message : String(error), sessionID)
     }
-  }
-
-  private async bulkAbort(sessionIDs?: string[]): Promise<void> {
-    const ids = Array.isArray(sessionIDs) ? [...new Set(sessionIDs.filter((id) => typeof id === "string" && id.length > 0))] : []
-    if (ids.length === 0) {
-      this.postActionResult("bulkAbort", false, "No sessions selected")
-      return
-    }
-
-    const workspaceDir = this.getWorkspaceDirectory()
-    const client = await this.getClient(workspaceDir)
-    const failures: string[] = []
-
-    for (const sessionID of ids) {
-      try {
-        const directory = await this.resolveSessionDirectory(sessionID)
-        await client.abortSession(sessionID, directory)
-      } catch (error) {
-        failures.push(`${sessionID}: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    }
-
-    if (failures.length > 0) {
-      this.postActionResult("bulkAbort", false, failures.join(" | "))
-    } else {
-      this.postActionResult("bulkAbort", true, `Aborted ${ids.length} session${ids.length === 1 ? "" : "s"}`)
-    }
-
-    await this.refreshData()
-  }
-
-  private async bulkDelete(sessionIDs?: string[]): Promise<void> {
-    const ids = Array.isArray(sessionIDs) ? [...new Set(sessionIDs.filter((id) => typeof id === "string" && id.length > 0))] : []
-    if (ids.length === 0) {
-      this.postActionResult("bulkDelete", false, "No sessions selected")
-      return
-    }
-
-    const workspaceDir = this.getWorkspaceDirectory()
-    const client = await this.getClient(workspaceDir)
-    const failures: string[] = []
-
-    const state = await this.loadState(workspaceDir)
-
-    for (const sessionID of ids) {
-      try {
-        const directory = await this.resolveSessionDirectory(sessionID)
-        await client.deleteSession(sessionID, directory)
-        this.sessionStatusById.delete(sessionID)
-        this.sessionDirectoryById.delete(sessionID)
-        this.pendingPermissionsBySession.delete(sessionID)
-        delete state.sessionMeta[sessionID]
-      } catch (error) {
-        failures.push(`${sessionID}: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    }
-
-    await this.saveState(workspaceDir, state)
-
-    if (failures.length > 0) {
-      this.postActionResult("bulkDelete", false, failures.join(" | "))
-    } else {
-      this.postActionResult("bulkDelete", true, `Deleted ${ids.length} session${ids.length === 1 ? "" : "s"}`)
-    }
-
-    await this.refreshData()
   }
 
   private async openSessionInMainUI(sessionID?: string): Promise<void> {
@@ -848,6 +852,113 @@ export class AgentManagerProvider implements vscode.Disposable {
     } catch (error) {
       logger.error("[Kilo New] AgentManager: failed to open session in main UI", { sessionID, error })
       this.postActionResult("openSession", false, error instanceof Error ? error.message : String(error), sessionID)
+    }
+  }
+
+  private async sessionShare(sessionID?: string): Promise<void> {
+    if (!sessionID) {
+      this.postActionResult("sessionShare", false, "Missing session ID")
+      return
+    }
+
+    const shareValue = this.sessionShareById.get(sessionID)
+    if (!shareValue) {
+      this.postActionResult("sessionShare", false, "Sharing is not available for this session yet", sessionID)
+      return
+    }
+
+    try {
+      const shareUrl = this.toShareUrl(shareValue)
+      await vscode.env.clipboard.writeText(shareUrl)
+      void vscode.window.showInformationMessage(`Session share link copied: ${shareUrl}`)
+      this.postActionResult("sessionShare", true, undefined, sessionID)
+    } catch (error) {
+      logger.error("[Kilo New] AgentManager: failed to copy share link", { sessionID, error })
+      this.postActionResult("sessionShare", false, error instanceof Error ? error.message : String(error), sessionID)
+    }
+  }
+
+  private async renameSession(sessionID?: string, rawLabel?: string): Promise<void> {
+    if (!sessionID) {
+      this.postActionResult("renameSession", false, "Missing session ID")
+      return
+    }
+
+    const label = typeof rawLabel === "string" ? rawLabel.trim() : ""
+    if (!label) {
+      this.postActionResult("renameSession", false, "Session title cannot be empty", sessionID)
+      return
+    }
+
+    try {
+      const workspaceDir = this.getWorkspaceDirectory()
+      const client = await this.getClient(workspaceDir)
+      const directory = await this.resolveSessionDirectory(sessionID)
+      await client.updateSession(sessionID, { title: label }, directory)
+      this.postActionResult("renameSession", true, undefined, sessionID)
+      await this.refreshData()
+    } catch (error) {
+      logger.error("[Kilo New] AgentManager: failed to rename session", { sessionID, error })
+      this.postActionResult("renameSession", false, error instanceof Error ? error.message : String(error), sessionID)
+    }
+  }
+
+  private toShareUrl(shareValue: string): string {
+    if (/^https?:\/\//i.test(shareValue)) {
+      return shareValue
+    }
+    return `https://app.kilo.ai/share/${shareValue}`
+  }
+
+  private async showTerminal(sessionID?: string): Promise<void> {
+    if (!sessionID) {
+      this.postActionResult("showTerminal", false, "Missing session ID")
+      return
+    }
+
+    try {
+      const cwd = await this.resolveSessionDirectory(sessionID)
+      const terminal = vscode.window.createTerminal({
+        name: `Kilo Session ${sessionID.slice(0, 8)}`,
+        cwd,
+      })
+      terminal.show(true)
+      this.postActionResult("showTerminal", true, undefined, sessionID)
+    } catch (error) {
+      logger.error("[Kilo New] AgentManager: failed to open terminal", { sessionID, error })
+      this.postActionResult("showTerminal", false, error instanceof Error ? error.message : String(error), sessionID)
+    }
+  }
+
+  private async configureSetupScript(): Promise<void> {
+    const workspaceDir = this.getWorkspaceDirectory()
+    const kilocodeDir = path.join(workspaceDir, ".kilocode")
+    const scriptPath = path.join(kilocodeDir, "setup-script")
+    const defaultTemplate = `#!/bin/bash
+# Kilo Code Worktree Setup Script
+# Runs before an agent starts in a worktree.
+set -e
+
+echo "Setting up worktree: $WORKTREE_PATH"
+`
+
+    try {
+      await fs.mkdir(kilocodeDir, { recursive: true })
+      try {
+        await fs.access(scriptPath)
+      } catch {
+        await fs.writeFile(scriptPath, defaultTemplate, "utf-8")
+        if (process.platform !== "win32") {
+          await fs.chmod(scriptPath, 0o755)
+        }
+      }
+
+      const doc = await vscode.workspace.openTextDocument(scriptPath)
+      await vscode.window.showTextDocument(doc)
+      this.postActionResult("configureSetupScript", true)
+    } catch (error) {
+      logger.error("[Kilo New] AgentManager: failed to configure setup script", { error })
+      this.postActionResult("configureSetupScript", false, error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -1038,6 +1149,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       isWorktree: !!meta.worktreePath,
       ...(meta.worktreePath ? { worktreePath: meta.worktreePath } : {}),
       ...(meta.branch ? { branch: meta.branch } : {}),
+      ...(typeof session.share === "string" && session.share.trim().length > 0 ? { shareURL: session.share.trim() } : {}),
       ...this.getPendingPermissionSummary(session.id),
       canOpenInChat: meta.directory === workspaceDir,
       canSendMessage: true,
@@ -1303,6 +1415,31 @@ export class AgentManagerProvider implements vscode.Disposable {
         } satisfies AgentManagerMessageRow
       })
       .filter((row): row is AgentManagerMessageRow => !!row)
+  }
+
+  private normalizeImageUrls(rawImages?: string[]): string[] {
+    if (!Array.isArray(rawImages)) {
+      return []
+    }
+    return rawImages.filter((entry): entry is string => typeof entry === "string" && entry.startsWith("data:"))
+  }
+
+  private buildMessageParts(
+    text: string,
+    images?: string[],
+  ): Array<{ type: "text"; text: string } | { type: "file"; mime: string; url: string }> {
+    const parts: Array<{ type: "text"; text: string } | { type: "file"; mime: string; url: string }> = []
+    if (text.trim().length > 0) {
+      parts.push({ type: "text", text: text.trim() })
+    }
+
+    for (const image of this.normalizeImageUrls(images)) {
+      const mimeMatch = /^data:([^;]+);/i.exec(image)
+      const mime = mimeMatch?.[1] || "image/png"
+      parts.push({ type: "file", mime, url: image })
+    }
+
+    return parts
   }
 
   private safeSerialize(value: unknown): string | undefined {
@@ -2028,18 +2165,17 @@ export class AgentManagerProvider implements vscode.Disposable {
 
     .button {
       font: inherit;
-      border: 1px solid var(--vscode-button-border, transparent);
-      border-radius: 6px;
-      padding: 6px 10px;
+      border: 1px solid transparent;
+      border-radius: 2px;
+      padding: 4px 12px;
       cursor: pointer;
       background: var(--vscode-button-background);
       color: var(--vscode-button-foreground);
-      min-height: 34px;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
       touch-action: manipulation;
-      transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+      transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease;
     }
 
     .button.icon {
@@ -2058,19 +2194,36 @@ export class AgentManagerProvider implements vscode.Disposable {
       outline-offset: 1px;
     }
 
+    .button:hover:not(:disabled) {
+      background: var(--vscode-button-hoverBackground);
+    }
+
     .button.secondary {
+      border: 1px solid var(--vscode-button-border, transparent);
       background: var(--vscode-button-secondaryBackground);
       color: var(--vscode-button-secondaryForeground);
     }
 
+    .button.secondary:hover:not(:disabled) {
+      background: var(--vscode-button-secondaryHoverBackground);
+    }
+
     .button.warn {
-      background: var(--vscode-inputValidation-warningBackground);
-      color: var(--vscode-inputValidation-warningForeground);
+      background: transparent;
+      color: var(--vscode-descriptionForeground);
+      border-color: var(--vscode-input-border);
+    }
+
+    .button.warn:hover:not(:disabled) {
+      background: transparent;
+      color: var(--vscode-errorForeground);
+      border-color: var(--vscode-errorForeground);
     }
 
     .button.danger {
-      background: var(--vscode-inputValidation-errorBackground);
-      color: var(--vscode-inputValidation-errorForeground);
+      border: 1px solid var(--vscode-button-border, transparent);
+      background: var(--vscode-errorForeground);
+      color: var(--vscode-button-foreground);
     }
 
     .button:disabled {
@@ -2172,6 +2325,13 @@ export class AgentManagerProvider implements vscode.Disposable {
       overflow-y: auto;
       outline: none;
       padding-bottom: 6px;
+    }
+
+    .am-no-sessions {
+      padding: 20px;
+      text-align: center;
+      color: var(--vscode-descriptionForeground);
+      font-size: var(--vscode-font-size);
     }
 
     .am-session-item {
@@ -2308,6 +2468,49 @@ export class AgentManagerProvider implements vscode.Disposable {
       letter-spacing: 0.05em;
     }
 
+    .am-sidebar-header .am-icon-btn {
+      opacity: 0.6;
+    }
+
+    .am-sidebar-header .am-icon-btn:hover:not(:disabled) {
+      opacity: 1;
+    }
+
+    .am-options-menu-container {
+      position: relative;
+    }
+
+    .am-options-dropdown {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 4px;
+      min-width: 180px;
+      background: var(--vscode-menu-background, var(--vscode-dropdown-background));
+      border: 1px solid var(--vscode-menu-border, var(--vscode-dropdown-border));
+      border-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      z-index: 100;
+      overflow: hidden;
+      padding: 4px 0;
+    }
+
+    .am-options-item {
+      width: 100%;
+      border: none;
+      background: transparent;
+      color: var(--vscode-menu-foreground, var(--vscode-dropdown-foreground));
+      text-align: left;
+      padding: 7px 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .am-options-item:hover {
+      background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+      color: var(--vscode-menu-selectionForeground, var(--vscode-list-hoverForeground));
+    }
+
     .am-main {
       flex: 1;
       min-width: 0;
@@ -2364,8 +2567,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     }
 
     .am-status-line {
-      border-top: 1px solid var(--vscode-panel-border);
-      background: var(--vscode-editor-background);
+      display: none;
     }
 
     .am-detail-header {
@@ -2411,13 +2613,6 @@ export class AgentManagerProvider implements vscode.Disposable {
       gap: 8px;
       align-items: center;
       justify-content: flex-end;
-    }
-
-    .am-header-actions .button {
-      min-height: 28px;
-      padding: 3px 10px;
-      border-radius: 4px;
-      font-size: 12px;
     }
 
     .am-session-actions {
@@ -2505,10 +2700,9 @@ export class AgentManagerProvider implements vscode.Disposable {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 999px;
-      font-size: 10px;
-      font-weight: 700;
+      border: none;
+      border-radius: 0;
+      font-size: 12px;
       color: var(--vscode-descriptionForeground);
       flex-shrink: 0;
     }
@@ -2531,15 +2725,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     }
 
     .am-message-chip {
-      border: 1px solid var(--vscode-input-border);
-      border-radius: 3px;
-      padding: 0 4px;
-      font-size: 10px;
-      color: var(--vscode-descriptionForeground);
-      max-width: 180px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      display: none;
     }
 
     .am-message-ts {
@@ -2606,6 +2792,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       display: flex;
       align-items: center;
       gap: 8px;
+      justify-content: flex-end;
     }
 
     .am-chat-actions .button {
@@ -2613,6 +2800,16 @@ export class AgentManagerProvider implements vscode.Disposable {
       padding: 3px 11px;
       font-size: 12px;
       border-radius: 4px;
+    }
+
+    .am-send-btn {
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .am-stop-btn {
+      font-size: 12px;
+      line-height: 1;
     }
 
     .am-center-form {
@@ -2627,6 +2824,13 @@ export class AgentManagerProvider implements vscode.Disposable {
       gap: 12px;
       padding: 20px;
       text-align: center;
+    }
+
+    .am-start-controls {
+      width: 100%;
+      display: grid;
+      gap: 8px;
+      margin-bottom: 2px;
     }
 
     .am-center-title {
@@ -2670,6 +2874,353 @@ export class AgentManagerProvider implements vscode.Disposable {
 
     .am-session-item.am-selected .am-meta-indicator {
       opacity: 0.95;
+    }
+
+    .am-share-btn {
+      opacity: 0;
+      margin-left: 4px;
+      flex-shrink: 0;
+    }
+
+    .am-session-item:hover .am-share-btn,
+    .am-session-item.am-selected .am-share-btn {
+      opacity: 0.7;
+    }
+
+    .am-share-confirm {
+      position: absolute;
+      top: calc(100% - 2px);
+      left: 10px;
+      right: 10px;
+      z-index: 110;
+      border: 1px solid var(--vscode-dropdown-border);
+      border-radius: 4px;
+      background: var(--vscode-dropdown-background);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      padding: 8px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .am-share-confirm-text {
+      font-size: 12px;
+      color: var(--vscode-foreground);
+      line-height: 1.35;
+    }
+
+    .am-share-confirm-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .am-share-confirm-actions .button {
+      min-height: 24px;
+      font-size: 11px;
+      padding: 2px 10px;
+    }
+
+    .am-title-edit-container {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .am-title-input {
+      flex: 1;
+      min-width: 100px;
+      padding: 2px 6px;
+      font-size: 18px;
+      font-weight: 600;
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-focusBorder);
+      border-radius: 3px;
+      outline: none;
+    }
+
+    .am-title-confirm-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      background: transparent;
+      border: none;
+      color: var(--vscode-charts-green);
+      cursor: pointer;
+      border-radius: 3px;
+      width: 24px;
+      height: 24px;
+    }
+
+    .am-title-confirm-btn:hover {
+      background: var(--vscode-toolbar-hoverBackground);
+    }
+
+    .am-title-text {
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .am-title-text:hover {
+      text-decoration: underline;
+      text-decoration-style: dotted;
+    }
+
+    .am-title-edit-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      border: none;
+      border-radius: 3px;
+      background: transparent;
+      color: var(--vscode-descriptionForeground);
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 120ms ease;
+    }
+
+    .am-header-title:hover .am-title-edit-btn {
+      opacity: 0.75;
+    }
+
+    .am-title-edit-btn:hover {
+      opacity: 1;
+      background: var(--vscode-toolbar-hoverBackground);
+    }
+
+    .am-new-input-shell {
+      width: 100%;
+      position: relative;
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 6px;
+      background: var(--vscode-input-background);
+      overflow: hidden;
+    }
+
+    .am-new-input-shell:focus-within {
+      border-color: var(--vscode-focusBorder);
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: -1px;
+    }
+
+    .am-new-agent-toolbar {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      z-index: 4;
+    }
+
+    .am-new-input-fade {
+      position: absolute;
+      left: 1px;
+      right: 1px;
+      bottom: 0;
+      height: 46px;
+      background: linear-gradient(
+        to top,
+        var(--vscode-input-background) 55%,
+        color-mix(in srgb, var(--vscode-input-background) 88%, transparent 12%) 78%,
+        transparent
+      );
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .am-new-images-row {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 44px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      z-index: 5;
+    }
+
+    .am-new-image-thumb {
+      position: relative;
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      overflow: hidden;
+      flex: none;
+      background: var(--vscode-sideBar-background);
+    }
+
+    .am-new-image-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .am-new-image-remove {
+      position: absolute;
+      top: 1px;
+      right: 1px;
+      width: 14px;
+      height: 14px;
+      border: none;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--vscode-editor-background) 60%, black 40%);
+      color: var(--vscode-foreground);
+      cursor: pointer;
+      font-size: 10px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .am-new-image-remove:hover {
+      background: color-mix(in srgb, var(--vscode-editor-background) 40%, black 60%);
+    }
+
+    .am-inline-select {
+      min-height: 28px;
+      max-width: 220px;
+      font-size: 12px;
+      padding: 3px 6px;
+      border-radius: 4px;
+    }
+
+    .am-run-mode-dropdown-inline {
+      position: relative;
+      display: inline-block;
+    }
+
+    .am-run-mode-trigger-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 4px 6px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      opacity: 0.6;
+    }
+
+    .am-run-mode-trigger-inline:hover:not(:disabled) {
+      opacity: 1;
+      color: var(--vscode-foreground);
+      background-color: rgba(255, 255, 255, 0.03);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .am-run-mode-trigger-inline:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .am-run-mode-trigger-inline .am-chevron {
+      transition: transform 0.15s;
+      opacity: 0.7;
+    }
+
+    .am-run-mode-trigger-inline .am-chevron.am-open {
+      transform: rotate(180deg);
+    }
+
+    .am-run-mode-menu-inline {
+      position: absolute;
+      bottom: 100%;
+      right: 0;
+      margin-bottom: 4px;
+      min-width: 120px;
+      background: var(--vscode-dropdown-background);
+      border: 1px solid var(--vscode-dropdown-border);
+      border-radius: 4px;
+      box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
+      z-index: 100;
+      overflow: hidden;
+    }
+
+    .am-run-mode-option-inline {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      padding: 6px 10px;
+      background: transparent;
+      border: none;
+      color: var(--vscode-dropdown-foreground);
+      font-size: 12px;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.1s;
+    }
+
+    .am-run-mode-option-inline:hover:not(:disabled) {
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .am-run-mode-option-inline.am-selected {
+      background: var(--vscode-list-activeSelectionBackground);
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .am-version-count {
+      font-size: 11px;
+      font-weight: 500;
+      margin-left: 2px;
+    }
+
+    .am-run-mode-trigger-inline.am-locked {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .am-run-mode-trigger-inline.am-locked:hover {
+      background: transparent;
+      border-color: transparent;
+    }
+
+    .am-run-mode-trigger-inline.am-yolo-active {
+      opacity: 1;
+      color: var(--vscode-charts-yellow, #f5c518);
+    }
+
+    .am-run-mode-trigger-inline.am-yolo-active:hover:not(:disabled) {
+      color: var(--vscode-charts-yellow, #f5c518);
+    }
+
+    .am-prompt-input {
+      min-height: 240px;
+      width: 100%;
+      border-radius: 0;
+      border: none;
+      background: transparent;
+      padding: 12px 14px 84px;
+      line-height: 1.45;
+      resize: none;
+    }
+
+    .am-prompt-input:focus {
+      outline: none;
+    }
+
+    .am-run-mode-menu-inline[hidden] {
+      display: none;
     }
 
     @keyframes am-spin {
@@ -2730,9 +3281,15 @@ export class AgentManagerProvider implements vscode.Disposable {
     <aside class="am-sidebar">
       <div class="am-sidebar-header">
         <span>Agent Manager</span>
+        <div class="am-options-menu-container">
+          <button id="optionsBtn" class="am-icon-btn" type="button" aria-label="Options" title="Options">⋮</button>
+          <div id="optionsMenu" class="am-options-dropdown" hidden>
+            <button id="setupScriptBtn" class="am-options-item" type="button">Worktree Setup Script</button>
+          </div>
+        </div>
       </div>
 
-      <button id="newSessionBtn" class="am-new-agent-item" type="button" aria-label="Start a new session">New Agent</button>
+      <button id="newSessionBtn" class="am-new-agent-item" type="button" aria-label="Start a new session">+ New Agent</button>
 
       <div class="am-sidebar-section-header">
         <span>Sessions</span>
@@ -2771,13 +3328,21 @@ export class AgentManagerProvider implements vscode.Disposable {
         agent: "code",
         parallel: false,
         branch: "",
+        versions: 1,
+        yoloMode: true,
+        images: [],
       },
+      shareConfirmSessionId: null,
       composeDraftBySession: new Map(),
+      composeImagesBySession: new Map(),
       messageRefreshTimer: null,
     }
 
     const refreshBtn = document.getElementById("refreshBtn")
     const newSessionBtn = document.getElementById("newSessionBtn")
+    const optionsBtn = document.getElementById("optionsBtn")
+    const optionsMenu = document.getElementById("optionsMenu")
+    const setupScriptBtn = document.getElementById("setupScriptBtn")
     const warningBlock = document.getElementById("warningBlock")
     const warningList = document.getElementById("warningList")
     const sessionList = document.getElementById("sessionList")
@@ -2791,6 +3356,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     function setBusy(nextBusy) {
       state.busy = !!nextBusy
       refreshBtn.disabled = state.busy
+      renderSidebar()
       renderDetail()
     }
 
@@ -2839,6 +3405,35 @@ export class AgentManagerProvider implements vscode.Disposable {
       while (node.firstChild) {
         node.removeChild(node.firstChild)
       }
+    }
+
+    function readFileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          resolve(typeof reader.result === "string" ? reader.result : "")
+        }
+        reader.onerror = () => {
+          reject(reader.error || new Error("Failed to read image"))
+        }
+        reader.readAsDataURL(file)
+      })
+    }
+
+    async function readImageFiles(fileList) {
+      const files = Array.from(fileList || []).filter((file) => file && typeof file.type === "string" && file.type.startsWith("image/"))
+      const urls = []
+      for (const file of files) {
+        try {
+          const dataUrl = await readFileAsDataUrl(file)
+          if (typeof dataUrl === "string" && dataUrl.startsWith("data:")) {
+            urls.push(dataUrl)
+          }
+        } catch {
+          // Ignore failed files and continue with the rest.
+        }
+      }
+      return urls
     }
 
     function makeButton(label, className, onClick, ariaLabel) {
@@ -2915,6 +3510,7 @@ export class AgentManagerProvider implements vscode.Disposable {
 
     function setSelectedSession(sessionID) {
       state.selectedSessionId = sessionID
+      state.shareConfirmSessionId = null
       renderSidebar()
       renderDetail()
       updateMessageRefreshTimer()
@@ -2987,13 +3583,16 @@ export class AgentManagerProvider implements vscode.Disposable {
       clearNode(sessionList)
 
       const rows = visibleSessions()
+      if (state.shareConfirmSessionId && !rows.some((session) => session.id === state.shareConfirmSessionId)) {
+        state.shareConfirmSessionId = null
+      }
       if (newSessionBtn) {
         newSessionBtn.classList.toggle("am-selected", !state.selectedSessionId)
       }
 
       if (rows.length === 0) {
         const empty = document.createElement("div")
-        empty.className = "am-empty"
+        empty.className = "am-no-sessions"
         empty.textContent = "No active agents yet."
         sessionList.appendChild(empty)
         return
@@ -3068,6 +3667,72 @@ export class AgentManagerProvider implements vscode.Disposable {
 
         row.appendChild(statusIcon)
         row.appendChild(content)
+
+        if (session.source === "local") {
+          const shareBtn = document.createElement("button")
+          shareBtn.type = "button"
+          shareBtn.className = "am-icon-btn am-share-btn"
+          shareBtn.textContent = "↗"
+          shareBtn.title = "Share session"
+          shareBtn.setAttribute("aria-label", "Share session")
+          shareBtn.disabled = state.busy
+          shareBtn.addEventListener("click", (event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            state.shareConfirmSessionId = state.shareConfirmSessionId === session.id ? null : session.id
+            renderSidebar()
+          })
+          row.appendChild(shareBtn)
+
+          if (state.shareConfirmSessionId === session.id) {
+            const confirm = document.createElement("div")
+            confirm.className = "am-share-confirm"
+            confirm.addEventListener("click", (event) => {
+              event.stopPropagation()
+            })
+
+            const confirmText = document.createElement("div")
+            confirmText.className = "am-share-confirm-text"
+            confirmText.textContent = "Would you like to publicly share a snapshot of this session?"
+            confirm.appendChild(confirmText)
+
+            const confirmActions = document.createElement("div")
+            confirmActions.className = "am-share-confirm-actions"
+
+            const yesBtn = document.createElement("button")
+            yesBtn.type = "button"
+            yesBtn.className = "button"
+            yesBtn.textContent = "Yes"
+            yesBtn.disabled = state.busy
+            yesBtn.addEventListener("click", (event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              state.shareConfirmSessionId = null
+              setBusy(true)
+              setStatus("Sharing session...")
+              vscode.postMessage({ type: "sessionShare", sessionID: session.id })
+              renderSidebar()
+            })
+
+            const noBtn = document.createElement("button")
+            noBtn.type = "button"
+            noBtn.className = "button secondary"
+            noBtn.textContent = "No"
+            noBtn.disabled = state.busy
+            noBtn.addEventListener("click", (event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              state.shareConfirmSessionId = null
+              renderSidebar()
+            })
+
+            confirmActions.appendChild(yesBtn)
+            confirmActions.appendChild(noBtn)
+            confirm.appendChild(confirmActions)
+            row.appendChild(confirm)
+          }
+        }
+
         sessionList.appendChild(row)
       }
     }
@@ -3210,7 +3875,7 @@ export class AgentManagerProvider implements vscode.Disposable {
 
           const icon = document.createElement("div")
           icon.className = "am-message-icon"
-          icon.textContent = message.role === "user" ? "U" : "K"
+          icon.textContent = message.role === "user" ? "👤" : "◉"
 
           const content = document.createElement("div")
           content.className = "am-message-content-wrapper"
@@ -3222,22 +3887,6 @@ export class AgentManagerProvider implements vscode.Disposable {
           role.className = "am-message-author"
           role.textContent = message.role === "user" ? "User" : "Assistant"
           rowHead.appendChild(role)
-
-          if (message.providerID) {
-            const providerChip = document.createElement("span")
-            providerChip.className = "am-message-chip"
-            providerChip.title = message.providerID
-            providerChip.textContent = "provider: " + message.providerID
-            rowHead.appendChild(providerChip)
-          }
-
-          if (message.modelID) {
-            const modelChip = document.createElement("span")
-            modelChip.className = "am-message-chip"
-            modelChip.title = message.modelID
-            modelChip.textContent = "model: " + message.modelID
-            rowHead.appendChild(modelChip)
-          }
 
           const when = document.createElement("span")
           when.className = "am-message-ts"
@@ -3282,8 +3931,8 @@ export class AgentManagerProvider implements vscode.Disposable {
         !canSendMessage
           ? "This session cannot be continued directly"
           : session.source === "cloud"
-          ? "Add a continuation prompt to resume this cloud session locally"
-          : "Send a follow-up message"
+          ? "Type your task here..."
+          : "Type your task here..."
       input.value = draft
       input.disabled = state.busy || !canSendMessage
       input.spellcheck = false
@@ -3302,27 +3951,90 @@ export class AgentManagerProvider implements vscode.Disposable {
 
       const hint = document.createElement("span")
       hint.className = "am-chat-input-hint"
-      hint.textContent = canSendMessage
-        ? "Press Enter to send, Shift+Enter for new line."
-        : "This session cannot be continued directly"
+      const updateHint = () => {
+        if (!canSendMessage) {
+          hint.textContent = "This session cannot be continued directly"
+          return
+        }
+        const imageCount = (state.composeImagesBySession.get(session.id) || []).length
+        hint.textContent =
+          imageCount > 0
+            ? imageCount + " image" + (imageCount === 1 ? "" : "s") + " attached"
+            : "Press Enter to send, Shift+Enter for new line."
+      }
+      updateHint()
 
       const actionGroup = document.createElement("div")
       actionGroup.className = "am-chat-actions"
 
+      const imageInput = document.createElement("input")
+      imageInput.type = "file"
+      imageInput.accept = "image/*"
+      imageInput.multiple = true
+      imageInput.hidden = true
+      imageInput.disabled = state.busy || !canSendMessage
+      imageInput.addEventListener("change", async () => {
+        const nextImages = await readImageFiles(imageInput.files)
+        imageInput.value = ""
+        if (nextImages.length === 0) {
+          return
+        }
+        const currentImages = state.composeImagesBySession.get(session.id) || []
+        state.composeImagesBySession.set(session.id, [...currentImages, ...nextImages].slice(0, 8))
+        updateHint()
+        updateSendState()
+      })
+
+      const addImageBtn = document.createElement("button")
+      addImageBtn.type = "button"
+      addImageBtn.className = "button icon secondary"
+      addImageBtn.textContent = "+"
+      addImageBtn.title = "Add image"
+      addImageBtn.setAttribute("aria-label", "Add image")
+      addImageBtn.disabled = state.busy || !canSendMessage
+      addImageBtn.addEventListener("click", () => {
+        imageInput.click()
+      })
+      actionGroup.appendChild(imageInput)
+      actionGroup.appendChild(addImageBtn)
+
+      if (session.source !== "cloud" && isSessionActive(session)) {
+        const stop = document.createElement("button")
+        stop.type = "button"
+        stop.className = "button icon secondary am-stop-btn"
+        stop.textContent = "■"
+        stop.title = "Cancel agent"
+        stop.setAttribute("aria-label", "Cancel agent")
+        stop.disabled = state.busy
+        stop.addEventListener("click", () => {
+          setBusy(true)
+          setStatus("Aborting session...")
+          vscode.postMessage({ type: "abortSession", sessionID: session.id })
+        })
+        actionGroup.appendChild(stop)
+      }
+
       const send = document.createElement("button")
       send.type = "submit"
-      send.className = "button"
-      send.textContent = session.source === "cloud" ? "Resume Local" : "Send"
-      send.disabled = state.busy || !canSendMessage || input.value.trim().length === 0
+      send.className = "button icon am-send-btn"
+      send.textContent = "➤"
+      send.title = session.source === "cloud" ? "Resume local session" : "Send message"
+      send.setAttribute("aria-label", session.source === "cloud" ? "Resume local session" : "Send message")
+      const updateSendState = () => {
+        const imageCount = (state.composeImagesBySession.get(session.id) || []).length
+        send.disabled = state.busy || !canSendMessage || (input.value.trim().length === 0 && imageCount === 0)
+      }
+      updateSendState()
 
       input.addEventListener("input", () => {
-        send.disabled = state.busy || !canSendMessage || input.value.trim().length === 0
+        updateSendState()
       })
 
       compose.addEventListener("submit", (event) => {
         event.preventDefault()
         const text = input.value.trim()
-        if (!text) {
+        const images = state.composeImagesBySession.get(session.id) || []
+        if (!text && images.length === 0) {
           return
         }
 
@@ -3330,15 +4042,17 @@ export class AgentManagerProvider implements vscode.Disposable {
 
         if (session.source === "cloud") {
           setStatus("Starting local continuation session...")
-          vscode.postMessage({ type: "resumeRemoteSession", sessionID: session.id, text })
+          vscode.postMessage({ type: "resumeRemoteSession", sessionID: session.id, text, images })
         } else {
           setStatus("Sending message...")
-          vscode.postMessage({ type: "sendSessionMessage", sessionID: session.id, text })
+          vscode.postMessage({ type: "sendSessionMessage", sessionID: session.id, text, images })
         }
 
         state.composeDraftBySession.set(session.id, "")
+        state.composeImagesBySession.set(session.id, [])
         input.value = ""
-        send.disabled = true
+        updateHint()
+        updateSendState()
       })
 
       actionGroup.appendChild(send)
@@ -3363,7 +4077,104 @@ export class AgentManagerProvider implements vscode.Disposable {
 
       const title = document.createElement("div")
       title.className = "am-header-title"
-      title.textContent = session.title || "Untitled"
+      title.title = session.title || "Untitled"
+
+      const renderReadOnlyTitle = () => {
+        clearNode(title)
+        const titleText = document.createElement("span")
+        titleText.className = "am-title-text"
+        titleText.textContent = session.title || "Untitled"
+        titleText.setAttribute("role", "button")
+        titleText.setAttribute("tabindex", "0")
+        titleText.title = "Click to rename"
+
+        const startEdit = () => {
+          if (state.busy) {
+            return
+          }
+
+          clearNode(title)
+          const wrap = document.createElement("div")
+          wrap.className = "am-title-edit-container"
+
+          const input = document.createElement("input")
+          input.type = "text"
+          input.className = "am-title-input"
+          input.value = session.title || "Untitled"
+          input.setAttribute("aria-label", "Rename session")
+
+          const commit = () => {
+            const trimmed = input.value.trim()
+            if (!trimmed || trimmed === (session.title || "Untitled")) {
+              renderReadOnlyTitle()
+              return
+            }
+            setBusy(true)
+            setStatus("Renaming session...")
+            vscode.postMessage({ type: "renameSession", sessionID: session.id, label: trimmed })
+            renderReadOnlyTitle()
+          }
+
+          input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+              event.preventDefault()
+              commit()
+            } else if (event.key === "Escape") {
+              event.preventDefault()
+              renderReadOnlyTitle()
+            }
+          })
+          input.addEventListener("blur", () => {
+            commit()
+          })
+
+          const confirmBtn = document.createElement("button")
+          confirmBtn.type = "button"
+          confirmBtn.className = "am-title-confirm-btn"
+          confirmBtn.textContent = "✓"
+          confirmBtn.title = "Confirm rename"
+          confirmBtn.setAttribute("aria-label", "Confirm rename")
+          confirmBtn.addEventListener("click", (event) => {
+            event.preventDefault()
+            commit()
+          })
+
+          wrap.appendChild(input)
+          wrap.appendChild(confirmBtn)
+          title.appendChild(wrap)
+          window.setTimeout(() => {
+            input.focus()
+            input.select()
+          }, 0)
+        }
+
+        titleText.addEventListener("click", () => {
+          startEdit()
+        })
+        titleText.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault()
+            startEdit()
+          }
+        })
+
+        const editBtn = document.createElement("button")
+        editBtn.type = "button"
+        editBtn.className = "am-title-edit-btn"
+        editBtn.textContent = "✎"
+        editBtn.title = "Rename session"
+        editBtn.setAttribute("aria-label", "Rename session")
+        editBtn.disabled = state.busy
+        editBtn.addEventListener("click", (event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          startEdit()
+        })
+
+        title.appendChild(titleText)
+        title.appendChild(editBtn)
+      }
+      renderReadOnlyTitle()
 
       const subtitle = document.createElement("div")
       subtitle.className = "am-header-meta"
@@ -3410,96 +4221,17 @@ export class AgentManagerProvider implements vscode.Disposable {
       const actions = document.createElement("div")
       actions.className = "am-header-actions"
 
-      const openChat = makeButton(
-        "Open Chat",
-        "secondary",
-        () => {
-          vscode.postMessage({ type: "openSession", sessionID: session.id })
-        },
-        "Open this session in main chat view",
-      )
-      openChat.disabled = state.busy || !session.canOpenInChat
-      actions.appendChild(openChat)
-
-      actions.appendChild(
-        makeButton(
-          "Refresh",
-          "secondary",
-          () => requestSessionMessages(session.id, true),
-          "Reload selected session messages",
-        ),
-      )
-
-      if (session.source === "cloud") {
-        actions.appendChild(
-          makeButton(
-            "Resume Local",
-            "",
-            () => {
-              setBusy(true)
-              setStatus("Starting local continuation session...")
-              vscode.postMessage({ type: "resumeRemoteSession", sessionID: session.id })
-            },
-            "Resume cloud session locally",
-          ),
-        )
-      } else {
-        actions.appendChild(
-          makeButton(
-            "Abort",
-            "secondary",
-            () => {
-              setBusy(true)
-              setStatus("Aborting session...")
-              vscode.postMessage({ type: "abortSession", sessionID: session.id })
-            },
-            "Abort session",
-          ),
-        )
-        actions.appendChild(
-          makeButton(
-            "Delete",
-            "danger",
-            () => {
-              const ok = window.confirm("Delete this session permanently?")
-              if (!ok) {
-                return
-              }
-              setBusy(true)
-              setStatus("Deleting session...")
-              vscode.postMessage({ type: "deleteSession", sessionID: session.id })
-            },
-            "Delete session",
-          ),
-        )
-      }
-
-      if (session.isWorktree) {
-        actions.appendChild(
-          makeButton(
-            "Open Worktree",
-            "secondary",
-            () => vscode.postMessage({ type: "openWorktree", sessionID: session.id }),
-            "Open worktree in new window",
-          ),
-        )
-        actions.appendChild(
-          makeButton(
-            "Remove Worktree",
-            "warn",
-            () => {
-              const ok = window.confirm("Remove this worktree folder? The git branch is preserved.")
-              if (!ok) {
-                return
-              }
-              setBusy(true)
-              setStatus("Removing worktree...")
-              vscode.postMessage({ type: "removeWorktree", sessionID: session.id })
-            },
-            "Remove worktree folder",
-          ),
-        )
-      }
+      const terminalBtn = document.createElement("button")
+      terminalBtn.type = "button"
+      terminalBtn.className = "am-icon-btn"
+      terminalBtn.textContent = "⌘"
+      terminalBtn.title = "Open terminal"
+      terminalBtn.setAttribute("aria-label", "Open terminal")
+      terminalBtn.disabled = state.busy
+      terminalBtn.addEventListener("click", () => {
+        vscode.postMessage({ type: "showTerminal", sessionID: session.id })
+      })
+      actions.appendChild(terminalBtn)
 
       header.appendChild(headerInfo)
       header.appendChild(actions)
@@ -3578,7 +4310,8 @@ export class AgentManagerProvider implements vscode.Disposable {
       prompt.rows = 8
       prompt.addEventListener("input", () => {
         state.createDraft.prompt = prompt.value
-        create.disabled = state.busy || prompt.value.trim().length === 0
+        updateCreateButton()
+        updateToolbarHint()
       })
 
       prompt.addEventListener("keydown", (event) => {
@@ -3588,19 +4321,273 @@ export class AgentManagerProvider implements vscode.Disposable {
         }
       })
 
+      const inputShell = document.createElement("div")
+      inputShell.className = "am-new-input-shell"
+
+      const inputFade = document.createElement("div")
+      inputFade.className = "am-new-input-fade"
+      inputFade.setAttribute("aria-hidden", "true")
+
+      const imagesRow = document.createElement("div")
+      imagesRow.className = "am-new-images-row"
+
+      const renderNewImagePreviews = () => {
+        clearNode(imagesRow)
+        const images = Array.isArray(state.createDraft.images) ? state.createDraft.images : []
+        imagesRow.hidden = images.length === 0
+        for (const [index, image] of images.entries()) {
+          const thumb = document.createElement("div")
+          thumb.className = "am-new-image-thumb"
+
+          const imageNode = document.createElement("img")
+          imageNode.src = image
+          imageNode.alt = "Selected image " + (index + 1)
+
+          const removeBtn = document.createElement("button")
+          removeBtn.type = "button"
+          removeBtn.className = "am-new-image-remove"
+          removeBtn.textContent = "×"
+          removeBtn.title = "Remove image"
+          removeBtn.setAttribute("aria-label", "Remove image " + (index + 1))
+          removeBtn.addEventListener("click", (event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            const current = Array.isArray(state.createDraft.images) ? state.createDraft.images : []
+            state.createDraft.images = current.filter((_, idx) => idx !== index)
+            updateToolbarHint()
+            updateCreateButton()
+            renderNewImagePreviews()
+          })
+
+          thumb.appendChild(imageNode)
+          thumb.appendChild(removeBtn)
+          imagesRow.appendChild(thumb)
+        }
+      }
+
+      const toolbar = document.createElement("div")
+      toolbar.className = "am-new-agent-toolbar"
+
+      const toolbarHint = document.createElement("div")
+      toolbarHint.className = "am-chat-input-hint"
+      const updateToolbarHint = () => {
+        const imageCount = Array.isArray(state.createDraft.images) ? state.createDraft.images.length : 0
+        toolbarHint.textContent =
+          imageCount > 0
+            ? imageCount + " image" + (imageCount === 1 ? "" : "s") + " attached"
+            : "Press Enter to send, Shift+Enter for new line."
+      }
+      updateToolbarHint()
+      toolbar.appendChild(toolbarHint)
+
       const actions = document.createElement("div")
       actions.className = "am-chat-actions"
 
+      const createImageInput = document.createElement("input")
+      createImageInput.type = "file"
+      createImageInput.accept = "image/*"
+      createImageInput.multiple = true
+      createImageInput.hidden = true
+      createImageInput.disabled = state.busy
+      createImageInput.addEventListener("change", async () => {
+        const newImages = await readImageFiles(createImageInput.files)
+        createImageInput.value = ""
+        if (newImages.length === 0) {
+          return
+        }
+        const currentImages = Array.isArray(state.createDraft.images) ? state.createDraft.images : []
+        state.createDraft.images = [...currentImages, ...newImages].slice(0, 8)
+        updateToolbarHint()
+        updateCreateButton()
+        renderNewImagePreviews()
+      })
+
+      const addCreateImageBtn = document.createElement("button")
+      addCreateImageBtn.type = "button"
+      addCreateImageBtn.className = "am-run-mode-trigger-inline"
+      addCreateImageBtn.textContent = "+"
+      addCreateImageBtn.title = "Add image"
+      addCreateImageBtn.setAttribute("aria-label", "Add image")
+      addCreateImageBtn.disabled = state.busy
+      addCreateImageBtn.addEventListener("click", () => {
+        createImageInput.click()
+      })
+      actions.appendChild(createImageInput)
+      actions.appendChild(addCreateImageBtn)
+
+      const modeSelect = document.createElement("select")
+      modeSelect.className = "select-input am-inline-select"
+      for (const agent of options) {
+        const option = document.createElement("option")
+        option.value = agent.name
+        option.textContent = agent.description ? agent.name + " - " + agent.description : agent.name
+        option.selected = agent.name === selectedAgent
+        modeSelect.appendChild(option)
+      }
+      modeSelect.addEventListener("change", () => {
+        state.createDraft.agent = modeSelect.value
+      })
+      actions.appendChild(modeSelect)
+
+      const yoloBtn = document.createElement("button")
+      yoloBtn.type = "button"
+      yoloBtn.className = "am-run-mode-trigger-inline"
+      yoloBtn.textContent = "⚡"
+      yoloBtn.title = "Toggle YOLO mode"
+      yoloBtn.setAttribute("aria-label", "Toggle YOLO mode")
+      yoloBtn.addEventListener("click", () => {
+        state.createDraft.yoloMode = !state.createDraft.yoloMode
+        yoloBtn.classList.toggle("am-yolo-active", !!state.createDraft.yoloMode)
+      })
+      yoloBtn.classList.toggle("am-yolo-active", !!state.createDraft.yoloMode)
+      actions.appendChild(yoloBtn)
+
+      const runModeWrap = document.createElement("div")
+      runModeWrap.className = "am-run-mode-dropdown-inline"
+
+      const runModeBtn = document.createElement("button")
+      runModeBtn.type = "button"
+      runModeBtn.className = "am-run-mode-trigger-inline"
+      const runModeIcon = document.createElement("span")
+      const runModeChevron = document.createElement("span")
+      runModeChevron.className = "am-chevron"
+      runModeChevron.textContent = "▾"
+
+      const runModeMenu = document.createElement("div")
+      runModeMenu.className = "am-run-mode-menu-inline"
+      runModeMenu.hidden = true
+
+      const updateRunModeTrigger = () => {
+        runModeIcon.textContent = state.createDraft.parallel ? "⑂" : "⌂"
+        runModeBtn.title = state.createDraft.parallel ? "Worktree" : "Local"
+        runModeChevron.classList.toggle("am-open", !runModeMenu.hidden)
+      }
+
+      const makeRunModeOption = (label, value) => {
+        const option = document.createElement("button")
+        option.type = "button"
+        option.className = "am-run-mode-option-inline"
+        option.textContent = label
+        option.addEventListener("click", () => {
+          state.createDraft.parallel = value === "worktree"
+          runModeMenu.hidden = true
+          updateRunModeTrigger()
+          updateBranchButton()
+        })
+        return option
+      }
+
+      runModeMenu.appendChild(makeRunModeOption("Local", "local"))
+      runModeMenu.appendChild(makeRunModeOption("Worktree", "worktree"))
+      runModeBtn.addEventListener("click", (event) => {
+        event.preventDefault()
+        runModeMenu.hidden = !runModeMenu.hidden
+        updateRunModeTrigger()
+      })
+      runModeBtn.appendChild(runModeIcon)
+      runModeBtn.appendChild(runModeChevron)
+      runModeWrap.appendChild(runModeBtn)
+      runModeWrap.appendChild(runModeMenu)
+      actions.appendChild(runModeWrap)
+
+      const versionsWrap = document.createElement("div")
+      versionsWrap.className = "am-run-mode-dropdown-inline"
+
+      const versionsBtn = document.createElement("button")
+      versionsBtn.type = "button"
+      versionsBtn.className = "am-run-mode-trigger-inline"
+      const versionsIcon = document.createElement("span")
+      versionsIcon.textContent = "◫"
+      const versionsCount = document.createElement("span")
+      versionsCount.className = "am-version-count"
+      const versionsChevron = document.createElement("span")
+      versionsChevron.className = "am-chevron"
+      versionsChevron.textContent = "▾"
+
+      const versionsMenu = document.createElement("div")
+      versionsMenu.className = "am-run-mode-menu-inline"
+      versionsMenu.hidden = true
+      const updateVersionsTrigger = () => {
+        const value = Number.isFinite(state.createDraft.versions) ? Number(state.createDraft.versions) : 1
+        versionsCount.textContent = String(value)
+        versionsChevron.classList.toggle("am-open", !versionsMenu.hidden)
+      }
+
+      const makeVersionOption = (count) => {
+        const option = document.createElement("button")
+        option.type = "button"
+        option.className = "am-run-mode-option-inline"
+        option.textContent = count + (count === 1 ? " version" : " versions")
+        option.addEventListener("click", () => {
+          state.createDraft.versions = count
+          if (count > 1) {
+            state.createDraft.parallel = true
+          }
+          versionsMenu.hidden = true
+          updateVersionsTrigger()
+          updateRunModeTrigger()
+          updateBranchButton()
+        })
+        return option
+      }
+
+      versionsMenu.appendChild(makeVersionOption(1))
+      versionsMenu.appendChild(makeVersionOption(2))
+      versionsMenu.appendChild(makeVersionOption(3))
+      versionsMenu.appendChild(makeVersionOption(4))
+      versionsBtn.addEventListener("click", (event) => {
+        event.preventDefault()
+        versionsMenu.hidden = !versionsMenu.hidden
+        updateVersionsTrigger()
+      })
+      versionsBtn.appendChild(versionsIcon)
+      versionsBtn.appendChild(versionsCount)
+      versionsBtn.appendChild(versionsChevron)
+      versionsWrap.appendChild(versionsBtn)
+      versionsWrap.appendChild(versionsMenu)
+      actions.appendChild(versionsWrap)
+
+      const branchBtn = document.createElement("button")
+      branchBtn.type = "button"
+      branchBtn.className = "am-run-mode-trigger-inline"
+      branchBtn.title = "Select branch"
+      branchBtn.setAttribute("aria-label", "Select branch")
+      const updateBranchButton = () => {
+        const visible = !!state.createDraft.parallel && Number(state.createDraft.versions || 1) === 1
+        branchBtn.hidden = !visible
+        branchBtn.textContent = state.createDraft.branch ? "⎇ " + state.createDraft.branch : "⎇ Select branch"
+      }
+      branchBtn.addEventListener("click", () => {
+        const next = window.prompt("Branch name (optional)", state.createDraft.branch || "")
+        if (next === null) {
+          return
+        }
+        state.createDraft.branch = next.trim()
+        updateBranchButton()
+      })
+      actions.appendChild(branchBtn)
+
       const create = document.createElement("button")
       create.type = "submit"
-      create.className = "button"
-      create.textContent = "Start Agent"
+      create.className = "button icon am-send-btn"
+      create.textContent = "➤"
+      create.title = "Start agent"
+      create.setAttribute("aria-label", "Start agent")
       create.disabled = state.busy || prompt.value.trim().length === 0
+
+      const updateCreateButton = () => {
+        const imageCount = Array.isArray(state.createDraft.images) ? state.createDraft.images.length : 0
+        create.disabled = state.busy || (prompt.value.trim().length === 0 && imageCount === 0)
+        createImageInput.disabled = state.busy
+        addCreateImageBtn.disabled = state.busy
+      }
+      prompt.addEventListener("input", updateCreateButton)
 
       form.addEventListener("submit", (event) => {
         event.preventDefault()
         const text = prompt.value.trim()
-        if (!text) {
+        const images = Array.isArray(state.createDraft.images) ? state.createDraft.images : []
+        if (!text && images.length === 0) {
           return
         }
         setBusy(true)
@@ -3608,15 +4595,28 @@ export class AgentManagerProvider implements vscode.Disposable {
         vscode.postMessage({
           type: "createSession",
           prompt: text,
-          agent: selectedAgent,
-          parallel: false,
-          branch: "",
+          agent: modeSelect.value || state.defaultAgent,
+          parallel: !!state.createDraft.parallel || Number(state.createDraft.versions || 1) > 1,
+          branch: state.createDraft.branch || "",
+          versions: Number(state.createDraft.versions || 1),
+          yoloMode: !!state.createDraft.yoloMode,
+          images,
         })
       })
 
-      form.appendChild(prompt)
       actions.appendChild(create)
-      form.appendChild(actions)
+      toolbar.appendChild(actions)
+      inputShell.appendChild(prompt)
+      inputShell.appendChild(inputFade)
+      inputShell.appendChild(imagesRow)
+      inputShell.appendChild(toolbar)
+      form.appendChild(inputShell)
+      updateRunModeTrigger()
+      updateVersionsTrigger()
+      updateBranchButton()
+      updateCreateButton()
+      updateToolbarHint()
+      renderNewImagePreviews()
 
       view.appendChild(form)
       return view
@@ -3649,6 +4649,33 @@ export class AgentManagerProvider implements vscode.Disposable {
       vscode.postMessage({ type: "refresh" })
     })
 
+    function closeOptionsMenu() {
+      if (optionsMenu) {
+        optionsMenu.hidden = true
+      }
+    }
+
+    if (optionsBtn && optionsMenu) {
+      optionsBtn.addEventListener("click", (event) => {
+        event.stopPropagation()
+        optionsMenu.hidden = !optionsMenu.hidden
+      })
+      window.addEventListener("click", () => {
+        closeOptionsMenu()
+        if (state.shareConfirmSessionId) {
+          state.shareConfirmSessionId = null
+          renderSidebar()
+        }
+      })
+    }
+
+    if (setupScriptBtn) {
+      setupScriptBtn.addEventListener("click", () => {
+        closeOptionsMenu()
+        vscode.postMessage({ type: "configureSetupScript" })
+      })
+    }
+
     sessionList.addEventListener("keydown", (event) => {
       if (event.key === "ArrowDown") {
         event.preventDefault()
@@ -3663,6 +4690,7 @@ export class AgentManagerProvider implements vscode.Disposable {
 
     newSessionBtn.addEventListener("click", () => {
       state.selectedSessionId = null
+      state.shareConfirmSessionId = null
       renderSidebar()
       renderDetail()
       updateMessageRefreshTimer()
@@ -3728,6 +4756,8 @@ export class AgentManagerProvider implements vscode.Disposable {
             state.createDraft.prompt = ""
             state.createDraft.branch = ""
             state.createDraft.parallel = false
+            state.createDraft.versions = 1
+            state.createDraft.images = []
             if (message.sessionID) {
               state.selectedSessionId = message.sessionID
               requestSessionMessages(message.sessionID, true)

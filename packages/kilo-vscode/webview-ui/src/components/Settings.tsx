@@ -4,13 +4,16 @@ import { Icon, type IconProps } from "@kilocode/kilo-ui/icon"
 import { Tabs } from "@kilocode/kilo-ui/tabs"
 import { TextField } from "@kilocode/kilo-ui/text-field"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
+import { showToast } from "@kilocode/kilo-ui/toast"
 import { useLanguage } from "../context/language"
 import ProvidersTab from "./settings/ProvidersTab"
 import AgentBehaviourTab from "./settings/AgentBehaviourTab"
 import AutoApproveTab from "./settings/AutoApproveTab"
+import SlashCommandsTab from "./settings/SlashCommandsTab"
 import BrowserTab from "./settings/BrowserTab"
 import CheckpointsTab from "./settings/CheckpointsTab"
 import DisplayTab from "./settings/DisplayTab"
+import UITab from "./settings/UITab"
 import AutocompleteTab from "./settings/AutocompleteTab"
 import NotificationsTab from "./settings/NotificationsTab"
 import ContextTab from "./settings/ContextTab"
@@ -28,16 +31,18 @@ export interface SettingsProps {
 
 type SettingsTabId =
   | "providers"
-  | "agentBehaviour"
   | "autoApprove"
+  | "slashCommands"
   | "browser"
   | "checkpoints"
-  | "display"
   | "autocomplete"
+  | "display"
   | "notifications"
   | "context"
   | "terminal"
+  | "agentBehaviour"
   | "prompts"
+  | "ui"
   | "experimental"
   | "language"
   | "aboutKiloCode"
@@ -51,17 +56,19 @@ type SettingsTabMeta = {
 
 const SETTINGS_TABS: SettingsTabMeta[] = [
   { value: "providers", labelKey: "settings.providers.title", icon: "providers", section: "server" },
-  { value: "agentBehaviour", labelKey: "settings.agentBehaviour.title", icon: "brain", section: "server" },
   { value: "autoApprove", labelKey: "settings.autoApprove.title", icon: "checklist", section: "server" },
+  { value: "slashCommands", labelKey: "settings.slashCommands.title", icon: "comment", section: "server" },
   { value: "browser", labelKey: "settings.browser.title", icon: "window-cursor", section: "server" },
   { value: "checkpoints", labelKey: "settings.checkpoints.title", icon: "branch", section: "server" },
+  { value: "autocomplete", labelKey: "settings.autocomplete.title", icon: "code-lines", section: "desktop" },
+  { value: "display", labelKey: "settings.display.title", icon: "eye", section: "desktop" },
+  { value: "notifications", labelKey: "settings.notifications.title", icon: "circle-check", section: "desktop" },
   { value: "context", labelKey: "settings.context.title", icon: "server", section: "server" },
   { value: "terminal", labelKey: "settings.terminal.title", icon: "console", section: "server" },
+  { value: "agentBehaviour", labelKey: "settings.agentBehaviour.title", icon: "brain", section: "server" },
   { value: "prompts", labelKey: "settings.prompts.title", icon: "comment", section: "server" },
+  { value: "ui", labelKey: "settings.ui.title", icon: "menu", section: "desktop" },
   { value: "experimental", labelKey: "settings.experimental.title", icon: "settings-gear", section: "server" },
-  { value: "display", labelKey: "settings.display.title", icon: "eye", section: "desktop" },
-  { value: "autocomplete", labelKey: "settings.autocomplete.title", icon: "code-lines", section: "desktop" },
-  { value: "notifications", labelKey: "settings.notifications.title", icon: "circle-check", section: "desktop" },
   { value: "language", labelKey: "settings.language.title", icon: "speech-bubble", section: "desktop" },
   { value: "aboutKiloCode", labelKey: "settings.aboutKiloCode.title", icon: "help", section: "desktop" },
 ]
@@ -93,7 +100,7 @@ const Settings: Component<SettingsProps> = (props) => {
     }
 
     const updateCompactMode = (width: number) => {
-      setIsCompactMode(width < 500)
+      setIsCompactMode(width < 760)
     }
 
     updateCompactMode(shell.clientWidth)
@@ -120,6 +127,13 @@ const Settings: Component<SettingsProps> = (props) => {
     vscode.postMessage({ type: "settingsTabChanged", tab: normalized })
   }
 
+  const handleSave = () => {
+    showToast({
+      variant: "default",
+      title: language.t("settings.status.autoSaved"),
+    })
+  }
+
   const filteredTabs = createMemo(() => {
     const query = search().trim().toLowerCase()
     if (!query) {
@@ -128,8 +142,7 @@ const Settings: Component<SettingsProps> = (props) => {
     return SETTINGS_TABS.filter((tab) => language.t(tab.labelKey).toLowerCase().includes(query))
   })
 
-  const serverTabs = createMemo(() => filteredTabs().filter((tab) => tab.section === "server"))
-  const desktopTabs = createMemo(() => filteredTabs().filter((tab) => tab.section === "desktop"))
+  const orderedTabs = createMemo(() => filteredTabs())
 
   createEffect(() => {
     const active = activeTab()
@@ -155,17 +168,11 @@ const Settings: Component<SettingsProps> = (props) => {
         </Tooltip>
         <h2 class="settings-view-title">{language.t("sidebar.settings")}</h2>
         <div class="settings-view-spacer" />
-        <Button
-          variant="secondary"
-          size="small"
-          onClick={() => props.onBack?.()}
-          aria-label={language.t("common.done")}
-          title={language.t("common.done")}
-        >
-          <Show when={!isCompactMode()} fallback={<Icon name="check" />}>
-            {language.t("common.done")}
-          </Show>
-        </Button>
+        <Tooltip value={language.t("settings.status.autoSaved")} placement="bottom">
+          <Button variant="secondary" size="small" onClick={handleSave} title={language.t("common.save")} disabled>
+            {language.t("common.save")}
+          </Button>
+        </Tooltip>
       </div>
 
       <div class="settings-view-search">
@@ -185,29 +192,7 @@ const Settings: Component<SettingsProps> = (props) => {
           style={{ flex: 1, overflow: "hidden" }}
         >
           <Tabs.List class="settings-tabs-list">
-            <Show when={serverTabs().length > 0 && !isCompactMode()}>
-              <Tabs.SectionTitle>{language.t("settings.section.server")}</Tabs.SectionTitle>
-            </Show>
-            <For each={serverTabs()}>
-              {(tab) => (
-                <Tabs.Trigger
-                  value={tab.value}
-                  classList={{
-                    "settings-tab-trigger": true,
-                    "settings-tab-trigger-compact": isCompactMode(),
-                  }}
-                  title={isCompactMode() ? language.t(tab.labelKey) : undefined}
-                >
-                  <Icon name={tab.icon} />
-                  <span class="settings-tab-label">{language.t(tab.labelKey)}</span>
-                </Tabs.Trigger>
-              )}
-            </For>
-
-            <Show when={desktopTabs().length > 0 && !isCompactMode()}>
-              <Tabs.SectionTitle>{language.t("settings.section.desktop")}</Tabs.SectionTitle>
-            </Show>
-            <For each={desktopTabs()}>
+            <For each={orderedTabs()}>
               {(tab) => (
                 <Tabs.Trigger
                   value={tab.value}
@@ -235,6 +220,10 @@ const Settings: Component<SettingsProps> = (props) => {
           <Tabs.Content value="autoApprove" class="settings-tab-content">
             <h3 class="settings-tab-title">{language.t("settings.autoApprove.title")}</h3>
             <AutoApproveTab />
+          </Tabs.Content>
+          <Tabs.Content value="slashCommands" class="settings-tab-content">
+            <h3 class="settings-tab-title">{language.t("settings.slashCommands.title")}</h3>
+            <SlashCommandsTab />
           </Tabs.Content>
           <Tabs.Content value="browser" class="settings-tab-content">
             <h3 class="settings-tab-title">{language.t("settings.browser.title")}</h3>
@@ -267,6 +256,10 @@ const Settings: Component<SettingsProps> = (props) => {
           <Tabs.Content value="prompts" class="settings-tab-content">
             <h3 class="settings-tab-title">{language.t("settings.prompts.title")}</h3>
             <PromptsTab />
+          </Tabs.Content>
+          <Tabs.Content value="ui" class="settings-tab-content">
+            <h3 class="settings-tab-title">{language.t("settings.ui.title")}</h3>
+            <UITab />
           </Tabs.Content>
           <Tabs.Content value="experimental" class="settings-tab-content">
             <h3 class="settings-tab-title">{language.t("settings.experimental.title")}</h3>

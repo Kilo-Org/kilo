@@ -41,7 +41,7 @@
     "coding"
   ],
   "activationEvents": [
-    "onView:kilocode.kilo-code.sidebarView.main",
+    "onView:kilo-code-new-sidebarView-main",
     "onCommand:kilo-code.new.plusButtonClicked",
     "onCommand:kilo-code.new.agentManagerOpen",
     "onCommand:kilo-code.new.marketplaceButtonClicked",
@@ -77,17 +77,17 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "kilocode.kilo-code.sidebar",
+          "id": "kilo-code-new-sidebar",
           "title": "Kilo Code (NEW)",
           "icon": "$(code)"
         }
       ]
     },
     "views": {
-      "kilocode.kilo-code.sidebar": [
+      "kilo-code-new-sidebar": [
         {
           "type": "webview",
-          "id": "kilocode.kilo-code.sidebarView.main",
+          "id": "kilo-code-new-sidebarView-main",
           "name": "Kilo Code (NEW)"
         }
       ]
@@ -247,32 +247,32 @@
         {
           "command": "kilo-code.new.plusButtonClicked",
           "group": "navigation@0",
-          "when": "view == kilocode.kilo-code.sidebarView.main"
+          "when": "view == kilo-code-new-sidebarView-main"
         },
         {
           "command": "kilo-code.new.agentManagerOpen",
           "group": "navigation@1",
-          "when": "view == kilocode.kilo-code.sidebarView.main"
+          "when": "view == kilo-code-new-sidebarView-main"
         },
         {
           "command": "kilo-code.new.marketplaceButtonClicked",
           "group": "navigation@2",
-          "when": "view == kilocode.kilo-code.sidebarView.main"
+          "when": "view == kilo-code-new-sidebarView-main"
         },
         {
           "command": "kilo-code.new.historyButtonClicked",
           "group": "navigation@3",
-          "when": "view == kilocode.kilo-code.sidebarView.main"
+          "when": "view == kilo-code-new-sidebarView-main"
         },
         {
           "command": "kilo-code.new.profileButtonClicked",
           "group": "navigation@4",
-          "when": "view == kilocode.kilo-code.sidebarView.main"
+          "when": "view == kilo-code-new-sidebarView-main"
         },
         {
           "command": "kilo-code.new.settingsButtonClicked",
           "group": "navigation@5",
-          "when": "view == kilocode.kilo-code.sidebarView.main"
+          "when": "view == kilo-code-new-sidebarView-main"
         }
       ],
       "editor/title": [

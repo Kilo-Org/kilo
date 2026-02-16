@@ -12,6 +12,7 @@ import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { InlineInput } from "@kilocode/kilo-ui/inline-input"
 import { TextField } from "@kilocode/kilo-ui/text-field"
 import { Select } from "@kilocode/kilo-ui/select"
+import { Icon } from "@kilocode/kilo-ui/icon"
 import { useDialog } from "@kilocode/kilo-ui/context/dialog"
 import { showToast } from "@kilocode/kilo-ui/toast"
 import { useSession } from "../../context/session"
@@ -23,13 +24,8 @@ const DATE_GROUP_KEYS = ["time.today", "time.yesterday", "time.thisWeek", "time.
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
 const PAGE_SIZE = 25
 
-const SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
-  { value: "newest", label: "Newest" },
-  { value: "oldest", label: "Oldest" },
-  { value: "mostExpensive", label: "Most expensive" },
-  { value: "mostTokens", label: "Most tokens" },
-  { value: "mostRelevant", label: "Most relevant" },
-]
+const SORT_OPTIONS: SortOption[] = ["newest", "oldest", "mostExpensive", "mostTokens", "mostRelevant"]
+const FAVORITES_STORAGE_KEY = "kilo.history.favorites.v1"
 
 interface SessionStats {
   cost: number
@@ -78,7 +74,7 @@ function formatCost(cost: number): string {
 }
 
 function formatDiffSummary(additions: number, deletions: number): string {
-  return `+${additions.toLocaleString("en-US")} / -${deletions.toLocaleString("en-US")}`
+  return `+${additions.toLocaleString()} / -${deletions.toLocaleString()}`
 }
 
 function extractMessageTokens(messages: Message[]): number {
@@ -116,6 +112,7 @@ function buildRelevanceScore(sessionInfo: SessionInfo, stats: SessionStats, quer
 
 interface SessionListProps {
   onSelectSession: (id: string) => void
+  onBack?: () => void
 }
 
 const SessionList: Component<SessionListProps> = (props) => {
@@ -130,6 +127,9 @@ const SessionList: Component<SessionListProps> = (props) => {
   const [lastNonRelevantSort, setLastNonRelevantSort] = createSignal<Exclude<SortOption, "mostRelevant">>("newest")
   const [showFilters, setShowFilters] = createSignal(false)
   const [showChangedOnly, setShowChangedOnly] = createSignal(false)
+  const [workspaceScope, setWorkspaceScope] = createSignal<"current" | "all">("current")
+  const [showFavoritesOnly, setShowFavoritesOnly] = createSignal(false)
+  const [favoriteSessionIds, setFavoriteSessionIds] = createSignal<string[]>([])
   const [selectionMode, setSelectionMode] = createSignal(false)
   const [selectedSessionIds, setSelectedSessionIds] = createSignal<string[]>([])
   const [pageIndex, setPageIndex] = createSignal(0)
@@ -137,6 +137,18 @@ const SessionList: Component<SessionListProps> = (props) => {
   onMount(() => {
     console.log("[Kilo New] SessionList mounted, loading sessions")
     session.loadSessions()
+    try {
+      const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY)
+      if (!raw) {
+        return
+      }
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        setFavoriteSessionIds(parsed.filter((value): value is string => typeof value === "string"))
+      }
+    } catch {
+      // Ignore malformed localStorage values.
+    }
   })
 
   createEffect(() => {
@@ -157,34 +169,47 @@ const SessionList: Component<SessionListProps> = (props) => {
   createEffect(() => {
     const validIds = new Set(session.sessions().map((item) => item.id))
     setSelectedSessionIds((previous) => previous.filter((id) => validIds.has(id)))
+    setFavoriteSessionIds((previous) => previous.filter((id) => validIds.has(id)))
+  })
+
+  createEffect(() => {
+    try {
+      window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favoriteSessionIds()))
+    } catch {
+      // Ignore localStorage write errors.
+    }
   })
 
   createEffect(() => {
     searchQuery()
     sortOption()
     showChangedOnly()
+    workspaceScope()
+    showFavoritesOnly()
     setPageIndex(0)
   })
 
   const historyStatus = createMemo(() => {
     if (session.sessionsLoading()) {
-      return "Refreshing session history from CLI storage..."
+      return language.t("session.history.status.refreshing")
     }
 
     if (session.sessionsLoadError()) {
-      return `History refresh error: ${session.sessionsLoadError()}`
+      return language.t("session.history.status.error", { error: session.sessionsLoadError() ?? "" })
     }
 
     if (session.sessionsLoadedAt()) {
-      return `History synced at ${new Date(session.sessionsLoadedAt()!).toLocaleTimeString()}`
+      return language.t("session.history.status.syncedAt", {
+        time: new Date(session.sessionsLoadedAt()!).toLocaleTimeString(),
+      })
     }
 
-    return "Session history is sourced from the CLI backend."
+    return language.t("session.history.status.sourceBackend")
   })
 
   const emptyHistoryMessage = createMemo(() => {
     if (session.sessionsLoadedAt()) {
-      return "No sessions returned by CLI storage yet. If you expected prior history after restart, click Refresh."
+      return language.t("session.history.empty.fromCli")
     }
     return language.t("session.empty")
   })
@@ -216,6 +241,11 @@ const SessionList: Component<SessionListProps> = (props) => {
 
     if (showChangedOnly()) {
       items = items.filter((item) => stats.get(item.id)?.hasChanges)
+    }
+
+    if (showFavoritesOnly()) {
+      const favorites = new Set(favoriteSessionIds())
+      items = items.filter((item) => favorites.has(item.id))
     }
 
     if (query.length > 0) {
@@ -279,6 +309,7 @@ const SessionList: Component<SessionListProps> = (props) => {
   })
 
   const selectedSet = createMemo(() => new Set(selectedSessionIds()))
+  const favoritesSet = createMemo(() => new Set(favoriteSessionIds()))
   const selectedCount = createMemo(() => selectedSessionIds().length)
 
   const allVisibleSelected = createMemo(() => {
@@ -301,7 +332,12 @@ const SessionList: Component<SessionListProps> = (props) => {
   }
 
   const sortOptions = createMemo(() =>
-    searchQuery().trim().length > 0 ? SORT_OPTIONS : SORT_OPTIONS.filter((option) => option.value !== "mostRelevant"),
+    (searchQuery().trim().length > 0 ? SORT_OPTIONS : SORT_OPTIONS.filter((option) => option !== "mostRelevant")).map(
+      (option) => ({
+        value: option,
+        label: language.t(`session.history.sort.${option}`),
+      }),
+    ),
   )
 
   const currentSortOption = createMemo(
@@ -311,14 +347,20 @@ const SessionList: Component<SessionListProps> = (props) => {
   const copySessionId = async (id: string) => {
     try {
       await navigator.clipboard.writeText(id)
-      showToast({ variant: "success", title: "Session ID copied" })
+      showToast({ variant: "success", title: language.t("session.history.toast.copyId.success") })
     } catch {
-      showToast({ variant: "error", title: "Failed to copy session ID" })
+      showToast({ variant: "error", title: language.t("session.history.toast.copyId.failed") })
     }
   }
 
   const toggleSessionSelection = (sessionID: string) => {
     setSelectedSessionIds((previous) =>
+      previous.includes(sessionID) ? previous.filter((id) => id !== sessionID) : [...previous, sessionID],
+    )
+  }
+
+  const toggleFavorite = (sessionID: string) => {
+    setFavoriteSessionIds((previous) =>
       previous.includes(sessionID) ? previous.filter((id) => id !== sessionID) : [...previous, sessionID],
     )
   }
@@ -403,9 +445,9 @@ const SessionList: Component<SessionListProps> = (props) => {
     }
 
     dialog.show(() => (
-      <Dialog title="Delete selected sessions" fit>
+      <Dialog title={language.t("session.history.deleteSelected.title")} fit>
         <div class="dialog-confirm-body">
-          <span>{`Delete ${ids.length} selected session${ids.length === 1 ? "" : "s"}?`}</span>
+          <span>{language.t("session.history.deleteSelected.confirm", { count: ids.length })}</span>
           <div class="dialog-confirm-actions">
             <Button variant="ghost" size="large" onClick={() => dialog.close()}>
               {language.t("common.cancel")}
@@ -442,18 +484,29 @@ const SessionList: Component<SessionListProps> = (props) => {
         <ContextMenu.Portal>
           <ContextMenu.Content>
             <ContextMenu.Item onSelect={() => props.onSelectSession(item.id)}>
-              <ContextMenu.ItemLabel title="Resume session">Resume</ContextMenu.ItemLabel>
+              <ContextMenu.ItemLabel title={language.t("session.history.context.resume")}>
+                {language.t("session.history.context.resume")}
+              </ContextMenu.ItemLabel>
             </ContextMenu.Item>
             <ContextMenu.Item onSelect={() => void copySessionId(item.id)}>
-              <ContextMenu.ItemLabel title="Copy session ID">Copy Session ID</ContextMenu.ItemLabel>
+              <ContextMenu.ItemLabel title={language.t("session.history.context.copyId")}>
+                {language.t("session.history.context.copyId")}
+              </ContextMenu.ItemLabel>
+            </ContextMenu.Item>
+            <ContextMenu.Item onSelect={() => toggleFavorite(item.id)}>
+              <ContextMenu.ItemLabel title={language.t("session.history.filters.favoritesOnly")}>
+                {favoritesSet().has(item.id)
+                  ? language.t("session.history.favorites.remove")
+                  : language.t("session.history.favorites.add")}
+              </ContextMenu.ItemLabel>
             </ContextMenu.Item>
             <ContextMenu.Separator />
             <ContextMenu.Item onSelect={() => startRename(item)}>
-              <ContextMenu.ItemLabel title="Rename session">{language.t("common.rename")}</ContextMenu.ItemLabel>
+              <ContextMenu.ItemLabel title={language.t("common.rename")}>{language.t("common.rename")}</ContextMenu.ItemLabel>
             </ContextMenu.Item>
             <ContextMenu.Separator />
             <ContextMenu.Item onSelect={() => confirmDelete(item)}>
-              <ContextMenu.ItemLabel title="Delete session">{language.t("common.delete")}</ContextMenu.ItemLabel>
+              <ContextMenu.ItemLabel title={language.t("common.delete")}>{language.t("common.delete")}</ContextMenu.ItemLabel>
             </ContextMenu.Item>
           </ContextMenu.Content>
         </ContextMenu.Portal>
@@ -463,26 +516,35 @@ const SessionList: Component<SessionListProps> = (props) => {
 
   return (
     <div class="session-list">
-      <div
-        style={{
-          display: "flex",
-          "align-items": "center",
-          "justify-content": "space-between",
-          gap: "8px",
-          padding: "8px 0",
-        }}
-      >
-        <span style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>{historyStatus()}</span>
-        <Tooltip value={language.t("common.refresh")} placement="top">
-          <Button
-            size="small"
-            variant="ghost"
-            onClick={() => session.loadSessions()}
-            disabled={session.sessionsLoading()}
-          >
-            {language.t("common.refresh")}
-          </Button>
-        </Tooltip>
+      <div class="session-history-header">
+        <div class="session-history-header-main">
+          <Show when={props.onBack}>
+            <Button
+              size="small"
+              variant="ghost"
+              class="session-history-back-button"
+              onClick={() => props.onBack?.()}
+              aria-label={language.t("common.goBack")}
+              title={language.t("common.goBack")}
+            >
+              <Icon name="arrow-left" />
+            </Button>
+          </Show>
+          <h2 class="session-history-header-title">{language.t("session.history.title")}</h2>
+        </div>
+        <div class="session-history-header-actions">
+          <span class="session-history-status-text">{historyStatus()}</span>
+          <Tooltip value={language.t("common.refresh")} placement="top">
+            <Button
+              size="small"
+              variant="ghost"
+              onClick={() => session.loadSessions()}
+              disabled={session.sessionsLoading()}
+            >
+              {language.t("common.refresh")}
+            </Button>
+          </Tooltip>
+        </div>
       </div>
 
       <div class="session-history-controls">
@@ -494,10 +556,19 @@ const SessionList: Component<SessionListProps> = (props) => {
         />
         <div class="session-history-control-actions">
           <Button size="small" variant={showFilters() ? "primary" : "secondary"} onClick={() => setShowFilters((v) => !v)}>
-            Filters
+            <span class="session-history-control-icon" aria-hidden="true">
+              ⌕
+            </span>
+            {language.t("session.history.controls.filters")}
+            <span class={`session-history-control-caret${showFilters() ? " is-open" : ""}`} aria-hidden="true">
+              ▾
+            </span>
           </Button>
           <Button size="small" variant={selectionMode() ? "primary" : "secondary"} onClick={toggleSelectionMode}>
-            {selectionMode() ? language.t("common.done") : "Select"}
+            <span class="session-history-control-icon" aria-hidden="true">
+              {selectionMode() ? "✓" : "☰"}
+            </span>
+            {selectionMode() ? language.t("common.done") : language.t("session.history.controls.select")}
           </Button>
         </div>
       </div>
@@ -505,7 +576,26 @@ const SessionList: Component<SessionListProps> = (props) => {
       <Show when={showFilters()}>
         <div class="session-history-filters">
           <div class="session-history-filter-row">
-            <span class="session-history-filter-label">Sort</span>
+            <span class="session-history-filter-label">{language.t("session.history.filters.workspace")}</span>
+            <div class="session-history-filter-chip-row">
+              <Button
+                size="small"
+                variant={workspaceScope() === "current" ? "primary" : "secondary"}
+                onClick={() => setWorkspaceScope("current")}
+              >
+                {language.t("session.history.filters.workspace.current")}
+              </Button>
+              <Button
+                size="small"
+                variant={workspaceScope() === "all" ? "primary" : "secondary"}
+                onClick={() => setWorkspaceScope("all")}
+              >
+                {language.t("session.history.filters.workspace.all")}
+              </Button>
+            </div>
+          </div>
+          <div class="session-history-filter-row">
+            <span class="session-history-filter-label">{language.t("session.history.filters.sort")}</span>
             <Select
               options={sortOptions()}
               current={currentSortOption()}
@@ -523,8 +613,19 @@ const SessionList: Component<SessionListProps> = (props) => {
               triggerVariant="settings"
             />
           </div>
+          <div class="session-history-filter-chip-row">
+            <Button
+              size="small"
+              variant={showFavoritesOnly() ? "primary" : "secondary"}
+              onClick={() => setShowFavoritesOnly((value) => !value)}
+            >
+              {language.t("session.history.filters.favoritesOnly")}
+            </Button>
+          </div>
           <Button size="small" variant={showChangedOnly() ? "primary" : "secondary"} onClick={() => setShowChangedOnly((v) => !v)}>
-            {showChangedOnly() ? "Showing changed sessions" : "Changed sessions only"}
+            {showChangedOnly()
+              ? language.t("session.history.filters.showingChanged")
+              : language.t("session.history.filters.changedOnly")}
           </Button>
         </div>
       </Show>
@@ -532,17 +633,31 @@ const SessionList: Component<SessionListProps> = (props) => {
       <Show when={selectionMode()}>
         <div class="session-history-selection-bar">
           <div class="session-history-selection-summary">
-            <Button size="small" variant="ghost" onClick={toggleSelectAllVisible}>
-              {allVisibleSelected() ? "Deselect visible" : "Select visible"}
+            <Button size="small" variant="ghost" class="session-history-select-visible-btn" onClick={toggleSelectAllVisible}>
+              <span
+                class={`session-history-visible-checkbox${allVisibleSelected() ? " is-checked" : ""}`}
+                aria-hidden="true"
+              >
+                {allVisibleSelected() ? "✓" : ""}
+              </span>
+              {allVisibleSelected()
+                ? language.t("session.history.selection.deselectVisible")
+                : language.t("session.history.selection.selectVisible")}
             </Button>
-            <span>{`${selectedCount()} selected (${visibleSelectedCount()}/${pagedSessions().length} visible)`}</span>
+            <span>
+              {language.t("session.history.selection.summary", {
+                selected: selectedCount(),
+                visibleSelected: visibleSelectedCount(),
+                visible: pagedSessions().length,
+              })}
+            </span>
           </div>
           <div class="session-history-selection-actions">
             <Button size="small" variant="ghost" onClick={clearSelection} disabled={selectedCount() === 0}>
-              Clear
+              {language.t("session.history.selection.clear")}
             </Button>
             <Button size="small" variant="primary" onClick={confirmBatchDelete} disabled={selectedCount() === 0}>
-              Delete
+              {language.t("common.delete")}
             </Button>
           </div>
         </div>
@@ -597,12 +712,32 @@ const SessionList: Component<SessionListProps> = (props) => {
                     </span>
                   </div>
                   <div class="session-list-item-meta">
-                    <span class="session-meta-pill" title="Session duration">
+                    <button
+                      type="button"
+                      class={`session-favorite-btn${favoritesSet().has(item.id) ? " is-active" : ""}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        toggleFavorite(item.id)
+                      }}
+                      aria-label={
+                        favoritesSet().has(item.id)
+                          ? language.t("session.history.favorites.remove")
+                          : language.t("session.history.favorites.mark")
+                      }
+                      title={
+                        favoritesSet().has(item.id)
+                          ? language.t("session.history.favorites.remove")
+                          : language.t("session.history.favorites.mark")
+                      }
+                    >
+                      {favoritesSet().has(item.id) ? "★" : "☆"}
+                    </button>
+                    <span class="session-meta-pill" title={language.t("session.history.meta.duration")}>
                       {formatDuration(sessionStats().get(item.id)?.durationMs ?? 0)}
                     </span>
                     <Show when={sessionStats().get(item.id)?.cost}>
                       {(cost) => (
-                        <span class="session-meta-pill" title="Session cost">
+                        <span class="session-meta-pill" title={language.t("session.history.meta.cost")}>
                           {formatCost(cost())}
                         </span>
                       )}
@@ -618,12 +753,12 @@ const SessionList: Component<SessionListProps> = (props) => {
                       {(summary) => (
                         <>
                           <Show when={summary().files > 0}>
-                            <span class="session-meta-pill" title="Changed files">
-                              {summary().files} files
+                            <span class="session-meta-pill" title={language.t("session.history.meta.changedFiles")}>
+                              {language.t("session.history.meta.filesCount", { count: summary().files })}
                             </span>
                           </Show>
                           <Show when={summary().additions > 0 || summary().deletions > 0}>
-                            <span class="session-meta-pill" title="Line changes">
+                            <span class="session-meta-pill" title={language.t("session.history.meta.lineChanges")}>
                               {formatDiffSummary(summary().additions, summary().deletions)}
                             </span>
                           </Show>
@@ -671,7 +806,9 @@ const SessionList: Component<SessionListProps> = (props) => {
             aria-label={language.t("session.history.pagination.previous")}
             title={language.t("session.history.pagination.previous")}
           >
-            {"<-"}
+            <span class="session-history-pagination-icon" aria-hidden="true">
+              ‹
+            </span>
           </Button>
           <Button
             size="small"
@@ -682,10 +819,34 @@ const SessionList: Component<SessionListProps> = (props) => {
             aria-label={language.t("session.history.pagination.next")}
             title={language.t("session.history.pagination.next")}
           >
-            {"->"}
+            <span class="session-history-pagination-icon" aria-hidden="true">
+              ›
+            </span>
           </Button>
         </div>
       </div>
+
+      <Show when={selectionMode() && selectedCount() > 0}>
+        <div class="session-history-selection-footer">
+          <span class="session-history-selection-footer-count">
+            {language.t("session.history.selection.summary", {
+              selected: selectedCount(),
+              visibleSelected: visibleSelectedCount(),
+              visible: pagedSessions().length,
+            })}
+          </span>
+          <div class="session-history-selection-footer-actions">
+            <Button size="small" variant="secondary" onClick={clearSelection}>
+              <span aria-hidden="true">×</span>
+              {language.t("session.history.selection.clear")}
+            </Button>
+            <Button size="small" variant="primary" onClick={confirmBatchDelete}>
+              <span aria-hidden="true">⌫</span>
+              {language.t("common.delete")}
+            </Button>
+          </div>
+        </div>
+      </Show>
     </div>
   )
 }

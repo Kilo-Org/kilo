@@ -130,7 +130,7 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
         }
 
         const token = auth.access
-        const currentOrgId = auth.accountId ?? null
+        const currentOrgId = getSelectedOrganizationId(auth) ?? null
 
         // Fetch profile and balance in parallel
         // Pass organizationId to fetchBalance to get team balance when in org context
@@ -177,6 +177,7 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
         }
 
         // Update auth with new organization ID
+        // OpenCode's OAuth auth shape stores the active org context in `accountId`.
         await Auth.set("kilo", {
           type: "oauth",
           refresh: auth.refresh,

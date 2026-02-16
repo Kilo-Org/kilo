@@ -59,6 +59,8 @@ If you're coming from the Kilo Code VS Code extension, your configurations are a
 | Workflows (`.kilocode/workflows/`)           | Converted to commands                        |
 | MCP servers                                  | Migrated to `mcp` config                     |
 
+MCP servers are configured in **`~/.config/kilo/opencode.json`** (or `%USERPROFILE%\.config\kilo\opencode.json` on Windows) under the top-level `"mcp"` object. Each entry is a server name with `type: "local"` and `command: ["executable", "arg1", ...]`. Restart the CLI after editing for changes to take effect.
+
 **Default mode mappings:**
 
 - `code` → `build` agent

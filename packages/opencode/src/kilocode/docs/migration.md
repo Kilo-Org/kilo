@@ -333,7 +333,16 @@ Kilocode workflows are migrated to Opencode commands. See [`workflows-migrator.t
 
 Kilocode MCP server configurations are migrated to Opencode's `mcp` config. See [`mcp-migrator.ts`](../mcp-migrator.ts).
 
-## Source Location
+## Config file location
+
+MCP servers are configured in:
+
+- **macOS / Linux:** `~/.config/kilo/opencode.json`
+- **Windows:** `%USERPROFILE%\.config\kilo\opencode.json`
+
+Use a top-level `"mcp"` object. Each key is the server name; value is `type: "local"` and `command: ["executable", "arg1", ...]`. Restart the CLI after editing.
+
+## Source Location (migration from Kilocode)
 
 | Location                                                    | Description               |
 | ----------------------------------------------------------- | ------------------------- |

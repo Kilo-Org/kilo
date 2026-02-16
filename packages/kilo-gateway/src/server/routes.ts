@@ -101,11 +101,18 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
         const auth = await Auth.get("kilo")
 
         if (!auth || auth.type !== "oauth") {
+          // kilocode_change start - paranoid logging for org role debugging
+          console.warn("[kilo-gateway] /profile: auth missing or not oauth, type:", auth?.type)
+          // kilocode_change end
           return c.json({ error: "Not authenticated with Kilo Gateway" }, 401)
         }
 
         const token = auth.access
         const currentOrgId = auth.accountId ?? null
+
+        // kilocode_change start - paranoid logging for org role debugging
+        console.warn("[kilo-gateway] /profile: fetching profile, currentOrgId:", JSON.stringify(currentOrgId))
+        // kilocode_change end
 
         // Fetch profile and balance in parallel
         // Pass organizationId to fetchBalance to get team balance when in org context
@@ -113,6 +120,32 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
           fetchProfile(token),
           fetchBalance(token, currentOrgId ?? undefined),
         ])
+
+        // kilocode_change start - paranoid logging for org role debugging
+        console.warn("[kilo-gateway] /profile: profile email:", JSON.stringify(profile.email))
+        if (profile.organizations && profile.organizations.length > 0) {
+          const orgSummary = profile.organizations.map(
+            (org: any) => `${org.id}(${org.name}):${org.role}`,
+          )
+          console.warn("[kilo-gateway] /profile: organizations:", orgSummary.join(", "))
+          if (currentOrgId) {
+            const matched = profile.organizations.find((org: any) => org.id === currentOrgId)
+            if (matched) {
+              console.warn(
+                `[kilo-gateway] /profile: current org matched - id=${JSON.stringify(matched.id)} role=${JSON.stringify(matched.role)}`,
+              )
+            } else {
+              console.warn(
+                `[kilo-gateway] /profile: WARNING - currentOrgId=${JSON.stringify(currentOrgId)} not found in organizations list! Available IDs:`,
+                profile.organizations.map((org: any) => org.id),
+              )
+            }
+          }
+        } else {
+          console.warn("[kilo-gateway] /profile: no organizations in profile response")
+        }
+        console.warn("[kilo-gateway] /profile: balance:", JSON.stringify(balance))
+        // kilocode_change end
 
         return c.json({ profile, balance, currentOrgId })
       },

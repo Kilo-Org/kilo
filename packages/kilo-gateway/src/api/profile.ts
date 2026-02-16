@@ -28,11 +28,26 @@ export async function fetchProfile(token: string): Promise<KilocodeProfile> {
   }
   // Backend returns { user: { email, name, ... }, organizations }
   // Transform to flat KilocodeProfile structure
-  return {
-    email: data.user?.email ?? data.email ?? "",
-    name: data.user?.name ?? data.name,
-    organizations: data.organizations,
+  const email = data.user?.email ?? data.email ?? ""
+  const name = data.user?.name ?? data.name
+  const organizations = data.organizations
+
+  // kilocode_change start - paranoid logging for org role debugging
+  console.warn("[kilo-gateway] fetchProfile: raw API response keys:", Object.keys(data))
+  console.warn("[kilo-gateway] fetchProfile: resolved email:", JSON.stringify(email))
+  console.warn("[kilo-gateway] fetchProfile: user.email:", JSON.stringify(data.user?.email), "data.email:", JSON.stringify(data.email))
+  if (organizations && organizations.length > 0) {
+    for (const org of organizations) {
+      console.warn(
+        `[kilo-gateway] fetchProfile: org id=${JSON.stringify(org.id)} name=${JSON.stringify(org.name)} role=${JSON.stringify(org.role)}`,
+      )
+    }
+  } else {
+    console.warn("[kilo-gateway] fetchProfile: no organizations returned from API")
   }
+  // kilocode_change end
+
+  return { email, name, organizations }
 }
 
 /**

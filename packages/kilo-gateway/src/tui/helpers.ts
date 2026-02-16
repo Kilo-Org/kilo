@@ -29,9 +29,19 @@ export function formatProfileInfo(
   // Show current organization
   if (currentOrgId && profile.organizations) {
     const currentOrg = profile.organizations.find((org) => org.id === currentOrgId)
+    // kilocode_change start - paranoid logging for org role debugging
     if (currentOrg) {
+      console.warn(
+        `[kilo-gateway] formatProfileContent: matched org id=${JSON.stringify(currentOrgId)} name=${JSON.stringify(currentOrg.name)} role=${JSON.stringify(currentOrg.role)}`,
+      )
       content += `Team: ${currentOrg.name} (${currentOrg.role})\n`
+    } else {
+      console.warn(
+        `[kilo-gateway] formatProfileContent: WARNING - currentOrgId=${JSON.stringify(currentOrgId)} not found in ${profile.organizations.length} organizations. IDs:`,
+        profile.organizations.map((org) => org.id),
+      )
     }
+    // kilocode_change end
   } else {
     content += `Team: Personal\n`
   }

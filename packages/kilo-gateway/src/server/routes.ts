@@ -130,7 +130,7 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
         }
 
         const token = auth.access
-        const currentOrgId = getSelectedOrganizationId(auth) ?? null
+        const currentOrgId = auth.accountId ?? null
 
         // Fetch profile and balance in parallel
         // Pass organizationId to fetchBalance to get team balance when in org context

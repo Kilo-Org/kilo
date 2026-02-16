@@ -1,22 +1,43 @@
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 import { ServerManager } from "./server-manager"
 import { HttpClient } from "./http-client"
 import { SSEClient } from "./sse-client"
 import type { ServerConfig, SSEEvent } from "./types"
 
-export type ConnectionState = "connecting" | "connected" | "disconnected" | "error"
+export type ConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected" | "error"
 type SSEEventListener = (event: SSEEvent) => void
 type StateListener = (state: ConnectionState) => void
 type SSEEventFilter = (event: SSEEvent) => boolean
+
+interface ServerManagerLike {
+  getServer(): Promise<{ port: number; password: string; username: string }>
+  dispose(): void
+}
+
+interface SSEClientLike {
+  onEvent(listener: (event: SSEEvent) => void): void
+  onError(listener: (error: Error) => void): void
+  onStateChange(listener: (state: ConnectionState) => void): void
+  connect(workspaceDir: string): void
+  dispose(): void
+}
+
+type ConnectionServiceDependencies = {
+  createServerManager?: (context: vscode.ExtensionContext) => ServerManagerLike
+  createHttpClient?: (config: ServerConfig) => HttpClient
+  createSseClient?: (config: ServerConfig) => SSEClientLike
+}
 
 /**
  * Shared connection service that owns the single ServerManager, HttpClient, and SSEClient.
  * Multiple KiloProvider instances subscribe to it for SSE events and state changes.
  */
 export class KiloConnectionService {
-  private readonly serverManager: ServerManager
+  private readonly serverManager: ServerManagerLike
+  private readonly createHttpClient: (config: ServerConfig) => HttpClient
+  private readonly createSseClient: (config: ServerConfig) => SSEClientLike
   private client: HttpClient | null = null
-  private sseClient: SSEClient | null = null
+  private sseClient: SSEClientLike | null = null
   private info: { port: number } | null = null
   private state: ConnectionState = "disconnected"
   private connectPromise: Promise<void> | null = null
@@ -30,8 +51,10 @@ export class KiloConnectionService {
    */
   private readonly messageSessionIdsByMessageId: Map<string, string> = new Map()
 
-  constructor(context: vscode.ExtensionContext) {
-    this.serverManager = new ServerManager(context)
+  constructor(context: vscode.ExtensionContext, dependencies: ConnectionServiceDependencies = {}) {
+    this.serverManager = dependencies.createServerManager?.(context) ?? new ServerManager(context)
+    this.createHttpClient = dependencies.createHttpClient ?? ((config) => new HttpClient(config))
+    this.createSseClient = dependencies.createSseClient ?? ((config) => new SSEClient(config))
   }
 
   /**
@@ -196,10 +219,11 @@ export class KiloConnectionService {
     const config: ServerConfig = {
       baseUrl: `http://127.0.0.1:${server.port}`,
       password: server.password,
+      username: server.username,
     }
 
-    this.client = new HttpClient(config)
-    this.sseClient = new SSEClient(config)
+    this.client = this.createHttpClient(config)
+    this.sseClient = this.createSseClient(config)
 
     // Wait until SSE actually reaches a terminal state before resolving connect().
     let resolveConnected: (() => void) | null = null
@@ -219,10 +243,14 @@ export class KiloConnectionService {
     })
 
     this.sseClient.onError((error) => {
-      this.setState("error")
-      rejectConnected?.(error)
-      resolveConnected = null
-      rejectConnected = null
+      // Treat SSE errors as fatal only before initial connect completes.
+      // After a successful connect, SSEClient handles reconnect/disconnect state transitions.
+      if (!didConnect) {
+        this.setState("error")
+        rejectConnected?.(error)
+        resolveConnected = null
+        rejectConnected = null
+      }
     })
 
     // Wire SSE state → broadcast to all registered state listeners

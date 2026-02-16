@@ -4,13 +4,29 @@ import type {
   MessageInfo,
   MessagePart,
   AgentInfo,
+  CommandDefinition,
   ProfileData,
+  KiloExtensionSettings,
+  RemoteSessionInfo,
+  RemoteSessionMessage,
   ProviderAuthAuthorization,
   ProviderListResponse,
   McpStatus,
   McpConfig,
   Config,
 } from "./types"
+import { logger } from "../../utils/logger"
+import { CLI_SERVER_AUTH_USERNAME, createBasicAuthHeader } from "./auth"
+
+const DEFAULT_CONNECT_TIMEOUT_MS = 10_000
+const DEFAULT_REQUEST_TIMEOUT_MS = 60_000
+
+interface RequestOptions {
+  directory?: string
+  allowEmpty?: boolean
+  connectTimeoutMs?: number
+  requestTimeoutMs?: number
+}
 
 /**
  * HTTP Client for communicating with the CLI backend server.
@@ -19,17 +35,16 @@ import type {
 export class HttpClient {
   private readonly baseUrl: string
   private readonly authHeader: string
-  private readonly authUsername = "opencode"
+  private readonly authUsername: string
+  private remoteSessionsUnavailableReason: string | null = null
 
   constructor(config: ServerConfig) {
     this.baseUrl = config.baseUrl
-    // Auth header format: Basic base64("opencode:password")
-    // NOTE: The CLI server expects a non-empty username ("opencode"). Using an empty username
-    // (":password") results in 401 for both REST and SSE endpoints.
-    this.authHeader = `Basic ${Buffer.from(`${this.authUsername}:${config.password}`).toString("base64")}`
+    this.authUsername = config.username || CLI_SERVER_AUTH_USERNAME
+    this.authHeader = createBasicAuthHeader(this.authUsername, config.password)
 
     // Safe debug logging: no secrets.
-    console.log("[Kilo New] HTTP: 🔐 Auth configured", {
+    logger.debug("[Kilo New] HTTP: 🔐 Auth configured", {
       username: this.authUsername,
       passwordLength: config.password.length,
     })
@@ -42,9 +57,17 @@ export class HttpClient {
     method: string,
     path: string,
     body?: unknown,
-    options?: { directory?: string; allowEmpty?: boolean },
+    options?: RequestOptions,
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`
+    const connectTimeoutMs = options?.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS
+    const requestTimeoutMs = options?.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
+    const controller = new AbortController()
+    let connectTimeout: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      controller.abort()
+    }, connectTimeoutMs)
+    let requestTimeout: ReturnType<typeof setTimeout> | null = null
+    let timeoutPhase: "connect" | "request" = "connect"
 
     const headers: Record<string, string> = {
       Authorization: this.authHeader,
@@ -55,63 +78,134 @@ export class HttpClient {
       headers["x-opencode-directory"] = options.directory
     }
 
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    })
-
-    // Read the raw response first so we can produce useful errors when JSON is empty/truncated.
-    const rawText = await response.text()
-
-    // Non-2xx: try to extract an error message from JSON, otherwise fall back to raw text.
-    if (!response.ok) {
-      let errorMessage = response.statusText
-      if (rawText.trim().length > 0) {
-        try {
-          const errorJson = JSON.parse(rawText) as { error?: string; message?: string }
-          errorMessage = errorJson.error || errorJson.message || errorMessage
-        } catch {
-          errorMessage = rawText
-        }
-      }
-
-      console.error("[Kilo New] HTTP: ❌ Request failed", {
-        method,
-        path,
-        status: response.status,
-        errorMessage,
-      })
-
-      throw new Error(`HTTP ${response.status}: ${errorMessage}`)
-    }
-
-    // 2xx but empty body: return undefined (cast to T). Some endpoints like
-    // POST /session/{id}/message can return 200 with no body; results arrive via SSE.
-    if (rawText.trim().length === 0) {
-      if (options?.allowEmpty) {
-        return undefined as T
-      }
-
-      console.error("[Kilo New] HTTP: ❌ Empty response body", {
-        method,
-        path,
-        status: response.status,
-      })
-      throw new Error(`HTTP ${response.status}: Empty response body`)
-    }
-
     try {
-      return JSON.parse(rawText) as T
-    } catch (error) {
-      console.error("[Kilo New] HTTP: ❌ Invalid JSON response", {
+      const response = await fetch(url, {
         method,
-        path,
-        status: response.status,
-        rawSnippet: rawText.slice(0, 400),
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
       })
+
+      if (connectTimeout) {
+        clearTimeout(connectTimeout)
+        connectTimeout = null
+      }
+      timeoutPhase = "request"
+      requestTimeout = setTimeout(() => {
+        controller.abort()
+      }, requestTimeoutMs)
+
+      // Read the raw response first so we can produce useful errors when JSON is empty/truncated.
+      const rawText = await response.text()
+
+      // Non-2xx: try to extract an error message from JSON, otherwise fall back to raw text.
+      if (!response.ok) {
+        let errorMessage = response.statusText
+        if (rawText.trim().length > 0) {
+          try {
+            const errorJson = JSON.parse(rawText) as { error?: string; message?: string }
+            errorMessage = errorJson.error || errorJson.message || errorMessage
+          } catch {
+            errorMessage = this.looksLikeHtml(rawText)
+              ? `Unexpected HTML response from CLI backend (${method} ${path})`
+              : rawText
+          }
+        }
+
+        logger.error("[Kilo New] HTTP: ❌ Request failed", {
+          method,
+          path,
+          status: response.status,
+          errorMessage,
+        })
+
+        throw new Error(`HTTP ${response.status}: ${errorMessage}`)
+      }
+
+      // 2xx but empty body: return undefined (cast to T). Some endpoints like
+      // POST /session/{id}/message can return 200 with no body; results arrive via SSE.
+      if (rawText.trim().length === 0) {
+        if (options?.allowEmpty) {
+          return undefined as T
+        }
+
+        logger.error("[Kilo New] HTTP: ❌ Empty response body", {
+          method,
+          path,
+          status: response.status,
+        })
+        throw new Error(`HTTP ${response.status}: Empty response body`)
+      }
+
+      try {
+        return JSON.parse(rawText) as T
+      } catch (error) {
+        const trimmed = rawText.trim()
+        const parseMessage = this.looksLikeHtml(trimmed)
+          ? `CLI backend returned HTML instead of JSON for ${method} ${path}.`
+          : `Invalid JSON response for ${method} ${path}.`
+        logger.error("[Kilo New] HTTP: ❌ Invalid JSON response", {
+          method,
+          path,
+          status: response.status,
+          rawSnippet: rawText.slice(0, 400),
+        })
+        throw new Error(`${parseMessage} Snippet: ${trimmed.slice(0, 220)}`)
+      }
+    } catch (error) {
+      if (this.isAbortError(error)) {
+        const timeoutMs = timeoutPhase === "connect" ? connectTimeoutMs : requestTimeoutMs
+        throw new Error(this.makeTimeoutErrorMessage(`HTTP ${method} ${path}`, timeoutPhase, timeoutMs))
+      }
+
       throw error
+    } finally {
+      if (connectTimeout) {
+        clearTimeout(connectTimeout)
+      }
+      if (requestTimeout) {
+        clearTimeout(requestTimeout)
+      }
     }
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return (
+      (typeof DOMException !== "undefined" && error instanceof DOMException && error.name === "AbortError") ||
+      (typeof error === "object" &&
+        error !== null &&
+        "name" in error &&
+        typeof (error as { name?: unknown }).name === "string" &&
+        (error as { name: string }).name === "AbortError")
+    )
+  }
+
+  private looksLikeHtml(value: string): boolean {
+    return /^\s*<!doctype\s+html/i.test(value) || /^\s*<html[\s>]/i.test(value)
+  }
+
+  private isHtmlResponseErrorMessage(message: string): boolean {
+    return (
+      message.includes("returned HTML instead of JSON") ||
+      message.includes("Unexpected HTML response from CLI backend")
+    )
+  }
+
+  private async diagnoseKiloRouteAvailability(): Promise<string> {
+    try {
+      await this.request<unknown>("GET", "/kilo/profile")
+      return "Cloud remote sessions endpoint is unavailable on this CLI backend build (but /kilo/profile exists). Update the bundled CLI to a build with /kilo/remote-sessions support."
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (this.isHtmlResponseErrorMessage(message)) {
+        return "CLI backend is serving HTML for /kilo/* routes. This usually means the running CLI build does not include Kilo Gateway API routes (or requests are hitting the web proxy fallback). Rebuild/update the bundled CLI binary."
+      }
+      return "Cloud remote sessions are currently unavailable."
+    }
+  }
+
+  private makeTimeoutErrorMessage(prefix: string, phase: "connect" | "request", timeoutMs: number): string {
+    return `${prefix} ${phase} timeout after ${Math.round(timeoutMs / 1000)}s`
   }
 
   // ============================================
@@ -137,6 +231,13 @@ export class HttpClient {
    */
   async listSessions(directory: string): Promise<SessionInfo[]> {
     return this.request<SessionInfo[]>("GET", "/session", undefined, { directory })
+  }
+
+  /**
+   * List child sessions that were forked from a parent session.
+   */
+  async listSessionChildren(sessionId: string, directory: string): Promise<SessionInfo[]> {
+    return this.request<SessionInfo[]>("GET", `/session/${sessionId}/children`, undefined, { directory })
   }
 
   /**
@@ -173,6 +274,14 @@ export class HttpClient {
    */
   async listAgents(directory: string): Promise<AgentInfo[]> {
     return this.request<AgentInfo[]>("GET", "/agent", undefined, { directory })
+  }
+
+  /**
+   * List all slash commands available to the current workspace.
+   * Includes built-ins and commands contributed by custom commands, MCPs, and skills.
+   */
+  async listCommands(directory: string): Promise<CommandDefinition[]> {
+    return this.request<CommandDefinition[]>("GET", "/command", undefined, { directory })
   }
 
   // ============================================
@@ -233,6 +342,61 @@ export class HttpClient {
     )
   }
 
+  /**
+   * Get todo items for a session.
+   */
+  async getTodos(
+    sessionId: string,
+    directory: string,
+  ): Promise<Array<{ id: string; content: string; status: string; priority?: string }>> {
+    return this.request<Array<{ id: string; content: string; status: string; priority?: string }>>(
+      "GET",
+      `/session/${sessionId}/todo`,
+      undefined,
+      { directory },
+    )
+  }
+
+  /**
+   * Create a todo item in a session.
+   */
+  async createTodo(
+    sessionId: string,
+    todo: { content: string; status?: "pending" | "in_progress" | "completed" | "cancelled"; priority?: "high" | "medium" | "low" },
+    directory: string,
+  ): Promise<{ id: string; content: string; status: string; priority?: string }> {
+    return this.request<{ id: string; content: string; status: string; priority?: string }>(
+      "POST",
+      `/session/${sessionId}/todo`,
+      todo,
+      { directory },
+    )
+  }
+
+  /**
+   * Update an existing todo item in a session.
+   */
+  async updateTodo(
+    sessionId: string,
+    todoId: string,
+    changes: { content?: string; status?: "pending" | "in_progress" | "completed" | "cancelled"; priority?: "high" | "medium" | "low" },
+    directory: string,
+  ): Promise<{ id: string; content: string; status: string; priority?: string }> {
+    return this.request<{ id: string; content: string; status: string; priority?: string }>(
+      "PATCH",
+      `/session/${sessionId}/todo/${todoId}`,
+      changes,
+      { directory },
+    )
+  }
+
+  /**
+   * Delete a todo item from a session.
+   */
+  async deleteTodo(sessionId: string, todoId: string, directory: string): Promise<void> {
+    await this.request<void>("DELETE", `/session/${sessionId}/todo/${todoId}`, undefined, { directory, allowEmpty: true })
+  }
+
   // ============================================
   // Control Methods
   // ============================================
@@ -255,6 +419,27 @@ export class HttpClient {
       { providerID, modelID, auto: false },
       { directory, allowEmpty: true },
     )
+  }
+
+  /**
+   * Revert a session to a specific message point.
+   */
+  async revertSession(sessionId: string, messageID: string, directory: string): Promise<SessionInfo> {
+    return this.request<SessionInfo>("POST", `/session/${sessionId}/revert`, { messageID }, { directory })
+  }
+
+  /**
+   * Clear a session revert pointer and restore the latest session state.
+   */
+  async unrevertSession(sessionId: string, directory: string): Promise<SessionInfo> {
+    return this.request<SessionInfo>("POST", `/session/${sessionId}/unrevert`, {}, { directory })
+  }
+
+  /**
+   * Create a new session forked from an existing session/message.
+   */
+  async forkSession(sessionId: string, directory: string, messageID?: string): Promise<SessionInfo> {
+    return this.request<SessionInfo>("POST", `/session/${sessionId}/fork`, { messageID }, { directory })
   }
 
   // ============================================
@@ -321,6 +506,86 @@ export class HttpClient {
     await this.request<boolean>("POST", "/kilo/organization", { organizationId })
   }
 
+  /**
+   * Fetch cloud extension settings (organization/user policy settings).
+   */
+  async getExtensionSettings(): Promise<KiloExtensionSettings> {
+    try {
+      return await this.request<KiloExtensionSettings>("GET", "/kilo/extension-settings")
+    } catch (error) {
+      logger.warn("[Kilo New] HTTP: extension settings unavailable, continuing without cloud marketplace policy", {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return {}
+    }
+  }
+
+  /**
+   * List cloud-synced remote sessions for Agent Manager.
+   */
+  async listRemoteSessions(limit = 50): Promise<RemoteSessionInfo[]> {
+    if (this.remoteSessionsUnavailableReason) {
+      logger.debug("[Kilo New] HTTP: remote sessions disabled", {
+        reason: this.remoteSessionsUnavailableReason,
+      })
+      return []
+    }
+
+    const encodedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(100, Math.floor(limit))) : 50
+    let response: { sessions?: Array<Record<string, unknown>> }
+    try {
+      response = await this.request<{ sessions?: Array<Record<string, unknown>> }>(
+        "GET",
+        `/kilo/remote-sessions?limit=${encodedLimit}`,
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!this.isHtmlResponseErrorMessage(message)) {
+        throw error
+      }
+
+      const reason = await this.diagnoseKiloRouteAvailability()
+      this.remoteSessionsUnavailableReason = reason
+      logger.warn("[Kilo New] HTTP: cloud remote sessions unavailable", {
+        reason,
+      })
+      return []
+    }
+
+    const raw = Array.isArray(response.sessions) ? response.sessions : []
+    return raw.map((session) => ({
+      sessionID: typeof session.session_id === "string" ? session.session_id : "",
+      title: typeof session.title === "string" ? session.title : "Untitled",
+      createdAt: typeof session.created_at === "string" ? session.created_at : new Date(0).toISOString(),
+      updatedAt: typeof session.updated_at === "string" ? session.updated_at : new Date(0).toISOString(),
+      gitUrl: typeof session.git_url === "string" ? session.git_url : null,
+      organizationId: typeof session.organization_id === "string" ? session.organization_id : null,
+      lastMode: typeof session.last_mode === "string" ? session.last_mode : null,
+      lastModel: typeof session.last_model === "string" ? session.last_model : null,
+      cloudAgentSessionId: typeof session.cloud_agent_session_id === "string" ? session.cloud_agent_session_id : null,
+    }))
+  }
+
+  /**
+   * Fetch transcript messages for a cloud-synced remote session.
+   */
+  async getRemoteSessionMessages(sessionID: string): Promise<RemoteSessionMessage[]> {
+    const encoded = encodeURIComponent(sessionID)
+    const response = await this.request<{ messages?: Array<Record<string, unknown>> }>(
+      "GET",
+      `/kilo/remote-sessions/${encoded}/messages`,
+    )
+    const raw = Array.isArray(response.messages) ? response.messages : []
+    return raw.map((message) => ({
+      ts: typeof message.ts === "number" ? message.ts : undefined,
+      type: typeof message.type === "string" ? message.type : undefined,
+      ask: typeof message.ask === "string" ? message.ask : undefined,
+      say: typeof message.say === "string" ? message.say : undefined,
+      text: typeof message.text === "string" ? message.text : undefined,
+      reasoning: typeof message.reasoning === "string" ? message.reasoning : undefined,
+    }))
+  }
+
   // ============================================
   // FIM Completion Methods
   // ============================================
@@ -339,92 +604,131 @@ export class HttpClient {
     prefix: string,
     suffix: string,
     onChunk: (text: string) => void,
-    options?: { model?: string; maxTokens?: number; temperature?: number },
+    options?: {
+      model?: string
+      maxTokens?: number
+      temperature?: number
+      connectTimeoutMs?: number
+      requestTimeoutMs?: number
+    },
   ): Promise<{ cost: number; inputTokens: number; outputTokens: number }> {
     const url = `${this.baseUrl}/kilo/fim`
+    const connectTimeoutMs = options?.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS
+    const requestTimeoutMs = options?.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
+    const controller = new AbortController()
+    let connectTimeout: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      controller.abort()
+    }, connectTimeoutMs)
+    let requestTimeout: ReturnType<typeof setTimeout> | null = null
+    let timeoutPhase: "connect" | "request" = "connect"
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: this.authHeader,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        prefix,
-        suffix,
-        model: options?.model,
-        maxTokens: options?.maxTokens,
-        temperature: options?.temperature,
-      }),
-    })
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: this.authHeader,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prefix,
+          suffix,
+          model: options?.model,
+          maxTokens: options?.maxTokens,
+          temperature: options?.temperature,
+        }),
+        signal: controller.signal,
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`FIM request failed: ${response.status} ${errorText}`)
-    }
+      if (connectTimeout) {
+        clearTimeout(connectTimeout)
+        connectTimeout = null
+      }
+      timeoutPhase = "request"
+      requestTimeout = setTimeout(() => {
+        controller.abort()
+      }, requestTimeoutMs)
 
-    if (!response.body) {
-      throw new Error("FIM response has no body")
-    }
-
-    let cost = 0
-    let inputTokens = 0
-    let outputTokens = 0
-
-    // Parse SSE stream
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ""
-
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) {
-        break
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`FIM request failed: ${response.status} ${errorText}`)
       }
 
-      buffer += decoder.decode(value, { stream: true })
+      if (!response.body) {
+        throw new Error("FIM response has no body")
+      }
 
-      // Process complete SSE lines
-      const lines = buffer.split("\n")
-      buffer = lines.pop() ?? "" // Keep incomplete line in buffer
+      let cost = 0
+      let inputTokens = 0
+      let outputTokens = 0
 
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) {
-          continue
+      // Parse SSE stream
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) {
+          break
         }
 
-        const data = line.slice(6).trim()
-        if (data === "[DONE]") {
-          continue
-        }
+        buffer += decoder.decode(value, { stream: true })
 
-        try {
-          const parsed = JSON.parse(data) as {
-            choices?: Array<{ delta?: { content?: string } }>
-            usage?: { prompt_tokens?: number; completion_tokens?: number }
-            cost?: number
+        // Process complete SSE lines
+        const lines = buffer.split("\n")
+        buffer = lines.pop() ?? "" // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) {
+            continue
           }
 
-          const content = parsed.choices?.[0]?.delta?.content
-          if (content) {
-            onChunk(content)
+          const data = line.slice(6).trim()
+          if (data === "[DONE]") {
+            continue
           }
 
-          if (parsed.usage) {
-            inputTokens = parsed.usage.prompt_tokens ?? 0
-            outputTokens = parsed.usage.completion_tokens ?? 0
-          }
+          try {
+            const parsed = JSON.parse(data) as {
+              choices?: Array<{ delta?: { content?: string } }>
+              usage?: { prompt_tokens?: number; completion_tokens?: number }
+              cost?: number
+            }
 
-          if (parsed.cost !== undefined) {
-            cost = parsed.cost
+            const content = parsed.choices?.[0]?.delta?.content
+            if (content) {
+              onChunk(content)
+            }
+
+            if (parsed.usage) {
+              inputTokens = parsed.usage.prompt_tokens ?? 0
+              outputTokens = parsed.usage.completion_tokens ?? 0
+            }
+
+            if (parsed.cost !== undefined) {
+              cost = parsed.cost
+            }
+          } catch {
+            // Skip malformed JSON lines
           }
-        } catch {
-          // Skip malformed JSON lines
         }
       }
-    }
 
-    return { cost, inputTokens, outputTokens }
+      return { cost, inputTokens, outputTokens }
+    } catch (error) {
+      if (this.isAbortError(error)) {
+        const timeoutMs = timeoutPhase === "connect" ? connectTimeoutMs : requestTimeoutMs
+        throw new Error(this.makeTimeoutErrorMessage("FIM", timeoutPhase, timeoutMs))
+      }
+      throw error
+    } finally {
+      if (connectTimeout) {
+        clearTimeout(connectTimeout)
+      }
+      if (requestTimeout) {
+        clearTimeout(requestTimeout)
+      }
+    }
   }
 
   // ============================================

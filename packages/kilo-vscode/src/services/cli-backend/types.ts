@@ -4,7 +4,18 @@ export interface SessionInfo {
   title: string
   directory: string
   parentID?: string
+  revert?: {
+    messageID: string
+    partID?: string
+    snapshot?: string
+    diff?: string
+  }
   share?: string
+  summary?: {
+    additions: number
+    deletions: number
+    files: number
+  }
   time: {
     created: number
     updated: number
@@ -31,6 +42,8 @@ export interface MessageInfo {
   id: string
   sessionID: string
   role: "user" | "assistant"
+  providerID?: string
+  modelID?: string
   time: {
     created: number
     completed?: number
@@ -44,6 +57,15 @@ export interface MessageInfo {
 export type MessagePart =
   | { type: "text"; id: string; text: string }
   | { type: "tool"; id: string; tool: string; state: ToolState }
+  | {
+      type: "file"
+      id: string
+      mime: string
+      url: string
+      originalUrl?: string
+      filename?: string
+      source?: Record<string, unknown>
+    }
   | { type: "reasoning"; id: string; text: string }
 
 export type ToolState =
@@ -81,7 +103,7 @@ export type SSEEvent =
       type: "permission.replied"
       properties: { sessionID: string; requestID: string; reply: "once" | "always" | "reject" }
     }
-  | { type: "todo.updated"; properties: { sessionID: string; items: TodoItem[] } }
+  | { type: "todo.updated"; properties: { sessionID: string; items?: TodoItem[]; todos?: TodoItem[] } }
   | { type: "question.asked"; properties: QuestionRequest }
   | { type: "question.replied"; properties: { sessionID: string; requestID: string; answers: string[][] } }
   | { type: "question.rejected"; properties: { sessionID: string; requestID: string } }
@@ -89,7 +111,8 @@ export type SSEEvent =
 export interface TodoItem {
   id: string
   content: string
-  status: "pending" | "in_progress" | "completed"
+  status: "pending" | "in_progress" | "completed" | "cancelled"
+  priority?: "high" | "medium" | "low"
 }
 
 // Question types from Question module
@@ -121,9 +144,21 @@ export interface AgentInfo {
   name: string
   description?: string
   mode: "subagent" | "primary" | "all"
+  iconName?: string
   native?: boolean
   hidden?: boolean
   color?: string
+}
+
+// Slash command metadata from the CLI /command endpoint
+export interface CommandDefinition {
+  name: string
+  description?: string
+  agent?: string
+  model?: string
+  source?: "command" | "mcp" | "skill"
+  template: string
+  hints: string[]
 }
 
 // Provider/model types from provider catalog
@@ -139,6 +174,7 @@ export interface ProviderModel {
   latest?: boolean
   // Actual shape returned by the server (Provider.Model)
   limit?: { context: number; input?: number; output: number }
+  variants?: Record<string, Record<string, unknown>>
 }
 
 // Provider definition
@@ -165,6 +201,7 @@ export interface ModelSelection {
 export interface ServerConfig {
   baseUrl: string
   password: string
+  username: string
 }
 
 // Provider OAuth types
@@ -197,13 +234,39 @@ export interface ProfileData {
   currentOrgId: string | null
 }
 
+export interface KiloExtensionSettings {
+  organization?: Record<string, unknown>
+  user?: Record<string, unknown>
+}
+
+export interface RemoteSessionInfo {
+  sessionID: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  gitUrl: string | null
+  organizationId: string | null
+  lastMode: string | null
+  lastModel: string | null
+  cloudAgentSessionId: string | null
+}
+
+export interface RemoteSessionMessage {
+  ts?: number
+  type?: "ask" | "say" | string
+  ask?: string
+  say?: string
+  text?: string
+  reasoning?: string
+}
+
 // MCP server status — discriminated union returned by the backend
 export type McpStatus =
-  | { status: "connected" }
-  | { status: "disabled" }
-  | { status: "failed"; error: string }
-  | { status: "needs_auth" }
-  | { status: "needs_client_registration"; error: string }
+  | { status: "connected"; authUrl?: string }
+  | { status: "disabled"; authUrl?: string }
+  | { status: "failed"; error: string; authUrl?: string }
+  | { status: "needs_auth"; authUrl?: string }
+  | { status: "needs_client_registration"; error: string; authUrl?: string }
 
 // MCP server configuration for local (stdio) servers
 export interface McpLocalConfig {
@@ -239,6 +302,7 @@ export type PermissionConfig = Partial<Record<string, PermissionLevel>>
 /** Per-agent configuration */
 export interface AgentConfig {
   model?: string
+  variant?: string
   prompt?: string
   temperature?: number
   top_p?: number
@@ -246,12 +310,42 @@ export interface AgentConfig {
   permission?: PermissionConfig
 }
 
-/** Custom provider configuration (OpenAI-compatible) */
-export interface ProviderConfig {
+/** Optional per-model override for custom providers */
+export interface ProviderModelConfig {
+  id?: string
   name?: string
+  status?: "active" | "alpha" | "beta" | "deprecated"
+  provider?: { npm?: string }
+  options?: Record<string, unknown>
+  headers?: Record<string, string>
+  variants?: Record<string, Record<string, unknown>>
+  [key: string]: unknown
+}
+
+/** Provider-level options passed to the underlying SDK provider */
+export interface ProviderOptionsConfig {
+  apiKey?: string
+  baseURL?: string
+  enterpriseUrl?: string
+  setCacheKey?: boolean
+  timeout?: number | false
+  [key: string]: unknown
+}
+
+/** Custom provider configuration (mirrors opencode Config.Provider shape) */
+export interface ProviderConfig {
+  id?: string
+  name?: string
+  api?: string
+  npm?: string
+  env?: string[]
+  whitelist?: string[]
+  blacklist?: string[]
+  options?: ProviderOptionsConfig
+  models?: Record<string, ProviderModelConfig>
+  // Legacy aliases still accepted by the webview and normalized before PATCH.
   api_key?: string
   base_url?: string
-  models?: Record<string, unknown>
 }
 
 /** MCP server configuration (backend config shape) */
@@ -317,6 +411,7 @@ export interface Config {
   lsp?: false | Record<string, unknown>
   compaction?: CompactionConfig
   tools?: Record<string, boolean>
+  keybinds?: Record<string, string>
   layout?: "auto" | "stretch"
   experimental?: ExperimentalConfig
 }

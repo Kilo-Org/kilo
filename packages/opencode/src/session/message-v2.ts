@@ -359,6 +359,15 @@ export namespace MessageV2 {
     system: z.string().optional(),
     tools: z.record(z.string(), z.boolean()).optional(),
     variant: z.string().optional(),
+    editorContext: z
+      .object({
+        visibleFiles: z.array(z.string()).optional(),
+        openTabs: z.array(z.string()).optional(),
+        activeFile: z.string().optional(),
+        shell: z.string().optional(),
+        timezone: z.string().optional(),
+      })
+      .optional(),
   }).meta({
     ref: "UserMessage",
   })

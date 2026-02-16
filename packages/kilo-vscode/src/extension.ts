@@ -5,6 +5,7 @@ import { EXTENSION_DISPLAY_NAME } from "./constants"
 import { KiloConnectionService } from "./services/cli-backend"
 import { registerAutocompleteProvider } from "./services/autocomplete"
 import { BrowserAutomationService } from "./services/browser-automation"
+import { NotificationService } from "./services/notification-service"
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Kilo Code extension is now active")
@@ -15,6 +16,9 @@ export function activate(context: vscode.ExtensionContext) {
   // Create browser automation service (manages Playwright MCP registration)
   const browserAutomationService = new BrowserAutomationService(connectionService)
   browserAutomationService.syncWithSettings()
+
+  // Create notification service (shows VS Code notifications for SSE events)
+  const notificationService = new NotificationService(connectionService)
 
   // Re-register browser automation MCP server on CLI backend reconnect
   const unsubscribeStateChange = connectionService.onStateChange((state) => {
@@ -65,6 +69,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push({
     dispose: () => {
       unsubscribeStateChange()
+      notificationService.dispose()
       browserAutomationService.dispose()
       provider.dispose()
       connectionService.dispose()

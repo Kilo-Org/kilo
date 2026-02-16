@@ -6,7 +6,7 @@
  * This factory function accepts OpenCode dependencies to create Kilo-specific routes
  */
 
-import { fetchProfile, fetchBalance, fetchExtensionSettings } from "../api/profile.js"
+import { fetchProfile, fetchBalance } from "../api/profile.js"
 import { fetchKilocodeNotifications, KilocodeNotificationSchema } from "../api/notifications.js"
 import { KILO_API_BASE } from "../api/constants.js"
 
@@ -54,29 +54,6 @@ interface KiloRoutesDeps {
  */
 export function createKiloRoutes(deps: KiloRoutesDeps) {
   const { Hono, describeRoute, validator, resolver, errors, Auth, z } = deps
-
-  function getToken(auth: any): string | undefined {
-    if (!auth) return undefined
-    switch (auth.type) {
-      case "api":
-        return auth.key
-      case "oauth":
-        return auth.access
-      case "wellknown":
-        return auth.token
-      default:
-        return undefined
-    }
-  }
-
-  function getSelectedOrganizationId(auth: any): string | undefined {
-    if (auth?.type !== "oauth") {
-      return undefined
-    }
-    // OAuth auth can represent users that belong to multiple orgs.
-    // accountId stores the currently selected org context.
-    return typeof auth.accountId === "string" && auth.accountId.length > 0 ? auth.accountId : undefined
-  }
 
   const Organization = z.object({
     id: z.string(),
@@ -175,7 +152,6 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
         }
 
         // Update auth with new organization ID
-        // OpenCode's OAuth auth shape stores the active org context in `accountId`.
         await Auth.set("kilo", {
           type: "oauth",
           refresh: auth.refresh,
@@ -267,40 +243,6 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
       },
     )
     .get(
-      "/extension-settings",
-      describeRoute({
-        summary: "Get extension settings",
-        description: "Fetch organization/user extension settings for cloud-managed policy behavior",
-        operationId: "kilo.extensionSettings",
-        responses: {
-          200: {
-            description: "Extension settings",
-            content: {
-              "application/json": {
-                schema: resolver(
-                  z.object({
-                    organization: z.unknown().optional(),
-                    user: z.unknown().optional(),
-                  }),
-                ),
-              },
-            },
-          },
-          ...errors(400, 401),
-        },
-      }),
-      async (c: any) => {
-        const auth = await Auth.get("kilo")
-        if (!auth) return c.json({ error: "Not authenticated with Kilo Gateway" }, 401)
-        const token = getToken(auth)
-        if (!token) return c.json({ error: "No valid token found" }, 401)
-
-        const organizationId = getSelectedOrganizationId(auth)
-        const settings = await fetchExtensionSettings(token, organizationId)
-        return c.json(settings)
-      },
-    )
-    .get(
       "/notifications",
       describeRoute({
         summary: "Get Kilo notifications",
@@ -322,10 +264,10 @@ export function createKiloRoutes(deps: KiloRoutesDeps) {
         const auth = await Auth.get("kilo")
         if (!auth) return c.json([])
 
-        const token = getToken(auth)
+        const token = auth.type === "api" ? auth.key : auth.type === "oauth" ? auth.access : undefined
         if (!token) return c.json([])
 
-        const organizationId = getSelectedOrganizationId(auth)
+        const organizationId = auth.type === "oauth" ? auth.accountId : undefined
         const notifications = await fetchKilocodeNotifications({
           kilocodeToken: token,
           kilocodeOrganizationId: organizationId,

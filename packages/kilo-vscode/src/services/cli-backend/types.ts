@@ -261,11 +261,11 @@ export interface RemoteSessionMessage {
 
 // MCP server status — discriminated union returned by the backend
 export type McpStatus =
-  | { status: "connected" }
-  | { status: "disabled" }
-  | { status: "failed"; error: string }
-  | { status: "needs_auth" }
-  | { status: "needs_client_registration"; error: string }
+  | { status: "connected"; authUrl?: string }
+  | { status: "disabled"; authUrl?: string }
+  | { status: "failed"; error: string; authUrl?: string }
+  | { status: "needs_auth"; authUrl?: string }
+  | { status: "needs_client_registration"; error: string; authUrl?: string }
 
 // MCP server configuration for local (stdio) servers
 export interface McpLocalConfig {

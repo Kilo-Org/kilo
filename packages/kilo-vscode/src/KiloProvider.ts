@@ -11,6 +11,7 @@ import {
   type Config,
   type HttpClient,
   type McpConfig,
+  type McpStatus,
   type MessageInfo,
   type ProfileData,
   type SessionInfo,
@@ -131,7 +132,7 @@ interface FollowUpSuggestion {
 }
 
 export class KiloProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = "kilo-code.new.sidebarView"
+  public static readonly viewType = "kilocode.kilo-code.sidebarView.main"
   private static readonly notificationTimestamps = new Map<string, number>()
 
   private webview: vscode.Webview | null = null
@@ -230,12 +231,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         .showWarningMessage(message, OPEN_PROFILE_ACTION_LABEL, SIGN_IN_ACTION_LABEL)
         .then((selection) => {
           if (selection === OPEN_PROFILE_ACTION_LABEL) {
-            void vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
+            void vscode.commands.executeCommand(`${KiloProvider.viewType}.focus`)
             this.postMessage({ type: "navigate", view: "profile" })
             return
           }
           if (selection === SIGN_IN_ACTION_LABEL) {
-            void vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
+            void vscode.commands.executeCommand(`${KiloProvider.viewType}.focus`)
             this.postMessage({ type: "navigate", view: "profile" })
             void this.handleLogin()
           }
@@ -283,6 +284,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
     this.sendSettingsUiState()
     this.sendCommandApprovalSettings()
+    this.sendFollowUpSettings()
     this.sendGatewayPreference()
     if (this.cachedExtensionPolicyMessage) {
       this.postMessage(this.cachedExtensionPolicyMessage)
@@ -594,6 +596,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         case "requestSlashCommands":
           await this.handleRequestSlashCommands()
           break
+        case "rebuildCodeIndex":
+          await vscode.commands.executeCommand("kilo-code.new.rebuildCodeIndex")
+          break
         case "requestMcpStatus":
           await this.fetchAndSendMcpStatus()
           break
@@ -660,6 +665,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             this.postSettingValidationError(typeof message.key === "string" ? message.key : undefined, validated.issues)
             this.sendBrowserSettings()
             this.sendNotificationSettings()
+            this.sendFollowUpSettings()
             break
           }
 
@@ -676,6 +682,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           if (validated.value.key === "allowedCommands" || validated.value.key === "deniedCommands") {
             this.sendCommandApprovalSettings()
           }
+          if (validated.value.key.startsWith("followUp.")) {
+            this.sendFollowUpSettings()
+          }
           if (validated.value.key === "model.preferGatewayDefault") {
             this.sendGatewayPreference()
             await this.fetchAndSendProviders()
@@ -690,6 +699,9 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           break
         case "requestCommandApprovalSettings":
           this.sendCommandApprovalSettings()
+          break
+        case "requestFollowUpSettings":
+          this.sendFollowUpSettings()
           break
         case "requestGatewayPreference":
           this.sendGatewayPreference()
@@ -2581,7 +2593,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       const status = await client.getMcpStatus()
       this.postMessage({
         type: "mcpStatusLoaded",
-        status,
+        status: this.normalizeMcpStatusMap(status),
       })
     } catch (error) {
       logger.error("[Kilo New] KiloProvider: Failed to fetch MCP status:", error)
@@ -2632,6 +2644,22 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     })
   }
 
+  private sendFollowUpSettings(): void {
+    const config = vscode.workspace.getConfiguration("kilo-code.new.followUp")
+    const enabled = config.get<boolean>("autoProceedEnabled", false)
+    const timeoutRaw = config.get<number>("autoProceedTimeoutSeconds", 60)
+    const timeoutSeconds =
+      typeof timeoutRaw === "number" && Number.isFinite(timeoutRaw) ? Math.min(Math.max(Math.round(timeoutRaw), 5), 600) : 60
+
+    this.postMessage({
+      type: "followUpSettingsLoaded",
+      settings: {
+        autoProceedEnabled: enabled,
+        autoProceedTimeoutSeconds: timeoutSeconds,
+      },
+    })
+  }
+
   private sendGatewayPreference(): void {
     const config = vscode.workspace.getConfiguration("kilo-code.new.model")
     this.postMessage({
@@ -2671,6 +2699,47 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       message: "Invalid setting update",
       issues,
     })
+  }
+
+  private normalizeMcpStatusMap(statuses: Record<string, McpStatus>): Record<string, McpStatus> {
+    const normalized: Record<string, McpStatus> = {}
+    for (const [name, status] of Object.entries(statuses)) {
+      normalized[name] = this.normalizeMcpStatus(status)
+    }
+    return normalized
+  }
+
+  private normalizeMcpStatus(status: McpStatus): McpStatus {
+    const statusRecord = status as McpStatus & {
+      authUrl?: unknown
+      authURL?: unknown
+      url?: unknown
+      error?: unknown
+      message?: unknown
+    }
+
+    const directCandidate =
+      (typeof statusRecord.authUrl === "string" && statusRecord.authUrl) ||
+      (typeof statusRecord.authURL === "string" && statusRecord.authURL) ||
+      (typeof statusRecord.url === "string" && statusRecord.url) ||
+      undefined
+    const messageCandidate =
+      (typeof statusRecord.error === "string" && statusRecord.error) ||
+      (typeof statusRecord.message === "string" && statusRecord.message) ||
+      undefined
+    const extracted = directCandidate ?? this.extractFirstUrlFromText(messageCandidate)
+    if (!extracted) {
+      return status
+    }
+    return { ...status, authUrl: extracted }
+  }
+
+  private extractFirstUrlFromText(value?: string): string | undefined {
+    if (!value) {
+      return undefined
+    }
+    const match = value.match(/https?:\/\/[^\s)'"`]+/i)
+    return match?.[0]
   }
 
   /**

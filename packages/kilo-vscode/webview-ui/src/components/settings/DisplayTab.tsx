@@ -41,7 +41,7 @@ const DisplayTab: Component = () => {
               Custom username displayed in conversations
             </div>
           </div>
-          <div style={{ width: "160px" }}>
+          <div class="settings-inline-control">
             <TextField
               value={config().username ?? ""}
               placeholder="User"
@@ -70,16 +70,18 @@ const DisplayTab: Component = () => {
               Layout mode for the chat interface
             </div>
           </div>
-          <Select
-            options={LAYOUT_OPTIONS}
-            current={LAYOUT_OPTIONS.find((o) => o.value === (config().layout ?? "auto"))}
-            value={(o) => o.value}
-            label={(o) => o.label}
-            onSelect={(o) => o && updateConfig({ layout: o.value as "auto" | "stretch" })}
-            variant="secondary"
-            size="small"
-            triggerVariant="settings"
-          />
+          <div class="settings-inline-control">
+            <Select
+              options={LAYOUT_OPTIONS}
+              current={LAYOUT_OPTIONS.find((o) => o.value === (config().layout ?? "auto"))}
+              value={(o) => o.value}
+              label={(o) => o.label}
+              onSelect={(o) => o && updateConfig({ layout: o.value as "auto" | "stretch" })}
+              variant="secondary"
+              size="small"
+              triggerVariant="settings"
+            />
+          </div>
         </div>
       </Card>
     </div>

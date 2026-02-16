@@ -370,7 +370,7 @@ const ProvidersTab: Component = () => {
   }
 
   return (
-    <div>
+    <div data-component="settings-providers">
       <For each={enterprisePolicyActive() ? [0] : []}>
         {() => (
           <Card style={{ "margin-bottom": "16px" }}>
@@ -383,6 +383,7 @@ const ProvidersTab: Component = () => {
       {/* Provider catalog */}
       <Card>
         <div
+          class="providers-catalog-header"
           style={{
             display: "flex",
             "align-items": "center",
@@ -403,6 +404,7 @@ const ProvidersTab: Component = () => {
         <For each={providerCatalog()}>
           {(item, index) => (
             <div
+              class="providers-catalog-row"
               style={{
                 display: "flex",
                 "align-items": "center",
@@ -412,7 +414,7 @@ const ProvidersTab: Component = () => {
                 "border-bottom": index() < providerCatalog().length - 1 ? "1px solid var(--border-weak-base)" : "none",
               }}
             >
-              <div style={{ flex: 1, "min-width": 0 }}>
+              <div class="providers-catalog-info" style={{ flex: 1, "min-width": 0 }}>
                 <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
                   <span style={{ "font-weight": "500" }}>{item.name}</span>
                   <span style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>{item.id}</span>
@@ -494,7 +496,7 @@ const ProvidersTab: Component = () => {
                 </details>
               </div>
 
-              <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
+              <div class="providers-catalog-actions" style={{ display: "flex", "align-items": "center", gap: "8px" }}>
                 <span
                   style={{
                     "font-size": "11px",
@@ -661,6 +663,7 @@ const ProvidersTab: Component = () => {
           Providers to hide from the provider list
         </div>
         <div
+          class="providers-inline-add-row"
           style={{
             display: "flex",
             gap: "8px",
@@ -699,6 +702,7 @@ const ProvidersTab: Component = () => {
         <For each={disabledProviders()}>
           {(id, index) => (
             <div
+              class="providers-simple-row"
               style={{
                 display: "flex",
                 "align-items": "center",
@@ -737,6 +741,7 @@ const ProvidersTab: Component = () => {
           If set, only these providers will be available (exclusive allowlist)
         </div>
         <div
+          class="providers-inline-add-row"
           style={{
             display: "flex",
             gap: "8px",
@@ -775,6 +780,7 @@ const ProvidersTab: Component = () => {
         <For each={enabledProviders()}>
           {(id, index) => (
             <div
+              class="providers-simple-row"
               style={{
                 display: "flex",
                 "align-items": "center",

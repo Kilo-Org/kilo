@@ -9,7 +9,10 @@ import { captureTelemetryEvent } from "./utils/telemetry"
 import type {
   AgentInfo,
   KiloConnectionService,
+  MessageInfo,
+  MessagePart,
   PermissionRequest,
+  RemoteSessionMessage,
   RemoteSessionInfo,
   SessionInfo,
 } from "./services/cli-backend"
@@ -23,6 +26,7 @@ type SessionRunStatus = "idle" | "busy" | "retry" | "unknown"
 type AgentManagerWebviewToExtensionMessage =
   | { type: "ready" }
   | { type: "refresh" }
+  | { type: "loadSessionMessages"; sessionID?: string }
   | { type: "createSession"; prompt?: string; agent?: string; parallel?: boolean; branch?: string }
   | { type: "resumeRemoteSession"; sessionID?: string; text?: string }
   | { type: "sendSessionMessage"; sessionID?: string; text?: string }
@@ -76,6 +80,7 @@ type PersistedState = {
 
 type AgentManagerAction =
   | "refresh"
+  | "loadSessionMessages"
   | "createSession"
   | "resumeRemoteSession"
   | "sendSessionMessage"
@@ -109,6 +114,38 @@ type AgentManagerExtensionToWebviewMessage =
       sessionID: string
       status: SessionRunStatus
     }
+  | {
+      type: "agentManagerSessionMessages"
+      sessionID: string
+      source: "local" | "cloud"
+      canSendMessage: boolean
+      messages: AgentManagerMessageRow[]
+      error?: string
+    }
+
+type AgentManagerMessageRow = {
+  id: string
+  role: "user" | "assistant"
+  createdAt: string
+  completedAt?: string
+  providerID?: string
+  modelID?: string
+  parts: AgentManagerMessagePartRow[]
+}
+
+type AgentManagerMessagePartRow =
+  | { type: "text"; text: string }
+  | { type: "reasoning"; text: string }
+  | {
+      type: "tool"
+      tool: string
+      status: "pending" | "running" | "completed" | "error"
+      title?: string
+      input?: string
+      output?: string
+      error?: string
+    }
+  | { type: "file"; mime: string; url: string; filename?: string }
 
 /**
  * AgentManagerProvider manages the Agent Manager webview panel.
@@ -234,6 +271,9 @@ export class AgentManagerProvider implements vscode.Disposable {
       case "refresh":
         await this.refreshData()
         return
+      case "loadSessionMessages":
+        await this.loadSessionMessages(message.sessionID)
+        return
       case "createSession":
         await this.createSession(message.prompt, message.agent, message.parallel, message.branch)
         return
@@ -340,8 +380,9 @@ export class AgentManagerProvider implements vscode.Disposable {
       const directories = [workspaceDir, ...worktreeRecords.map((worktree) => worktree.path)]
       const uniqueDirectories = [...new Set(directories)]
 
-      const [agents, ...sessionResults] = await Promise.all([
+      const [agents, config, ...sessionResults] = await Promise.all([
         client.listAgents(workspaceDir),
+        client.getConfig(workspaceDir).catch(() => undefined),
         ...uniqueDirectories.map(async (directory) => {
           try {
             const sessions = await client.listSessions(directory)
@@ -422,7 +463,7 @@ export class AgentManagerProvider implements vscode.Disposable {
         type: "agentManagerData",
         sessions: [...byId.values()].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)),
         agents: this.toVisibleAgents(agents),
-        defaultAgent: this.getDefaultAgent(agents),
+        defaultAgent: this.getDefaultAgent(agents, config?.default_agent),
         workspaceDir,
         ...(errors.length > 0 ? { errors } : {}),
       })
@@ -1098,9 +1139,184 @@ export class AgentManagerProvider implements vscode.Disposable {
       .map((agent) => ({ name: agent.name, description: agent.description }))
   }
 
-  private getDefaultAgent(agents: AgentInfo[]): string {
+  private getDefaultAgent(agents: AgentInfo[], configuredDefaultAgent?: string): string {
     const visible = agents.filter((agent) => agent.mode !== "subagent" && !agent.hidden)
+    if (configuredDefaultAgent && visible.some((agent) => agent.name === configuredDefaultAgent)) {
+      return configuredDefaultAgent
+    }
     return visible[0]?.name ?? "code"
+  }
+
+  private async loadSessionMessages(sessionID?: string): Promise<void> {
+    if (!sessionID) {
+      this.postActionResult("loadSessionMessages", false, "Missing session ID")
+      return
+    }
+
+    const workspaceDir = this.getWorkspaceDirectory()
+    const client = await this.getClient(workspaceDir)
+
+    if (this.remoteSessionById.has(sessionID)) {
+      try {
+        const remoteMessages = await client.getRemoteSessionMessages(sessionID)
+        const rows = this.toRemoteMessageRows(sessionID, remoteMessages)
+        this.postMessage({
+          type: "agentManagerSessionMessages",
+          sessionID,
+          source: "cloud",
+          canSendMessage: false,
+          messages: rows,
+        })
+        this.postActionResult("loadSessionMessages", true, undefined, sessionID)
+      } catch (error) {
+        this.postMessage({
+          type: "agentManagerSessionMessages",
+          sessionID,
+          source: "cloud",
+          canSendMessage: false,
+          messages: [],
+          error: error instanceof Error ? error.message : String(error),
+        })
+        this.postActionResult("loadSessionMessages", false, error instanceof Error ? error.message : String(error), sessionID)
+      }
+      return
+    }
+
+    try {
+      const directory = await this.resolveSessionDirectory(sessionID)
+      const result = await client.getMessages(sessionID, directory)
+      const rows = result.map((entry) => this.toMessageRow(entry.info, entry.parts))
+      this.postMessage({
+        type: "agentManagerSessionMessages",
+        sessionID,
+        source: "local",
+        canSendMessage: true,
+        messages: rows,
+      })
+      this.postActionResult("loadSessionMessages", true, undefined, sessionID)
+    } catch (error) {
+      this.postMessage({
+        type: "agentManagerSessionMessages",
+        sessionID,
+        source: "local",
+        canSendMessage: true,
+        messages: [],
+        error: error instanceof Error ? error.message : String(error),
+      })
+      this.postActionResult("loadSessionMessages", false, error instanceof Error ? error.message : String(error), sessionID)
+    }
+  }
+
+  private toMessageRow(info: MessageInfo, parts: MessagePart[]): AgentManagerMessageRow {
+    return {
+      id: info.id,
+      role: info.role,
+      createdAt: new Date(info.time.created).toISOString(),
+      ...(info.time.completed ? { completedAt: new Date(info.time.completed).toISOString() } : {}),
+      ...(typeof info.providerID === "string" ? { providerID: info.providerID } : {}),
+      ...(typeof info.modelID === "string" ? { modelID: info.modelID } : {}),
+      parts: parts
+        .map((part) => this.toMessagePartRow(part))
+        .filter((part): part is AgentManagerMessagePartRow => part !== null),
+    }
+  }
+
+  private toMessagePartRow(part: MessagePart): AgentManagerMessagePartRow | null {
+    if (part.type === "text") {
+      return { type: "text", text: part.text }
+    }
+    if (part.type === "reasoning") {
+      return { type: "reasoning", text: part.text }
+    }
+    if (part.type === "file") {
+      return {
+        type: "file",
+        mime: part.mime,
+        url: part.url,
+        ...(typeof part.filename === "string" ? { filename: part.filename } : {}),
+      }
+    }
+    if (part.type === "tool") {
+      const state = part.state
+      const serializedInput = this.safeSerialize(state.input)
+      if (state.status === "pending") {
+        return {
+          type: "tool",
+          tool: part.tool,
+          status: "pending",
+          ...(serializedInput ? { input: serializedInput } : {}),
+        }
+      }
+      if (state.status === "running") {
+        return {
+          type: "tool",
+          tool: part.tool,
+          status: "running",
+          ...(state.title ? { title: state.title } : {}),
+          ...(serializedInput ? { input: serializedInput } : {}),
+        }
+      }
+      if (state.status === "completed") {
+        return {
+          type: "tool",
+          tool: part.tool,
+          status: "completed",
+          ...(state.title ? { title: state.title } : {}),
+          ...(serializedInput ? { input: serializedInput } : {}),
+          output: state.output,
+        }
+      }
+      return {
+        type: "tool",
+        tool: part.tool,
+        status: "error",
+        ...(serializedInput ? { input: serializedInput } : {}),
+        error: state.error,
+      }
+    }
+    return null
+  }
+
+  private toRemoteMessageRows(sessionID: string, messages: RemoteSessionMessage[]): AgentManagerMessageRow[] {
+    return messages
+      .map((message, index) => {
+        const text = typeof message.text === "string" ? message.text.trim() : ""
+        const reasoning = typeof message.reasoning === "string" ? message.reasoning.trim() : ""
+        if (!text && !reasoning) {
+          return null
+        }
+        const role = this.toRemoteMessageRole(message) === "User" ? "user" : "assistant"
+        const createdAt =
+          typeof message.ts === "number" && Number.isFinite(message.ts) ? new Date(message.ts).toISOString() : new Date().toISOString()
+        const parts: AgentManagerMessagePartRow[] = []
+        if (text) {
+          parts.push({ type: "text", text })
+        }
+        if (reasoning) {
+          parts.push({ type: "reasoning", text: reasoning })
+        }
+        return {
+          id: `${sessionID}-${index}`,
+          role,
+          createdAt,
+          parts,
+        } satisfies AgentManagerMessageRow
+      })
+      .filter((row): row is AgentManagerMessageRow => !!row)
+  }
+
+  private safeSerialize(value: unknown): string | undefined {
+    if (value === undefined) {
+      return undefined
+    }
+    try {
+      if (typeof value === "string") {
+        return value
+      }
+      return JSON.stringify(value, null, 2)
+    } catch {
+      return String(value)
+    }
   }
 
   private getStorageKey(workspaceDir: string): string {
@@ -1176,63 +1392,619 @@ export class AgentManagerProvider implements vscode.Disposable {
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
   <title>Agent Manager</title>
   <style>
-    :root {
-      color-scheme: light dark;
-    }
     * {
       box-sizing: border-box;
     }
+
     body {
       margin: 0;
-      padding: 14px;
       color: var(--vscode-foreground);
       background: var(--vscode-editor-background);
       font-family: var(--vscode-font-family);
       font-size: 13px;
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
     }
-    .layout {
+
+    .am-shell {
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      min-height: 100vh;
+      max-height: 100vh;
+    }
+
+    .am-sidebar {
+      border-right: 1px solid var(--vscode-sideBar-border, var(--vscode-panel-border));
+      background: var(--vscode-sideBar-background, var(--vscode-editor-background));
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      max-width: 1080px;
-      margin: 0 auto;
+      min-width: 0;
+      max-height: 100vh;
     }
-    .toolbar {
+
+    .am-main {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      max-height: 100vh;
+    }
+
+    .am-side-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 35px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-panel-border));
+      background: var(--vscode-sideBarSectionHeader-background, transparent);
+      color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+    }
+
+    .am-side-title {
+      margin: 0;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }
+
+    .am-side-controls {
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-panel-border));
+    }
+
+    .am-primary-action {
+      width: 100%;
+      justify-content: flex-start;
+      font-weight: 600;
+      min-height: 36px;
+    }
+
+    .am-primary-action-active {
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      border-color: var(--vscode-button-border, transparent);
+    }
+
+    .am-section-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    .am-section-count {
+      font-variant-numeric: tabular-nums;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 999px;
+      padding: 1px 6px;
+      font-size: 10px;
+    }
+
+    .am-bulk-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .am-bulk-row .button {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .am-list {
+      overflow: auto;
+      flex: 1;
+      padding: 2px 0;
+      outline: none;
+    }
+
+    .am-list:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: -1px;
+    }
+
+    .am-session-row {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px;
+      align-items: flex-start;
+      margin-bottom: 0;
+      padding: 0 8px;
+    }
+
+    .am-session-pick {
+      margin-top: 10px;
+      width: 16px;
+      height: 16px;
+      touch-action: manipulation;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 120ms ease;
+    }
+
+    .am-session-row[data-picked="true"] .am-session-pick,
+    .am-session-row[data-selected="true"] .am-session-pick,
+    .am-session-row:hover .am-session-pick,
+    .am-session-pick:focus-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .am-session-btn {
+      width: 100%;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: transparent;
+      color: inherit;
+      padding: 6px 8px;
+      text-align: left;
+      cursor: pointer;
+      display: grid;
+      gap: 4px;
+      touch-action: manipulation;
+      transition: border-color 120ms ease, background-color 120ms ease;
+      min-height: 34px;
+    }
+
+    .am-session-btn:hover {
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .am-session-btn:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 1px;
+    }
+
+    .am-session-btn[data-selected="true"] {
+      border-color: transparent;
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+    }
+
+    .am-session-title-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .am-status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      flex: none;
+      margin-top: 2px;
+    }
+
+    .am-status-dot[data-status="idle"] {
+      background: var(--vscode-terminal-ansiGreen, #33b07a);
+    }
+
+    .am-status-dot[data-status="busy"],
+    .am-status-dot[data-status="retry"] {
+      background: var(--vscode-progressBar-background, #4ea0f5);
+      animation: am-dot-pulse 1.2s ease-in-out infinite;
+    }
+
+    .am-status-dot[data-status="unknown"] {
+      background: var(--vscode-descriptionForeground);
+      opacity: 0.6;
+    }
+
+    .am-session-title {
+      font-size: 13px;
+      font-weight: 600;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .am-session-meta {
+      color: var(--vscode-descriptionForeground);
+      font-size: 10px;
+      display: grid;
+      gap: 2px;
+      overflow-wrap: anywhere;
+    }
+
+    .am-badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .am-badge {
+      font-size: 10px;
+      border: 1px solid var(--vscode-panel-border);
+      color: var(--vscode-descriptionForeground);
+      border-radius: 999px;
+      padding: 1px 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .am-badge[data-kind="cloud"] {
+      border-color: color-mix(in srgb, var(--vscode-terminal-ansiBlue, #4ea0f5) 60%, transparent 40%);
+      color: var(--vscode-terminal-ansiBlue, #4ea0f5);
+    }
+
+    .am-badge[data-kind="approval"] {
+      border-color: color-mix(in srgb, var(--vscode-testing-iconQueued, #cca700) 60%, transparent 40%);
+      color: var(--vscode-testing-iconQueued, #cca700);
+    }
+
+    .am-detail {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      min-height: 0;
+      padding: 0;
+      flex: 1;
+      overflow: auto;
+    }
+
+    .am-card {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 10px;
+      padding: 12px;
+      background: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-sideBar-background) 12%);
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .am-session-summary {
+      border: 0;
+      border-bottom: 1px solid var(--vscode-editorGroup-border, var(--vscode-panel-border));
+      border-radius: 0;
+      padding: 10px 20px;
+      background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+      gap: 8px;
+    }
+
+    .am-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .am-title-block {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+
+    .am-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--vscode-titleBar-activeForeground, var(--vscode-foreground));
+      overflow-wrap: anywhere;
+      line-height: 1.25;
+      margin: 0;
+    }
+
+    .am-subtitle {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      overflow-wrap: anywhere;
+    }
+
+    .am-session-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .am-session-actions .button {
+      min-height: 30px;
+      padding: 4px 10px;
+    }
+
+    .am-approval-box {
+      border: 1px dashed var(--vscode-panel-border);
+      border-radius: 8px;
+      padding: 8px;
+      color: var(--vscode-descriptionForeground);
+      display: grid;
+      gap: 8px;
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .am-messages {
+      border: 0;
+      border-radius: 0;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: 420px;
+      background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+    }
+
+    .am-messages-head {
+      border-bottom: 1px solid var(--vscode-panel-border);
+      padding: 10px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 8px;
+      min-height: 44px;
     }
-    .title {
-      margin: 0;
-      font-size: 18px;
+
+    .am-messages-head strong {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .am-message-list {
+      padding: 0;
+      overflow: auto;
+      display: grid;
+      gap: 0;
+      align-content: flex-start;
+      min-height: 0;
+      background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+    }
+
+    .am-message-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--vscode-editorGroup-border, var(--vscode-panel-border));
+      background: transparent;
+    }
+
+    .am-message-item:hover {
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .am-message-item[data-role="user"] {
+      border-left: 2px solid color-mix(in srgb, var(--vscode-terminal-ansiBlue, #4ea0f5) 45%, transparent 55%);
+      padding-left: 18px;
+    }
+
+    .am-message-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      border: 1px solid var(--vscode-panel-border);
+      color: var(--vscode-descriptionForeground);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      line-height: 1;
+      flex-shrink: 0;
+      margin-top: 1px;
+      background: color-mix(in srgb, var(--vscode-editor-background) 84%, var(--vscode-sideBar-background) 16%);
+    }
+
+    .am-message-content-wrapper {
+      min-width: 0;
+      flex: 1;
+      display: grid;
+      gap: 4px;
+    }
+
+    .am-message-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      flex-wrap: wrap;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .am-message-author {
       font-weight: 600;
+      color: var(--vscode-foreground);
     }
-    .row {
+
+    .am-chip {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 999px;
+      padding: 1px 6px;
+      font-size: 10px;
+      color: var(--vscode-descriptionForeground);
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .am-message-ts {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      opacity: 0.9;
+    }
+
+    .am-message-body {
+      padding: 0;
+      display: grid;
+      gap: 8px;
+      overflow-wrap: anywhere;
+    }
+
+    .am-text-part {
+      white-space: pre-wrap;
+      margin: 0;
+      line-height: 1.45;
+      font-size: 12px;
+    }
+
+    .am-reasoning {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--vscode-editor-background) 86%, var(--vscode-sideBar-background) 14%);
+    }
+
+    .am-reasoning > summary {
+      cursor: pointer;
+      padding: 6px 8px;
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      user-select: none;
+    }
+
+    .am-reasoning-content {
+      border-top: 1px solid var(--vscode-panel-border);
+      padding: 8px;
+      white-space: pre-wrap;
+      font-size: 12px;
+    }
+
+    .am-tool {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 8px;
+      display: grid;
+      gap: 8px;
+      background: color-mix(in srgb, var(--vscode-editor-background) 84%, var(--vscode-sideBar-background) 16%);
+    }
+
+    .am-tool-head {
       display: flex;
       gap: 8px;
       align-items: center;
+      min-width: 0;
       flex-wrap: wrap;
+      font-size: 12px;
     }
-    .card {
+
+    .am-tool-name {
+      font-weight: 600;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .am-tool-status {
       border: 1px solid var(--vscode-panel-border);
+      border-radius: 999px;
+      padding: 1px 7px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .am-tool-status[data-status="pending"] {
+      color: var(--vscode-testing-iconQueued, #cca700);
+      border-color: color-mix(in srgb, var(--vscode-testing-iconQueued, #cca700) 60%, transparent 40%);
+    }
+
+    .am-tool-status[data-status="running"] {
+      color: var(--vscode-terminal-ansiBlue, #4ea0f5);
+      border-color: color-mix(in srgb, var(--vscode-terminal-ansiBlue, #4ea0f5) 60%, transparent 40%);
+    }
+
+    .am-tool-status[data-status="completed"] {
+      color: var(--vscode-terminal-ansiGreen, #33b07a);
+      border-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen, #33b07a) 60%, transparent 40%);
+    }
+
+    .am-tool-status[data-status="error"] {
+      color: var(--vscode-errorForeground, #f14c4c);
+      border-color: color-mix(in srgb, var(--vscode-errorForeground, #f14c4c) 60%, transparent 40%);
+    }
+
+    .am-tool-section {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--vscode-editor-background);
+    }
+
+    .am-tool-section > summary {
+      cursor: pointer;
+      padding: 6px 8px;
+      font-size: 11px;
+      user-select: none;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .am-tool-pre {
+      margin: 0;
+      border-top: 1px solid var(--vscode-panel-border);
+      padding: 8px;
+      white-space: pre-wrap;
+      max-height: 280px;
+      overflow: auto;
+      font-size: 12px;
+      font-family: var(--vscode-editor-font-family, monospace);
+      color: var(--vscode-foreground);
+    }
+
+    .am-file {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 8px;
+      display: grid;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      overflow-wrap: anywhere;
+    }
+
+    .am-compose {
+      border-top: 1px solid var(--vscode-panel-border);
+      padding: 12px 20px 18px;
+      display: grid;
+      gap: 8px;
+      background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+    }
+
+    .am-compose-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-height: 32px;
+    }
+
+    .am-empty {
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      border: 1px dashed var(--vscode-panel-border);
       border-radius: 8px;
       padding: 12px;
-      background: color-mix(in srgb, var(--vscode-editor-background) 84%, var(--vscode-sideBar-background) 16%);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+      text-align: center;
     }
-    .split {
+
+    .am-status-line {
+      border-top: 1px solid var(--vscode-panel-border);
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      padding: 6px 10px;
+      min-height: 28px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .warning-list {
+      margin: 0;
+      padding-left: 16px;
       display: grid;
-      gap: 12px;
-      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--vscode-inputValidation-warningForeground);
     }
-    @media (max-width: 860px) {
-      .split {
-        grid-template-columns: 1fr;
-      }
-    }
+
     .search-input,
     .text-input,
     .select-input,
@@ -1244,533 +2016,1631 @@ export class AgentManagerProvider implements vscode.Disposable {
       border-radius: 6px;
       padding: 6px 8px;
       width: 100%;
+      min-height: 34px;
+      font-size: 13px;
+      touch-action: manipulation;
     }
+
     .text-area {
-      min-height: 74px;
+      min-height: 86px;
       resize: vertical;
     }
+
     .button {
       font: inherit;
-      border: 1px solid transparent;
+      border: 1px solid var(--vscode-button-border, transparent);
       border-radius: 6px;
       padding: 6px 10px;
       cursor: pointer;
       background: var(--vscode-button-background);
       color: var(--vscode-button-foreground);
-      min-height: 30px;
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      touch-action: manipulation;
+      transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
     }
+
+    .button.icon {
+      width: 30px;
+      min-width: 30px;
+      height: 30px;
+      min-height: 30px;
+      padding: 0;
+      justify-content: center;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .button:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 1px;
+    }
+
     .button.secondary {
       background: var(--vscode-button-secondaryBackground);
       color: var(--vscode-button-secondaryForeground);
     }
+
     .button.warn {
       background: var(--vscode-inputValidation-warningBackground);
       color: var(--vscode-inputValidation-warningForeground);
     }
+
     .button.danger {
       background: var(--vscode-inputValidation-errorBackground);
       color: var(--vscode-inputValidation-errorForeground);
     }
+
     .button:disabled {
       opacity: 0.55;
       cursor: default;
     }
+
+    .button:active {
+      transform: scale(0.98);
+    }
+
     .muted {
       color: var(--vscode-descriptionForeground);
       font-size: 12px;
     }
-    .status-line {
-      min-height: 18px;
-      font-size: 12px;
-      color: var(--vscode-descriptionForeground);
-    }
-    .session-list {
-      display: grid;
-      gap: 8px;
-    }
-    .session {
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 8px;
-      padding: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .session-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .session-main {
-      min-width: 0;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-    .session-title {
-      font-size: 14px;
-      font-weight: 600;
-      overflow-wrap: anywhere;
-    }
-    .session-id {
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      overflow-wrap: anywhere;
-      font-family: var(--vscode-editor-font-family, monospace);
-    }
-    .status-badge {
-      align-self: flex-start;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 11px;
-      border: 1px solid var(--vscode-input-border);
-      color: var(--vscode-descriptionForeground);
-      text-transform: uppercase;
-      letter-spacing: 0.02em;
-    }
-    .status-badge[data-status="busy"],
-    .status-badge[data-status="retry"] {
-      color: var(--vscode-progressBar-background, #4daafc);
-      border-color: color-mix(in srgb, var(--vscode-progressBar-background, #4daafc) 70%, transparent 30%);
-    }
-    .status-badge[data-status="idle"] {
-      color: var(--vscode-terminal-ansiGreen, #4ec9b0);
-      border-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen, #4ec9b0) 70%, transparent 30%);
-    }
-    .approval-badge {
-      align-self: flex-start;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 11px;
-      border: 1px solid color-mix(in srgb, var(--vscode-testing-iconQueued, #cca700) 70%, transparent 30%);
-      color: var(--vscode-testing-iconQueued, #cca700);
-      text-transform: uppercase;
-      letter-spacing: 0.02em;
-    }
-    .session-meta {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-    }
-    .session-approval {
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      font-family: var(--vscode-editor-font-family, monospace);
-      border: 1px dashed var(--vscode-panel-border);
-      border-radius: 6px;
-      padding: 6px 8px;
-      overflow-wrap: anywhere;
-    }
-    .session-continue {
-      display: flex;
-      gap: 8px;
-      align-items: flex-start;
-    }
-    .session-continue .text-input {
-      flex: 1;
-    }
-    .session-actions {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
+
     .checkbox {
       display: inline-flex;
       align-items: center;
       gap: 6px;
       font-size: 12px;
       color: var(--vscode-descriptionForeground);
+      cursor: pointer;
     }
-    .error-list {
+
+    .checkbox input {
       margin: 0;
-      padding-left: 16px;
-      display: grid;
-      gap: 3px;
+    }
+
+    /* Old agent-manager parity: sidebar/session list visual language */
+    .am-icon-btn {
+      width: 20px;
+      height: 20px;
+      border: none;
+      background: transparent;
+      color: inherit;
+      border-radius: 3px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.65;
+      transition: opacity 120ms ease, background-color 120ms ease;
+    }
+
+    .am-icon-btn:hover:not(:disabled) {
+      opacity: 1;
+      background: var(--vscode-toolbar-hoverBackground);
+    }
+
+    .am-icon-btn:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    .am-new-agent-item {
+      margin: 8px;
+      border: 1px solid var(--vscode-button-border, transparent);
+      border-radius: 4px;
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      padding: 9px 10px;
+      text-align: left;
+      font: inherit;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 120ms ease;
+    }
+
+    .am-new-agent-item:hover {
+      background: var(--vscode-button-secondaryHoverBackground);
+    }
+
+    .am-new-agent-item.am-selected {
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+    }
+
+    .am-sidebar-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-descriptionForeground));
+      letter-spacing: 0.04em;
+    }
+
+    .am-sidebar-section-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .am-session-list {
+      flex: 1;
+      overflow-y: auto;
+      outline: none;
+      padding-bottom: 6px;
+    }
+
+    .am-session-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      padding: 5px 8px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      position: relative;
+      color: inherit;
+    }
+
+    .am-session-item:hover {
+      background: var(--vscode-list-hoverBackground);
+      color: var(--vscode-list-hoverForeground);
+    }
+
+    .am-session-item.am-selected {
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+    }
+
+    .am-session-item:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: -1px;
+    }
+
+    .am-status-icon {
+      width: 14px;
+      height: 14px;
+      margin-top: 2px;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       font-size: 12px;
-      color: var(--vscode-inputValidation-warningForeground);
+      line-height: 1;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .am-status-icon.am-idle {
+      color: var(--vscode-charts-green, #89d185);
+    }
+
+    .am-status-icon.am-running {
+      color: var(--vscode-progressBar-background, #4ea0f5);
+      animation: am-spin 1s linear infinite;
+    }
+
+    .am-status-icon.am-retry {
+      color: var(--vscode-charts-yellow, #cca700);
+      animation: am-spin 1.1s linear infinite;
+    }
+
+    .am-status-icon.am-unknown {
+      color: var(--vscode-descriptionForeground);
+      opacity: 0.7;
+    }
+
+    .am-session-content {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+    }
+
+    .am-session-label {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .am-session-meta {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .am-meta-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      opacity: 0.9;
+    }
+
+    .am-meta-branch {
+      max-width: 100px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Classic Agent Manager layout parity (old extension visual language) */
+    .am-shell {
+      display: flex;
+      height: 100vh;
+      min-height: 100vh;
+      max-height: 100vh;
+    }
+
+    .am-sidebar {
+      width: 250px;
+      min-width: 210px;
+      max-width: 340px;
+      border-right: 1px solid var(--vscode-sideBar-border, var(--vscode-panel-border));
+      background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+      color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
+      display: flex;
+      flex-direction: column;
+      max-height: 100vh;
+    }
+
+    .am-sidebar-header {
+      height: 35px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
+      background: var(--vscode-sideBarSectionHeader-background, transparent);
+      color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .am-main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      max-height: 100vh;
+      background: var(--vscode-editor-background);
+    }
+
+    .am-detail {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+      color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
+    }
+
+    .am-session-detail {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .am-new-agent-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      margin: 8px;
+      border-radius: 4px;
+      font-weight: 500;
+      text-align: left;
+    }
+
+    .am-session-item {
+      padding: 4px 8px;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .am-session-label {
+      font-size: 13px;
+      font-weight: 300;
+      line-height: 1.35;
+      color: var(--vscode-foreground);
+    }
+
+    .am-session-meta {
+      font-size: 11px;
+      opacity: 0.9;
+    }
+
+    .am-status-line {
+      border-top: 1px solid var(--vscode-panel-border);
+      background: var(--vscode-editor-background);
+    }
+
+    .am-detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--vscode-editorGroup-border, var(--vscode-panel-border));
+      background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+    }
+
+    .am-header-info {
+      flex: 1;
+      min-width: 0;
+      display: grid;
+      gap: 6px;
+    }
+
+    .am-header-title {
+      font-size: 18px;
+      font-weight: 600;
+      line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--vscode-titleBar-activeForeground, var(--vscode-foreground));
+    }
+
+    .am-header-meta {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      min-width: 0;
+    }
+
+    .am-header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .am-header-actions .button {
+      min-height: 28px;
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    .am-session-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .am-approval-box {
+      margin-top: 2px;
+      border-radius: 6px;
+      background: var(--vscode-editor-background);
+    }
+
+    .am-approval-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .am-messages-container {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+    }
+
+    .am-messages-list {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .am-messages-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      min-height: 100%;
+      padding: 24px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 13px;
+    }
+
+    .am-session-error-banner {
+      margin: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+      background: var(--vscode-inputValidation-errorBackground);
+      color: var(--vscode-inputValidation-errorForeground);
+      font-size: 12px;
+    }
+
+    .am-message-item {
+      padding: 10px 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      border-bottom: 1px solid transparent;
+    }
+
+    .am-message-item:hover {
+      background: var(--vscode-list-hoverBackground);
+      color: var(--vscode-list-hoverForeground);
+    }
+
+    .am-user-message {
+      border-left: 2px solid color-mix(in srgb, var(--vscode-terminal-ansiBlue, #4ea0f5) 45%, transparent 55%);
+      padding-left: 18px;
+    }
+
+    .am-message-icon {
+      margin-top: 2px;
+      width: 16px;
+      height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--vscode-descriptionForeground);
+      flex-shrink: 0;
+    }
+
+    .am-message-content-wrapper {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .am-message-header {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 4px;
+      min-width: 0;
+    }
+
+    .am-message-author {
+      font-size: 13px;
+    }
+
+    .am-message-chip {
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 3px;
+      padding: 0 4px;
+      font-size: 10px;
+      color: var(--vscode-descriptionForeground);
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .am-message-ts {
+      font-size: 11px;
+      margin-left: auto;
+    }
+
+    .am-message-body {
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .am-chat-input-container {
+      padding: 12px 20px 20px;
+      border-top: 1px solid var(--vscode-editorGroup-border, var(--vscode-panel-border));
+      background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+    }
+
+    .am-input-shell {
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 4px;
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .am-chat-input {
+      border: none;
+      outline: none;
+      resize: vertical;
+      min-height: 82px;
+      max-height: 280px;
+      padding: 10px 12px;
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      font-size: 13px;
+      line-height: 1.45;
+      width: 100%;
+    }
+
+    .am-chat-input:focus {
+      outline: none;
+    }
+
+    .am-chat-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 12px 10px;
+      border-top: 1px solid var(--vscode-input-border);
+      background: var(--vscode-input-background);
+    }
+
+    .am-chat-input-hint {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      opacity: 0.85;
+    }
+
+    .am-chat-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .am-chat-actions .button {
+      min-height: 28px;
+      padding: 3px 11px;
+      font-size: 12px;
+      border-radius: 4px;
+    }
+
+    .am-center-form {
+      width: 100%;
+      max-width: 800px;
+      height: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .am-center-title {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--vscode-titleBar-activeForeground, var(--vscode-foreground));
+    }
+
+    .am-center-subtitle {
+      margin: 0 0 8px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .am-form-label {
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .am-prompt-input {
+      min-height: 120px;
+      width: 100%;
+      border-radius: 2px;
+    }
+
+    .am-branch-input {
+      min-height: 34px;
+    }
+
+    .am-session-item.am-selected .am-session-label,
+    .am-session-item.am-selected .am-session-meta {
+      color: inherit;
+    }
+
+    .am-session-item.am-selected .am-meta-indicator {
+      opacity: 0.95;
+    }
+
+    @keyframes am-spin {
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes am-dot-pulse {
+      0% {
+        transform: scale(1);
+        opacity: 0.85;
+      }
+      50% {
+        transform: scale(1.25);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1);
+        opacity: 0.85;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .am-shell {
+        flex-direction: column;
+      }
+
+      .am-sidebar {
+        width: 100%;
+        max-height: min(45vh, 320px);
+        border-right: 0;
+        border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-panel-border));
+      }
+
+      .am-detail-header {
+        flex-direction: column;
+      }
+
+      .am-header-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .button,
+      .am-icon-btn,
+      .am-new-agent-item,
+      .am-session-item {
+        transition: none;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="layout">
-    <div class="toolbar">
-      <h1 class="title">Agent Manager</h1>
-      <div class="row">
-        <button id="refreshBtn" class="button secondary" type="button">Refresh</button>
+  <div class="am-shell">
+    <aside class="am-sidebar">
+      <div class="am-sidebar-header">
+        <span>Agent Manager</span>
       </div>
-    </div>
 
-    <div class="split">
-      <div class="card">
-        <div><strong>Start Session</strong></div>
-        <div class="row">
-          <label for="agentSelect" class="muted">Mode</label>
-          <select id="agentSelect" class="select-input"></select>
-        </div>
-        <textarea id="promptInput" class="text-area" placeholder="Optional kickoff prompt"></textarea>
-        <label class="checkbox">
-          <input id="parallelToggle" type="checkbox" />
-          Start in parallel worktree mode
-        </label>
-        <input id="branchInput" class="text-input" placeholder="Branch name (optional, parallel mode)" />
-        <div class="row">
-          <button id="createBtn" class="button" type="button">Create Session</button>
-          <span id="workspaceLabel" class="muted"></span>
+      <button id="newSessionBtn" class="am-new-agent-item" type="button" aria-label="Start a new session">New Agent</button>
+
+      <div class="am-sidebar-section-header">
+        <span>Sessions</span>
+        <div class="am-sidebar-section-actions">
+          <button id="refreshBtn" class="am-icon-btn" type="button" aria-label="Refresh sessions" title="Refresh sessions">↻</button>
         </div>
       </div>
 
-      <div class="card">
-        <div><strong>Bulk Controls</strong></div>
-        <input id="searchInput" class="search-input" placeholder="Search sessions by title, id, branch, or path" />
-        <div class="row">
-          <button id="bulkAbortBtn" class="button secondary" type="button">Abort Selected</button>
-          <button id="bulkDeleteBtn" class="button danger" type="button">Delete Selected</button>
-          <span id="selectedCount" class="muted">0 selected</span>
-        </div>
+      <div id="warningBlock" hidden style="padding: 0 10px 8px;">
+        <ul id="warningList" class="warning-list"></ul>
       </div>
-    </div>
 
-    <div class="card">
-      <div><strong>Sessions</strong></div>
-      <div id="warningBlock" hidden>
-        <ul id="warningList" class="error-list"></ul>
-      </div>
-      <div class="session-list" id="sessionList"></div>
-      <div class="muted" id="emptyState" hidden>No sessions match the current filters.</div>
-    </div>
+      <div class="am-session-list" id="sessionList" tabindex="0" aria-label="Session list"></div>
+    </aside>
 
-    <div class="status-line" id="statusLine"></div>
+    <main class="am-main">
+      <div class="am-detail" id="detailPane"></div>
+      <div class="am-status-line" id="statusLine"></div>
+    </main>
   </div>
 
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi()
-    let sessions = []
-    let agents = []
-    let defaultAgent = "code"
-    let busy = false
-    let selected = new Set()
+
+    const state = {
+      sessions: [],
+      agents: [],
+      defaultAgent: "code",
+      workspaceDir: "",
+      warnings: [],
+      busy: false,
+      selectedSessionId: null,
+      messagesBySession: new Map(),
+      createDraft: {
+        prompt: "",
+        agent: "code",
+        parallel: false,
+        branch: "",
+      },
+      composeDraftBySession: new Map(),
+      messageRefreshTimer: null,
+    }
 
     const refreshBtn = document.getElementById("refreshBtn")
-    const createBtn = document.getElementById("createBtn")
-    const promptInput = document.getElementById("promptInput")
-    const agentSelect = document.getElementById("agentSelect")
-    const workspaceLabel = document.getElementById("workspaceLabel")
-    const parallelToggle = document.getElementById("parallelToggle")
-    const branchInput = document.getElementById("branchInput")
-    const searchInput = document.getElementById("searchInput")
-    const bulkAbortBtn = document.getElementById("bulkAbortBtn")
-    const bulkDeleteBtn = document.getElementById("bulkDeleteBtn")
-    const selectedCount = document.getElementById("selectedCount")
-    const sessionList = document.getElementById("sessionList")
-    const emptyState = document.getElementById("emptyState")
+    const newSessionBtn = document.getElementById("newSessionBtn")
     const warningBlock = document.getElementById("warningBlock")
     const warningList = document.getElementById("warningList")
+    const sessionList = document.getElementById("sessionList")
+    const detailPane = document.getElementById("detailPane")
     const statusLine = document.getElementById("statusLine")
-
-    function setBusy(nextBusy) {
-      busy = !!nextBusy
-      refreshBtn.disabled = busy
-      createBtn.disabled = busy
-      bulkAbortBtn.disabled = busy || selected.size === 0
-      bulkDeleteBtn.disabled = busy || selected.size === 0
-    }
 
     function setStatus(message) {
       statusLine.textContent = message || ""
     }
 
+    function setBusy(nextBusy) {
+      state.busy = !!nextBusy
+      refreshBtn.disabled = state.busy
+      renderDetail()
+    }
+
+    function isSessionActive(session) {
+      return !!session && (session.status === "busy" || session.status === "retry")
+    }
+
+    function stopMessageRefreshTimer() {
+      if (state.messageRefreshTimer !== null) {
+        clearInterval(state.messageRefreshTimer)
+        state.messageRefreshTimer = null
+      }
+    }
+
     function formatWhen(isoString) {
       const date = new Date(isoString)
       if (Number.isNaN(date.getTime())) {
-        return isoString
+        return isoString || ""
       }
       return date.toLocaleString()
     }
 
-    function populateAgents() {
-      while (agentSelect.firstChild) {
-        agentSelect.removeChild(agentSelect.firstChild)
+    function relativeWhen(isoString) {
+      const date = new Date(isoString)
+      if (Number.isNaN(date.getTime())) {
+        return isoString || ""
       }
+      const deltaMs = Date.now() - date.getTime()
+      const sec = Math.max(1, Math.floor(deltaMs / 1000))
+      if (sec < 60) {
+        return sec + "s ago"
+      }
+      const min = Math.floor(sec / 60)
+      if (min < 60) {
+        return min + "m ago"
+      }
+      const hr = Math.floor(min / 60)
+      if (hr < 24) {
+        return hr + "h ago"
+      }
+      const day = Math.floor(hr / 24)
+      return day + "d ago"
+    }
 
-      const options = agents.length > 0 ? agents : [{ name: defaultAgent, description: "" }]
-      for (const agent of options) {
-        const option = document.createElement("option")
-        option.value = agent.name
-        option.textContent = agent.description ? agent.name + " - " + agent.description : agent.name
-        if (agent.name === defaultAgent) {
-          option.selected = true
-        }
-        agentSelect.appendChild(option)
+    function clearNode(node) {
+      while (node.firstChild) {
+        node.removeChild(node.firstChild)
       }
     }
 
-    function updateSelectedCount() {
-      selectedCount.textContent = selected.size + " selected"
-      bulkAbortBtn.disabled = busy || selected.size === 0
-      bulkDeleteBtn.disabled = busy || selected.size === 0
-    }
-
-    function filteredSessions() {
-      const query = (searchInput.value || "").trim().toLowerCase()
-      if (!query) {
-        return sessions
-      }
-      return sessions.filter((session) => {
-        const text = [session.title, session.id, session.branch || "", session.directoryLabel || ""].join(" ").toLowerCase()
-        return text.includes(query)
-      })
-    }
-
-    function makeButton(label, className, onClick) {
+    function makeButton(label, className, onClick, ariaLabel) {
       const button = document.createElement("button")
       button.type = "button"
-      button.textContent = label
       button.className = className ? "button " + className : "button"
-      button.disabled = busy
+      button.textContent = label
+      button.disabled = state.busy
+      if (ariaLabel) {
+        button.setAttribute("aria-label", ariaLabel)
+      }
       button.addEventListener("click", onClick)
       return button
     }
 
-    function renderWarnings(errors) {
-      while (warningList.firstChild) {
-        warningList.removeChild(warningList.firstChild)
-      }
+    function toAgentOptions() {
+      const fallback = state.defaultAgent || "code"
+      return state.agents.length > 0 ? state.agents : [{ name: fallback, description: "" }]
+    }
 
-      if (!errors || errors.length === 0) {
+    function getSessionById(sessionID) {
+      return state.sessions.find((session) => session.id === sessionID) || null
+    }
+
+    function updateMessageRefreshTimer() {
+      stopMessageRefreshTimer()
+      const selectedSession = state.selectedSessionId ? getSessionById(state.selectedSessionId) : null
+      if (!selectedSession || selectedSession.source === "cloud" || !isSessionActive(selectedSession)) {
+        return
+      }
+      state.messageRefreshTimer = setInterval(() => {
+        const current = state.messagesBySession.get(selectedSession.id)
+        if (current && current.loading) {
+          return
+        }
+        requestSessionMessages(selectedSession.id, true)
+      }, 2000)
+    }
+
+    function selectAdjacentSession(offset) {
+      const rows = visibleSessions()
+      if (rows.length === 0) {
+        return
+      }
+      const currentIndex = rows.findIndex((session) => session.id === state.selectedSessionId)
+      const nextIndex = currentIndex < 0 ? 0 : Math.max(0, Math.min(rows.length - 1, currentIndex + offset))
+      setSelectedSession(rows[nextIndex].id)
+    }
+
+    function visibleSessions() {
+      return state.sessions
+    }
+
+    function sanitizeSelection() {
+      const known = new Set(state.sessions.map((session) => session.id))
+      if (state.selectedSessionId && !known.has(state.selectedSessionId)) {
+        state.selectedSessionId = null
+      }
+    }
+
+    function renderWarnings() {
+      clearNode(warningList)
+      if (!state.warnings || state.warnings.length === 0) {
         warningBlock.hidden = true
         return
       }
-
-      for (const error of errors) {
-        const li = document.createElement("li")
-        li.textContent = error
-        warningList.appendChild(li)
+      for (const warning of state.warnings) {
+        const row = document.createElement("li")
+        row.textContent = warning
+        warningList.appendChild(row)
       }
       warningBlock.hidden = false
     }
 
-    function renderSessions() {
-      while (sessionList.firstChild) {
-        sessionList.removeChild(sessionList.firstChild)
+    function setSelectedSession(sessionID) {
+      state.selectedSessionId = sessionID
+      renderSidebar()
+      renderDetail()
+      updateMessageRefreshTimer()
+      if (sessionID) {
+        requestSessionMessages(sessionID, false)
       }
+    }
 
-      const rows = filteredSessions()
-
-      if (!rows.length) {
-        emptyState.hidden = false
+    function requestSessionMessages(sessionID, force) {
+      if (!sessionID) {
         return
       }
 
-      emptyState.hidden = true
+      const current = state.messagesBySession.get(sessionID)
+      if (current && !force && !current.error && current.messages.length > 0) {
+        return
+      }
+
+      state.messagesBySession.set(sessionID, {
+        sessionID,
+        loading: true,
+        error: current ? current.error : undefined,
+        source: current ? current.source : "local",
+        canSendMessage: current ? current.canSendMessage : true,
+        messages: current ? current.messages : [],
+      })
+
+      renderDetail()
+      vscode.postMessage({ type: "loadSessionMessages", sessionID })
+    }
+
+    function makeBadge(text, kind) {
+      const badge = document.createElement("span")
+      badge.className = "am-badge"
+      badge.textContent = text
+      if (kind) {
+        badge.dataset.kind = kind
+      }
+      return badge
+    }
+
+    function createSessionStatusIcon(session) {
+      const icon = document.createElement("div")
+      icon.className = "am-status-icon"
+      if (session.status === "busy") {
+        icon.classList.add("am-running")
+        icon.textContent = "⟳"
+        icon.title = "Running"
+        return icon
+      }
+      if (session.status === "retry") {
+        icon.classList.add("am-retry")
+        icon.textContent = "⟳"
+        icon.title = "Retrying"
+        return icon
+      }
+      if (session.status === "idle") {
+        icon.classList.add("am-idle")
+        icon.textContent = "✓"
+        icon.title = "Completed"
+        return icon
+      }
+      icon.classList.add("am-unknown")
+      icon.textContent = "○"
+      icon.title = "Unknown"
+      return icon
+    }
+
+    function renderSidebar() {
+      clearNode(sessionList)
+
+      const rows = visibleSessions()
+      if (newSessionBtn) {
+        newSessionBtn.classList.toggle("am-selected", !state.selectedSessionId)
+      }
+
+      if (rows.length === 0) {
+        const empty = document.createElement("div")
+        empty.className = "am-empty"
+        empty.textContent = "No active agents yet."
+        sessionList.appendChild(empty)
+        return
+      }
 
       for (const session of rows) {
-        const container = document.createElement("div")
-        container.className = "session"
+        const row = document.createElement("div")
+        row.className = session.id === state.selectedSessionId ? "am-session-item am-selected" : "am-session-item"
+        row.setAttribute("role", "button")
+        row.setAttribute("tabindex", "0")
+        row.setAttribute("aria-label", "Open session " + (session.title || session.id))
+        row.addEventListener("click", () => {
+          setSelectedSession(session.id)
+        })
+        row.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault()
+            setSelectedSession(session.id)
+          }
+        })
 
-        const head = document.createElement("div")
-        head.className = "session-head"
+        const statusIcon = createSessionStatusIcon(session)
 
-        const main = document.createElement("div")
-        main.className = "session-main"
+        const content = document.createElement("div")
+        content.className = "am-session-content"
 
-        const title = document.createElement("div")
-        title.className = "session-title"
-        title.textContent = session.title || "Untitled"
-
-        const id = document.createElement("div")
-        id.className = "session-id"
-        id.textContent = session.id
+        const label = document.createElement("div")
+        label.className = "am-session-label"
+        label.textContent = session.title || "Untitled"
 
         const meta = document.createElement("div")
-        meta.className = "session-meta"
-        meta.textContent =
-          "Updated " +
-          formatWhen(session.updatedAt) +
-          " • " +
-          (session.source === "cloud" ? "cloud" : session.directoryLabel) +
-          (session.branch ? " • branch " + session.branch : "") +
-          (session.pendingApprovalCount > 0 ? " • approvals " + session.pendingApprovalCount : "")
+        meta.className = "am-session-meta"
+        meta.textContent = relativeWhen(session.updatedAt)
 
-        main.appendChild(title)
-        main.appendChild(id)
-        main.appendChild(meta)
+        if (session.source === "cloud") {
+          const cloud = document.createElement("span")
+          cloud.className = "am-meta-indicator"
+          cloud.title = "Cloud session"
+          cloud.textContent = "☁ cloud"
+          meta.appendChild(cloud)
+        } else if (session.isWorktree) {
+          const worktree = document.createElement("span")
+          worktree.className = "am-meta-indicator"
+          worktree.title = "Worktree session"
+          worktree.textContent = "⑂ worktree"
+          meta.appendChild(worktree)
+        }
+
+        if (session.branch) {
+          const branch = document.createElement("span")
+          branch.className = "am-meta-indicator"
+          branch.title = session.branch
+          const branchLabel = document.createElement("span")
+          branchLabel.className = "am-meta-branch"
+          branchLabel.textContent = session.branch
+          branch.appendChild(document.createTextNode("⎇"))
+          branch.appendChild(branchLabel)
+          meta.appendChild(branch)
+        }
+
+        if (session.pendingApprovalCount > 0) {
+          const approval = document.createElement("span")
+          approval.className = "am-meta-indicator"
+          approval.title = "Pending approval requests"
+          approval.textContent =
+            session.pendingApprovalCount + " approval" + (session.pendingApprovalCount === 1 ? "" : "s")
+          meta.appendChild(approval)
+        }
+
+        content.appendChild(label)
+        content.appendChild(meta)
+
+        row.appendChild(statusIcon)
+        row.appendChild(content)
+        sessionList.appendChild(row)
+      }
+    }
+
+    function appendToolSection(parent, title, content, defaultOpen) {
+      if (!content || !String(content).trim()) {
+        return
+      }
+
+      const section = document.createElement("details")
+      section.className = "am-tool-section"
+      section.open = !!defaultOpen
+
+      const summary = document.createElement("summary")
+      summary.textContent = title
+
+      const pre = document.createElement("pre")
+      pre.className = "am-tool-pre"
+      pre.textContent = String(content)
+
+      section.appendChild(summary)
+      section.appendChild(pre)
+      parent.appendChild(section)
+    }
+
+    function renderMessagePart(part) {
+      if (!part || typeof part !== "object") {
+        return null
+      }
+
+      if (part.type === "text") {
+        const text = document.createElement("pre")
+        text.className = "am-text-part"
+        text.textContent = part.text || ""
+        return text
+      }
+
+      if (part.type === "reasoning") {
+        const reasoning = document.createElement("details")
+        reasoning.className = "am-reasoning"
+
+        const summary = document.createElement("summary")
+        summary.textContent = "Reasoning"
+        const body = document.createElement("div")
+        body.className = "am-reasoning-content"
+        body.textContent = part.text || ""
+
+        reasoning.appendChild(summary)
+        reasoning.appendChild(body)
+        return reasoning
+      }
+
+      if (part.type === "file") {
+        const file = document.createElement("div")
+        file.className = "am-file"
+
+        const title = document.createElement("strong")
+        title.textContent = part.filename || "File"
+        const mime = document.createElement("span")
+        mime.textContent = part.mime || ""
+        const url = document.createElement("span")
+        url.textContent = part.url || ""
+
+        file.appendChild(title)
+        if (part.mime) {
+          file.appendChild(mime)
+        }
+        if (part.url) {
+          file.appendChild(url)
+        }
+        return file
+      }
+
+      if (part.type === "tool") {
+        const tool = document.createElement("div")
+        tool.className = "am-tool"
+
+        const head = document.createElement("div")
+        head.className = "am-tool-head"
+
+        const name = document.createElement("span")
+        name.className = "am-tool-name"
+        name.textContent = part.title || part.tool || "Tool"
 
         const status = document.createElement("span")
-        status.className = "status-badge"
-        status.dataset.status = session.status || "unknown"
-        status.textContent = session.status || "unknown"
+        status.className = "am-tool-status"
+        status.dataset.status = part.status || "pending"
+        status.textContent = part.status || "pending"
 
-        head.appendChild(main)
+        head.appendChild(name)
         head.appendChild(status)
-        if (session.pendingApprovalCount > 0) {
-          const approvalBadge = document.createElement("span")
-          approvalBadge.className = "approval-badge"
-          approvalBadge.textContent = session.pendingApprovalCount + " approval" + (session.pendingApprovalCount === 1 ? "" : "s")
-          head.appendChild(approvalBadge)
-        }
+        tool.appendChild(head)
 
-        const actionRow = document.createElement("div")
-        actionRow.className = "session-actions"
+        appendToolSection(tool, "Input", part.input, part.status === "error")
+        appendToolSection(tool, "Output", part.output, part.status !== "pending")
+        appendToolSection(tool, "Error", part.error, true)
 
-        const checkLabel = document.createElement("label")
-        checkLabel.className = "checkbox"
-        const check = document.createElement("input")
-        check.type = "checkbox"
-        check.checked = selected.has(session.id)
-        check.disabled = session.source === "cloud"
-        check.addEventListener("change", () => {
-          if (check.checked) {
-            selected.add(session.id)
-          } else {
-            selected.delete(session.id)
-          }
-          updateSelectedCount()
-        })
-        const checkText = document.createElement("span")
-        checkText.textContent = session.source === "cloud" ? "Cloud" : "Select"
-        checkLabel.appendChild(check)
-        checkLabel.appendChild(checkText)
-        actionRow.appendChild(checkLabel)
-
-        const openChatBtn = makeButton("Open Chat", "secondary", () => {
-          vscode.postMessage({ type: "openSession", sessionID: session.id })
-        })
-        if (!session.canOpenInChat) {
-          openChatBtn.disabled = true
-          openChatBtn.title =
-            session.source === "cloud"
-              ? "Cloud sessions need to be resumed locally first"
-              : "Worktree sessions should be continued from Agent Manager"
-        }
-        actionRow.appendChild(openChatBtn)
-
-        if (session.source !== "cloud") {
-          if (session.nextPendingApproval && session.nextPendingApproval.id) {
-            actionRow.appendChild(
-              makeButton("Allow Once", "secondary", () => {
-                vscode.postMessage({
-                  type: "respondPermission",
-                  sessionID: session.id,
-                  permissionID: session.nextPendingApproval.id,
-                  response: "once",
-                })
-              }),
-            )
-            actionRow.appendChild(
-              makeButton("Allow Always", "secondary", () => {
-                vscode.postMessage({
-                  type: "respondPermission",
-                  sessionID: session.id,
-                  permissionID: session.nextPendingApproval.id,
-                  response: "always",
-                })
-              }),
-            )
-            actionRow.appendChild(
-              makeButton("Deny", "warn", () => {
-                vscode.postMessage({
-                  type: "respondPermission",
-                  sessionID: session.id,
-                  permissionID: session.nextPendingApproval.id,
-                  response: "reject",
-                })
-              }),
-            )
-          }
-          actionRow.appendChild(
-            makeButton("Abort", "secondary", () => {
-              vscode.postMessage({ type: "abortSession", sessionID: session.id })
-            }),
-          )
-
-          actionRow.appendChild(
-            makeButton("Delete", "danger", () => {
-              const ok = window.confirm("Delete this session permanently?")
-              if (!ok) return
-              vscode.postMessage({ type: "deleteSession", sessionID: session.id })
-            }),
-          )
-        } else {
-          actionRow.appendChild(
-            makeButton("Resume Local", "secondary", () => {
-              vscode.postMessage({ type: "resumeRemoteSession", sessionID: session.id })
-            }),
-          )
-        }
-
-        if (session.isWorktree) {
-          actionRow.appendChild(
-            makeButton("Open Worktree", "secondary", () => {
-              vscode.postMessage({ type: "openWorktree", sessionID: session.id })
-            }),
-          )
-          actionRow.appendChild(
-            makeButton("Remove Worktree", "warn", () => {
-              const ok = window.confirm("Remove this worktree folder? The git branch is preserved.")
-              if (!ok) return
-              vscode.postMessage({ type: "removeWorktree", sessionID: session.id })
-            }),
-          )
-        }
-
-        if (session.nextPendingApproval) {
-          const approvalInfo = document.createElement("div")
-          approvalInfo.className = "session-approval"
-          const patterns = Array.isArray(session.nextPendingApproval.patterns) ? session.nextPendingApproval.patterns : []
-          approvalInfo.textContent =
-            "Pending permission: " +
-            session.nextPendingApproval.permission +
-            (patterns.length > 0 ? " • " + patterns.slice(0, 4).join(", ") : "")
-          container.appendChild(approvalInfo)
-        }
-
-        const continueRow = document.createElement("div")
-        continueRow.className = "session-continue"
-
-        const continueInput = document.createElement("input")
-        continueInput.className = "text-input"
-        continueInput.placeholder =
-          session.source === "cloud"
-            ? "Enter a continuation message to start a local session"
-            : "Send follow-up message to this session"
-        continueInput.addEventListener("keydown", (event) => {
-          if (event.key === "Enter") {
-            event.preventDefault()
-            const text = continueInput.value
-            if (session.source === "cloud") {
-              vscode.postMessage({ type: "resumeRemoteSession", sessionID: session.id, text })
-            } else {
-              if (!text.trim()) return
-              vscode.postMessage({ type: "sendSessionMessage", sessionID: session.id, text })
-            }
-            continueInput.value = ""
-          }
-        })
-
-        const sendBtn = makeButton(session.source === "cloud" ? "Resume Local" : "Send", "", () => {
-          const text = continueInput.value
-          if (session.source === "cloud") {
-            vscode.postMessage({ type: "resumeRemoteSession", sessionID: session.id, text })
-          } else {
-            if (!text.trim()) return
-            vscode.postMessage({ type: "sendSessionMessage", sessionID: session.id, text })
-          }
-          continueInput.value = ""
-        })
-
-        continueRow.appendChild(continueInput)
-        continueRow.appendChild(sendBtn)
-
-        container.appendChild(head)
-        container.appendChild(actionRow)
-        container.appendChild(continueRow)
-        sessionList.appendChild(container)
+        return tool
       }
+
+      return null
+    }
+
+    function renderMessagesForSession(session) {
+      const wrap = document.createElement("div")
+      wrap.className = "am-messages-container"
+
+      const messageState = state.messagesBySession.get(session.id)
+
+      const list = document.createElement("div")
+      list.className = "am-messages-list"
+
+      const canSendMessage = messageState ? !!messageState.canSendMessage : session.source !== "cloud"
+      if (!messageState || messageState.loading) {
+        const loading = document.createElement("div")
+        loading.className = "am-messages-empty"
+        loading.textContent = "Loading messages..."
+        list.appendChild(loading)
+      } else if (messageState.error) {
+        const error = document.createElement("div")
+        error.className = "am-session-error-banner"
+        const text = document.createElement("div")
+        text.textContent = "Failed to load messages: " + messageState.error
+        const retry = makeButton("Retry", "secondary", () => requestSessionMessages(session.id, true), "Retry loading messages")
+        error.appendChild(text)
+        error.appendChild(retry)
+        list.appendChild(error)
+      } else if (!messageState.messages || messageState.messages.length === 0) {
+        const empty = document.createElement("div")
+        empty.className = "am-messages-empty"
+        empty.textContent = "No messages yet. Continue this session below."
+        list.appendChild(empty)
+      } else {
+        for (const message of messageState.messages) {
+          const row = document.createElement("div")
+          row.className = "am-message-item"
+          if (message.role === "user") {
+            row.classList.add("am-user-message")
+          }
+
+          const icon = document.createElement("div")
+          icon.className = "am-message-icon"
+          icon.textContent = message.role === "user" ? "U" : "K"
+
+          const content = document.createElement("div")
+          content.className = "am-message-content-wrapper"
+
+          const rowHead = document.createElement("div")
+          rowHead.className = "am-message-header"
+
+          const role = document.createElement("span")
+          role.className = "am-message-author"
+          role.textContent = message.role === "user" ? "User" : "Assistant"
+          rowHead.appendChild(role)
+
+          if (message.providerID) {
+            const providerChip = document.createElement("span")
+            providerChip.className = "am-message-chip"
+            providerChip.title = message.providerID
+            providerChip.textContent = "provider: " + message.providerID
+            rowHead.appendChild(providerChip)
+          }
+
+          if (message.modelID) {
+            const modelChip = document.createElement("span")
+            modelChip.className = "am-message-chip"
+            modelChip.title = message.modelID
+            modelChip.textContent = "model: " + message.modelID
+            rowHead.appendChild(modelChip)
+          }
+
+          const when = document.createElement("span")
+          when.className = "am-message-ts"
+          when.textContent = formatWhen(message.createdAt)
+          rowHead.appendChild(when)
+
+          const body = document.createElement("div")
+          body.className = "am-message-body"
+          const parts = Array.isArray(message.parts) ? message.parts : []
+          for (const part of parts) {
+            const node = renderMessagePart(part)
+            if (node) {
+              body.appendChild(node)
+            }
+          }
+          if (body.childElementCount === 0) {
+            const fallback = document.createElement("div")
+            fallback.className = "muted"
+            fallback.textContent = "No renderable content."
+            body.appendChild(fallback)
+          }
+
+          content.appendChild(rowHead)
+          content.appendChild(body)
+
+          row.appendChild(icon)
+          row.appendChild(content)
+          list.appendChild(row)
+        }
+      }
+
+      const compose = document.createElement("form")
+      compose.className = "am-chat-input-container"
+
+      const shell = document.createElement("div")
+      shell.className = "am-input-shell"
+
+      const draft = state.composeDraftBySession.get(session.id) || ""
+      const input = document.createElement("textarea")
+      input.className = "text-area am-chat-input"
+      input.placeholder =
+        !canSendMessage
+          ? "This session cannot be continued directly"
+          : session.source === "cloud"
+          ? "Add a continuation prompt to resume this cloud session locally"
+          : "Send a follow-up message"
+      input.value = draft
+      input.disabled = state.busy || !canSendMessage
+      input.spellcheck = false
+      input.addEventListener("input", () => {
+        state.composeDraftBySession.set(session.id, input.value)
+      })
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+          event.preventDefault()
+          compose.requestSubmit()
+        }
+      })
+
+      const composeActions = document.createElement("div")
+      composeActions.className = "am-chat-toolbar"
+
+      const hint = document.createElement("span")
+      hint.className = "am-chat-input-hint"
+      hint.textContent = canSendMessage
+        ? "Press Enter to send, Shift+Enter for new line."
+        : "This session cannot be continued directly"
+
+      const actionGroup = document.createElement("div")
+      actionGroup.className = "am-chat-actions"
+
+      const send = document.createElement("button")
+      send.type = "submit"
+      send.className = "button"
+      send.textContent = session.source === "cloud" ? "Resume Local" : "Send"
+      send.disabled = state.busy || !canSendMessage || input.value.trim().length === 0
+
+      input.addEventListener("input", () => {
+        send.disabled = state.busy || !canSendMessage || input.value.trim().length === 0
+      })
+
+      compose.addEventListener("submit", (event) => {
+        event.preventDefault()
+        const text = input.value.trim()
+        if (!text) {
+          return
+        }
+
+        setBusy(true)
+
+        if (session.source === "cloud") {
+          setStatus("Starting local continuation session...")
+          vscode.postMessage({ type: "resumeRemoteSession", sessionID: session.id, text })
+        } else {
+          setStatus("Sending message...")
+          vscode.postMessage({ type: "sendSessionMessage", sessionID: session.id, text })
+        }
+
+        state.composeDraftBySession.set(session.id, "")
+        input.value = ""
+        send.disabled = true
+      })
+
+      actionGroup.appendChild(send)
+      composeActions.appendChild(hint)
+      composeActions.appendChild(actionGroup)
+      shell.appendChild(input)
+      shell.appendChild(composeActions)
+      compose.appendChild(shell)
+
+      wrap.appendChild(list)
+      wrap.appendChild(compose)
+
+      return wrap
+    }
+
+    function renderSessionDetail(session) {
+      const header = document.createElement("section")
+      header.className = "am-detail-header"
+
+      const headerInfo = document.createElement("div")
+      headerInfo.className = "am-header-info"
+
+      const title = document.createElement("div")
+      title.className = "am-header-title"
+      title.textContent = session.title || "Untitled"
+
+      const subtitle = document.createElement("div")
+      subtitle.className = "am-header-meta"
+
+      const updated = document.createElement("span")
+      updated.textContent = "Updated " + relativeWhen(session.updatedAt)
+      subtitle.appendChild(updated)
+
+      const source = document.createElement("span")
+      source.className = "am-meta-indicator"
+      source.textContent = session.source === "cloud" ? "☁ Cloud" : "⌂ Local"
+      subtitle.appendChild(source)
+
+      if (session.isWorktree) {
+        const worktree = document.createElement("span")
+        worktree.className = "am-meta-indicator"
+        worktree.textContent = "⑂ Worktree"
+        subtitle.appendChild(worktree)
+      }
+
+      if (session.branch) {
+        const branch = document.createElement("span")
+        branch.className = "am-meta-indicator"
+        branch.title = session.branch
+        const branchLabel = document.createElement("span")
+        branchLabel.className = "am-meta-branch"
+        branchLabel.textContent = session.branch
+        branch.appendChild(document.createTextNode("⎇"))
+        branch.appendChild(branchLabel)
+        subtitle.appendChild(branch)
+      }
+
+      if (session.pendingApprovalCount > 0) {
+        const approvalCount = document.createElement("span")
+        approvalCount.className = "am-meta-indicator"
+        approvalCount.textContent =
+          session.pendingApprovalCount + " approval" + (session.pendingApprovalCount === 1 ? "" : "s")
+        subtitle.appendChild(approvalCount)
+      }
+
+      headerInfo.appendChild(title)
+      headerInfo.appendChild(subtitle)
+
+      const actions = document.createElement("div")
+      actions.className = "am-header-actions"
+
+      const openChat = makeButton(
+        "Open Chat",
+        "secondary",
+        () => {
+          vscode.postMessage({ type: "openSession", sessionID: session.id })
+        },
+        "Open this session in main chat view",
+      )
+      openChat.disabled = state.busy || !session.canOpenInChat
+      actions.appendChild(openChat)
+
+      actions.appendChild(
+        makeButton(
+          "Refresh",
+          "secondary",
+          () => requestSessionMessages(session.id, true),
+          "Reload selected session messages",
+        ),
+      )
+
+      if (session.source === "cloud") {
+        actions.appendChild(
+          makeButton(
+            "Resume Local",
+            "",
+            () => {
+              setBusy(true)
+              setStatus("Starting local continuation session...")
+              vscode.postMessage({ type: "resumeRemoteSession", sessionID: session.id })
+            },
+            "Resume cloud session locally",
+          ),
+        )
+      } else {
+        actions.appendChild(
+          makeButton(
+            "Abort",
+            "secondary",
+            () => {
+              setBusy(true)
+              setStatus("Aborting session...")
+              vscode.postMessage({ type: "abortSession", sessionID: session.id })
+            },
+            "Abort session",
+          ),
+        )
+        actions.appendChild(
+          makeButton(
+            "Delete",
+            "danger",
+            () => {
+              const ok = window.confirm("Delete this session permanently?")
+              if (!ok) {
+                return
+              }
+              setBusy(true)
+              setStatus("Deleting session...")
+              vscode.postMessage({ type: "deleteSession", sessionID: session.id })
+            },
+            "Delete session",
+          ),
+        )
+      }
+
+      if (session.isWorktree) {
+        actions.appendChild(
+          makeButton(
+            "Open Worktree",
+            "secondary",
+            () => vscode.postMessage({ type: "openWorktree", sessionID: session.id }),
+            "Open worktree in new window",
+          ),
+        )
+        actions.appendChild(
+          makeButton(
+            "Remove Worktree",
+            "warn",
+            () => {
+              const ok = window.confirm("Remove this worktree folder? The git branch is preserved.")
+              if (!ok) {
+                return
+              }
+              setBusy(true)
+              setStatus("Removing worktree...")
+              vscode.postMessage({ type: "removeWorktree", sessionID: session.id })
+            },
+            "Remove worktree folder",
+          ),
+        )
+      }
+
+      header.appendChild(headerInfo)
+      header.appendChild(actions)
+
+      if (session.nextPendingApproval && session.nextPendingApproval.id) {
+        const approval = document.createElement("div")
+        approval.className = "am-approval-box"
+        const description = document.createElement("div")
+        const patternText = Array.isArray(session.nextPendingApproval.patterns) && session.nextPendingApproval.patterns.length > 0
+          ? " | " + session.nextPendingApproval.patterns.slice(0, 4).join(", ")
+          : ""
+        description.textContent = "Pending permission: " + session.nextPendingApproval.permission + patternText
+        approval.appendChild(description)
+
+        const approvalActions = document.createElement("div")
+        approvalActions.className = "am-approval-buttons"
+        approvalActions.appendChild(
+          makeButton("Allow Once", "secondary", () => {
+            setBusy(true)
+            setStatus("Responding to permission...")
+            vscode.postMessage({
+              type: "respondPermission",
+              sessionID: session.id,
+              permissionID: session.nextPendingApproval.id,
+              response: "once",
+            })
+          }),
+        )
+        approvalActions.appendChild(
+          makeButton("Allow Always", "secondary", () => {
+            setBusy(true)
+            setStatus("Responding to permission...")
+            vscode.postMessage({
+              type: "respondPermission",
+              sessionID: session.id,
+              permissionID: session.nextPendingApproval.id,
+              response: "always",
+            })
+          }),
+        )
+        approvalActions.appendChild(
+          makeButton("Deny", "warn", () => {
+            setBusy(true)
+            setStatus("Responding to permission...")
+            vscode.postMessage({
+              type: "respondPermission",
+              sessionID: session.id,
+              permissionID: session.nextPendingApproval.id,
+              response: "reject",
+            })
+          }),
+        )
+        approval.appendChild(approvalActions)
+        header.appendChild(approval)
+      }
+
+      return header
+    }
+
+    function renderNewSessionView() {
+      const view = document.createElement("section")
+      view.className = "am-session-detail"
+
+      const form = document.createElement("form")
+      form.className = "am-center-form"
+
+      const options = toAgentOptions()
+      const selectedAgent = state.createDraft.agent || state.defaultAgent || options[0].name
+
+      const prompt = document.createElement("textarea")
+      prompt.className = "text-area am-prompt-input"
+      prompt.placeholder = "Type your task here..."
+      prompt.value = state.createDraft.prompt || ""
+      prompt.spellcheck = false
+      prompt.autofocus = true
+      prompt.rows = 8
+      prompt.addEventListener("input", () => {
+        state.createDraft.prompt = prompt.value
+        create.disabled = state.busy || prompt.value.trim().length === 0
+      })
+
+      prompt.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+          event.preventDefault()
+          form.requestSubmit()
+        }
+      })
+
+      const actions = document.createElement("div")
+      actions.className = "am-chat-actions"
+
+      const create = document.createElement("button")
+      create.type = "submit"
+      create.className = "button"
+      create.textContent = "Start Agent"
+      create.disabled = state.busy || prompt.value.trim().length === 0
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault()
+        const text = prompt.value.trim()
+        if (!text) {
+          return
+        }
+        setBusy(true)
+        setStatus("Creating session...")
+        vscode.postMessage({
+          type: "createSession",
+          prompt: text,
+          agent: selectedAgent,
+          parallel: false,
+          branch: "",
+        })
+      })
+
+      form.appendChild(prompt)
+      actions.appendChild(create)
+      form.appendChild(actions)
+
+      view.appendChild(form)
+      return view
+    }
+
+    function renderDetail() {
+      clearNode(detailPane)
+
+      const selectedSession = state.selectedSessionId ? getSessionById(state.selectedSessionId) : null
+      if (!selectedSession) {
+        detailPane.appendChild(renderNewSessionView())
+        return
+      }
+
+      detailPane.appendChild(renderSessionDetail(selectedSession))
+      detailPane.appendChild(renderMessagesForSession(selectedSession))
+    }
+
+    function renderAll() {
+      sanitizeSelection()
+      renderWarnings()
+      renderSidebar()
+      renderDetail()
+      updateMessageRefreshTimer()
     }
 
     refreshBtn.addEventListener("click", () => {
@@ -1779,36 +3649,23 @@ export class AgentManagerProvider implements vscode.Disposable {
       vscode.postMessage({ type: "refresh" })
     })
 
-    createBtn.addEventListener("click", () => {
-      setBusy(true)
-      setStatus(parallelToggle.checked ? "Creating parallel worktree session..." : "Creating session...")
-      vscode.postMessage({
-        type: "createSession",
-        prompt: promptInput.value,
-        agent: agentSelect.value || defaultAgent,
-        parallel: !!parallelToggle.checked,
-        branch: branchInput.value,
-      })
+    sessionList.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown") {
+        event.preventDefault()
+        selectAdjacentSession(1)
+        return
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault()
+        selectAdjacentSession(-1)
+      }
     })
 
-    searchInput.addEventListener("input", () => {
-      renderSessions()
-    })
-
-    bulkAbortBtn.addEventListener("click", () => {
-      if (selected.size === 0) return
-      setBusy(true)
-      setStatus("Aborting selected sessions...")
-      vscode.postMessage({ type: "bulkAbort", sessionIDs: Array.from(selected) })
-    })
-
-    bulkDeleteBtn.addEventListener("click", () => {
-      if (selected.size === 0) return
-      const ok = window.confirm("Delete all selected sessions permanently?")
-      if (!ok) return
-      setBusy(true)
-      setStatus("Deleting selected sessions...")
-      vscode.postMessage({ type: "bulkDelete", sessionIDs: Array.from(selected) })
+    newSessionBtn.addEventListener("click", () => {
+      state.selectedSessionId = null
+      renderSidebar()
+      renderDetail()
+      updateMessageRefreshTimer()
     })
 
     window.addEventListener("message", (event) => {
@@ -1818,60 +3675,92 @@ export class AgentManagerProvider implements vscode.Disposable {
       }
 
       if (message.type === "agentManagerData") {
-        sessions = Array.isArray(message.sessions) ? message.sessions : []
-        agents = Array.isArray(message.agents) ? message.agents : []
-        defaultAgent = typeof message.defaultAgent === "string" && message.defaultAgent ? message.defaultAgent : "code"
-        workspaceLabel.textContent = message.workspaceDir || ""
-
-        const sessionIds = new Set(sessions.filter((session) => session.source !== "cloud").map((session) => session.id))
-        selected = new Set(Array.from(selected).filter((id) => sessionIds.has(id)))
-
-        populateAgents()
-        renderWarnings(Array.isArray(message.errors) ? message.errors : [])
-        renderSessions()
-        updateSelectedCount()
+        state.sessions = Array.isArray(message.sessions) ? message.sessions : []
+        state.agents = Array.isArray(message.agents) ? message.agents : []
+        state.defaultAgent = typeof message.defaultAgent === "string" && message.defaultAgent ? message.defaultAgent : "code"
+        state.workspaceDir = typeof message.workspaceDir === "string" ? message.workspaceDir : ""
+        state.warnings = Array.isArray(message.errors) ? message.errors : []
+        if (!state.createDraft.agent || !toAgentOptions().some((agent) => agent.name === state.createDraft.agent)) {
+          state.createDraft.agent = state.defaultAgent
+        }
         setBusy(false)
+        renderAll()
+        if (state.selectedSessionId) {
+          requestSessionMessages(state.selectedSessionId, false)
+        }
         setStatus("Ready")
         return
       }
 
       if (message.type === "agentManagerSessionStatus") {
-        const index = sessions.findIndex((session) => session.id === message.sessionID)
+        const index = state.sessions.findIndex((session) => session.id === message.sessionID)
         if (index >= 0) {
-          sessions[index].status = message.status
-          renderSessions()
+          state.sessions[index].status = message.status
+        }
+        renderSidebar()
+        if (state.selectedSessionId === message.sessionID) {
+          renderDetail()
+        }
+        updateMessageRefreshTimer()
+        return
+      }
+
+      if (message.type === "agentManagerSessionMessages") {
+        state.messagesBySession.set(message.sessionID, {
+          sessionID: message.sessionID,
+          loading: false,
+          source: message.source,
+          canSendMessage: !!message.canSendMessage,
+          error: message.error,
+          messages: Array.isArray(message.messages) ? message.messages : [],
+        })
+        if (state.selectedSessionId === message.sessionID) {
+          renderDetail()
         }
         return
       }
 
       if (message.type === "agentManagerActionResult") {
         setBusy(false)
+
         if (message.success) {
           if (message.action === "createSession") {
-            promptInput.value = ""
-            branchInput.value = ""
+            state.createDraft.prompt = ""
+            state.createDraft.branch = ""
+            state.createDraft.parallel = false
+            if (message.sessionID) {
+              state.selectedSessionId = message.sessionID
+              requestSessionMessages(message.sessionID, true)
+            }
           }
-          if (message.action === "bulkDelete") {
-            selected.clear()
-            updateSelectedCount()
+          if (
+            (message.action === "sendSessionMessage" || message.action === "respondPermission" || message.action === "resumeRemoteSession") &&
+            message.sessionID
+          ) {
+            requestSessionMessages(message.sessionID, true)
           }
+
           setStatus((message.action || "action") + " succeeded" + (message.message ? ": " + message.message : ""))
         } else {
           setStatus((message.action || "action") + " failed" + (message.message ? ": " + message.message : ""))
         }
+
+        renderAll()
       }
     })
 
     setBusy(true)
+    renderAll()
     setStatus("Loading sessions...")
-    updateSelectedCount()
     vscode.postMessage({ type: "ready" })
+    window.addEventListener("beforeunload", () => {
+      stopMessageRefreshTimer()
+    })
   </script>
 </body>
 </html>`
   }
 }
-
 function getNonce(): string {
   let text = ""
   const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"

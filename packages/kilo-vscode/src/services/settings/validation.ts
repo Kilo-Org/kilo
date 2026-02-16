@@ -19,6 +19,8 @@ type ValidatedSettingKey =
   | "model.preferGatewayDefault"
   | "allowedCommands"
   | "deniedCommands"
+  | "followUp.autoProceedEnabled"
+  | "followUp.autoProceedTimeoutSeconds"
   | "notifications.agent"
   | "notifications.permissions"
   | "notifications.errors"
@@ -187,6 +189,8 @@ const settingSchemas: Record<ValidatedSettingKey, z.ZodTypeAny> = {
   "model.preferGatewayDefault": z.boolean(),
   allowedCommands: stringArraySchema,
   deniedCommands: stringArraySchema,
+  "followUp.autoProceedEnabled": z.boolean(),
+  "followUp.autoProceedTimeoutSeconds": z.number().int().min(5).max(600),
   "notifications.agent": z.boolean(),
   "notifications.permissions": z.boolean(),
   "notifications.errors": z.boolean(),

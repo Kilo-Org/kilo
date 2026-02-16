@@ -1,10 +1,9 @@
-import { Component, For, Show, createMemo, createSignal, onMount } from "solid-js"
+import { Component, For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Card } from "@kilocode/kilo-ui/card"
-import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { useVSCode } from "../context/vscode"
-import { useLanguage } from "../context/language"
+import { useServer } from "../context/server"
 import type {
   ExtensionMessage,
   MarketplaceInstalledMetadata,
@@ -27,9 +26,32 @@ type ItemActionState = "installing" | "removing"
 
 const actionKey = (itemID: string, target: "project" | "global") => `${itemID}::${target}`
 
-const MarketplaceView: Component = () => {
+const toItemLabel = (item: MarketplaceItem): string => {
+  if (item.type === "skill") {
+    return item.displayName || item.name
+  }
+  return item.name
+}
+
+const toItemCategory = (item: MarketplaceItem): string | null => {
+  if (item.type !== "skill") {
+    return null
+  }
+  return item.displayCategory || item.category || null
+}
+
+const itemFilterTags = (item: MarketplaceItem): string[] => {
+  const tags = [...(item.tags ?? [])]
+  const category = toItemCategory(item)
+  if (category) {
+    tags.push(category)
+  }
+  return Array.from(new Set(tags.filter((tag) => typeof tag === "string" && tag.trim().length > 0)))
+}
+
+const MarketplaceView: Component<{ initialTab?: MarketplaceItemType }> = (props) => {
   const vscode = useVSCode()
-  const language = useLanguage()
+  const server = useServer()
 
   const [activeTab, setActiveTab] = createSignal<MarketplaceItemType>("mcp")
   const [items, setItems] = createSignal<MarketplaceItem[]>([])
@@ -43,6 +65,26 @@ const MarketplaceView: Component = () => {
   const [selectedMethodByItem, setSelectedMethodByItem] = createStore<Record<string, number>>({})
   const [parameterValuesByItem, setParameterValuesByItem] = createStore<Record<string, Record<string, string>>>({})
   const [pendingActionsByItem, setPendingActionsByItem] = createStore<Record<string, ItemActionState>>({})
+
+  const currentOrganizationName = createMemo(() => {
+    const profile = server.profileData()
+    const currentOrgId = profile?.currentOrgId
+    if (!profile?.profile?.organizations?.length || !currentOrgId) {
+      return null
+    }
+    return profile.profile.organizations.find((org) => org.id === currentOrgId)?.name ?? null
+  })
+
+  let syncedInitialTab: MarketplaceItemType | undefined
+  createEffect(() => {
+    const nextTab = props.initialTab
+    if (!nextTab || nextTab === syncedInitialTab) {
+      return
+    }
+    syncedInitialTab = nextTab
+    setActiveTab(nextTab)
+    setSelectedTags([])
+  })
 
   const requestData = () => {
     setLoading(true)
@@ -99,16 +141,6 @@ const MarketplaceView: Component = () => {
 
   const activeItems = createMemo(() => items().filter((item) => item.type === activeTab()))
 
-  const availableTags = createMemo(() => {
-    const tags = new Set<string>()
-    for (const item of activeItems()) {
-      for (const tag of item.tags ?? []) {
-        tags.add(tag)
-      }
-    }
-    return [...tags].sort((a, b) => a.localeCompare(b))
-  })
-
   const filteredItems = createMemo(() => {
     const query = search().trim().toLowerCase()
     const selectedTagSet = new Set(selectedTags())
@@ -118,14 +150,23 @@ const MarketplaceView: Component = () => {
         if (!query) {
           return true
         }
-        const haystack = [item.name, item.description, ...(item.tags ?? [])].join(" ").toLowerCase()
+        const haystack = [
+          item.name,
+          toItemLabel(item),
+          item.description,
+          ...(itemFilterTags(item) ?? []),
+          ...(item.type === "skill" ? [item.category, item.displayName, item.displayCategory] : []),
+        ]
+          .filter((entry) => typeof entry === "string" && entry.trim().length > 0)
+          .join(" ")
+          .toLowerCase()
         return haystack.includes(query)
       })
       .filter((item) => {
         if (selectedTagSet.size === 0) {
           return true
         }
-        const tags = item.tags ?? []
+        const tags = itemFilterTags(item)
         return tags.some((tag) => selectedTagSet.has(tag))
       })
       .filter((item) => {
@@ -148,6 +189,52 @@ const MarketplaceView: Component = () => {
         }
         return a.name.localeCompare(b.name)
       })
+  })
+
+  const organizationManagedItems = createMemo(() => {
+    if (activeTab() !== "mcp") {
+      return [] as MarketplaceItem[]
+    }
+    return filteredItems().filter((item) => item.type === "mcp" && !!item.managedByOrganization)
+  })
+
+  const catalogItems = createMemo(() => {
+    if (activeTab() !== "mcp") {
+      return filteredItems()
+    }
+    return filteredItems().filter((item) => !(item.type === "mcp" && !!item.managedByOrganization))
+  })
+
+  const hasActiveFilters = createMemo(() => {
+    return (
+      search().trim().length > 0 ||
+      installFilter() !== "all" ||
+      selectedTags().length > 0 ||
+      sortBy() !== "name"
+    )
+  })
+
+  const resetFilters = () => {
+    setSearch("")
+    setInstallFilter("all")
+    setSelectedTags([])
+    setSortBy("name")
+  }
+
+  const activeTabLabel = createMemo(() => TABS.find((tab) => tab.type === activeTab())?.label ?? "Marketplace")
+  const activeTabIndex = createMemo(() => {
+    const index = TABS.findIndex((tab) => tab.type === activeTab())
+    return index >= 0 ? index : 0
+  })
+
+  const tabDescription = createMemo(() => {
+    if (activeTab() === "mcp") {
+      return "Browse MCP servers for tools, integrations, and workflows."
+    }
+    if (activeTab() === "mode") {
+      return "Browse reusable agent modes and install them in one click."
+    }
+    return "Browse shared skills and install them locally or globally."
   })
 
   const validateParameters = (item: MarketplaceItem): string[] => {
@@ -195,6 +282,12 @@ const MarketplaceView: Component = () => {
   }
 
   const handleRemove = (item: MarketplaceItem, target: "project" | "global") => {
+    const subject = item.type === "mode" ? "mode" : item.type === "mcp" ? "MCP server" : "skill"
+    const label = toItemLabel(item)
+    const confirmed = window.confirm(`Remove ${subject} "${label}" from ${target}?`)
+    if (!confirmed) {
+      return
+    }
     setStatusMessage(null)
     setPendingActionsByItem(actionKey(item.id, target), "removing")
     vscode.postMessage({
@@ -204,8 +297,13 @@ const MarketplaceView: Component = () => {
     })
   }
 
-  const openItemLink = (item: MarketplaceItem) => {
+  const getItemLink = (item: MarketplaceItem): string | undefined => {
     const url = item.type === "skill" ? item.githubUrl : item.type === "mcp" ? item.url : item.authorUrl
+    return typeof url === "string" && url.trim().length > 0 ? url : undefined
+  }
+
+  const openItemLink = (item: MarketplaceItem) => {
+    const url = getItemLink(item)
     if (!url) {
       return
     }
@@ -259,259 +357,220 @@ const MarketplaceView: Component = () => {
     }
   }
 
-  return (
-    <div style={{ padding: "12px", display: "flex", "flex-direction": "column", gap: "10px" }}>
-      <div style={{ display: "flex", gap: "8px", "align-items": "center", "justify-content": "space-between" }}>
-        <div style={{ display: "flex", gap: "6px", "align-items": "center", "flex-wrap": "wrap" }}>
-          <For each={TABS}>
-            {(tab) => (
-              <Button
-                size="small"
-                variant={activeTab() === tab.type ? "primary" : "ghost"}
-                onClick={() => {
-                  setActiveTab(tab.type)
-                  setSelectedTags([])
+  const openSettings = () => {
+    window.postMessage({ type: "action", action: "settingsButtonClicked" }, "*")
+  }
+
+  const renderItemCard = (item: MarketplaceItem) => {
+    const displayName = toItemLabel(item)
+    const itemCategory = toItemCategory(item)
+    const filterTags = itemFilterTags(item)
+    const projectInstalled = isInstalledInTarget(item, "project")
+    const globalInstalled = isInstalledInTarget(item, "global")
+    const managedByOrganization = !!item.managedByOrganization
+    const projectActionState = () => pendingActionsByItem[actionKey(item.id, "project")]
+    const globalActionState = () => pendingActionsByItem[actionKey(item.id, "global")]
+    const prerequisites = getMcpPrerequisites(item)
+
+    return (
+      <Card
+        style={{
+          padding: "12px",
+          display: "flex",
+          "flex-direction": "column",
+          gap: "8px",
+          "border-radius": "12px",
+        }}
+      >
+        <div style={{ display: "flex", "justify-content": "space-between", gap: "10px", "align-items": "flex-start" }}>
+          <div style={{ display: "grid", gap: "4px", flex: 1 }}>
+            <div style={{ display: "flex", gap: "6px", "align-items": "center", "flex-wrap": "wrap" }}>
+              <span
+                style={{
+                  "font-size": "10px",
+                  "text-transform": "uppercase",
+                  padding: "2px 6px",
+                  "border-radius": "999px",
+                  border: "1px solid var(--vscode-panel-border)",
+                  color: "var(--vscode-descriptionForeground)",
+                  "letter-spacing": "0.04em",
                 }}
               >
-                {tab.label}
-              </Button>
-            )}
-          </For>
-        </div>
-        <Tooltip value={language.t("common.refresh")} placement="top">
-          <Button size="small" variant="ghost" onClick={requestData} disabled={loading()}>
-            {language.t("common.refresh")}
-          </Button>
-        </Tooltip>
-      </div>
-
-      <input
-        value={search()}
-        onInput={(event) => setSearch(event.currentTarget.value)}
-        placeholder={`Search ${activeTab()} marketplace...`}
-        aria-label={`Search ${activeTab()} marketplace`}
-        style={{
-          width: "100%",
-          padding: "8px 10px",
-          border: "1px solid var(--vscode-input-border)",
-          "border-radius": "6px",
-          background: "var(--vscode-input-background)",
-          color: "var(--vscode-input-foreground)",
-          outline: "none",
-        }}
-      />
-
-      <div style={{ display: "grid", gap: "8px", "grid-template-columns": "1fr 1fr" }}>
-        <label style={{ display: "flex", "flex-direction": "column", gap: "4px", "font-size": "12px" }}>
-          <span style={{ color: "var(--vscode-descriptionForeground)" }}>Install filter</span>
-          <select
-            value={installFilter()}
-            onChange={(event) => setInstallFilter(event.currentTarget.value as InstallFilter)}
-            style={{
-              width: "100%",
-              padding: "6px 8px",
-              border: "1px solid var(--vscode-input-border)",
-              "border-radius": "6px",
-              background: "var(--vscode-input-background)",
-              color: "var(--vscode-input-foreground)",
-            }}
-          >
-            <option value="all">All items</option>
-            <option value="installed">Installed</option>
-            <option value="not_installed">Not installed</option>
-          </select>
-        </label>
-
-        <label style={{ display: "flex", "flex-direction": "column", gap: "4px", "font-size": "12px" }}>
-          <span style={{ color: "var(--vscode-descriptionForeground)" }}>Sort</span>
-          <select
-            value={sortBy()}
-            onChange={(event) => setSortBy(event.currentTarget.value as SortBy)}
-            style={{
-              width: "100%",
-              padding: "6px 8px",
-              border: "1px solid var(--vscode-input-border)",
-              "border-radius": "6px",
-              background: "var(--vscode-input-background)",
-              color: "var(--vscode-input-foreground)",
-            }}
-          >
-            <option value="name">Name</option>
-            <option value="installed">Installed first</option>
-          </select>
-        </label>
-      </div>
-
-      <Show when={availableTags().length > 0}>
-        <div style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
-          <For each={availableTags()}>
-            {(tag) => {
-              const active = () => selectedTags().includes(tag)
-              return (
-                <button
-                  type="button"
-                  onClick={() => toggleTag(tag)}
+                {item.type}
+              </span>
+              <Show when={item.author}>
+                <span style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
+                  by {item.author}
+                </span>
+              </Show>
+            </div>
+            <div style={{ "font-size": "14px", "font-weight": 600 }}>{displayName}</div>
+            <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>{item.description}</div>
+            <Show when={item.authorUrl && item.type === "mode"}>
+              <button
+                type="button"
+                onClick={() => item.authorUrl && vscode.postMessage({ type: "openExternal", url: item.authorUrl })}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: "var(--vscode-textLink-foreground, var(--vscode-textLink-activeForeground))",
+                  padding: 0,
+                  cursor: "pointer",
+                  "text-decoration": "underline",
+                  "font-size": "11px",
+                  width: "fit-content",
+                }}
+              >
+                View author profile
+              </button>
+            </Show>
+            <div style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
+              <Show when={itemCategory}>
+                <span
                   style={{
-                    border: "1px solid var(--vscode-input-border)",
+                    "font-size": "10px",
+                    "text-transform": "uppercase",
+                    padding: "2px 6px",
                     "border-radius": "999px",
-                    padding: "3px 8px",
-                    "font-size": "11px",
-                    cursor: "pointer",
-                    background: active() ? "var(--vscode-button-secondaryBackground)" : "transparent",
-                    color: active()
-                      ? "var(--vscode-button-secondaryForeground)"
-                      : "var(--vscode-descriptionForeground)",
+                    border: "1px solid var(--vscode-panel-border)",
+                    color: "var(--vscode-descriptionForeground)",
                   }}
                 >
-                  {tag}
-                </button>
-              )
-            }}
-          </For>
-          <Show when={selectedTags().length > 0}>
-            <Button size="small" variant="ghost" onClick={() => setSelectedTags([])}>
-              Clear tags
+                  {itemCategory}
+                </span>
+              </Show>
+              <Show when={projectInstalled}>
+                <span
+                  style={{
+                    "font-size": "10px",
+                    "text-transform": "uppercase",
+                    padding: "2px 6px",
+                    "border-radius": "999px",
+                    border: "1px solid var(--vscode-input-border)",
+                    color: "var(--vscode-terminal-ansiGreen, #4ec9b0)",
+                  }}
+                >
+                  Project installed
+                </span>
+              </Show>
+              <Show when={globalInstalled}>
+                <span
+                  style={{
+                    "font-size": "10px",
+                    "text-transform": "uppercase",
+                    padding: "2px 6px",
+                    "border-radius": "999px",
+                    border: "1px solid var(--vscode-input-border)",
+                    color: "var(--vscode-terminal-ansiGreen, #4ec9b0)",
+                  }}
+                >
+                  Global installed
+                </span>
+              </Show>
+              <Show when={managedByOrganization}>
+                <span
+                  style={{
+                    "font-size": "10px",
+                    "text-transform": "uppercase",
+                    padding: "2px 6px",
+                    "border-radius": "999px",
+                    border: "1px solid var(--vscode-input-border)",
+                    color: "var(--vscode-descriptionForeground)",
+                  }}
+                >
+                  {currentOrganizationName() ? `Managed by ${currentOrganizationName()}` : "Organization managed"}
+                </span>
+              </Show>
+            </div>
+          </div>
+          <Show when={!!getItemLink(item)}>
+            <Button size="small" variant="ghost" onClick={() => openItemLink(item)}>
+              Details
             </Button>
           </Show>
         </div>
-      </Show>
 
-      <Show when={statusMessage()}>
-        {(message) => (
-          <div
-            role="status"
-            aria-live="polite"
-            style={{
-              "font-size": "12px",
-              color: "var(--vscode-descriptionForeground)",
-              padding: "6px 8px",
-              border: "1px solid var(--vscode-panel-border)",
-              "border-radius": "6px",
-            }}
-          >
-            {message()}
+        <Show when={filterTags.length > 0}>
+          <div style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
+            <For each={filterTags}>
+              {(tag) => {
+                const active = () => selectedTags().includes(tag)
+                return (
+                  <button
+                    type="button"
+                    onClick={() => toggleTag(tag)}
+                    style={{
+                      "font-size": "11px",
+                      color: active()
+                        ? "var(--vscode-button-secondaryForeground)"
+                        : "var(--vscode-descriptionForeground)",
+                      border: "1px solid var(--vscode-panel-border)",
+                      "border-radius": "999px",
+                      padding: "2px 8px",
+                      background: active()
+                        ? "var(--vscode-button-secondaryBackground)"
+                        : "transparent",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {tag}
+                  </button>
+                )
+              }}
+            </For>
           </div>
-        )}
-      </Show>
+        </Show>
 
-      <Show when={loading()}>
-        <div role="status" aria-live="polite" style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>
-          Loading marketplace catalog...
-        </div>
-      </Show>
+        <Show when={prerequisites.length > 0}>
+          <div style={{ display: "grid", gap: "4px" }}>
+            <span style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>Prerequisites</span>
+            <ul style={{ margin: 0, padding: "0 0 0 16px", "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>
+              <For each={prerequisites}>{(prerequisite) => <li>{prerequisite}</li>}</For>
+            </ul>
+          </div>
+        </Show>
 
-      <Show when={!loading() && filteredItems().length === 0}>
-        <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>
-          No {activeTab()} items available for the current filters.
-        </div>
-      </Show>
+        <Show when={item.type === "mcp" && Array.isArray(item.content) && item.content.length > 0}>
+          <label style={{ display: "flex", "flex-direction": "column", gap: "4px", "font-size": "12px" }}>
+            <span style={{ color: "var(--vscode-descriptionForeground)" }}>Installation method</span>
+            <select
+              value={String(selectedMethodByItem[item.id] ?? 0)}
+              onChange={(event) => {
+                const next = Number(event.currentTarget.value)
+                setSelectedMethodByItem(item.id, Number.isFinite(next) ? next : 0)
+              }}
+              style={{
+                width: "100%",
+                padding: "6px 8px",
+                border: "1px solid var(--vscode-input-border)",
+                "border-radius": "6px",
+                background: "var(--vscode-input-background)",
+                color: "var(--vscode-input-foreground)",
+              }}
+              aria-label={`Installation method for ${displayName}`}
+            >
+              <For each={getMcpMethods(item)}>{(method, index) => <option value={String(index())}>{method.name}</option>}</For>
+            </select>
+          </label>
+        </Show>
 
-      <For each={filteredItems()}>
-        {(item) => {
-          const projectInstalled = isInstalledInTarget(item, "project")
-          const globalInstalled = isInstalledInTarget(item, "global")
-          const managedByOrganization = !!item.managedByOrganization
-          const projectActionState = () => pendingActionsByItem[actionKey(item.id, "project")]
-          const globalActionState = () => pendingActionsByItem[actionKey(item.id, "global")]
-          const prerequisites = getMcpPrerequisites(item)
-          return (
-            <Card style={{ padding: "12px", display: "flex", "flex-direction": "column", gap: "8px" }}>
-              <div style={{ display: "flex", "justify-content": "space-between", gap: "10px", "align-items": "flex-start" }}>
-                <div style={{ display: "grid", gap: "4px", flex: 1 }}>
-                  <div style={{ "font-size": "14px", "font-weight": 600 }}>{item.name}</div>
-                  <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>{item.description}</div>
-                  <Show when={item.author}>
-                    <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>Author: {item.author}</div>
-                  </Show>
-                  <div style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
-                    <Show when={projectInstalled}>
-                      <span
-                        style={{
-                          "font-size": "10px",
-                          "text-transform": "uppercase",
-                          padding: "2px 6px",
-                          "border-radius": "999px",
-                          border: "1px solid var(--vscode-input-border)",
-                          color: "var(--vscode-terminal-ansiGreen, #4ec9b0)",
-                        }}
-                      >
-                        Project installed
-                      </span>
-                    </Show>
-                    <Show when={globalInstalled}>
-                      <span
-                        style={{
-                          "font-size": "10px",
-                          "text-transform": "uppercase",
-                          padding: "2px 6px",
-                          "border-radius": "999px",
-                          border: "1px solid var(--vscode-input-border)",
-                          color: "var(--vscode-terminal-ansiGreen, #4ec9b0)",
-                        }}
-                      >
-                        Global installed
-                      </span>
-                    </Show>
-                    <Show when={managedByOrganization}>
-                      <span
-                        style={{
-                          "font-size": "10px",
-                          "text-transform": "uppercase",
-                          padding: "2px 6px",
-                          "border-radius": "999px",
-                          border: "1px solid var(--vscode-input-border)",
-                          color: "var(--vscode-descriptionForeground)",
-                        }}
-                      >
-                        Organization managed
-                      </span>
-                    </Show>
-                  </div>
-                </div>
-                <Show when={item.type === "skill" || item.type === "mcp" || !!item.authorUrl}>
-                  <Button size="small" variant="ghost" onClick={() => openItemLink(item)}>
-                    Open
-                  </Button>
-                </Show>
-              </div>
-
-              <Show when={(item.tags?.length ?? 0) > 0}>
-                <div style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
-                  <For each={item.tags}>
-                    {(tag) => (
-                      <span
-                        style={{
-                          "font-size": "11px",
-                          color: "var(--vscode-descriptionForeground)",
-                          border: "1px solid var(--vscode-panel-border)",
-                          "border-radius": "999px",
-                          padding: "2px 8px",
-                        }}
-                      >
-                        {tag}
-                      </span>
-                    )}
-                  </For>
-                </div>
-              </Show>
-
-              <Show when={prerequisites.length > 0}>
-                <div style={{ display: "grid", gap: "4px" }}>
-                  <span style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>Prerequisites</span>
-                  <ul style={{ margin: 0, padding: "0 0 0 16px", "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>
-                    <For each={prerequisites}>{(prerequisite) => <li>{prerequisite}</li>}</For>
-                  </ul>
-                </div>
-              </Show>
-
-              <Show when={item.type === "mcp" && Array.isArray(item.content) && item.content.length > 0}>
+        <Show when={item.type === "mcp" && getMcpParameters(item).length > 0}>
+          <div style={{ display: "flex", "flex-direction": "column", gap: "6px" }}>
+            <For each={getMcpParameters(item)}>
+              {(parameter) => (
                 <label style={{ display: "flex", "flex-direction": "column", gap: "4px", "font-size": "12px" }}>
-                  <span style={{ color: "var(--vscode-descriptionForeground)" }}>Installation method</span>
-                  <select
-                    value={String(selectedMethodByItem[item.id] ?? 0)}
-                    onChange={(event) => {
-                      const next = Number(event.currentTarget.value)
-                      setSelectedMethodByItem(item.id, Number.isFinite(next) ? next : 0)
+                  <span style={{ color: "var(--vscode-descriptionForeground)" }}>
+                    {parameter.name}
+                    <Show when={!parameter.optional}>
+                      <span style={{ color: "var(--vscode-errorForeground)" }}> *</span>
+                    </Show>
+                  </span>
+                  <input
+                    value={parameterValuesByItem[item.id]?.[parameter.key] ?? ""}
+                    placeholder={parameter.placeholder || parameter.key}
+                    aria-label={`${displayName} ${parameter.name}`}
+                    onInput={(event) => {
+                      setParameterValuesByItem(item.id, parameter.key, event.currentTarget.value)
                     }}
                     style={{
                       width: "100%",
@@ -521,89 +580,381 @@ const MarketplaceView: Component = () => {
                       background: "var(--vscode-input-background)",
                       color: "var(--vscode-input-foreground)",
                     }}
-                    aria-label={`Installation method for ${item.name}`}
-                  >
-                    <For each={getMcpMethods(item)}>{(method, index) => <option value={String(index())}>{method.name}</option>}</For>
-                  </select>
+                  />
                 </label>
-              </Show>
+              )}
+            </For>
+          </div>
+        </Show>
 
-              <Show when={item.type === "mcp" && getMcpParameters(item).length > 0}>
-                <div style={{ display: "flex", "flex-direction": "column", gap: "6px" }}>
-                  <For each={getMcpParameters(item)}>
-                    {(parameter) => (
-                      <label style={{ display: "flex", "flex-direction": "column", gap: "4px", "font-size": "12px" }}>
-                        <span style={{ color: "var(--vscode-descriptionForeground)" }}>
-                          {parameter.name}
-                          <Show when={!parameter.optional}>
-                            <span style={{ color: "var(--vscode-errorForeground)" }}> *</span>
-                          </Show>
-                        </span>
-                        <input
-                          value={parameterValuesByItem[item.id]?.[parameter.key] ?? ""}
-                          placeholder={parameter.placeholder || parameter.key}
-                          aria-label={`${item.name} ${parameter.name}`}
-                          onInput={(event) => {
-                            setParameterValuesByItem(item.id, parameter.key, event.currentTarget.value)
-                          }}
-                          style={{
-                            width: "100%",
-                            padding: "6px 8px",
-                            border: "1px solid var(--vscode-input-border)",
-                            "border-radius": "6px",
-                            background: "var(--vscode-input-background)",
-                            color: "var(--vscode-input-foreground)",
-                          }}
-                        />
-                      </label>
-                    )}
-                  </For>
-                </div>
-              </Show>
+        <Show
+          when={!managedByOrganization}
+          fallback={
+            <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>
+              {currentOrganizationName()
+                ? `This item is managed by ${currentOrganizationName()}.`
+                : "This item is managed by your organization."}
+            </div>
+          }
+        >
+          <div style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
+            <Button
+              size="small"
+              variant={projectInstalled ? "ghost" : "primary"}
+              onClick={() => (projectInstalled ? handleRemove(item, "project") : handleInstall(item, "project"))}
+              disabled={isActionPending(item, "project") || isActionPending(item, "global")}
+            >
+              {projectActionState() === "installing"
+                ? "Installing..."
+                : projectActionState() === "removing"
+                  ? "Removing..."
+                  : projectInstalled
+                    ? "Remove Project"
+                    : "Install Project"}
+            </Button>
+            <Button
+              size="small"
+              variant={globalInstalled ? "ghost" : "secondary"}
+              onClick={() => (globalInstalled ? handleRemove(item, "global") : handleInstall(item, "global"))}
+              disabled={isActionPending(item, "project") || isActionPending(item, "global")}
+            >
+              {globalActionState() === "installing"
+                ? "Installing..."
+                : globalActionState() === "removing"
+                  ? "Removing..."
+                  : globalInstalled
+                    ? "Remove Global"
+                    : "Install Global"}
+            </Button>
+          </div>
+        </Show>
+      </Card>
+    )
+  }
 
-              <Show
-                when={!managedByOrganization}
-                fallback={
-                  <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>
-                    This item is managed by your organization.
-                  </div>
-                }
-              >
-                <div style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
-                  <Button
-                    size="small"
-                    variant={projectInstalled ? "ghost" : "primary"}
-                    onClick={() => (projectInstalled ? handleRemove(item, "project") : handleInstall(item, "project"))}
-                    disabled={isActionPending(item, "project") || isActionPending(item, "global")}
-                  >
-                    {projectActionState() === "installing"
-                      ? "Installing..."
-                      : projectActionState() === "removing"
-                        ? "Removing..."
-                        : projectInstalled
-                          ? "Remove Project"
-                          : "Install Project"}
-                  </Button>
-                  <Button
-                    size="small"
-                    variant={globalInstalled ? "ghost" : "secondary"}
-                    onClick={() => (globalInstalled ? handleRemove(item, "global") : handleInstall(item, "global"))}
-                    disabled={isActionPending(item, "project") || isActionPending(item, "global")}
-                  >
-                    {globalActionState() === "installing"
-                      ? "Installing..."
-                      : globalActionState() === "removing"
-                        ? "Removing..."
-                        : globalInstalled
-                          ? "Remove Global"
-                          : "Install Global"}
-                  </Button>
-                </div>
-              </Show>
-            </Card>
-          )
+  return (
+    <div style={{ height: "100%", display: "flex", "flex-direction": "column", "min-height": "0" }}>
+      <div
+        style={{
+          padding: "12px 12px 8px",
+          display: "grid",
+          gap: "10px",
+          "flex-shrink": 0,
+          background: "var(--vscode-editor-background)",
+          "border-bottom": "1px solid var(--vscode-panel-border)",
         }}
-      </For>
+      >
+        <div style={{ display: "grid", gap: "2px" }}>
+          <div style={{ "font-size": "16px", "font-weight": 600 }}>Marketplace</div>
+          <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>{tabDescription()}</div>
+        </div>
+
+        <div style={{ display: "grid", gap: "6px" }}>
+          <div style={{ display: "flex", gap: "8px", "align-items": "center", "justify-content": "space-between" }}>
+            <div
+              style={{
+                position: "relative",
+                display: "flex",
+                "align-items": "center",
+                gap: "0",
+                "padding-bottom": "1px",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: "1px",
+                  background: "var(--vscode-panel-border)",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  left: `${activeTabIndex() * (100 / TABS.length)}%`,
+                  width: `${100 / TABS.length}%`,
+                  height: "2px",
+                  background: "var(--vscode-button-background)",
+                  transition: "left 180ms ease",
+                }}
+              />
+              <For each={TABS}>
+                {(tab) => (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(tab.type)
+                      setSelectedTags([])
+                    }}
+                    aria-label={tab.label}
+                    style={{
+                      border: "none",
+                      background: "transparent",
+                      color:
+                        activeTab() === tab.type ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)",
+                      "font-size": "13px",
+                      "font-weight": activeTab() === tab.type ? "600" : "500",
+                      "font-family": "var(--vscode-font-family)",
+                      padding: "8px 14px",
+                      cursor: "pointer",
+                      position: "relative",
+                      "z-index": "1",
+                      transition: "color 120ms ease",
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                )}
+              </For>
+            </div>
+            <Show when={loading()}>
+              <span style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>Loading...</span>
+            </Show>
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          "min-height": "0",
+          "overflow-y": "auto",
+          padding: "10px 12px 12px",
+          display: "flex",
+          "flex-direction": "column",
+          gap: "10px",
+        }}
+      >
+        <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
+          {activeTabLabel()} results: {organizationManagedItems().length + catalogItems().length}
+        </div>
+
+        <input
+          value={search()}
+          onInput={(event) => setSearch(event.currentTarget.value)}
+          placeholder={`Search ${activeTab()} marketplace...`}
+          aria-label={`Search ${activeTab()} marketplace`}
+          style={{
+            width: "100%",
+            padding: "8px 10px",
+            border: "1px solid var(--vscode-input-border)",
+            "border-radius": "6px",
+            background: "var(--vscode-input-background)",
+            color: "var(--vscode-input-foreground)",
+            outline: "none",
+          }}
+        />
+
+        <div style={{ display: "grid", gap: "8px", "grid-template-columns": "1fr 1fr" }}>
+          <label style={{ display: "flex", "flex-direction": "column", gap: "4px", "font-size": "12px" }}>
+            <span style={{ color: "var(--vscode-descriptionForeground)" }}>Install filter</span>
+            <select
+              value={installFilter()}
+              onChange={(event) => setInstallFilter(event.currentTarget.value as InstallFilter)}
+              style={{
+                width: "100%",
+                padding: "6px 8px",
+                border: "1px solid var(--vscode-input-border)",
+                "border-radius": "6px",
+                background: "var(--vscode-input-background)",
+                color: "var(--vscode-input-foreground)",
+              }}
+            >
+              <option value="all">All items</option>
+              <option value="installed">Installed</option>
+              <option value="not_installed">Not installed</option>
+            </select>
+          </label>
+
+          <label style={{ display: "flex", "flex-direction": "column", gap: "4px", "font-size": "12px" }}>
+            <span style={{ color: "var(--vscode-descriptionForeground)" }}>Sort</span>
+            <select
+              value={sortBy()}
+              onChange={(event) => setSortBy(event.currentTarget.value as SortBy)}
+              style={{
+                width: "100%",
+                padding: "6px 8px",
+                border: "1px solid var(--vscode-input-border)",
+                "border-radius": "6px",
+                background: "var(--vscode-input-background)",
+                color: "var(--vscode-input-foreground)",
+              }}
+            >
+              <option value="name">Name</option>
+              <option value="installed">Installed first</option>
+            </select>
+          </label>
+        </div>
+
+        <Show when={activeTab() === "mcp" || activeTab() === "mode"}>
+          <div
+            style={{
+              "font-size": "12px",
+              color: "var(--vscode-descriptionForeground)",
+              padding: "8px 10px",
+              border: "1px solid var(--vscode-panel-border)",
+              "border-radius": "6px",
+              display: "flex",
+              "align-items": "center",
+              "justify-content": "space-between",
+              gap: "8px",
+              "flex-wrap": "wrap",
+            }}
+          >
+            <span>
+              {activeTab() === "mcp"
+                ? "Need advanced MCP management? Open Settings and go to Agent Behaviour."
+                : "Installed modes can be managed from Settings."}
+            </span>
+            <Button size="small" variant="ghost" onClick={openSettings}>
+              Open Settings
+            </Button>
+          </div>
+        </Show>
+
+        <Show when={statusMessage()}>
+          {(message) => (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                "font-size": "12px",
+                color: "var(--vscode-descriptionForeground)",
+                padding: "6px 8px",
+                border: "1px solid var(--vscode-panel-border)",
+                "border-radius": "6px",
+              }}
+            >
+              {message()}
+            </div>
+          )}
+        </Show>
+
+        <Show when={loading()}>
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              "font-size": "12px",
+              color: "var(--vscode-descriptionForeground)",
+              border: "1px dashed var(--vscode-panel-border)",
+              "border-radius": "8px",
+              padding: "10px",
+              display: "grid",
+              "justify-items": "center",
+              gap: "6px",
+              "min-height": "120px",
+              "align-content": "center",
+            }}
+          >
+            <div style={{ "font-size": "24px", opacity: 0.7 }}>↻</div>
+            Loading marketplace catalog...
+          </div>
+        </Show>
+
+      <Show when={!loading() && organizationManagedItems().length + catalogItems().length === 0}>
+        <div
+          style={{
+            display: "grid",
+            gap: "8px",
+            "font-size": "12px",
+            color: "var(--vscode-descriptionForeground)",
+            border: "1px dashed var(--vscode-panel-border)",
+            "border-radius": "8px",
+            padding: "10px",
+            "justify-items": "center",
+            "min-height": "140px",
+            "align-content": "center",
+          }}
+        >
+          <div style={{ "font-size": "22px", opacity: 0.7 }}>☰</div>
+          <div>No {activeTab()} items available for the current filters.</div>
+          <Show when={hasActiveFilters()}>
+            <div>
+              <Button size="small" variant="secondary" onClick={resetFilters}>
+                Clear filters
+              </Button>
+            </div>
+          </Show>
+        </div>
+      </Show>
+
+      <Show when={!loading() && organizationManagedItems().length > 0}>
+        <div style={{ display: "grid", gap: "8px" }}>
+          <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
+            <span style={{ "font-size": "12px", opacity: 0.8 }}>🏢</span>
+            <div
+              style={{
+                "font-size": "12px",
+                "font-weight": 600,
+                color: "var(--vscode-descriptionForeground)",
+                "text-transform": "uppercase",
+                "letter-spacing": "0.03em",
+                "white-space": "nowrap",
+              }}
+            >
+              {currentOrganizationName() ? `${currentOrganizationName()} managed MCPs` : "Organization managed MCPs"}
+            </div>
+            <div style={{ height: "1px", background: "var(--vscode-panel-border)", flex: 1 }} />
+          </div>
+          <div style={{ display: "grid", gap: "8px", "grid-template-columns": "repeat(auto-fit, minmax(240px, 1fr))" }}>
+            <For each={organizationManagedItems()}>{(item) => renderItemCard(item)}</For>
+          </div>
+        </div>
+      </Show>
+
+      <Show when={!loading() && catalogItems().length > 0}>
+        <div style={{ display: "grid", gap: "8px" }}>
+          <Show when={organizationManagedItems().length > 0}>
+            <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
+              <span style={{ "font-size": "12px", opacity: 0.8 }}>🌐</span>
+              <div
+                style={{
+                  "font-size": "12px",
+                  "font-weight": 600,
+                  color: "var(--vscode-descriptionForeground)",
+                  "text-transform": "uppercase",
+                  "letter-spacing": "0.03em",
+                  "white-space": "nowrap",
+                }}
+              >
+                Marketplace catalog
+              </div>
+              <div style={{ height: "1px", background: "var(--vscode-panel-border)", flex: 1 }} />
+            </div>
+          </Show>
+          <div style={{ display: "grid", gap: "8px", "grid-template-columns": "repeat(auto-fit, minmax(240px, 1fr))" }}>
+            <For each={catalogItems()}>{(item) => renderItemCard(item)}</For>
+          </div>
+        </div>
+      </Show>
+
+        <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)", padding: "8px 0 2px" }}>
+          Spot a Marketplace issue?{" "}
+          <button
+            type="button"
+            onClick={() =>
+              vscode.postMessage({
+                type: "openExternal",
+                url: "https://github.com/Kilo-Org/kilocode/issues/new?template=marketplace.yml",
+              })
+            }
+            style={{
+              border: "none",
+              background: "transparent",
+              padding: 0,
+              cursor: "pointer",
+              color: "var(--vscode-textLink-foreground, var(--vscode-textLink-activeForeground))",
+              "text-decoration": "underline",
+            }}
+          >
+            Open issue template
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

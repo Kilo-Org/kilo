@@ -105,7 +105,9 @@ export class HttpClient {
             const errorJson = JSON.parse(rawText) as { error?: string; message?: string }
             errorMessage = errorJson.error || errorJson.message || errorMessage
           } catch {
-            errorMessage = rawText
+            errorMessage = this.looksLikeHtml(rawText)
+              ? `Unexpected HTML response from CLI backend (${method} ${path})`
+              : rawText
           }
         }
 
@@ -137,13 +139,17 @@ export class HttpClient {
       try {
         return JSON.parse(rawText) as T
       } catch (error) {
+        const trimmed = rawText.trim()
+        const parseMessage = this.looksLikeHtml(trimmed)
+          ? `CLI backend returned HTML instead of JSON for ${method} ${path}.`
+          : `Invalid JSON response for ${method} ${path}.`
         logger.error("[Kilo New] HTTP: ❌ Invalid JSON response", {
           method,
           path,
           status: response.status,
           rawSnippet: rawText.slice(0, 400),
         })
-        throw error
+        throw new Error(`${parseMessage} Snippet: ${trimmed.slice(0, 220)}`)
       }
     } catch (error) {
       if (this.isAbortError(error)) {
@@ -171,6 +177,10 @@ export class HttpClient {
         typeof (error as { name?: unknown }).name === "string" &&
         (error as { name: string }).name === "AbortError")
     )
+  }
+
+  private looksLikeHtml(value: string): boolean {
+    return /^\s*<!doctype\s+html/i.test(value) || /^\s*<html[\s>]/i.test(value)
   }
 
   private makeTimeoutErrorMessage(prefix: string, phase: "connect" | "request", timeoutMs: number): string {
@@ -479,7 +489,14 @@ export class HttpClient {
    * Fetch cloud extension settings (organization/user policy settings).
    */
   async getExtensionSettings(): Promise<KiloExtensionSettings> {
-    return this.request<KiloExtensionSettings>("GET", "/kilo/extension-settings")
+    try {
+      return await this.request<KiloExtensionSettings>("GET", "/kilo/extension-settings")
+    } catch (error) {
+      logger.warn("[Kilo New] HTTP: extension settings unavailable, continuing without cloud marketplace policy", {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return {}
+    }
   }
 
   /**

@@ -5,6 +5,8 @@ import { Button } from "@kilocode/kilo-ui/button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { useConfig } from "../../context/config"
 import { useLanguage } from "../../context/language"
+import { useServer } from "../../context/server"
+import { useVSCode } from "../../context/vscode"
 import type { PermissionLevel } from "../../types/messages"
 
 const TOOLS = [
@@ -86,6 +88,8 @@ const SCOPE_OPTIONS: ScopeOption[] = [
 const AutoApproveTab: Component = () => {
   const language = useLanguage()
   const { config, updateConfig } = useConfig()
+  const server = useServer()
+  const vscode = useVSCode()
   const [tempMinutes, setTempMinutes] = createSignal(15)
   const [tempScope, setTempScope] = createSignal(SCOPE_OPTIONS[0].value)
   const [tempUntil, setTempUntil] = createSignal<number | null>(null)
@@ -95,6 +99,8 @@ const AutoApproveTab: Component = () => {
 
   const permissions = createMemo(() => config().permission ?? {})
   const activeTempScope = createMemo(() => SCOPE_OPTIONS.find((scope) => scope.value === tempScope()) ?? SCOPE_OPTIONS[0])
+  const followUpAutoProceedEnabled = createMemo(() => server.followUpAutoProceedEnabled())
+  const followUpAutoProceedTimeoutSeconds = createMemo(() => server.followUpAutoProceedTimeoutSeconds())
 
   const getLevel = (tool: string): PermissionLevel => {
     return permissions()[tool] ?? permissions()["*"] ?? "ask"
@@ -159,6 +165,22 @@ const AutoApproveTab: Component = () => {
     }
     setTempUntil(null)
     setTempPreviousLevels({})
+  }
+
+  const setFollowUpAutoProceedEnabled = (enabled: boolean) => {
+    vscode.postMessage({
+      type: "updateSetting",
+      key: "followUp.autoProceedEnabled",
+      value: enabled,
+    })
+  }
+
+  const setFollowUpAutoProceedTimeoutSeconds = (seconds: number) => {
+    vscode.postMessage({
+      type: "updateSetting",
+      key: "followUp.autoProceedTimeoutSeconds",
+      value: seconds,
+    })
   }
 
   const startTemporaryAutoApprove = () => {
@@ -230,6 +252,65 @@ const AutoApproveTab: Component = () => {
               Require prompts
             </Button>
           </Tooltip>
+        </div>
+      </Card>
+
+      <div style={{ "margin-top": "12px" }} />
+
+      <Card>
+        <div
+          data-slot="settings-row"
+          style={{ display: "flex", "align-items": "center", "justify-content": "space-between", padding: "8px 0", gap: "12px" }}
+        >
+          <div style={{ flex: 1, "min-width": 0 }}>
+            <div style={{ "font-size": "12px", "font-weight": "500" }}>Auto-proceed follow-up suggestion</div>
+            <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)", "margin-top": "2px" }}>
+              Automatically send the first follow-up suggestion after the countdown.
+            </div>
+          </div>
+          <label style={{ display: "flex", "align-items": "center", gap: "8px", "font-size": "12px" }}>
+            <input
+              type="checkbox"
+              checked={followUpAutoProceedEnabled()}
+              onChange={(event) => setFollowUpAutoProceedEnabled((event.currentTarget as HTMLInputElement).checked)}
+            />
+            {followUpAutoProceedEnabled() ? "Enabled" : "Disabled"}
+          </label>
+        </div>
+        <div
+          data-slot="settings-row"
+          style={{ display: "flex", "align-items": "center", "justify-content": "space-between", padding: "8px 0", gap: "12px" }}
+        >
+          <div style={{ flex: 1, "min-width": 0 }}>
+            <div style={{ "font-size": "12px", "font-weight": "500" }}>Auto-proceed countdown</div>
+            <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)", "margin-top": "2px" }}>
+              Delay before automatically sending the top follow-up suggestion.
+            </div>
+          </div>
+          <select
+            value={String(followUpAutoProceedTimeoutSeconds())}
+            onChange={(event) => {
+              const seconds = Number.parseInt(event.currentTarget.value, 10)
+              if (!Number.isFinite(seconds) || seconds < 5) {
+                return
+              }
+              setFollowUpAutoProceedTimeoutSeconds(seconds)
+            }}
+            style={{
+              padding: "4px 8px",
+              "border-radius": "6px",
+              border: "1px solid var(--vscode-input-border)",
+              background: "var(--vscode-input-background)",
+              color: "var(--vscode-input-foreground)",
+            }}
+          >
+            <option value="15">15s</option>
+            <option value="30">30s</option>
+            <option value="45">45s</option>
+            <option value="60">60s</option>
+            <option value="90">90s</option>
+            <option value="120">120s</option>
+          </select>
         </div>
       </Card>
 

@@ -4,9 +4,9 @@ import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { ContextMenu } from "@kilocode/kilo-ui/context-menu"
 import { showToast } from "@kilocode/kilo-ui/toast"
 import { useSession } from "../../context/session"
+import { useServer } from "../../context/server"
 import type { FollowUpSuggestion } from "../../types/messages"
 
-const AUTO_APPROVE_SECONDS = 60
 const FOLLOW_UP_AUTO_APPROVE_PAUSE_EVENT = "kilo:followup-autoapprove-pause"
 
 const BASE_SUGGESTIONS: FollowUpSuggestion[] = [
@@ -25,8 +25,11 @@ function resolveMode(candidates: string[], availableAgents: Set<string>): string
 
 export const FollowUpSuggest: Component = () => {
   const session = useSession()
+  const server = useServer()
   const [secondsLeft, setSecondsLeft] = createSignal<number | null>(null)
   const [cancelledMessageID, setCancelledMessageID] = createSignal<string | null>(null)
+  const autoProceedEnabled = createMemo(() => server.followUpAutoProceedEnabled())
+  const autoProceedTimeoutSeconds = createMemo(() => server.followUpAutoProceedTimeoutSeconds())
 
   const lastAssistantMessage = createMemo(() => {
     if (session.status() !== "idle") return undefined
@@ -160,12 +163,18 @@ export const FollowUpSuggest: Component = () => {
     const assistant = lastAssistantMessage()
     const items = suggestions()
 
-    if (!assistant || session.status() !== "idle" || items.length === 0 || cancelledMessageID() === assistant.id) {
+    if (
+      !assistant ||
+      session.status() !== "idle" ||
+      items.length === 0 ||
+      cancelledMessageID() === assistant.id ||
+      !autoProceedEnabled()
+    ) {
       setSecondsLeft(null)
       return
     }
 
-    let remaining = AUTO_APPROVE_SECONDS
+    let remaining = autoProceedTimeoutSeconds()
     setSecondsLeft(remaining)
 
     const timer = setInterval(() => {
@@ -185,6 +194,9 @@ export const FollowUpSuggest: Component = () => {
   return (
     <Show when={shouldShow()}>
       <div class="follow-up-suggest" aria-label="Follow-up suggestions">
+        <Show when={!autoProceedEnabled()}>
+          <div class="follow-up-suggest-countdown">Auto-proceed is disabled in Settings → Auto-Approve.</div>
+        </Show>
         <For each={suggestions()}>
           {(item, index) => {
             const isAutoApproveItem = () => index() === 0 && secondsLeft() !== null

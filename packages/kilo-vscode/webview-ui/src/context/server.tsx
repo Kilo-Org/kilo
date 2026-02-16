@@ -27,6 +27,8 @@ interface ServerContextValue {
   languageOverride: Accessor<string | undefined>
   allowedCommands: Accessor<string[]>
   deniedCommands: Accessor<string[]>
+  followUpAutoProceedEnabled: Accessor<boolean>
+  followUpAutoProceedTimeoutSeconds: Accessor<number>
   preferGatewayDefault: Accessor<boolean>
   extensionPolicy: Accessor<ExtensionPolicy | null>
 }
@@ -47,6 +49,8 @@ export const ServerProvider: ParentComponent = (props) => {
   const [languageOverride, setLanguageOverride] = createSignal<string | undefined>()
   const [allowedCommands, setAllowedCommands] = createSignal<string[]>([])
   const [deniedCommands, setDeniedCommands] = createSignal<string[]>([])
+  const [followUpAutoProceedEnabled, setFollowUpAutoProceedEnabled] = createSignal(false)
+  const [followUpAutoProceedTimeoutSeconds, setFollowUpAutoProceedTimeoutSeconds] = createSignal(60)
   const [preferGatewayDefault, setPreferGatewayDefault] = createSignal(false)
   const [extensionPolicy, setExtensionPolicy] = createSignal<ExtensionPolicy | null>(null)
 
@@ -122,6 +126,16 @@ export const ServerProvider: ParentComponent = (props) => {
         case "gatewayPreferenceLoaded":
           setPreferGatewayDefault(!!message.preferGatewayDefault)
           break
+
+        case "followUpSettingsLoaded":
+          setFollowUpAutoProceedEnabled(!!message.settings?.autoProceedEnabled)
+          setFollowUpAutoProceedTimeoutSeconds(
+            typeof message.settings?.autoProceedTimeoutSeconds === "number" &&
+              Number.isFinite(message.settings.autoProceedTimeoutSeconds)
+              ? Math.min(Math.max(Math.round(message.settings.autoProceedTimeoutSeconds), 5), 600)
+              : 60,
+          )
+          break
       }
     })
 
@@ -132,6 +146,7 @@ export const ServerProvider: ParentComponent = (props) => {
     console.log("[Kilo New] Webview ready")
     vscode.postMessage({ type: "webviewReady" })
     vscode.postMessage({ type: "requestCommandApprovalSettings" })
+    vscode.postMessage({ type: "requestFollowUpSettings" })
     vscode.postMessage({ type: "requestGatewayPreference" })
   })
 
@@ -159,6 +174,8 @@ export const ServerProvider: ParentComponent = (props) => {
     languageOverride,
     allowedCommands,
     deniedCommands,
+    followUpAutoProceedEnabled,
+    followUpAutoProceedTimeoutSeconds,
     preferGatewayDefault,
     extensionPolicy,
   }

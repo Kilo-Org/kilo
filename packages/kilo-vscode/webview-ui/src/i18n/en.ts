@@ -106,6 +106,8 @@ export const dict = {
   "dialog.model.select.title": "Select model",
   "dialog.model.search.placeholder": "Search models",
   "dialog.model.empty": "No model results",
+  "dialog.model.clear": "Not set",
+  "dialog.model.clear.useDefault": "Not set (use server default)",
   "dialog.model.manage": "Manage models",
   "dialog.model.manage.description": "Customize which models appear in the model selector.",
 
@@ -234,8 +236,19 @@ export const dict = {
   "prompt.context.removeFile": "Remove file from context",
   "prompt.action.attachFile": "Attach file",
   "prompt.attachment.remove": "Remove attachment",
+  "prompt.action.rebuildIndex": "Rebuild code index",
+  "prompt.action.voiceStart": "Start voice input",
+  "prompt.action.voiceStop": "Stop voice input",
   "prompt.action.send": "Send",
   "prompt.action.stop": "Stop",
+  "prompt.thinking.off": "Thinking off",
+  "prompt.voice.unsupported": "Voice input is not supported in this environment",
+  "prompt.voice.failed": "Voice input failed",
+  "prompt.toast.attachmentPathCopied": "Attachment path copied",
+  "prompt.toast.attachmentPathCopyFailed": "Failed to copy attachment path",
+  "prompt.toast.markdownCopied": "Markdown copied",
+  "prompt.toast.markdownCopyFailed": "Failed to copy markdown",
+  "prompt.toast.pasteAttachmentFailed": "Failed to paste attachment",
 
   "prompt.toast.pasteUnsupported.title": "Unsupported paste",
   "prompt.toast.pasteUnsupported.description": "Only images or PDFs can be pasted here.",
@@ -445,6 +458,11 @@ export const dict = {
   "home.recentProjects": "Recent projects",
   "home.empty.title": "No recent projects",
   "home.empty.description": "Get started by opening a local project",
+  "home.quickStart.title": "Try one of these",
+  "home.quickStart.docs": "Read docs",
+  "home.quickStart.prompt1": "Plan and scaffold a clean architecture for this project.",
+  "home.quickStart.prompt2": "Review this codebase and list the highest-priority bugs first.",
+  "home.quickStart.prompt3": "Implement tests for the most critical untested paths.",
 
   "session.tab.session": "Session",
   "session.tab.review": "Review",
@@ -542,10 +560,21 @@ export const dict = {
   "sidebar.project.recentSessions": "Recent sessions",
   "sidebar.project.viewAllSessions": "View all sessions",
 
+  "mode.default": "Code",
+  "mode.label.primary": "Primary",
+  "mode.label.general": "General",
+  "mode.label.specialist": "Specialist",
+  "mode.search.placeholder": "Search modes",
+  "mode.search.aria": "Search modes",
+  "mode.search.empty": "No modes found",
+  "mode.footer.marketplace": "Marketplace",
+  "mode.footer.settings": "Settings",
+
   "app.name.desktop": "Kilo Desktop",
 
   "settings.section.desktop": "Desktop",
   "settings.section.server": "Server",
+  "settings.search.placeholder": "Search settings...",
   "settings.tab.general": "General",
   "settings.tab.shortcuts": "Shortcuts",
 
@@ -732,6 +761,9 @@ export const dict = {
   "session.untitled": "Untitled",
   "session.recent": "Recent",
   "session.search.placeholder": "Search sessions...",
+  "session.history.pagination.page": "Page {{page}} / {{count}}",
+  "session.history.pagination.previous": "Previous",
+  "session.history.pagination.next": "Next",
   "session.empty": "No sessions yet. Click + to start a new conversation.",
 
   "todo.title": "To-do List",
@@ -786,10 +818,18 @@ export const dict = {
 
   "common.retry": "Retry",
   "common.refresh": "Refresh",
+  "common.done": "Done",
 
   "profile.title": "Profile",
   "profile.notLoggedIn": "Not logged in",
   "profile.action.login": "Login with Kilo Code",
+  "profile.welcome.greeting": "Welcome to Kilo Code!",
+  "profile.welcome.introText1": "Kilo Code is a free, open source AI coding agent.",
+  "profile.welcome.introText2":
+    "It works with the latest AI models like Claude Opus 4.5, Gemini 3 Pro, GPT-5.2, and 450+ more.",
+  "profile.welcome.introText3":
+    "Create a free account and get $20 in bonus credits when you top-up for the first time.",
+  "profile.welcome.ctaButton": "Get Started",
   "profile.balance.title": "Balance",
   "profile.balance.refresh": "Refresh balance",
   "profile.action.dashboard": "Dashboard",

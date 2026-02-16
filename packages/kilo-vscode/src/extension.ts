@@ -248,7 +248,7 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {}
 
 async function openSlashCommandPicker(provider: KiloProvider): Promise<void> {
-  await vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
+  await vscode.commands.executeCommand(`${KiloProvider.viewType}.focus`)
   provider.postMessage({ type: "navigate", view: "newTask" })
   provider.postMessage({ type: "prefillPrompt", text: "/" })
 }
@@ -408,7 +408,7 @@ async function runWorkflowCommand(provider: KiloProvider): Promise<void> {
     return
   }
 
-  await vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
+  await vscode.commands.executeCommand(`${KiloProvider.viewType}.focus`)
   provider.postMessage({ type: "navigate", view: "newTask" })
   provider.postMessage({ type: "prefillPrompt", text: `/${choice.workflow.name} ` })
 }
@@ -506,7 +506,7 @@ async function ingestUrlToChat(provider: KiloProvider): Promise<void> {
       },
     )
 
-    await vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
+    await vscode.commands.executeCommand(`${KiloProvider.viewType}.focus`)
     provider.postMessage({ type: "navigate", view: "newTask" })
     provider.postMessage({
       type: "prefillPrompt",
@@ -574,7 +574,7 @@ async function initializeRepository(connectionService: KiloConnectionService, pr
       },
       async (progress) => {
         progress.report({ message: "Opening chat surface…", increment: 10 })
-        await vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
+        await vscode.commands.executeCommand(`${KiloProvider.viewType}.focus`)
 
         progress.report({ message: "Connecting to backend…", increment: 25 })
         await connectionService.connect(workspaceDir)
@@ -837,7 +837,7 @@ async function generateCommitMessage(
     }
 
     // Fallback path preserves prior behavior if direct generation fails.
-    await vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
+    await vscode.commands.executeCommand(`${KiloProvider.viewType}.focus`)
     provider.postMessage({ type: "navigate", view: "newTask" })
     provider.postMessage({ type: "prefillPrompt", text: prompt })
     void vscode.window.showWarningMessage("Could not auto-fill Source Control. Prompt was sent to chat instead.")
@@ -943,7 +943,7 @@ async function reviewChanges(provider: KiloProvider): Promise<void> {
       patch ? patch.slice(0, 18_000) : "(no diff excerpt)",
     ].join("\n")
 
-    await vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
+    await vscode.commands.executeCommand(`${KiloProvider.viewType}.focus`)
     provider.postMessage({ type: "navigate", view: "newTask" })
     provider.postMessage({ type: "prefillPrompt", text: prompt })
   } catch (error) {
@@ -1060,7 +1060,7 @@ async function runCodeActionPrompt(
 
   const prompt = buildCodeActionPrompt(intent, document, effectiveRange, selectedText, diagnosticMessage)
 
-  await vscode.commands.executeCommand("kilo-code.new.sidebarView.focus")
+  await vscode.commands.executeCommand(`${KiloProvider.viewType}.focus`)
   provider.postMessage({ type: "navigate", view: "newTask" })
   provider.postMessage({ type: "prefillPrompt", text: prompt })
 }

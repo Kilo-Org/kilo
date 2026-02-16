@@ -632,11 +632,11 @@ export interface ConfigUpdatedMessage {
 }
 
 export type McpStatus =
-  | { status: "connected" }
-  | { status: "disabled" }
-  | { status: "failed"; error: string }
-  | { status: "needs_auth" }
-  | { status: "needs_client_registration"; error: string }
+  | { status: "connected"; authUrl?: string }
+  | { status: "disabled"; authUrl?: string }
+  | { status: "failed"; error: string; authUrl?: string }
+  | { status: "needs_auth"; authUrl?: string }
+  | { status: "needs_client_registration"; error: string; authUrl?: string }
 
 export interface McpStatusLoadedMessage {
   type: "mcpStatusLoaded"
@@ -692,6 +692,14 @@ export interface CommandApprovalSettingsLoadedMessage {
   settings: {
     allowedCommands: string[]
     deniedCommands: string[]
+  }
+}
+
+export interface FollowUpSettingsLoadedMessage {
+  type: "followUpSettingsLoaded"
+  settings: {
+    autoProceedEnabled: boolean
+    autoProceedTimeoutSeconds: number
   }
 }
 
@@ -807,6 +815,7 @@ export type ExtensionMessage =
   | SettingValidationErrorMessage
   | NotificationSettingsLoadedMessage
   | CommandApprovalSettingsLoadedMessage
+  | FollowUpSettingsLoadedMessage
   | GatewayPreferenceLoadedMessage
   | FilesSelectedMessage
   | MarketplaceDataMessage
@@ -985,6 +994,10 @@ export interface RequestSlashCommandsMessage {
   type: "requestSlashCommands"
 }
 
+export interface RebuildCodeIndexRequest {
+  type: "rebuildCodeIndex"
+}
+
 export interface UpdateConfigMessage {
   type: "updateConfig"
   config: Partial<Config>
@@ -1051,6 +1064,10 @@ export interface RequestNotificationSettingsMessage {
 
 export interface RequestCommandApprovalSettingsMessage {
   type: "requestCommandApprovalSettings"
+}
+
+export interface RequestFollowUpSettingsMessage {
+  type: "requestFollowUpSettings"
 }
 
 export interface RequestGatewayPreferenceMessage {
@@ -1270,6 +1287,7 @@ export type WebviewMessage =
   | RequestBrowserSettingsMessage
   | RequestConfigMessage
   | RequestSlashCommandsMessage
+  | RebuildCodeIndexRequest
   | UpdateConfigMessage
   | RequestMcpStatusMessage
   | RequestSettingsUiStateMessage
@@ -1281,6 +1299,7 @@ export type WebviewMessage =
   | DisconnectProviderAuthMessage
   | RequestNotificationSettingsMessage
   | RequestCommandApprovalSettingsMessage
+  | RequestFollowUpSettingsMessage
   | RequestGatewayPreferenceMessage
   | RetryConnectionRequest
   | SelectFilesRequest

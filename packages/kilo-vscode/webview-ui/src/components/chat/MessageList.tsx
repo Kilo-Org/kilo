@@ -9,6 +9,7 @@ import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { useSession } from "../../context/session"
 import { useServer } from "../../context/server"
 import { useLanguage } from "../../context/language"
+import { useVSCode } from "../../context/vscode"
 import { formatRelativeDate } from "../../utils/date"
 import { Message } from "./Message"
 
@@ -33,6 +34,7 @@ export const MessageList: Component<MessageListProps> = (props) => {
   const session = useSession()
   const server = useServer()
   const language = useLanguage()
+  const vscode = useVSCode()
 
   let containerRef: HTMLDivElement | undefined
   const [isAtBottom, setIsAtBottom] = createSignal(true)
@@ -94,40 +96,80 @@ export const MessageList: Component<MessageListProps> = (props) => {
   const messages = () => session.messages()
   const isEmpty = () => messages().length === 0 && !session.loading()
 
-  // 3 most recently active sessions
+  // Most recently active sessions for quick resume from the welcome state.
   const recent = createMemo(() =>
     [...session.sessions()]
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-      .slice(0, 3),
+      .slice(0, 6),
   )
+
+  const starterPrompts = createMemo(() => [
+    language.t("home.quickStart.prompt1"),
+    language.t("home.quickStart.prompt2"),
+    language.t("home.quickStart.prompt3"),
+  ])
+
+  const prefillPrompt = (text: string) => {
+    window.dispatchEvent(new CustomEvent("kilo:prompt-prefill", { detail: { text } }))
+  }
+
+  const openDocs = () => {
+    vscode.postMessage({ type: "openExternal", url: "https://docs.kilocode.ai" })
+  }
 
   return (
     <div class="message-list-container">
       <div ref={containerRef} class="message-list" role="log" aria-live="polite">
         <Show when={isEmpty()}>
           <div class="message-list-empty">
-            <KiloLogo />
-            <p class="kilo-about-text">{language.t("session.messages.welcome")}</p>
-            <Show when={recent().length > 0 && props.onSelectSession}>
-              <div class="recent-sessions">
-                <span class="recent-sessions-label">{language.t("session.recent")}</span>
-                <For each={recent()}>
-                  {(s) => (
-                    <Tooltip value={s.title || language.t("session.untitled")} placement="top">
-                      <button
-                        class="recent-session-item"
-                        onClick={() => props.onSelectSession?.(s.id)}
-                        aria-label={s.title || language.t("session.untitled")}
-                        title={s.title || language.t("session.untitled")}
-                      >
-                        <span class="recent-session-title">{s.title || language.t("session.untitled")}</span>
-                        <span class="recent-session-date">{formatRelativeDate(s.updatedAt)}</span>
+            <div class="home-empty-shell">
+              <KiloLogo />
+              <p class="kilo-about-text">{language.t("session.messages.welcome")}</p>
+              <button class="home-docs-link" onClick={openDocs} aria-label={language.t("home.quickStart.docs")}>
+                {language.t("home.quickStart.docs")}
+              </button>
+
+              <section class="home-getting-started">
+                <h3>{language.t("sidebar.gettingStarted.title")}</h3>
+                <p>{language.t("sidebar.gettingStarted.line1")}</p>
+                <p>{language.t("sidebar.gettingStarted.line2")}</p>
+              </section>
+
+              <section class="home-quickstart">
+                <h3>{language.t("home.quickStart.title")}</h3>
+                <div class="home-quickstart-list">
+                  <For each={starterPrompts()}>
+                    {(prompt) => (
+                      <button class="home-quickstart-item" onClick={() => prefillPrompt(prompt)} aria-label={prompt}>
+                        <span class="home-quickstart-text">{prompt}</span>
+                        <span class="home-quickstart-arrow">→</span>
                       </button>
-                    </Tooltip>
-                  )}
-                </For>
-              </div>
-            </Show>
+                    )}
+                  </For>
+                </div>
+              </section>
+
+              <Show when={recent().length > 0 && props.onSelectSession}>
+                <section class="recent-sessions">
+                  <span class="recent-sessions-label">{language.t("sidebar.project.recentSessions")}</span>
+                  <For each={recent()}>
+                    {(s) => (
+                      <Tooltip value={s.title || language.t("session.untitled")} placement="top">
+                        <button
+                          class="recent-session-item"
+                          onClick={() => props.onSelectSession?.(s.id)}
+                          aria-label={s.title || language.t("session.untitled")}
+                          title={s.title || language.t("session.untitled")}
+                        >
+                          <span class="recent-session-title">{s.title || language.t("session.untitled")}</span>
+                          <span class="recent-session-date">{formatRelativeDate(s.updatedAt)}</span>
+                        </button>
+                      </Tooltip>
+                    )}
+                  </For>
+                </section>
+              </Show>
+            </div>
           </div>
         </Show>
         <For each={messages()}>{(message) => <Message message={message} />}</For>

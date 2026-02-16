@@ -544,6 +544,11 @@ export const PromptInput: Component = () => {
     vscode.postMessage({ type: "selectFiles" })
   }
 
+  const handleRebuildCodeIndex = () => {
+    if (isDisabled()) return
+    vscode.postMessage({ type: "rebuildCodeIndex" })
+  }
+
   const handleRemoveAttachment = (url: string) => {
     setAttachments((prev) => prev.filter((file) => file.url !== url))
   }
@@ -559,18 +564,18 @@ export const PromptInput: Component = () => {
   const handleCopyAttachmentPath = async (url: string) => {
     try {
       await navigator.clipboard.writeText(url)
-      showToast({ variant: "success", title: "Attachment path copied" })
+      showToast({ variant: "success", title: language.t("prompt.toast.attachmentPathCopied") })
     } catch {
-      showToast({ variant: "error", title: "Failed to copy attachment path" })
+      showToast({ variant: "error", title: language.t("prompt.toast.attachmentPathCopyFailed") })
     }
   }
 
   const handleCopyAttachmentMarkdown = async (file: FileAttachment) => {
     try {
       await navigator.clipboard.writeText(attachmentToMarkdown(file))
-      showToast({ variant: "success", title: "Markdown copied" })
+      showToast({ variant: "success", title: language.t("prompt.toast.markdownCopied") })
     } catch {
-      showToast({ variant: "error", title: "Failed to copy markdown" })
+      showToast({ variant: "error", title: language.t("prompt.toast.markdownCopyFailed") })
     }
   }
 
@@ -614,7 +619,7 @@ export const PromptInput: Component = () => {
       } catch {
         showToast({
           variant: "error",
-          title: "Failed to paste attachment",
+          title: language.t("prompt.toast.pasteAttachmentFailed"),
         })
       }
     })()
@@ -635,7 +640,7 @@ export const PromptInput: Component = () => {
     if (!isSpeechSupported()) {
       showToast({
         variant: "error",
-        title: "Voice input is not supported in this environment",
+        title: language.t("prompt.voice.unsupported"),
       })
       return
     }
@@ -645,7 +650,7 @@ export const PromptInput: Component = () => {
     if (!Recognition) {
       showToast({
         variant: "error",
-        title: "Voice input is not supported in this environment",
+        title: language.t("prompt.voice.unsupported"),
       })
       return
     }
@@ -680,7 +685,7 @@ export const PromptInput: Component = () => {
     recognition.onerror = () => {
       showToast({
         variant: "error",
-        title: "Voice input failed",
+        title: language.t("prompt.voice.failed"),
       })
       stopVoiceInput()
     }
@@ -770,170 +775,214 @@ export const PromptInput: Component = () => {
           </For>
         </div>
       </Show>
-      <div class="prompt-input-wrapper">
-        <div class="prompt-input-ghost-wrapper">
-          <textarea
-            ref={textareaRef}
-            class="prompt-input"
-            placeholder={
-              isDisabled() ? language.t("prompt.placeholder.connecting") : language.t("prompt.placeholder.default")
-            }
-            value={text()}
-            onInput={handleInput}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            onFocus={() => setFollowUpAutoApprovePaused(true)}
-            onBlur={() => setFollowUpAutoApprovePaused(text().trim().length > 0)}
-            disabled={isDisabled()}
-            rows={1}
-          />
-          <Show when={ghostText()}>
-            <div class="prompt-input-ghost-overlay" aria-hidden="true">
-              <span class="prompt-input-ghost-text-hidden">{text()}</span>
-              <span class="prompt-input-ghost-text">{ghostText()}</span>
-            </div>
-          </Show>
-          <Show when={slashPickerOpen()}>
-            <div class="prompt-slash-popover" role="listbox" aria-label="Slash command suggestions">
-              <Show
-                when={slashSuggestions().length > 0}
-                fallback={<div class="prompt-slash-empty">{language.t("prompt.popover.emptyCommands")}</div>}
+      <div class="prompt-input-shell">
+        <div class="prompt-input-wrapper">
+          <div class="prompt-input-ghost-wrapper">
+            <textarea
+              ref={textareaRef}
+              class="prompt-input"
+              placeholder={
+                isDisabled() ? language.t("prompt.placeholder.connecting") : language.t("prompt.placeholder.default")
+              }
+              value={text()}
+              onInput={handleInput}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              onFocus={() => setFollowUpAutoApprovePaused(true)}
+              onBlur={() => setFollowUpAutoApprovePaused(text().trim().length > 0)}
+              disabled={isDisabled()}
+              rows={1}
+            />
+            <Show when={ghostText()}>
+              <div class="prompt-input-ghost-overlay" aria-hidden="true">
+                <span class="prompt-input-ghost-text-hidden">{text()}</span>
+                <span class="prompt-input-ghost-text">{ghostText()}</span>
+              </div>
+            </Show>
+            <Show when={slashPickerOpen()}>
+              <div class="prompt-slash-popover" role="listbox" aria-label="Slash command suggestions">
+                <Show
+                  when={slashSuggestions().length > 0}
+                  fallback={<div class="prompt-slash-empty">{language.t("prompt.popover.emptyCommands")}</div>}
+                >
+                  <For each={slashSuggestions()}>
+                    {(command, index) => (
+                      <button
+                        type="button"
+                        class={`prompt-slash-item${index() === slashSelectedIndex() ? " is-active" : ""}`}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onMouseEnter={() => setSlashSelectedIndex(index())}
+                        onClick={() => applySlashSuggestion(command.name)}
+                        role="option"
+                        aria-selected={index() === slashSelectedIndex()}
+                      >
+                        <span class="prompt-slash-item-main">
+                          <span class="prompt-slash-item-label">/{command.name}</span>
+                          <Show when={command.description}>
+                            <span class="prompt-slash-item-description">{command.description}</span>
+                          </Show>
+                        </span>
+                        <span class="prompt-slash-item-badge">{slashBadgeLabel(command.source)}</span>
+                      </button>
+                    )}
+                  </For>
+                </Show>
+              </div>
+            </Show>
+          </div>
+          <div class="prompt-input-bottom-fade" aria-hidden="true" />
+          <div class="prompt-input-mode-anchor">
+            <ModeSwitcher />
+          </div>
+          <div class="prompt-input-actions">
+            <Tooltip value={language.t("prompt.action.rebuildIndex")} placement="top">
+              <Button
+                class="prompt-action-btn"
+                variant="ghost"
+                size="small"
+                onClick={handleRebuildCodeIndex}
+                disabled={isDisabled() || isBusy()}
+                aria-label={language.t("prompt.action.rebuildIndex")}
               >
-                <For each={slashSuggestions()}>
-                  {(command, index) => (
-                    <button
-                      type="button"
-                      class={`prompt-slash-item${index() === slashSelectedIndex() ? " is-active" : ""}`}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onMouseEnter={() => setSlashSelectedIndex(index())}
-                      onClick={() => applySlashSuggestion(command.name)}
-                      role="option"
-                      aria-selected={index() === slashSelectedIndex()}
-                    >
-                      <span class="prompt-slash-item-main">
-                        <span class="prompt-slash-item-label">/{command.name}</span>
-                        <Show when={command.description}>
-                          <span class="prompt-slash-item-description">{command.description}</span>
-                        </Show>
-                      </span>
-                      <span class="prompt-slash-item-badge">{slashBadgeLabel(command.source)}</span>
-                    </button>
-                  )}
-                </For>
-              </Show>
-            </div>
-          </Show>
-        </div>
-        <div class="prompt-input-actions">
-          <Show
-            when={isBusy()}
-            fallback={
-              <>
-                <Tooltip value={isRecordingVoice() ? "Stop voice input" : "Start voice input"} placement="top">
-                  <Button
-                    variant={isRecordingVoice() ? "primary" : "ghost"}
-                    size="small"
-                    onClick={toggleVoiceInput}
-                    disabled={isDisabled() || isBusy() || (!isSpeechSupported() && !isRecordingVoice())}
-                    aria-label={isRecordingVoice() ? "Stop voice input" : "Start voice input"}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                      <path d="M8 1.5a2.5 2.5 0 0 1 2.5 2.5v4a2.5 2.5 0 0 1-5 0V4A2.5 2.5 0 0 1 8 1.5Zm0 10a4.5 4.5 0 0 0 4.5-4.5H14A6 6 0 0 1 8.75 13v1.5h-1.5V13A6 6 0 0 1 2 7h1.5A4.5 4.5 0 0 0 8 11.5Z" />
-                    </svg>
-                  </Button>
-                </Tooltip>
-                <Tooltip value={language.t("prompt.action.attachFile")} placement="top">
-                  <Button
-                    variant="ghost"
-                    size="small"
-                    onClick={handleAttachFiles}
-                    disabled={isDisabled()}
-                    aria-label={language.t("prompt.action.attachFile")}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                      <path d="M9.5 2.5C7.84 2.5 6.5 3.84 6.5 5.5V11C6.5 11.83 7.17 12.5 8 12.5C8.83 12.5 9.5 11.83 9.5 11V5.5H11V11C11 12.66 9.66 14 8 14C6.34 14 5 12.66 5 11V5.5C5 3.01 7.01 1 9.5 1C11.99 1 14 3.01 14 5.5V10.5C14 13.54 11.54 16 8.5 16H8V14.5H8.5C10.71 14.5 12.5 12.71 12.5 10.5V5.5C12.5 3.84 11.16 2.5 9.5 2.5Z" />
-                    </svg>
-                  </Button>
-                </Tooltip>
-                <Tooltip value={language.t("prompt.action.send")} placement="top">
-                  <Button
-                    variant="primary"
-                    size="small"
-                    onClick={handleSend}
-                    disabled={!canSend()}
-                    aria-label={language.t("prompt.action.send")}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                      <path d="M1.5 1.5L14.5 8L1.5 14.5V9L10 8L1.5 7V1.5Z" />
-                    </svg>
-                  </Button>
-                </Tooltip>
-              </>
-            }
-          >
-            <Tooltip value={language.t("prompt.action.stop")} placement="top">
-              <Button variant="ghost" size="small" onClick={handleAbort} aria-label={language.t("prompt.action.stop")}>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <rect x="3" y="3" width="10" height="10" rx="1" />
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <ellipse cx="8" cy="3.5" rx="4.75" ry="2.25" />
+                  <path d="M3.25 6.25c0 1.24 2.13 2.25 4.75 2.25s4.75-1.01 4.75-2.25V3.5c0 1.24-2.13 2.25-4.75 2.25S3.25 4.74 3.25 3.5v2.75Z" />
+                  <path d="M3.25 9c0 1.24 2.13 2.25 4.75 2.25S12.75 10.24 12.75 9V6.25c0 1.24-2.13 2.25-4.75 2.25S3.25 7.49 3.25 6.25V9Z" />
+                  <path d="M3.25 11.75c0 1.24 2.13 2.25 4.75 2.25s4.75-1.01 4.75-2.25V9c0 1.24-2.13 2.25-4.75 2.25S3.25 10.24 3.25 9v2.75Z" />
                 </svg>
               </Button>
             </Tooltip>
-          </Show>
+            <Show
+              when={isBusy()}
+              fallback={
+                <>
+                  <Tooltip value={language.t("prompt.action.attachFile")} placement="top">
+                    <Button
+                      class="prompt-action-btn"
+                      variant="ghost"
+                      size="small"
+                      onClick={handleAttachFiles}
+                      disabled={isDisabled()}
+                      aria-label={language.t("prompt.action.attachFile")}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M9.5 2.5C7.84 2.5 6.5 3.84 6.5 5.5V11C6.5 11.83 7.17 12.5 8 12.5C8.83 12.5 9.5 11.83 9.5 11V5.5H11V11C11 12.66 9.66 14 8 14C6.34 14 5 12.66 5 11V5.5C5 3.01 7.01 1 9.5 1C11.99 1 14 3.01 14 5.5V10.5C14 13.54 11.54 16 8.5 16H8V14.5H8.5C10.71 14.5 12.5 12.71 12.5 10.5V5.5C12.5 3.84 11.16 2.5 9.5 2.5Z" />
+                      </svg>
+                    </Button>
+                  </Tooltip>
+                  <Tooltip
+                    value={isRecordingVoice() ? language.t("prompt.action.voiceStop") : language.t("prompt.action.voiceStart")}
+                    placement="top"
+                  >
+                    <Button
+                      class="prompt-action-btn"
+                      variant={isRecordingVoice() ? "primary" : "ghost"}
+                      size="small"
+                      onClick={toggleVoiceInput}
+                      disabled={isDisabled() || isBusy() || (!isSpeechSupported() && !isRecordingVoice())}
+                      aria-label={isRecordingVoice() ? language.t("prompt.action.voiceStop") : language.t("prompt.action.voiceStart")}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 1.5a2.5 2.5 0 0 1 2.5 2.5v4a2.5 2.5 0 0 1-5 0V4A2.5 2.5 0 0 1 8 1.5Zm0 10a4.5 4.5 0 0 0 4.5-4.5H14A6 6 0 0 1 8.75 13v1.5h-1.5V13A6 6 0 0 1 2 7h1.5A4.5 4.5 0 0 0 8 11.5Z" />
+                      </svg>
+                    </Button>
+                  </Tooltip>
+                  <Show when={text().trim().length > 0 || hasAttachments()}>
+                    <Tooltip value={language.t("prompt.action.send")} placement="top">
+                      <Button
+                        class="prompt-action-btn prompt-action-btn-send"
+                        variant="primary"
+                        size="small"
+                        onClick={handleSend}
+                        disabled={!canSend()}
+                        aria-label={language.t("prompt.action.send")}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M1.5 1.5L14.5 8L1.5 14.5V9L10 8L1.5 7V1.5Z" />
+                        </svg>
+                      </Button>
+                    </Tooltip>
+                  </Show>
+                </>
+              }
+            >
+              <Tooltip value={language.t("prompt.action.stop")} placement="top">
+                <Button
+                  class="prompt-action-btn"
+                  variant="ghost"
+                  size="small"
+                  onClick={handleAbort}
+                  aria-label={language.t("prompt.action.stop")}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="3" y="3" width="10" height="10" rx="1" />
+                  </svg>
+                </Button>
+              </Tooltip>
+            </Show>
+          </div>
         </div>
       </div>
-      <div class="prompt-input-hint">
-        <ModeSwitcher />
-        <ModelSelector />
-        <Show when={variantOptions().length > 0}>
-          <Popover
-            placement="top-start"
-            open={thinkingOpen()}
-            onOpenChange={setThinkingOpen}
-            triggerAs={Button}
-            triggerProps={{
-              variant: "ghost",
-              size: "small",
-              class: "prompt-thinking-toggle",
-              disabled: isDisabled() || isBusy(),
-            }}
-            trigger={
-              <>
-                <span>{thinkingLabel()}</span>
-                <svg class="prompt-thinking-toggle-chevron" width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M8 4l4 5H4l4-5z" />
-                </svg>
-              </>
-            }
-            class="prompt-thinking-popover"
-          >
-            <div class="prompt-thinking-list" role="listbox" aria-label="Thinking variants">
-              <button
-                type="button"
-                class={`prompt-thinking-item${!activeVariant() ? " selected" : ""}`}
-                onClick={() => setThinkingVariant(undefined)}
-                role="option"
-                aria-selected={!activeVariant()}
-              >
-                Thinking off
-              </button>
-              <For each={variantOptions()}>
-                {(variant) => (
-                  <button
-                    type="button"
-                    class={`prompt-thinking-item${activeVariant() === variant.key ? " selected" : ""}`}
-                    onClick={() => setThinkingVariant(variant.key)}
-                    role="option"
-                    aria-selected={activeVariant() === variant.key}
+      <div class="prompt-input-footer">
+        <div class="prompt-input-controls">
+          <ModelSelector />
+          <Show when={variantOptions().length > 0}>
+            <Popover
+              placement="top-start"
+              open={thinkingOpen()}
+              onOpenChange={setThinkingOpen}
+              triggerAs={Button}
+              triggerProps={{
+                variant: "ghost",
+                size: "small",
+                class: "prompt-thinking-toggle",
+                disabled: isDisabled() || isBusy(),
+              }}
+              trigger={
+                <>
+                  <span>{thinkingLabel()}</span>
+                  <svg
+                    class="prompt-thinking-toggle-chevron"
+                    width="10"
+                    height="10"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
                   >
-                    {variant.label}
-                  </button>
-                )}
-              </For>
-            </div>
-          </Popover>
-        </Show>
+                    <path d="M8 4l4 5H4l4-5z" />
+                  </svg>
+                </>
+              }
+              class="prompt-thinking-popover"
+            >
+              <div class="prompt-thinking-list" role="listbox" aria-label="Thinking variants">
+                <button
+                  type="button"
+                  class={`prompt-thinking-item${!activeVariant() ? " selected" : ""}`}
+                  onClick={() => setThinkingVariant(undefined)}
+                  role="option"
+                  aria-selected={!activeVariant()}
+                >
+                  {language.t("prompt.thinking.off")}
+                </button>
+                <For each={variantOptions()}>
+                  {(variant) => (
+                    <button
+                      type="button"
+                      class={`prompt-thinking-item${activeVariant() === variant.key ? " selected" : ""}`}
+                      onClick={() => setThinkingVariant(variant.key)}
+                      role="option"
+                      aria-selected={activeVariant() === variant.key}
+                    >
+                      {variant.label}
+                    </button>
+                  )}
+                </For>
+              </div>
+            </Popover>
+          </Show>
+        </div>
         <Show when={!isDisabled()}>
-          <span>{language.t("prompt.hint.sendShortcut")}</span>
+          <span class="prompt-input-shortcut">{language.t("prompt.hint.sendShortcut")}</span>
         </Show>
       </div>
       <ImageViewer

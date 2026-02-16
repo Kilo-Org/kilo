@@ -28,7 +28,9 @@ import type {
 import "./styles/chat.css"
 
 type ViewType = "newTask" | "marketplace" | "history" | "profile" | "settings"
+type MarketplaceTabType = "mcp" | "mode" | "skill"
 const VALID_VIEWS = new Set<string>(["newTask", "marketplace", "history", "profile", "settings"])
+const VALID_MARKETPLACE_TABS = new Set<MarketplaceTabType>(["mcp", "mode", "skill"])
 
 /**
  * Bridge our session store to the DataProvider's expected Data shape.
@@ -146,18 +148,25 @@ const LanguageBridge: Component<{ children: any }> = (props) => {
 // Inner app component that uses the contexts
 const AppContent: Component = () => {
   const [currentView, setCurrentView] = createSignal<ViewType>("newTask")
+  const [marketplaceTab, setMarketplaceTab] = createSignal<MarketplaceTabType>("mcp")
   const vscode = useVSCode()
   const session = useSession()
   const server = useServer()
   const language = useLanguage()
 
-  const handleViewAction = (action: string) => {
+  const handleViewAction = (action: string, values?: unknown) => {
     switch (action) {
       case "plusButtonClicked":
         session.clearCurrentSession()
         setCurrentView("newTask")
         break
       case "marketplaceButtonClicked":
+        if (values && typeof values === "object") {
+          const tab = (values as { marketplaceTab?: unknown }).marketplaceTab
+          if (typeof tab === "string" && VALID_MARKETPLACE_TABS.has(tab as MarketplaceTabType)) {
+            setMarketplaceTab(tab as MarketplaceTabType)
+          }
+        }
         setCurrentView("marketplace")
         break
       case "historyButtonClicked":
@@ -177,7 +186,7 @@ const AppContent: Component = () => {
       const message = event.data
       if (message?.type === "action" && message.action) {
         console.log("[Kilo New] App: 🎬 action:", message.action)
-        handleViewAction(message.action)
+        handleViewAction(message.action, message.values)
       }
       if (message?.type === "navigate" && message.view && VALID_VIEWS.has(message.view)) {
         console.log("[Kilo New] App: 🧭 navigate:", message.view)
@@ -241,7 +250,7 @@ const AppContent: Component = () => {
           </Switch>
         </Match>
         <Match when={currentView() === "marketplace"}>
-          <MarketplaceView />
+          <MarketplaceView initialTab={marketplaceTab()} />
         </Match>
         <Match when={currentView() === "history"}>
           <Switch fallback={<LoadingPanel message={language.t("connection.state.connecting")} />}>
@@ -267,6 +276,7 @@ const AppContent: Component = () => {
             profileData={server.profileData()}
             deviceAuth={server.deviceAuth()}
             onLogin={server.startLogin}
+            onDone={() => setCurrentView("newTask")}
           />
         </Match>
         <Match when={currentView() === "settings"}>

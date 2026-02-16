@@ -5,44 +5,58 @@
   "tasks": [
     {
       "label": "watch",
-      "dependsOn": ["npm: watch:tsc", "npm: watch:esbuild"],
+      "dependsOn": ["watch:tsc", "watch:esbuild"],
       "presentation": {
         "reveal": "never"
       },
       "group": {
         "kind": "build",
         "isDefault": true
+      },
+      "runOptions": {
+        "runOn": "folderOpen"
       }
     },
     {
-      "type": "npm",
-      "script": "watch:esbuild",
+      "type": "shell",
+      "command": "bun run watch:esbuild",
       "group": "build",
-      "problemMatcher": "$esbuild-watch",
+      "problemMatcher": {
+        "owner": "esbuild",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "\\[watch\\] build started",
+          "endsPattern": "\\[watch\\] build finished"
+        }
+      },
       "isBackground": true,
-      "label": "npm: watch:esbuild",
+      "label": "watch:esbuild",
       "presentation": {
         "group": "watch",
         "reveal": "never"
       }
     },
     {
-      "type": "npm",
-      "script": "watch:tsc",
+      "type": "shell",
+      "command": "bun run watch:tsc",
       "group": "build",
       "problemMatcher": "$tsc-watch",
       "isBackground": true,
-      "label": "npm: watch:tsc",
+      "label": "watch:tsc",
       "presentation": {
         "group": "watch",
         "reveal": "never"
       }
     },
     {
-      "type": "npm",
-      "script": "watch-tests",
+      "type": "shell",
+      "command": "bun run watch-tests",
       "problemMatcher": "$tsc-watch",
       "isBackground": true,
+      "label": "watch-tests",
       "presentation": {
         "reveal": "never",
         "group": "watchers"
@@ -51,7 +65,7 @@
     },
     {
       "label": "tasks: watch-tests",
-      "dependsOn": ["npm: watch", "npm: watch-tests"],
+      "dependsOn": ["watch", "watch-tests"],
       "problemMatcher": []
     }
   ]

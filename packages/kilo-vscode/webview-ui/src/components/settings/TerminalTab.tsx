@@ -77,7 +77,7 @@ const TerminalTab: Component = () => {
 
       <Card>
         <SettingsRow label="Suspend Terminal" description="Keybind used by the CLI terminal to suspend the process.">
-          <div style={{ width: "180px" }}>
+          <div class="settings-inline-control">
             <TextField
               value={keybinds().terminal_suspend ?? DEFAULT_TERMINAL_KEYBINDS.terminal_suspend}
               placeholder={DEFAULT_TERMINAL_KEYBINDS.terminal_suspend}
@@ -91,7 +91,7 @@ const TerminalTab: Component = () => {
           description="Keybind used by the CLI terminal to toggle the terminal title."
           last
         >
-          <div style={{ width: "180px" }}>
+          <div class="settings-inline-control">
             <TextField
               value={keybinds().terminal_title_toggle ?? DEFAULT_TERMINAL_KEYBINDS.terminal_title_toggle}
               placeholder={DEFAULT_TERMINAL_KEYBINDS.terminal_title_toggle}

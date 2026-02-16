@@ -51,6 +51,7 @@ const MCP_TYPE_OPTIONS: Array<{ value: McpType; label: string }> = [
   { value: "local", label: "Local (command)" },
   { value: "remote", label: "Remote (URL)" },
 ]
+const MCP_DOCS_URL = "https://docs.kilocode.ai/features/mcp/using-mcp-in-kilo-code"
 
 const EMPTY_RULES_CATALOG: RulesCatalog = {
   rules: { local: [], global: [] },
@@ -180,17 +181,22 @@ const AgentBehaviourTab: Component = () => {
       }
       const record: Record<string, string> = {}
       for (const [key, rawValue] of Object.entries(parsed as Record<string, unknown>)) {
-        if (typeof rawValue !== "string") {
-          throw new Error(`key "${key}" must map to a string`)
+        if (typeof rawValue === "string") {
+          record[key] = rawValue
+          continue
         }
-        record[key] = rawValue
+        if (rawValue === null || typeof rawValue === "number" || typeof rawValue === "boolean") {
+          record[key] = String(rawValue)
+          continue
+        }
+        record[key] = JSON.stringify(rawValue)
       }
       return record
     } catch (error) {
       showToast({
         variant: "error",
         title: `${label} is invalid`,
-        description: error instanceof Error ? error.message : "Expected a JSON object with string values.",
+        description: error instanceof Error ? error.message : "Expected a JSON object.",
       })
       return null
     }
@@ -336,14 +342,6 @@ const AgentBehaviourTab: Component = () => {
   }
 
   const mcpServerType = (mcp: McpConfig): McpType => (mcp.url ? "remote" : "local")
-
-  const extractUrlFromText = (value?: string): string | undefined => {
-    if (!value) {
-      return undefined
-    }
-    const match = value.match(/https?:\/\/[^\s)'"`]+/i)
-    return match?.[0]
-  }
 
   const mcpDiagnosticsText = (name: string, mcp: McpConfig): string => {
     const summary = statusSummary(name)
@@ -507,6 +505,31 @@ const AgentBehaviourTab: Component = () => {
     setTimeout(() => vscode.postMessage({ type: "requestMcpStatus" }), 250)
   }
 
+  const setMcpServerEnabled = (name: string, enabled: boolean) => {
+    const current = config().mcp?.[name]
+    if (!current) {
+      return
+    }
+    const next = {
+      ...(config().mcp ?? {}),
+      [name]: {
+        ...current,
+        enabled,
+      },
+    }
+    updateConfig({ mcp: next })
+    pushMcpTimeline(name, {
+      level: "info",
+      message: enabled ? "Server enabled" : "Server disabled",
+    })
+    showToast({
+      variant: "success",
+      title: enabled ? "MCP server enabled" : "MCP server disabled",
+      description: name,
+    })
+    setTimeout(() => vscode.postMessage({ type: "requestMcpStatus" }), 250)
+  }
+
   const triggerMcpConnection = (name: string, connect: boolean) => {
     pushMcpTimeline(name, {
       level: "info",
@@ -520,6 +543,21 @@ const AgentBehaviourTab: Component = () => {
 
   const requestMcpStatus = () => {
     vscode.postMessage({ type: "requestMcpStatus" })
+  }
+
+  const openMcpMarketplace = () => {
+    window.postMessage(
+      {
+        type: "action",
+        action: "marketplaceButtonClicked",
+        values: { marketplaceTab: "mcp" },
+      },
+      "*",
+    )
+  }
+
+  const openMcpDocs = () => {
+    vscode.postMessage({ type: "openExternal", url: MCP_DOCS_URL })
   }
 
   const requestSlashCommands = () => {
@@ -992,10 +1030,48 @@ const AgentBehaviourTab: Component = () => {
             style={{
               "font-size": "12px",
               color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+              "margin-bottom": "12px",
+            }}
+          >
+            Configure MCP servers and manage their connection state. This mirrors the legacy MCP settings workflow.
+          </div>
+          <div style={{ display: "flex", gap: "8px", "flex-wrap": "wrap", "align-items": "center" }}>
+            <Button size="small" variant="secondary" onClick={openMcpMarketplace}>
+              Open MCP Marketplace
+            </Button>
+            <Button size="small" variant="ghost" onClick={requestMcpStatus}>
+              Refresh MCP Status
+            </Button>
+            <Button size="small" variant="ghost" onClick={() => void copyAllMcpDiagnostics()}>
+              Copy Diagnostics
+            </Button>
+            <Button size="small" variant="ghost" onClick={openMcpDocs}>
+              MCP Docs
+            </Button>
+          </div>
+          <div
+            style={{
+              "font-size": "11px",
+              color: "var(--vscode-descriptionForeground)",
+              "margin-top": "10px",
+            }}
+          >
+            You can also browse installable servers from Marketplace and then fine-tune them here.
+          </div>
+        </Card>
+
+        <Card style={{ "margin-bottom": "16px" }}>
+          <div
+            style={{
+              "padding-bottom": "8px",
+              "border-bottom": "1px solid var(--border-weak-base)",
               "margin-bottom": "10px",
             }}
           >
-            Configure MCP servers and manage their connection state.
+            <div style={{ "font-weight": "500" }}>{editingMcpName() ? "Edit MCP Server" : "Add MCP Server"}</div>
+            <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)", "margin-top": "2px" }}>
+              Define local command or remote URL configuration.
+            </div>
           </div>
 
           <div style={{ display: "flex", "flex-direction": "column", gap: "8px" }}>
@@ -1150,10 +1226,9 @@ const AgentBehaviourTab: Component = () => {
                   if (!current) {
                     return undefined
                   }
-                  if (current.status === "failed" || current.status === "needs_client_registration") {
-                    return extractUrlFromText(current.error)
-                  }
-                  return undefined
+                  return typeof current.authUrl === "string" && current.authUrl.trim().length > 0
+                    ? current.authUrl
+                    : undefined
                 }
                 const connectLabel = () => {
                   const current = rawStatus()
@@ -1181,6 +1256,8 @@ const AgentBehaviourTab: Component = () => {
                   }
                   return "Connect MCP server"
                 }
+                const enabled = () => mcp.enabled ?? true
+                const typeLabel = () => (mcpServerType(mcp) === "remote" ? "Remote" : "Local")
                 return (
                   <div
                     style={{
@@ -1198,15 +1275,57 @@ const AgentBehaviourTab: Component = () => {
                       }}
                     >
                       <div style={{ flex: 1, "min-width": 0 }}>
-                        <div style={{ "font-weight": "500" }}>{name}</div>
+                        <div style={{ display: "flex", "align-items": "center", gap: "6px", "flex-wrap": "wrap" }}>
+                          <div style={{ "font-weight": "500" }}>{name}</div>
+                          <span
+                            style={{
+                              "font-size": "10px",
+                              "text-transform": "uppercase",
+                              "letter-spacing": "0.4px",
+                              padding: "2px 6px",
+                              "border-radius": "999px",
+                              border: "1px solid var(--border-weak-base)",
+                              color: "var(--vscode-descriptionForeground)",
+                            }}
+                          >
+                            {typeLabel()}
+                          </span>
+                          <Show when={!enabled()}>
+                            <span
+                              style={{
+                                "font-size": "10px",
+                                "text-transform": "uppercase",
+                                "letter-spacing": "0.4px",
+                                padding: "2px 6px",
+                                "border-radius": "999px",
+                                background: "var(--vscode-badge-background)",
+                                color: "var(--vscode-badge-foreground)",
+                              }}
+                            >
+                              Disabled
+                            </span>
+                          </Show>
+                        </div>
                         <div
                           style={{
+                            display: "flex",
+                            "align-items": "center",
+                            gap: "6px",
                             "font-size": "11px",
                             "margin-top": "2px",
                             color: status().color,
                             "font-weight": "500",
                           }}
                         >
+                          <span
+                            style={{
+                              width: "8px",
+                              height: "8px",
+                              "border-radius": "999px",
+                              background: status().color,
+                              "flex-shrink": "0",
+                            }}
+                          />
                           {status().label}
                         </div>
                         <Show when={status().detail}>
@@ -1335,9 +1454,15 @@ const AgentBehaviourTab: Component = () => {
                           <Button
                             size="small"
                             variant="ghost"
+                            disabled={!enabled()}
                             onClick={() => triggerMcpConnection(name, !status().connected)}
                           >
                             {connectLabel()}
+                          </Button>
+                        </Tooltip>
+                        <Tooltip value={enabled() ? "Disable server" : "Enable server"} placement="top">
+                          <Button size="small" variant="ghost" onClick={() => setMcpServerEnabled(name, !enabled())}>
+                            {enabled() ? "Disable" : "Enable"}
                           </Button>
                         </Tooltip>
                         <Tooltip value={language.t("common.delete")} placement="top">
@@ -2104,6 +2229,7 @@ const AgentBehaviourTab: Component = () => {
                 color:
                   activeSubtab() === subtab.id ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)",
                 "font-size": "13px",
+                "font-weight": activeSubtab() === subtab.id ? "600" : "500",
                 "font-family": "var(--vscode-font-family)",
                 cursor: "pointer",
                 "border-bottom":

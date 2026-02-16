@@ -1,7 +1,7 @@
 import os from "node:os"
 import path from "node:path"
 import fs from "node:fs/promises"
-import { createReadStream } from "node:fs"
+import { createReadStream, existsSync } from "node:fs"
 import { pipeline } from "node:stream/promises"
 import zlib from "node:zlib"
 import * as YAML from "yaml"
@@ -27,7 +27,41 @@ import {
 } from "./schema"
 
 const CACHE_TTL_MS = 5 * 60_000
-const API_BASE_URL = process.env.KILO_API_URL || "https://api.kilo.ai"
+const MARKETPLACE_FETCH_RETRIES = 3
+const MARKETPLACE_FETCH_TIMEOUT_MS = 12_000
+const MARKETPLACE_RETRY_BASE_DELAY_MS = 500
+const DEFAULT_BACKEND_BASE_URL = "https://kilo.ai"
+const DEFAULT_API_BASE_URL = "https://api.kilo.ai"
+
+function resolveApiBaseUrl(): string {
+  const explicitApi = process.env.KILO_API_URL?.trim()
+  if (explicitApi) {
+    return explicitApi
+  }
+
+  const backendBase = process.env.KILOCODE_BACKEND_BASE_URL?.trim()
+  if (!backendBase || backendBase === DEFAULT_BACKEND_BASE_URL) {
+    return DEFAULT_API_BASE_URL
+  }
+
+  return backendBase
+}
+
+function resolveMarketplaceBaseUrls(): string[] {
+  const explicitApi = process.env.KILO_API_URL?.trim()
+  const backendBase = process.env.KILOCODE_BACKEND_BASE_URL?.trim()
+  const preferred = resolveApiBaseUrl()
+  const candidates = [
+    preferred,
+    explicitApi,
+    backendBase,
+    DEFAULT_API_BASE_URL,
+    DEFAULT_BACKEND_BASE_URL,
+  ]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value.replace(/\/+$/, ""))
+  return Array.from(new Set(candidates))
+}
 
 type CacheEntry = {
   items: MarketplaceItem[]
@@ -206,16 +240,40 @@ export class MarketplaceService {
   }
 
   private async fetchCatalogText(route: string): Promise<string> {
-    const url = `${API_BASE_URL.replace(/\/+$/, "")}${route}`
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json, text/yaml, text/plain",
-      },
-    })
-    if (!response.ok) {
-      throw new Error(`Marketplace request failed (${response.status}) for ${route}`)
+    const baseUrls = resolveMarketplaceBaseUrls()
+    const errors: string[] = []
+
+    for (const baseUrl of baseUrls) {
+      const url = `${baseUrl}${route}`
+      for (let attempt = 1; attempt <= MARKETPLACE_FETCH_RETRIES; attempt++) {
+        try {
+          const response = await this.fetchWithTimeout(url, MARKETPLACE_FETCH_TIMEOUT_MS)
+          const text = await response.text()
+          if (!response.ok) {
+            const snippet = text.trim().slice(0, 140)
+            const failure = `(${response.status}) ${url}${snippet ? `: ${snippet}` : ""}`
+            if (response.status >= 500 || response.status === 429) {
+              errors.push(`Marketplace request failed ${failure}`)
+              await this.delayBeforeRetry(attempt)
+              continue
+            }
+            errors.push(`Marketplace request failed ${failure}`)
+            break
+          }
+          if (this.looksLikeHtml(text)) {
+            errors.push(`Marketplace endpoint ${url} returned HTML instead of JSON/YAML`)
+            break
+          }
+          return text
+        } catch (error) {
+          errors.push(`Marketplace request failed (${url}): ${error instanceof Error ? error.message : String(error)}`)
+          await this.delayBeforeRetry(attempt)
+        }
+      }
     }
-    return response.text()
+
+    const detail = errors.length > 0 ? ` ${errors.slice(0, 6).join(" | ")}` : ""
+    throw new Error(`Marketplace request failed for ${route}.${detail}`)
   }
 
   private parseStructured(text: string): unknown {
@@ -223,12 +281,62 @@ export class MarketplaceService {
     if (!trimmed) {
       return {}
     }
+    if (this.looksLikeHtml(trimmed)) {
+      throw new Error("Received HTML content where structured marketplace data was expected")
+    }
 
     try {
-      return JSON.parse(trimmed)
+      const parsed = JSON.parse(trimmed)
+      if (typeof parsed === "string") {
+        const reparsed = parsed.trim()
+        if (!reparsed) {
+          return {}
+        }
+        if (this.looksLikeHtml(reparsed)) {
+          throw new Error("Received HTML content where structured marketplace data was expected")
+        }
+        try {
+          return JSON.parse(reparsed)
+        } catch {
+          return YAML.parse(reparsed)
+        }
+      }
+      return parsed
     } catch {
-      return YAML.parse(trimmed)
+      const parsedYaml = YAML.parse(trimmed)
+      if (typeof parsedYaml === "string" && this.looksLikeHtml(parsedYaml)) {
+        throw new Error("Received HTML content where structured marketplace data was expected")
+      }
+      return parsedYaml
     }
+  }
+
+  private looksLikeHtml(text: string): boolean {
+    return /^\s*<!doctype\s+html/i.test(text) || /^\s*<html[\s>]/i.test(text)
+  }
+
+  private async fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      return await fetch(url, {
+        headers: {
+          Accept: "application/json, text/yaml, text/plain",
+          "User-Agent": "kilo-code-vscode-marketplace",
+        },
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  private async delayBeforeRetry(attempt: number): Promise<void> {
+    if (attempt >= MARKETPLACE_FETCH_RETRIES) {
+      return
+    }
+    const delayMs = Math.pow(2, attempt - 1) * MARKETPLACE_RETRY_BASE_DELAY_MS
+    await new Promise((resolve) => setTimeout(resolve, delayMs))
   }
 
   private kebabToTitle(value: string): string {
@@ -271,18 +379,38 @@ export class MarketplaceService {
     return path.join(this.getLegacyGlobalStoragePath(), "settings", "custom_modes.yaml")
   }
 
+  private getProjectKiloDirectoryPath(): string {
+    const workspaceDir = this.getWorkspaceDir()
+    const kiloDir = path.join(workspaceDir, ".kilocode")
+    const legacyDir = path.join(workspaceDir, ".roo")
+    if (existsSync(legacyDir) && !existsSync(kiloDir)) {
+      return legacyDir
+    }
+    return kiloDir
+  }
+
+  private getGlobalKiloDirectoryPath(): string {
+    const home = os.homedir()
+    const kiloDir = path.join(home, ".kilocode")
+    const legacyDir = path.join(home, ".roo")
+    if (existsSync(legacyDir) && !existsSync(kiloDir)) {
+      return legacyDir
+    }
+    return kiloDir
+  }
+
   private mcpFilePath(target: "project" | "global"): string {
     if (target === "project") {
-      return path.join(this.getWorkspaceDir(), ".kilocode", "mcp.json")
+      return path.join(this.getProjectKiloDirectoryPath(), "mcp.json")
     }
     return path.join(this.getLegacyGlobalStoragePath(), "settings", "mcp_settings.json")
   }
 
   private skillsDirPath(target: "project" | "global"): string {
     if (target === "project") {
-      return path.join(this.getWorkspaceDir(), ".kilocode", "skills")
+      return path.join(this.getProjectKiloDirectoryPath(), "skills")
     }
-    return path.join(this.getLegacyGlobalStoragePath(), "skills")
+    return path.join(this.getGlobalKiloDirectoryPath(), "skills")
   }
 
   private async readYamlObject(filePath: string): Promise<Record<string, unknown> | null> {
@@ -502,11 +630,13 @@ export class MarketplaceService {
       }
     }
 
-    let parsedServer: unknown
-    try {
-      parsedServer = JSON.parse(contentToUse)
-    } catch {
-      throw new Error(`MCP item "${item.id}" has invalid JSON content`)
+    if (!contentToUse.trim()) {
+      throw new Error(`MCP item "${item.id}" has empty server configuration content`)
+    }
+
+    const parsedServer = this.parseStructured(contentToUse)
+    if (!parsedServer || typeof parsedServer !== "object" || Array.isArray(parsedServer)) {
+      throw new Error(`MCP item "${item.id}" has invalid server configuration content`)
     }
 
     let existing: Record<string, unknown> = {}

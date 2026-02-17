@@ -369,6 +369,73 @@ export const AuthLoginCommand = cmd({
           )
         }
 
+        // kilocode_change start - Ollama special handling for host + API key
+        if (provider === "ollama") {
+          prompts.log.info("Ollama runs locally or on a remote server. Default: http://localhost:11434")
+
+          const host = await prompts.text({
+            message: "Enter Ollama host URL",
+            placeholder: "http://localhost:11434",
+            validate: (x) => {
+              if (!x) return undefined
+              try {
+                new URL(x)
+                return undefined
+              } catch {
+                return "Invalid URL format"
+              }
+            },
+          })
+          if (prompts.isCancel(host)) throw new UI.CancelledError()
+
+          const needsKey = await prompts.confirm({
+            message: "Does your Ollama instance require an API key?",
+            initialValue: false,
+          })
+          if (prompts.isCancel(needsKey)) throw new UI.CancelledError()
+
+          let apiKey: string | undefined
+          if (needsKey) {
+            const key = await prompts.password({
+              message: "Enter your API key",
+              validate: (x) => (x && x.length > 0 ? undefined : "Required"),
+            })
+            if (prompts.isCancel(key)) throw new UI.CancelledError()
+            apiKey = key
+          }
+
+          await Auth.set(provider, {
+            type: "api",
+            key: apiKey || "no-api-key",
+          })
+
+          if (host && host !== "http://localhost:11434") {
+            const configPath = path.join(Global.Path.config, "opencode.json")
+            const existingConfig = await Bun.file(configPath)
+              .json()
+              .catch(() => ({}))
+            const updatedConfig = {
+              ...existingConfig,
+              provider: {
+                ...(existingConfig.provider || {}),
+                ollama: {
+                  ...(existingConfig.provider?.ollama || {}),
+                  options: {
+                    ...(existingConfig.provider?.ollama?.options || {}),
+                    baseURL: host,
+                    ...(apiKey ? { apiKey } : {}),
+                  },
+                },
+              },
+            }
+            await Bun.write(configPath, JSON.stringify(updatedConfig, null, 2))
+          }
+
+          prompts.outro("Done")
+          return
+        }
+        // kilocode_change end
+
         const key = await prompts.password({
           message: "Enter your API key",
           validate: (x) => (x && x.length > 0 ? undefined : "Required"),

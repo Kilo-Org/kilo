@@ -206,7 +206,7 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                   </h2>
                   <p
                     style={{
-                      margin: "0 0 10px 0",
+                      margin: "0 0 16px 0",
                       "text-align": "center",
                     }}
                   >
@@ -214,7 +214,7 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                   </p>
                   <p
                     style={{
-                      margin: "0 0 10px 0",
+                      margin: "0 0 16px 0",
                       "text-align": "center",
                     }}
                   >

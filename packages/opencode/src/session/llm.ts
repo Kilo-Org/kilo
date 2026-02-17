@@ -24,11 +24,15 @@ import { PermissionNext } from "@/permission/next"
 import { Auth } from "@/auth"
 import { DEFAULT_HEADERS } from "@/kilocode/const" // kilocode_change
 import { Telemetry } from "@kilocode/kilo-telemetry" // kilocode_change
+// kilocode_change start
+import { getKiloProjectId } from "@/kilocode/project-id"
+import { HEADER_PROJECTID, HEADER_MACHINEID } from "@kilocode/kilo-gateway"
+import { Identity } from "@kilocode/kilo-telemetry"
+// kilocode_change end
 
 export namespace LLM {
   const log = Log.create({ service: "llm" })
-
-  export const OUTPUT_TOKEN_MAX = Flag.OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX || 32_000
+  export const OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
 
   export type StreamInput = {
     user: MessageV2.User
@@ -69,6 +73,9 @@ export namespace LLM {
     const system = []
     system.push(
       [
+        // kilocode_change start - soul defines core identity and personality
+        ...(isCodex ? [] : [SystemPrompt.soul()]),
+        // kilocode_change end
         // use agent prompt otherwise provider prompt
         // For Codex sessions, skip SystemPrompt.provider() since it's sent via options.instructions
         ...(input.agent.prompt ? [input.agent.prompt] : isCodex ? [] : SystemPrompt.provider(input.model)),
@@ -114,7 +121,9 @@ export namespace LLM {
       mergeDeep(variant),
     )
     if (isCodex) {
-      options.instructions = SystemPrompt.instructions()
+      // kilocode_change start - prepend soul to codex instructions
+      options.instructions = SystemPrompt.soul() + "\n" + SystemPrompt.instructions()
+      // kilocode_change end
     }
 
     const params = await Plugin.trigger(
@@ -150,15 +159,14 @@ export namespace LLM {
       },
     )
 
+    // kilocode_change start - resolve project ID and machine ID for kilo provider
+    const isKilo = input.model.api.npm === "@kilocode/kilo-gateway"
+    const kiloProjectId = isKilo ? await getKiloProjectId().catch(() => undefined) : undefined
+    const machineId = isKilo ? await Identity.getMachineId().catch(() => undefined) : undefined
+    // kilocode_change end
+
     const maxOutputTokens =
-      isCodex || provider.id.includes("github-copilot")
-        ? undefined
-        : ProviderTransform.maxOutputTokens(
-            input.model.api.npm,
-            params.options,
-            input.model.limit.output,
-            OUTPUT_TOKEN_MAX,
-          )
+      isCodex || provider.id.includes("github-copilot") ? undefined : ProviderTransform.maxOutputTokens(input.model)
 
     const tools = await resolveTools(input)
 
@@ -223,7 +231,7 @@ export namespace LLM {
               "x-opencode-project": Instance.project.id,
               "x-opencode-session": input.sessionID,
               "x-opencode-request": input.user.id,
-              "x-opencode-client": Flag.OPENCODE_CLIENT,
+              "x-kilo-client": Flag.KILO_CLIENT,
             }
           : input.model.providerID !== "anthropic"
             ? DEFAULT_HEADERS // kilocode_change
@@ -231,6 +239,10 @@ export namespace LLM {
         ...(input.model.api.npm === "@kilocode/kilo-gateway" && input.agent.name
           ? { "x-kilocode-mode": input.agent.name.toLowerCase() }
           : {}),
+        // kilocode_change start - add project ID and machine ID headers for kilo provider
+        ...(isKilo && kiloProjectId ? { [HEADER_PROJECTID]: kiloProjectId } : {}),
+        ...(isKilo && machineId ? { [HEADER_MACHINEID]: machineId } : {}),
+        // kilocode_change end
         ...input.model.headers,
         ...headers,
       },

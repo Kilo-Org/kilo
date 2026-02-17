@@ -11,7 +11,7 @@ import type { Event } from "@kilocode/sdk/v2"
 import type { EventSource } from "./context/sdk"
 
 declare global {
-  const OPENCODE_WORKER_PATH: string
+  const KILO_WORKER_PATH: string // kilocode_change
 }
 
 type RpcClient = ReturnType<typeof Rpc.client<typeof rpc>>
@@ -64,6 +64,10 @@ export const TuiThreadCommand = cmd({
         type: "string",
         describe: "session id to continue",
       })
+      .option("fork", {
+        type: "boolean",
+        describe: "fork the session when continuing (use with --continue or --session)",
+      })
       .option("prompt", {
         type: "string",
         describe: "prompt to use",
@@ -73,13 +77,18 @@ export const TuiThreadCommand = cmd({
         describe: "agent to use",
       }),
   handler: async (args) => {
+    if (args.fork && !args.continue && !args.session) {
+      UI.error("--fork requires --continue or --session")
+      process.exit(1)
+    }
+
     // Resolve relative paths against PWD to preserve behavior when using --cwd flag
     const baseCwd = process.env.PWD ?? process.cwd()
     const cwd = args.project ? path.resolve(baseCwd, args.project) : process.cwd()
     const localWorker = new URL("./worker.ts", import.meta.url)
     const distWorker = new URL("./cli/cmd/tui/worker.js", import.meta.url)
     const workerPath = await iife(async () => {
-      if (typeof OPENCODE_WORKER_PATH !== "undefined") return OPENCODE_WORKER_PATH
+      if (typeof KILO_WORKER_PATH !== "undefined") return KILO_WORKER_PATH // kilocode_change
       if (await Bun.file(distWorker).exists()) return distWorker
       return localWorker
     })
@@ -150,6 +159,7 @@ export const TuiThreadCommand = cmd({
         agent: args.agent,
         model: args.model,
         prompt,
+        fork: args.fork,
       },
       onExit: async () => {
         await client.call("shutdown", undefined)

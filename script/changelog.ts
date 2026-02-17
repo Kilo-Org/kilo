@@ -143,7 +143,7 @@ async function summarizeCommit(opencode: Awaited<ReturnType<typeof createOpencod
     .prompt(
       {
         sessionID: session.data!.id,
-        model: { providerID: "opencode", modelID: "claude-sonnet-4-5" },
+        model: { providerID: "kilo", modelID: "anthropic/claude-sonnet-4.5" }, // kilocode_change
         tools: {
           "*": false,
         },
@@ -240,7 +240,7 @@ export async function buildNotes(from: string, to: string) {
     if (error instanceof Error && error.name === "TimeoutError") {
       console.log("Changelog generation timed out, using raw commits")
       for (const commit of commits) {
-        const attribution = commit.author && !team.includes(commit.author) ? ` (@${commit.author})` : ""
+        const attribution = commit.author && !Script.team.includes(commit.author) ? ` (@${commit.author})` : ""
         notes.push(`- ${commit.message}${attribution}`)
       }
     } else {

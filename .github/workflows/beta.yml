@@ -7,13 +7,6 @@ on:
 
 jobs:
   sync:
-    # kilocode_change start - disabled for kilo-cli fork (OpenCode Discord integration)
-    if: false
-    # if: |
-    #   github.event_name == 'push' || 
-    #   (github.event_name == 'pull_request' && 
-    #    contains(github.event.pull_request.labels.*.name, 'contributor'))
-    # kilocode_change end
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: write
@@ -28,13 +21,15 @@ jobs:
         uses: ./.github/actions/setup-bun
 
       - name: Setup Git Committer
-        id: setup-git-committer
+        id: committer
         uses: ./.github/actions/setup-git-committer
         with:
-          opencode-app-id: ${{ vars.OPENCODE_APP_ID }}
-          opencode-app-secret: ${{ secrets.OPENCODE_APP_SECRET }}
+          # kilocode_change start
+          kilo-maintainer-app-id: ${{ secrets.KILO_MAINTAINER_APP_ID }}
+          kilo-maintainer-app-secret: ${{ secrets.KILO_MAINTAINER_APP_SECRET }}
+          # kilocode_change end
 
       - name: Sync beta branch
         env:
-          GH_TOKEN: ${{ steps.setup-git-committer.outputs.token }}
+          GH_TOKEN: ${{ steps.committer.outputs.token }}
         run: bun script/beta.ts

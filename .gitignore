@@ -4,8 +4,13 @@ node_modules
 .sst
 .env
 .idea
-.vscode
-!packages/kilo-vscode/.vscode
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+# use vscode workspaces with peacock to have many vscodes with the same repo:
+*.code-workspace
 .codex
 *~
 playground
@@ -28,3 +33,6 @@ target
 opencode-dev
 logs/
 *.bun-build
+
+# Telemetry ID
+telemetry-id

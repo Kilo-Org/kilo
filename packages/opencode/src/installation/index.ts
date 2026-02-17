@@ -7,9 +7,10 @@ import { Log } from "../util/log"
 import { iife } from "@/util/iife"
 import { Flag } from "../flag/flag"
 
+// kilocode_change - renamed build-time globals
 declare global {
-  const OPENCODE_VERSION: string
-  const OPENCODE_CHANNEL: string
+  const KILO_VERSION: string
+  const KILO_CHANNEL: string
 }
 
 export namespace Installation {
@@ -148,6 +149,16 @@ export namespace Installation {
         break
       case "brew": {
         const formula = await getBrewFormula()
+        if (formula.includes("/")) {
+          cmd =
+            $`brew tap anomalyco/tap && cd "$(brew --repo anomalyco/tap)" && git pull --ff-only && brew upgrade ${formula}`.env(
+              {
+                HOMEBREW_NO_AUTO_UPDATE: "1",
+                ...process.env,
+              },
+            )
+          break
+        }
         cmd = $`brew upgrade ${formula}`.env({
           HOMEBREW_NO_AUTO_UPDATE: "1",
           ...process.env,
@@ -179,23 +190,28 @@ export namespace Installation {
     await $`${process.execPath} --version`.nothrow().quiet().text()
   }
 
-  export const VERSION = typeof OPENCODE_VERSION === "string" ? OPENCODE_VERSION : "local"
-  export const CHANNEL = typeof OPENCODE_CHANNEL === "string" ? OPENCODE_CHANNEL : "local"
-  export const USER_AGENT = `opencode/${CHANNEL}/${VERSION}/${Flag.OPENCODE_CLIENT}`
+  export const VERSION = typeof KILO_VERSION === "string" ? KILO_VERSION : "local"
+  export const CHANNEL = typeof KILO_CHANNEL === "string" ? KILO_CHANNEL : "local"
+  export const USER_AGENT = `kilo/${CHANNEL}/${VERSION}/${Flag.KILO_CLIENT}` // kilocode_change
 
   export async function latest(installMethod?: Method) {
     const detectedMethod = installMethod || (await method())
 
     if (detectedMethod === "brew") {
       const formula = await getBrewFormula()
-      if (formula === "opencode") {
-        return fetch("https://formulae.brew.sh/api/formula/opencode.json")
-          .then((res) => {
-            if (!res.ok) throw new Error(res.statusText)
-            return res.json()
-          })
-          .then((data: any) => data.versions.stable)
+      if (formula.includes("/")) {
+        const infoJson = await $`brew info --json=v2 ${formula}`.quiet().text()
+        const info = JSON.parse(infoJson)
+        const version = info.formulae?.[0]?.versions?.stable
+        if (!version) throw new Error(`Could not detect version for tap formula: ${formula}`)
+        return version
       }
+      return fetch("https://formulae.brew.sh/api/formula/opencode.json")
+        .then((res) => {
+          if (!res.ok) throw new Error(res.statusText)
+          return res.json()
+        })
+        .then((data: any) => data.versions.stable)
     }
 
     // kilocode_change start - support npm/pnpm/bun for kilocode, fetch from @kilocode/cli on npm registry

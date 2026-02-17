@@ -1,0 +1,8 @@
+/* kilocode_change - new file */
+/* Kilo Message Part overrides */
+
+[data-component="text-part"] {
+  [data-slot="text-part-body"] {
+    margin-top: 0;
+  }
+}

@@ -5,22 +5,19 @@ on:
     types: [opened, edited, synchronize]
 
 jobs:
+  # kilocode_change start
+  check-author:
+    uses: ./.github/workflows/check-org-member.yml
+    with:
+      username: ${{ github.event.pull_request.user.login }}
+    secrets:
+      kilo-maintainer-app-id: ${{ secrets.KILO_MAINTAINER_APP_ID }}
+      kilo-maintainer-app-secret: ${{ secrets.KILO_MAINTAINER_APP_SECRET }}
+
   check-standards:
-    # kilocode_change start - disabled for kilo-cli fork (OpenCode maintainer allowlist)
-    if: false
+    needs: check-author
+    if: needs.check-author.outputs['is-member'] == 'false'
     # kilocode_change end
-    # Original condition with OpenCode maintainer allowlist:
-    # if: |
-    #   github.event.pull_request.user.login != 'actions-user' &&
-    #   github.event.pull_request.user.login != 'opencode' &&
-    #   github.event.pull_request.user.login != 'rekram1-node' &&
-    #   github.event.pull_request.user.login != 'thdxr' &&
-    #   github.event.pull_request.user.login != 'kommander' &&
-    #   github.event.pull_request.user.login != 'jayair' &&
-    #   github.event.pull_request.user.login != 'fwang' &&
-    #   github.event.pull_request.user.login != 'adamdotdevin' &&
-    #   github.event.pull_request.user.login != 'iamdavidhill' &&
-    #   github.event.pull_request.user.login != 'opencode-agent[bot]'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       pull-requests: write
@@ -90,7 +87,7 @@ jobs:
             - \`refactor:\` or \`refactor(scope):\` code refactoring
             - \`test:\` or \`test(scope):\` adding or updating tests
 
-            Where \`scope\` is the package name (e.g., \`app\`, \`desktop\`, \`opencode\`).
+            Where \`scope\` is the package name (e.g., \`app\`, \`desktop\`, \`kilo\`).
 
             See [CONTRIBUTING.md](../blob/dev/CONTRIBUTING.md#pr-titles) for details.`);
               return;

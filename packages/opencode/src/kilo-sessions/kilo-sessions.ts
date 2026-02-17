@@ -177,6 +177,14 @@ export namespace KiloSessions {
         },
       ])
     })
+
+    Bus.subscribe(Session.Event.TurnOpen, async (evt) => {
+      await ingest.sync(evt.properties.sessionID, [{ type: "session_open", data: {} }])
+    })
+
+    Bus.subscribe(Session.Event.TurnClose, async (evt) => {
+      await ingest.sync(evt.properties.sessionID, [{ type: "session_close", data: { reason: evt.properties.reason } }])
+    })
   }
 
   export async function create(sessionId: string) {

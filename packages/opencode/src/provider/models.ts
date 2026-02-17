@@ -7,6 +7,7 @@ import { Flag } from "../flag/flag"
 import { lazy } from "@/util/lazy"
 import { Config } from "../config/config" // kilocode_change
 import { ModelCache } from "./model-cache" // kilocode_change
+import { Auth } from "../auth" // kilocode_change
 import { KILO_OPENROUTER_BASE } from "@kilocode/kilo-gateway" // kilocode_change
 
 // Try to import bundled snapshot (generated at build time)
@@ -98,11 +99,11 @@ export namespace ModelsDev {
   export type Provider = z.infer<typeof Provider>
 
   function url() {
-    return Flag.OPENCODE_MODELS_URL || "https://models.dev"
+    return Flag.KILO_MODELS_URL || "https://models.dev"
   }
 
   export const Data = lazy(async () => {
-    const file = Bun.file(Flag.OPENCODE_MODELS_PATH ?? filepath)
+    const file = Bun.file(Flag.KILO_MODELS_PATH ?? filepath)
     const result = await file.json().catch(() => {})
     if (result) return result
     // @ts-ignore
@@ -110,7 +111,7 @@ export namespace ModelsDev {
       .then((m) => m.snapshot as Record<string, unknown>)
       .catch(() => undefined)
     if (snapshot) return snapshot
-    if (Flag.OPENCODE_DISABLE_MODELS_FETCH) return {}
+    if (Flag.KILO_DISABLE_MODELS_FETCH) return {}
     const json = await fetch(`${url()}/api.json`).then((x) => x.text())
     return JSON.parse(json)
   })
@@ -120,11 +121,19 @@ export namespace ModelsDev {
     // kilocode_change start
     const providers = result as Record<string, Provider>
 
+    if (providers["kilo"]) {
+      delete providers["kilo"]
+    }
+
     // Inject kilo provider with dynamic model fetching
     if (!providers["kilo"]) {
       const config = await Config.get()
       const kiloOptions = config.provider?.kilo?.options
-      const kiloOrgId = kiloOptions?.kilocodeOrganizationId
+      // kilocode_change start - resolve org ID from auth (OAuth accountId) not just config
+      const kiloAuth = await Auth.get("kilo")
+      const kiloOrgId =
+        kiloOptions?.kilocodeOrganizationId ?? (kiloAuth?.type === "oauth" ? kiloAuth.accountId : undefined)
+      // kilocode_change end
       const normalizedBaseURL = normalizeKiloBaseURL(kiloOptions?.baseURL, kiloOrgId)
       const kiloFetchOptions = {
         ...(normalizedBaseURL ? { baseURL: normalizedBaseURL } : {}),
@@ -323,7 +332,7 @@ export namespace ModelsDev {
   }
 }
 
-if (!Flag.OPENCODE_DISABLE_MODELS_FETCH) {
+if (!Flag.KILO_DISABLE_MODELS_FETCH) {
   ModelsDev.refresh()
   setInterval(
     async () => {

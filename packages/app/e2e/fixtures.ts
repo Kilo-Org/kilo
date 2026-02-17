@@ -76,7 +76,7 @@ async function seedStorage(page: Page, input: { directory: string; extra?: strin
     localStorage.setItem(
       "opencode.global.dat:model",
       JSON.stringify({
-        recent: [{ providerID: "kilo", modelID: "kilo/auto" }], // kilocode_change
+        recent: [{ providerID: "kilo", modelID: "mistralai/codestral-2508" }], // kilocode_change
         user: [],
         variant: {},
       }),

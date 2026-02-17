@@ -117,9 +117,6 @@ function formatFileList(files: DiffFile[]): string {
 
 function buildToolsSection(scope: "uncommitted" | "branch", baseBranch?: string, currentBranch?: string): string {
   if (scope === "uncommitted") {
-
-
-
     return `Use these git commands to explore the changes:
   - View all changes: \`git diff && git diff --cached\`
   - View specific file change: \`git diff -- <file> && git diff --cached -- <file>\`

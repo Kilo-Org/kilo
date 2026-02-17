@@ -278,4 +278,78 @@ describe("share ingest queue", () => {
 
     expect(errors.some((e) => e.error === "retry budget exceeded")).toBe(true)
   })
+
+  test("session_open and session_close use stable keys and coalesce", async () => {
+    const sent: unknown[] = []
+    const sched = scheduler(() => clock.now)
+
+    const q = IngestQueue.create({
+      now: () => clock.now,
+      setTimeout: sched.setTimeout,
+      clearTimeout: sched.clearTimeout,
+      log: { error: () => {} },
+      getShare: async () => ({ ingestPath: "/ingest" }),
+      getClient: async () => ({
+        url: "https://ingest.test",
+        fetch: async (_input, init) => {
+          sent.push(JSON.parse((init?.body as string) ?? "{}"))
+          return new Response("{}", { status: 200 })
+        },
+      }),
+    })
+
+    // Two session_open events should coalesce to one (stable key)
+    await q.sync("s8", [{ type: "session_open", data: {} }])
+    clock.now = 100
+    await q.sync("s8", [{ type: "session_open", data: {} }])
+
+    // Two session_close events should coalesce, keeping the latest reason
+    clock.now = 200
+    await q.sync("s8", [{ type: "session_close", data: { reason: "completed" } }])
+    clock.now = 300
+    await q.sync("s8", [{ type: "session_close", data: { reason: "error" } }])
+
+    clock.now = 1000
+    sched.run()
+    await Bun.sleep(0)
+    expect(sent.length).toBe(1)
+
+    const payload = sent[0] as { data: { type: string; data: unknown }[] }
+    const types = payload.data.map((d) => d.type)
+    expect(types).toContain("session_open")
+    expect(types).toContain("session_close")
+    // Only one of each due to stable keys
+    expect(types.filter((t) => t === "session_open").length).toBe(1)
+    expect(types.filter((t) => t === "session_close").length).toBe(1)
+    // session_close should have the latest reason
+    const close = payload.data.find((d) => d.type === "session_close")
+    expect((close?.data as { reason: string }).reason).toBe("error")
+  })
+
+  test("flush sends request with ?v=1 query parameter", async () => {
+    const urls: string[] = []
+    const sched = scheduler(() => clock.now)
+
+    const q = IngestQueue.create({
+      now: () => clock.now,
+      setTimeout: sched.setTimeout,
+      clearTimeout: sched.clearTimeout,
+      log: { error: () => {} },
+      getShare: async () => ({ ingestPath: "/ingest" }),
+      getClient: async () => ({
+        url: "https://ingest.test",
+        fetch: async (input, _init) => {
+          urls.push(String(input))
+          return new Response("{}", { status: 200 })
+        },
+      }),
+    })
+
+    await q.sync("s9", [{ type: "session", data: { id: "s9" } as any }])
+    clock.now = 1000
+    sched.run()
+    await Bun.sleep(0)
+    expect(urls.length).toBe(1)
+    expect(urls[0]).toBe("https://ingest.test/ingest?v=1")
+  })
 })

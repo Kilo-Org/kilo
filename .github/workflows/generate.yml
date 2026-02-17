@@ -7,9 +7,6 @@ on:
 
 jobs:
   generate:
-    # kilocode_change start - disabled for kilo-cli fork (OpenCode Discord integration)
-    if: false
-    # kilocode_change end
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: write
@@ -21,12 +18,14 @@ jobs:
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
 
-      - name: Setup git committer
+      - name: Setup Git Committer
         id: committer
         uses: ./.github/actions/setup-git-committer
         with:
-          opencode-app-id: ${{ vars.OPENCODE_APP_ID }}
-          opencode-app-secret: ${{ secrets.OPENCODE_APP_SECRET }}
+          # kilocode_change start
+          kilo-maintainer-app-id: ${{ secrets.KILO_MAINTAINER_APP_ID }}
+          kilo-maintainer-app-secret: ${{ secrets.KILO_MAINTAINER_APP_SECRET }}
+          # kilocode_change end
 
       - name: Generate
         run: ./script/generate.ts

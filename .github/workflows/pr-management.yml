@@ -5,22 +5,19 @@ on:
     types: [opened]
 
 jobs:
+  # kilocode_change start
+  check-author:
+    uses: ./.github/workflows/check-org-member.yml
+    with:
+      username: ${{ github.event.pull_request.user.login }}
+    secrets:
+      kilo-maintainer-app-id: ${{ secrets.KILO_MAINTAINER_APP_ID }}
+      kilo-maintainer-app-secret: ${{ secrets.KILO_MAINTAINER_APP_SECRET }}
+
   check-duplicates:
-    # kilocode_change start - disabled for kilo-cli fork (requires OpenCode API key and install)
-    if: false
+    needs: check-author
+    if: needs.check-author.outputs['is-member'] == 'false'
     # kilocode_change end
-    # Original condition with OpenCode maintainer allowlist:
-    # if: |
-    #   github.event.pull_request.user.login != 'actions-user' &&
-    #   github.event.pull_request.user.login != 'opencode' &&
-    #   github.event.pull_request.user.login != 'rekram1-node' &&
-    #   github.event.pull_request.user.login != 'thdxr' &&
-    #   github.event.pull_request.user.login != 'kommander' &&
-    #   github.event.pull_request.user.login != 'jayair' &&
-    #   github.event.pull_request.user.login != 'fwang' &&
-    #   github.event.pull_request.user.login != 'adamdotdevin' &&
-    #   github.event.pull_request.user.login != 'iamdavidhill' &&
-    #   github.event.pull_request.user.login != 'opencode-agent[bot]'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -37,8 +34,10 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Install opencode
-        run: curl -fsSL https://opencode.ai/install | bash
+      # kilocode_change start
+      - name: Setup Kilo
+        uses: ./.github/actions/setup-kilo
+      # kilocode_change end
 
       - name: Build prompt
         env:
@@ -58,7 +57,10 @@ jobs:
 
       - name: Check for duplicate PRs
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          # kilocode_change start
+          KILO_API_KEY: ${{ secrets.KILO_API_KEY }}
+          KILO_ORG_ID: ${{ secrets.KILO_ORG_ID }}
+          # kilocode_change end
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
@@ -69,7 +71,7 @@ jobs:
           $COMMENT"
 
   add-contributor-label:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404 # kilocode_change
     permissions:
       pull-requests: write
       issues: write

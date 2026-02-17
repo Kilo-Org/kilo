@@ -6,11 +6,26 @@ export type {
   SessionStatusInfo,
   MessageInfo,
   MessagePart,
+  TokenUsage,
   ToolState,
   PermissionRequest,
   SSEEvent,
   TodoItem,
+  AgentInfo,
   ServerConfig,
+  KilocodeOrganization,
+  KilocodeProfile,
+  KilocodeBalance,
+  ProfileData,
+  ProviderModel,
+  Provider,
+  ProviderListResponse,
+  ModelSelection,
+  McpStatus,
+  McpLocalConfig,
+  McpRemoteConfig,
+  McpConfig,
+  Config,
 } from "./types"
 
 export { ServerManager } from "./server-manager"
@@ -20,3 +35,6 @@ export { HttpClient } from "./http-client"
 
 export { SSEClient } from "./sse-client"
 export type { SSEEventHandler, SSEErrorHandler, SSEStateHandler } from "./sse-client"
+
+export { KiloConnectionService } from "./connection-service"
+export type { ConnectionState } from "./connection-service"

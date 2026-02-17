@@ -110,7 +110,7 @@ export namespace KilocodeConfigInjector {
       return {}
     }
     return {
-      OPENCODE_CONFIG_CONTENT: configJson,
+      KILO_CONFIG_CONTENT: configJson,
     }
   }
 }

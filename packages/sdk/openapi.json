@@ -133,73 +133,6 @@
         ]
       }
     },
-    "/global/config": {
-      "get": {
-        "operationId": "global.config.get",
-        "summary": "Get global configuration",
-        "description": "Retrieve the current global OpenCode configuration settings and preferences.",
-        "responses": {
-          "200": {
-            "description": "Get global config info",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Config"
-                }
-              }
-            }
-          }
-        },
-        "x-codeSamples": [
-          {
-            "lang": "js",
-            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.global.config.get({\n  ...\n})"
-          }
-        ]
-      },
-      "patch": {
-        "operationId": "global.config.update",
-        "summary": "Update global configuration",
-        "description": "Update global OpenCode configuration settings and preferences.",
-        "responses": {
-          "200": {
-            "description": "Successfully updated global config",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Config"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BadRequestError"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Config"
-              }
-            }
-          }
-        },
-        "x-codeSamples": [
-          {
-            "lang": "js",
-            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.global.config.update({\n  ...\n})"
-          }
-        ]
-      }
-    },
     "/global/dispose": {
       "post": {
         "operationId": "global.dispose",
@@ -318,103 +251,6 @@
           {
             "lang": "js",
             "source": "import { createOpencodeClient } from \"@kilocode/sdk\n\nconst client = createOpencodeClient()\nawait client.auth.remove({\n  ...\n})"
-          }
-        ]
-      }
-    },
-    "/auth/{providerID}": {
-      "put": {
-        "operationId": "auth.set",
-        "summary": "Set auth credentials",
-        "description": "Set authentication credentials",
-        "responses": {
-          "200": {
-            "description": "Successfully set authentication credentials",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BadRequestError"
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "in": "path",
-            "name": "providerID",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Auth"
-              }
-            }
-          }
-        },
-        "x-codeSamples": [
-          {
-            "lang": "js",
-            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.auth.set({\n  ...\n})"
-          }
-        ]
-      },
-      "delete": {
-        "operationId": "auth.remove",
-        "summary": "Remove auth credentials",
-        "description": "Remove authentication credentials",
-        "responses": {
-          "200": {
-            "description": "Successfully removed authentication credentials",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BadRequestError"
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "in": "path",
-            "name": "providerID",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          }
-        ],
-        "x-codeSamples": [
-          {
-            "lang": "js",
-            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.auth.remove({\n  ...\n})"
           }
         ]
       }
@@ -4373,6 +4209,75 @@
         ]
       }
     },
+    "/kilo/fim": {
+      "post": {
+        "operationId": "kilo.fim",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "directory",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "summary": "FIM completion",
+        "description": "Proxy a Fill-in-the-Middle completion request to the Kilo Gateway",
+        "responses": {
+          "200": {
+            "description": "Streaming FIM completion response",
+            "content": {
+              "text/event-stream": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prefix": {
+                    "type": "string"
+                  },
+                  "suffix": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "maxTokens": {
+                    "type": "number"
+                  },
+                  "temperature": {
+                    "type": "number"
+                  }
+                },
+                "required": ["prefix", "suffix"]
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@kilocode/sdk\n\nconst client = createOpencodeClient()\nawait client.kilo.fim({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/kilo/notifications": {
       "get": {
         "operationId": "kilo.notifications",
@@ -6652,6 +6557,28 @@
         },
         "required": ["name", "data"]
       },
+      "ContextOverflowError": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "const": "ContextOverflowError"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "responseBody": {
+                "type": "string"
+              }
+            },
+            "required": ["message"]
+          }
+        },
+        "required": ["name", "data"]
+      },
       "APIError": {
         "type": "object",
         "properties": {
@@ -6738,6 +6665,9 @@
                 "$ref": "#/components/schemas/MessageAbortedError"
               },
               {
+                "$ref": "#/components/schemas/ContextOverflowError"
+              },
+              {
                 "$ref": "#/components/schemas/APIError"
               }
             ]
@@ -6778,6 +6708,9 @@
           "tokens": {
             "type": "object",
             "properties": {
+              "total": {
+                "type": "number"
+              },
               "input": {
                 "type": "number"
               },
@@ -6801,6 +6734,9 @@
               }
             },
             "required": ["input", "output", "reasoning", "cache"]
+          },
+          "variant": {
+            "type": "string"
           },
           "finish": {
             "type": "string"
@@ -7405,6 +7341,9 @@
           "tokens": {
             "type": "object",
             "properties": {
+              "total": {
+                "type": "number"
+              },
               "input": {
                 "type": "number"
               },
@@ -8502,11 +8441,56 @@
                     "$ref": "#/components/schemas/MessageAbortedError"
                   },
                   {
+                    "$ref": "#/components/schemas/ContextOverflowError"
+                  },
+                  {
                     "$ref": "#/components/schemas/APIError"
                   }
                 ]
               }
             }
+          }
+        },
+        "required": ["type", "properties"]
+      },
+      "Event.session.turn.open": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "session.turn.open"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "type": "string"
+              }
+            },
+            "required": ["sessionID"]
+          }
+        },
+        "required": ["type", "properties"]
+      },
+      "Event.session.turn.close": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "session.turn.close"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string",
+                "enum": ["completed", "error", "interrupted"]
+              }
+            },
+            "required": ["sessionID", "reason"]
           }
         },
         "required": ["type", "properties"]
@@ -8789,6 +8773,12 @@
           },
           {
             "$ref": "#/components/schemas/Event.session.error"
+          },
+          {
+            "$ref": "#/components/schemas/Event.session.turn.open"
+          },
+          {
+            "$ref": "#/components/schemas/Event.session.turn.close"
           },
           {
             "$ref": "#/components/schemas/Event.vcs.branch.updated"
@@ -9296,6 +9286,11 @@
           },
           "news_toggle": {
             "description": "Toggle news on home screen",
+            "default": "none",
+            "type": "string"
+          },
+          "display_thinking": {
+            "description": "Toggle thinking blocks visibility",
             "default": "none",
             "type": "string"
           }
@@ -9957,6 +9952,13 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "urls": {
+                "description": "URLs to fetch skills from (e.g., https://example.com/.well-known/skills/)",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -10054,6 +10056,15 @@
                 "$ref": "#/components/schemas/AgentConfig"
               },
               "build": {
+                "$ref": "#/components/schemas/AgentConfig"
+              },
+              "debug": {
+                "$ref": "#/components/schemas/AgentConfig"
+              },
+              "orchestrator": {
+                "$ref": "#/components/schemas/AgentConfig"
+              },
+              "ask": {
                 "$ref": "#/components/schemas/AgentConfig"
               },
               "general": {
@@ -10266,6 +10277,12 @@
               "prune": {
                 "description": "Enable pruning of old tool outputs (default: true)",
                 "type": "boolean"
+              },
+              "reserved": {
+                "description": "Token buffer for compaction. Leaves enough window to avoid overflow during compaction.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               }
             }
           },

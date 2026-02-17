@@ -30,33 +30,7 @@ interface SelectOption {
   label: string
 }
 
-interface SettingRowProps {
-  label: string
-  description: string
-  last?: boolean
-  children: any
-}
-
-const SettingRow: Component<SettingRowProps> = (props) => (
-  <div
-    data-slot="settings-row"
-    style={{
-      display: "flex",
-      "align-items": "center",
-      "justify-content": "space-between",
-      padding: "8px 0",
-      "border-bottom": props.last ? "none" : "1px solid var(--border-weak-base)",
-    }}
-  >
-    <div style={{ flex: 1, "min-width": 0, "margin-right": "12px" }}>
-      <div style={{ "font-weight": "500" }}>{props.label}</div>
-      <div style={{ "font-size": "11px", color: "var(--text-weak-base, var(--vscode-descriptionForeground))" }}>
-        {props.description}
-      </div>
-    </div>
-    {props.children}
-  </div>
-)
+import SettingsRow from "./SettingsRow"
 
 const Placeholder: Component<{ text: string }> = (props) => (
   <Card>
@@ -190,7 +164,7 @@ const AgentBehaviourTab: Component = () => {
     <div>
       {/* Default agent */}
       <Card style={{ "margin-bottom": "12px" }}>
-        <SettingRow label="Default Agent" description="Agent to use when none is specified" last>
+        <SettingsRow title="Default Agent" description="Agent to use when none is specified" last>
           <Select
             options={defaultAgentOptions()}
             current={defaultAgentOptions().find((o) => o.value === (config().default_agent ?? ""))}
@@ -201,7 +175,7 @@ const AgentBehaviourTab: Component = () => {
             size="small"
             triggerVariant="settings"
           />
-        </SettingRow>
+        </SettingsRow>
       </Card>
 
       {/* Agent selector */}
@@ -221,7 +195,7 @@ const AgentBehaviourTab: Component = () => {
       <Show when={selectedAgent()}>
         <Card>
           {/* Model override */}
-          <SettingRow label="Model Override" description="Override the default model for this agent">
+          <SettingsRow title="Model Override" description="Override the default model for this agent">
             <TextField
               value={currentAgentConfig().model ?? ""}
               placeholder="e.g. anthropic/claude-sonnet-4-20250514"
@@ -231,10 +205,10 @@ const AgentBehaviourTab: Component = () => {
                 })
               }
             />
-          </SettingRow>
+          </SettingsRow>
 
           {/* System prompt */}
-          <SettingRow label="Custom Prompt" description="Additional system prompt for this agent">
+          <SettingsRow title="Custom Prompt" description="Additional system prompt for this agent">
             <TextField
               value={currentAgentConfig().prompt ?? ""}
               placeholder="Custom instructions…"
@@ -245,10 +219,10 @@ const AgentBehaviourTab: Component = () => {
                 })
               }
             />
-          </SettingRow>
+          </SettingsRow>
 
           {/* Temperature */}
-          <SettingRow label="Temperature" description="Sampling temperature (0-2)">
+          <SettingsRow title="Temperature" description="Sampling temperature (0-2)">
             <TextField
               value={currentAgentConfig().temperature?.toString() ?? ""}
               placeholder="Default"
@@ -257,10 +231,10 @@ const AgentBehaviourTab: Component = () => {
                 updateAgentConfig(selectedAgent(), { temperature: isNaN(parsed) ? undefined : parsed })
               }}
             />
-          </SettingRow>
+          </SettingsRow>
 
           {/* Top-p */}
-          <SettingRow label="Top P" description="Nucleus sampling parameter (0-1)">
+          <SettingsRow title="Top P" description="Nucleus sampling parameter (0-1)">
             <TextField
               value={currentAgentConfig().top_p?.toString() ?? ""}
               placeholder="Default"
@@ -269,10 +243,10 @@ const AgentBehaviourTab: Component = () => {
                 updateAgentConfig(selectedAgent(), { top_p: isNaN(parsed) ? undefined : parsed })
               }}
             />
-          </SettingRow>
+          </SettingsRow>
 
           {/* Max steps */}
-          <SettingRow label="Max Steps" description="Maximum agentic iterations" last>
+          <SettingsRow title="Max Steps" description="Maximum agentic iterations" last>
             <TextField
               value={currentAgentConfig().steps?.toString() ?? ""}
               placeholder="Default"
@@ -281,7 +255,7 @@ const AgentBehaviourTab: Component = () => {
                 updateAgentConfig(selectedAgent(), { steps: isNaN(parsed) ? undefined : parsed })
               }}
             />
-          </SettingRow>
+          </SettingsRow>
         </Card>
       </Show>
     </div>

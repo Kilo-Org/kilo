@@ -12,6 +12,8 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   private connectionState: "connecting" | "connected" | "disconnected" | "error" = "connecting"
   private loginAttempt = 0
   private isWebviewReady = false
+  private readonly extensionVersion =
+    vscode.extensions.getExtension("kilocode.kilo-code")?.packageJSON?.version ?? "unknown"
   /** Cached providersLoaded payload so requestProviders can be served before httpClient is ready */
   private cachedProvidersMessage: unknown = null
   /** Cached agentsLoaded payload so requestAgents can be served before httpClient is ready */
@@ -73,6 +75,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       this.postMessage({
         type: "ready",
         serverInfo,
+        extensionVersion: this.extensionVersion,
         vscodeLanguage: vscode.env.language,
         languageOverride: langConfig.get<string>("language"),
       })
@@ -349,6 +352,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         this.postMessage({
           type: "ready",
           serverInfo,
+          extensionVersion: this.extensionVersion,
           vscodeLanguage: vscode.env.language,
           languageOverride: langConfig.get<string>("language"),
         })
@@ -1149,6 +1153,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
             id: event.properties.id,
             sessionID: event.properties.sessionID,
             toolName: event.properties.permission,
+            patterns: event.properties.patterns ?? [],
             args: event.properties.metadata,
             message: `Permission required: ${event.properties.permission}`,
             tool: event.properties.tool,
@@ -1302,6 +1307,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 			overflow: hidden;
 		}
 		body {
+			background-color: var(--vscode-editor-background);
 			color: var(--vscode-foreground);
 			font-family: var(--vscode-font-family);
 		}

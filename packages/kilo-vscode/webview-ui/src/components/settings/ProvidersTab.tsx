@@ -7,6 +7,7 @@ import { useConfig } from "../../context/config"
 import { useProvider } from "../../context/provider"
 import { ModelSelectorBase } from "../chat/ModelSelector"
 import type { ModelSelection } from "../../types/messages"
+import SettingsRow from "./SettingsRow"
 
 interface ProviderOption {
   value: string
@@ -24,27 +25,6 @@ function parseModelConfig(raw: string | undefined): ModelSelection | null {
   }
   return { providerID: raw.slice(0, slash), modelID: raw.slice(slash + 1) }
 }
-
-const SettingsRow: Component<{ label: string; description: string; last?: boolean; children: any }> = (props) => (
-  <div
-    data-slot="settings-row"
-    style={{
-      display: "flex",
-      "align-items": "center",
-      "justify-content": "space-between",
-      padding: "8px 0",
-      "border-bottom": props.last ? "none" : "1px solid var(--border-weak-base)",
-    }}
-  >
-    <div style={{ flex: 1, "min-width": 0, "margin-right": "12px" }}>
-      <div style={{ "font-weight": "500" }}>{props.label}</div>
-      <div style={{ "font-size": "11px", color: "var(--text-weak-base, var(--vscode-descriptionForeground))" }}>
-        {props.description}
-      </div>
-    </div>
-    {props.children}
-  </div>
-)
 
 const ProvidersTab: Component = () => {
   const { config, updateConfig } = useConfig()
@@ -90,7 +70,7 @@ const ProvidersTab: Component = () => {
     <div>
       {/* Model selection */}
       <Card>
-        <SettingsRow label="Default Model" description="Primary model for conversations">
+        <SettingsRow title="Default Model" description="Primary model for conversations">
           <ModelSelectorBase
             value={parseModelConfig(config().model)}
             onSelect={handleModelSelect("model")}
@@ -100,7 +80,7 @@ const ProvidersTab: Component = () => {
           />
         </SettingsRow>
         <SettingsRow
-          label="Small Model"
+          title="Small Model"
           description="Lightweight model for title generation and other quick tasks"
           last
         >

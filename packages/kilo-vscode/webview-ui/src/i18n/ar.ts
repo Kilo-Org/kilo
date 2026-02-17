@@ -761,12 +761,14 @@ export const dict = {
   "session.messages.welcome":
     "Kilo Code هو مساعد ترميز بالذكاء الاصطناعي. اطلب منه بناء ميزات أو إصلاح أخطاء أو شرح قاعدة الشيفرة.",
   "session.messages.scrollToBottom": "التمرير إلى الأسفل",
+  "session.status.writingResponse": "...جارٍ كتابة الرد",
+  "session.status.retrying": "...إعادة المحاولة (المحاولة {{ attempt }})… {{ message }}",
+  "session.status.working": "...جارٍ العمل",
 
   "dialog.model.noProviders": "لا يوجد موفرون",
 
   "prompt.placeholder.connecting": "جارٍ الاتصال بالخادم...",
-  "prompt.placeholder.default": "اكتب رسالة...",
-  "prompt.hint.sendShortcut": "اضغط Enter للإرسال، Shift+Enter لسطر جديد",
+  "prompt.placeholder.default": "اكتب رسالة... (Enter للإرسال، Shift+Enter لسطر جديد)",
 
   "context.usage.sessionCost": "تكلفة الجلسة",
 
@@ -789,7 +791,12 @@ export const dict = {
   "settings.aboutKiloCode.status.label": "الحالة:",
   "settings.aboutKiloCode.port.label": "المنفذ:",
   "settings.aboutKiloCode.versionInfo": "معلومات الإصدار",
+  "settings.aboutKiloCode.version.label": "الإصدار:",
   "settings.aboutKiloCode.extensionName": "إضافة Kilo Code",
+  "settings.aboutKiloCode.community": "المجتمع والدعم",
+  "settings.aboutKiloCode.feedback.prefix": "إذا كان لديك أي أسئلة أو ملاحظات، لا تتردد في فتح مشكلة على",
+  "settings.aboutKiloCode.feedback.or": "أو",
+  "settings.aboutKiloCode.support.prefix": "لأسئلة الفوترة أو الحساب، تواصل مع دعم العملاء على",
 
   "settings.agentBehaviour.subtab.modes": "الأوضاع",
   "settings.agentBehaviour.subtab.agents": "Agents",

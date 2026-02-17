@@ -769,12 +769,14 @@ export const dict = {
   "session.messages.welcome":
     "Kilo Code to asystent programowania AI. Poproś go o tworzenie funkcji, naprawę błędów lub wyjaśnienie bazy kodu.",
   "session.messages.scrollToBottom": "Przewiń na dół",
+  "session.status.writingResponse": "Pisanie odpowiedzi…",
+  "session.status.retrying": "Ponawiam próbę ({{ attempt }})… {{ message }}",
+  "session.status.working": "Pracuję…",
 
   "dialog.model.noProviders": "Brak dostawców",
 
   "prompt.placeholder.connecting": "Łączenie z serwerem...",
-  "prompt.placeholder.default": "Wpisz wiadomość...",
-  "prompt.hint.sendShortcut": "Naciśnij Enter, aby wysłać, Shift+Enter dla nowej linii",
+  "prompt.placeholder.default": "Wpisz wiadomość... (Enter, aby wysłać, Shift+Enter dla nowej linii)",
 
   "context.usage.sessionCost": "Koszt sesji",
 
@@ -797,7 +799,13 @@ export const dict = {
   "settings.aboutKiloCode.status.label": "Status:",
   "settings.aboutKiloCode.port.label": "Port:",
   "settings.aboutKiloCode.versionInfo": "Informacje o wersji",
+  "settings.aboutKiloCode.version.label": "Wersja:",
   "settings.aboutKiloCode.extensionName": "Rozszerzenie Kilo Code",
+  "settings.aboutKiloCode.community": "Społeczność i wsparcie",
+  "settings.aboutKiloCode.feedback.prefix": "Jeśli masz pytania lub uwagi, śmiało otwórz zgłoszenie na",
+  "settings.aboutKiloCode.feedback.or": "lub",
+  "settings.aboutKiloCode.support.prefix":
+    "W sprawach rozliczeń lub konta skontaktuj się z obsługą klienta pod adresem",
 
   "settings.agentBehaviour.subtab.modes": "Tryby",
   "settings.agentBehaviour.subtab.agents": "Agents",

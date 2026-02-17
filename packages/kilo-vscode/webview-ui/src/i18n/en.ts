@@ -800,12 +800,14 @@ export const dict = {
   "session.messages.welcome":
     "Kilo Code is an AI coding assistant. Ask it to build features, fix bugs, or explain your codebase.",
   "session.messages.scrollToBottom": "Scroll to bottom",
+  "session.status.writingResponse": "Writing response...",
+  "session.status.retrying": "Retrying (attempt {{ attempt }})… {{ message }}",
+  "session.status.working": "Working...",
 
   "dialog.model.noProviders": "No providers",
 
   "prompt.placeholder.connecting": "Connecting to server...",
-  "prompt.placeholder.default": "Type a message...",
-  "prompt.hint.sendShortcut": "Press Enter to send, Shift+Enter for new line",
+  "prompt.placeholder.default": "Type a message... (Enter to send, Shift+Enter for new line)",
 
   "context.usage.sessionCost": "Session cost",
 
@@ -828,7 +830,12 @@ export const dict = {
   "settings.aboutKiloCode.status.label": "Status:",
   "settings.aboutKiloCode.port.label": "Port:",
   "settings.aboutKiloCode.versionInfo": "Version Information",
+  "settings.aboutKiloCode.version.label": "Version:",
   "settings.aboutKiloCode.extensionName": "Kilo Code Extension",
+  "settings.aboutKiloCode.community": "Community & Support",
+  "settings.aboutKiloCode.feedback.prefix": "If you have any questions or feedback, feel free to open an issue on",
+  "settings.aboutKiloCode.feedback.or": "or",
+  "settings.aboutKiloCode.support.prefix": "For billing or account questions, contact Customer Support at",
 
   "settings.agentBehaviour.subtab.modes": "Modes",
   "settings.agentBehaviour.subtab.agents": "Agents",

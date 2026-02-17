@@ -795,12 +795,14 @@ export const dict = {
   "session.messages.welcome":
     "Kilo Code je AI asistent za programiranje. Zatražite da gradi funkcionalnosti, ispravlja greške ili objasni vašu bazu koda.",
   "session.messages.scrollToBottom": "Pomakni se na dno",
+  "session.status.writingResponse": "Pisanje odgovora…",
+  "session.status.retrying": "Ponovni pokušaj (pokušaj {{ attempt }})… {{ message }}",
+  "session.status.working": "Radim…",
 
   "dialog.model.noProviders": "Nema pružatelja",
 
   "prompt.placeholder.connecting": "Povezivanje na server...",
-  "prompt.placeholder.default": "Unesite poruku...",
-  "prompt.hint.sendShortcut": "Pritisnite Enter za slanje, Shift+Enter za novi red",
+  "prompt.placeholder.default": "Unesite poruku... (Enter za slanje, Shift+Enter za novi red)",
 
   "context.usage.sessionCost": "Cijena sesije",
 
@@ -823,7 +825,12 @@ export const dict = {
   "settings.aboutKiloCode.status.label": "Status:",
   "settings.aboutKiloCode.port.label": "Port:",
   "settings.aboutKiloCode.versionInfo": "Informacije o verziji",
+  "settings.aboutKiloCode.version.label": "Verzija:",
   "settings.aboutKiloCode.extensionName": "Kilo Code ekstenzija",
+  "settings.aboutKiloCode.community": "Zajednica i podrška",
+  "settings.aboutKiloCode.feedback.prefix": "Ako imate pitanja ili povratne informacije, slobodno otvorite issue na",
+  "settings.aboutKiloCode.feedback.or": "ili",
+  "settings.aboutKiloCode.support.prefix": "Za pitanja o naplati ili računu, kontaktirajte korisničku podršku na",
 
   "settings.agentBehaviour.subtab.modes": "Modovi",
   "settings.agentBehaviour.subtab.agents": "Agents",

@@ -761,12 +761,14 @@ export const dict = {
   "session.messages.welcome":
     "Kilo CodeはAIコーディングアシスタントです。機能の構築、バグの修正、コードベースの説明を依頼できます。",
   "session.messages.scrollToBottom": "下にスクロール",
+  "session.status.writingResponse": "応答を作成中…",
+  "session.status.retrying": "再試行中（{{ attempt }}回目）… {{ message }}",
+  "session.status.working": "作業中…",
 
   "dialog.model.noProviders": "プロバイダーなし",
 
   "prompt.placeholder.connecting": "サーバーに接続中...",
-  "prompt.placeholder.default": "メッセージを入力...",
-  "prompt.hint.sendShortcut": "Enterで送信、Shift+Enterで改行",
+  "prompt.placeholder.default": "メッセージを入力... (Enterで送信、Shift+Enterで改行)",
 
   "context.usage.sessionCost": "セッションコスト",
 
@@ -789,7 +791,13 @@ export const dict = {
   "settings.aboutKiloCode.status.label": "ステータス：",
   "settings.aboutKiloCode.port.label": "ポート：",
   "settings.aboutKiloCode.versionInfo": "バージョン情報",
+  "settings.aboutKiloCode.version.label": "バージョン：",
   "settings.aboutKiloCode.extensionName": "Kilo Code拡張機能",
+  "settings.aboutKiloCode.community": "コミュニティとサポート",
+  "settings.aboutKiloCode.feedback.prefix": "ご質問やフィードバックがありましたら、お気軽にissueを作成してください",
+  "settings.aboutKiloCode.feedback.or": "または",
+  "settings.aboutKiloCode.support.prefix":
+    "請求やアカウントに関するご質問は、カスタマーサポートまでお問い合わせください",
 
   "settings.agentBehaviour.subtab.modes": "モード",
   "settings.agentBehaviour.subtab.agents": "Agents",

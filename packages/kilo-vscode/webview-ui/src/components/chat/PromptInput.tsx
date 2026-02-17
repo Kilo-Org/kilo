@@ -216,9 +216,6 @@ export const PromptInput: Component = () => {
       <div class="prompt-input-hint">
         <ModeSwitcher />
         <ModelSelector />
-        <Show when={!isDisabled()}>
-          <span>{language.t("prompt.hint.sendShortcut")}</span>
-        </Show>
       </div>
     </div>
   )

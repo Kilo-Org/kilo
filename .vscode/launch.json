@@ -6,20 +6,18 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Extension",
+      "name": "VSCode - Run Extension",
       "type": "extensionHost",
       "request": "launch",
-      "args": ["--disable-extensions", "--extensionDevelopmentPath=${workspaceFolder}"],
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "preLaunchTask": "${defaultBuildTask}"
+      "args": ["--disable-extensions", "--extensionDevelopmentPath=${workspaceFolder}/packages/kilo-vscode"],
+      "outFiles": ["${workspaceFolder}/packages/kilo-vscode/dist/**/*.js"]
     },
     {
-      "name": "Run Extension (Local Backend)",
+      "name": "VSCode - Run Extension (Local Backend)",
       "type": "extensionHost",
       "request": "launch",
-      "args": ["--disable-extensions", "--extensionDevelopmentPath=${workspaceFolder}"],
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "preLaunchTask": "${defaultBuildTask}",
+      "args": ["--disable-extensions", "--extensionDevelopmentPath=${workspaceFolder}/packages/kilo-vscode"],
+      "outFiles": ["${workspaceFolder}/packages/kilo-vscode/dist/**/*.js"],
       "env": {
         "KILO_API_URL": "http://localhost:3000"
       }

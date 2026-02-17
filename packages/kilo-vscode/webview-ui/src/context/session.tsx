@@ -20,12 +20,14 @@ import { createStore, produce } from "solid-js/store"
 import { useVSCode } from "./vscode"
 import { useServer } from "./server"
 import { useProvider } from "./provider"
+import { useLanguage } from "./language"
 import type {
   SessionInfo,
   Message,
   Part,
   PartDelta,
   SessionStatus,
+  SessionStatusInfo,
   PermissionRequest,
   QuestionRequest,
   TodoItem,
@@ -35,6 +37,41 @@ import type {
   ExtensionMessage,
   FileAttachment,
 } from "../types/messages"
+
+// Derive human-readable status from the last streaming part
+function computeStatus(
+  part: Part | undefined,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string | undefined {
+  if (!part) return undefined
+  if (part.type === "tool") {
+    switch (part.tool) {
+      case "task":
+        return t("ui.sessionTurn.status.delegating")
+      case "todowrite":
+      case "todoread":
+        return t("ui.sessionTurn.status.planning")
+      case "read":
+        return t("ui.sessionTurn.status.gatheringContext")
+      case "list":
+      case "grep":
+      case "glob":
+        return t("ui.sessionTurn.status.searchingCodebase")
+      case "webfetch":
+        return t("ui.sessionTurn.status.searchingWeb")
+      case "edit":
+      case "write":
+        return t("ui.sessionTurn.status.makingEdits")
+      case "bash":
+        return t("ui.sessionTurn.status.runningCommands")
+      default:
+        return undefined
+    }
+  }
+  if (part.type === "reasoning") return t("ui.sessionTurn.status.thinking")
+  if (part.type === "text") return t("session.status.writingResponse")
+  return undefined
+}
 
 // Store structure for messages and parts
 interface SessionStore {
@@ -56,6 +93,9 @@ interface SessionContextValue {
 
   // Session status
   status: Accessor<SessionStatus>
+  statusInfo: Accessor<SessionStatusInfo>
+  statusText: Accessor<string | undefined>
+  busySince: Accessor<number | undefined>
   loading: Accessor<boolean>
 
   // Messages for current session
@@ -108,13 +148,18 @@ export const SessionProvider: ParentComponent = (props) => {
   const vscode = useVSCode()
   const server = useServer()
   const provider = useProvider()
+  const language = useLanguage()
 
   // Current session ID
   const [currentSessionID, setCurrentSessionID] = createSignal<string | undefined>()
 
-  // Session status
-  const [status, setStatus] = createSignal<SessionStatus>("idle")
+  // Session status — store full info object, derive simple string for compat
+  const [statusInfo, setStatusInfo] = createSignal<SessionStatusInfo>({ type: "idle" })
+  const status = () => statusInfo().type as SessionStatus
   const [loading, setLoading] = createSignal(false)
+
+  // Track when the agent started working
+  const [busySince, setBusySince] = createSignal<number | undefined>()
 
   // Pending permissions
   const [permissions, setPermissions] = createSignal<PermissionRequest[]>([])
@@ -244,7 +289,7 @@ export const SessionProvider: ParentComponent = (props) => {
           break
 
         case "sessionStatus":
-          handleSessionStatus(message.sessionID, message.status)
+          handleSessionStatus(message.sessionID, message.status, message.attempt, message.message, message.next)
           break
 
         case "permissionRequest":
@@ -325,12 +370,27 @@ export const SessionProvider: ParentComponent = (props) => {
       // Check if message already exists (update case)
       const existingIndex = msgs.findIndex((m) => m.id === message.id)
       if (existingIndex >= 0) {
-        // Update existing message
         const updated = [...msgs]
         updated[existingIndex] = { ...msgs[existingIndex], ...message }
         return updated
       }
-      // Add new message
+      // Replace optimistic user message if one exists
+      if (message.role === "user") {
+        const optimisticIdx = msgs.findIndex((m) => m.id.startsWith("optimistic-") && m.role === "user")
+        if (optimisticIdx >= 0) {
+          const updated = [...msgs]
+          // Clean up optimistic parts
+          const old = msgs[optimisticIdx]
+          setStore(
+            "parts",
+            produce((parts) => {
+              delete parts[old.id]
+            }),
+          )
+          updated[optimisticIdx] = message
+          return updated
+        }
+      }
       return [...msgs, message]
     })
 
@@ -383,9 +443,26 @@ export const SessionProvider: ParentComponent = (props) => {
     )
   }
 
-  function handleSessionStatus(sessionID: string, newStatus: SessionStatus) {
-    if (sessionID === currentSessionID()) {
-      setStatus(newStatus)
+  function handleSessionStatus(
+    sessionID: string,
+    newStatus: SessionStatus,
+    attempt?: number,
+    message?: string,
+    next?: number,
+  ) {
+    if (sessionID !== currentSessionID()) return
+    const prev = statusInfo()
+    const info: SessionStatusInfo =
+      newStatus === "retry"
+        ? { type: "retry", attempt: attempt ?? 0, message: message ?? "", next: next ?? 0 }
+        : { type: newStatus }
+    setStatusInfo(info)
+    // Track busy start time
+    if (prev.type === "idle" && newStatus !== "idle") {
+      setBusySince(Date.now())
+    }
+    if (newStatus === "idle") {
+      setBusySince(undefined)
     }
   }
 
@@ -481,7 +558,8 @@ export const SessionProvider: ParentComponent = (props) => {
       }
       if (currentSessionID() === sessionID) {
         setCurrentSessionID(undefined)
-        setStatus("idle")
+        setStatusInfo({ type: "idle" })
+        setBusySince(undefined)
         setLoading(false)
       }
     })
@@ -498,12 +576,26 @@ export const SessionProvider: ParentComponent = (props) => {
       return
     }
 
+    // Phase 4: optimistic user message
+    const sid = currentSessionID()
+    if (sid) {
+      const tempId = `optimistic-${crypto.randomUUID()}`
+      const temp: Message = {
+        id: tempId,
+        sessionID: sid,
+        role: "user",
+        createdAt: new Date().toISOString(),
+      }
+      setStore("messages", sid, (msgs = []) => [...msgs, temp])
+      setStore("parts", tempId, [{ type: "text" as const, id: `${tempId}-text`, text }])
+    }
+
     const agent = selectedAgentName() !== defaultAgent() ? selectedAgentName() : undefined
 
     vscode.postMessage({
       type: "sendMessage",
       text,
-      sessionID: currentSessionID(),
+      sessionID: sid,
       providerID,
       modelID,
       agent,
@@ -601,7 +693,8 @@ export const SessionProvider: ParentComponent = (props) => {
 
   function clearCurrentSession() {
     setCurrentSessionID(undefined)
-    setStatus("idle")
+    setStatusInfo({ type: "idle" })
+    setBusySince(undefined)
     setLoading(false)
     setPermissions([])
     setQuestions([])
@@ -625,7 +718,8 @@ export const SessionProvider: ParentComponent = (props) => {
       return
     }
     setCurrentSessionID(id)
-    setStatus("idle")
+    setStatusInfo({ type: "idle" })
+    setBusySince(undefined)
     setLoading(true)
     vscode.postMessage({ type: "loadMessages", sessionID: id })
   }
@@ -675,6 +769,20 @@ export const SessionProvider: ParentComponent = (props) => {
     return messages().reduce((sum, m) => sum + (m.role === "assistant" ? (m.cost ?? 0) : 0), 0)
   })
 
+  // Status text derived from last assistant message parts
+  const statusText = createMemo<string | undefined>(() => {
+    if (status() === "idle") return undefined
+    const fallback = language.t("ui.sessionTurn.status.consideringNextSteps")
+    const msgs = messages()
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role !== "assistant") continue
+      const parts = getParts(msgs[i].id)
+      if (parts.length === 0) break
+      return computeStatus(parts[parts.length - 1], language.t) ?? fallback
+    }
+    return fallback
+  })
+
   // Context usage from the last assistant message that has token data
   const contextUsage = createMemo<ContextUsage | undefined>(() => {
     const msgs = messages()
@@ -703,6 +811,9 @@ export const SessionProvider: ParentComponent = (props) => {
     setCurrentSessionID,
     sessions,
     status,
+    statusInfo,
+    statusText,
+    busySince,
     loading,
     messages,
     getParts,

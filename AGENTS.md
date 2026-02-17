@@ -23,6 +23,7 @@ Turborepo + Bun workspaces. The packages you'll work with most:
 | -------------------------- | -------------------------- | ------------------------------------------------------------------------------------------ |
 | `packages/opencode/`       | `@kilocode/cli`            | Core CLI -- agents, tools, sessions, server, TUI. This is where most work happens.         |
 | `packages/sdk/js/`         | `@kilocode/sdk`            | Auto-generated TypeScript SDK (client for the server API). Do not edit `src/gen/` by hand. |
+| `packages/kilo-vscode/`    | `@kilocode/kilo-vscode`    | VS Code extension with SolidJS webview UI. See its own `AGENTS.md` for details.            |
 | `packages/kilo-gateway/`   | `@kilocode/kilo-gateway`   | Kilo auth, provider routing, API integration                                               |
 | `packages/kilo-telemetry/` | `@kilocode/kilo-telemetry` | PostHog analytics + OpenTelemetry                                                          |
 | `packages/kilo-i18n/`      | `@kilocode/kilo-i18n`      | Internationalization / translations                                                        |

@@ -758,12 +758,14 @@ export const dict = {
   "session.messages.empty": "เริ่มการสนทนาโดยพิมพ์ข้อความด้านล่าง",
   "session.messages.welcome": "Kilo Code เป็นผู้ช่วยเขียนโค้ด AI ขอให้สร้างฟีเจอร์ แก้ไขบัก หรืออธิบายโค้ดเบสของคุณ",
   "session.messages.scrollToBottom": "เลื่อนไปด้านล่าง",
+  "session.status.writingResponse": "กำลังเขียนคำตอบ...",
+  "session.status.retrying": "กำลังลองใหม่ (ครั้งที่ {{ attempt }})… {{ message }}",
+  "session.status.working": "กำลังทำงาน...",
 
   "dialog.model.noProviders": "ไม่มีผู้ให้บริการ",
 
   "prompt.placeholder.connecting": "กำลังเชื่อมต่อกับเซิร์ฟเวอร์...",
-  "prompt.placeholder.default": "พิมพ์ข้อความ...",
-  "prompt.hint.sendShortcut": "กด Enter เพื่อส่ง, Shift+Enter เพื่อขึ้นบรรทัดใหม่",
+  "prompt.placeholder.default": "พิมพ์ข้อความ... (Enter เพื่อส่ง, Shift+Enter เพื่อขึ้นบรรทัดใหม่)",
 
   "context.usage.sessionCost": "ค่าใช้จ่ายเซสชัน",
 
@@ -786,7 +788,12 @@ export const dict = {
   "settings.aboutKiloCode.status.label": "สถานะ:",
   "settings.aboutKiloCode.port.label": "พอร์ต:",
   "settings.aboutKiloCode.versionInfo": "ข้อมูลเวอร์ชัน",
+  "settings.aboutKiloCode.version.label": "เวอร์ชัน:",
   "settings.aboutKiloCode.extensionName": "ส่วนขยาย Kilo Code",
+  "settings.aboutKiloCode.community": "ชุมชนและการสนับสนุน",
+  "settings.aboutKiloCode.feedback.prefix": "หากคุณมีคำถามหรือข้อเสนอแนะ สามารถเปิด issue ได้ที่",
+  "settings.aboutKiloCode.feedback.or": "หรือ",
+  "settings.aboutKiloCode.support.prefix": "สำหรับคำถามเกี่ยวกับการเรียกเก็บเงินหรือบัญชี ติดต่อฝ่ายสนับสนุนลูกค้าที่",
 
   "settings.agentBehaviour.subtab.modes": "โหมด",
   "settings.agentBehaviour.subtab.agents": "Agents",

@@ -50,6 +50,7 @@ export const HEADER_TASKID = "X-KILOCODE-TASKID"
 export const HEADER_PROJECTID = "X-KILOCODE-PROJECTID"
 export const HEADER_TESTER = "X-KILOCODE-TESTER"
 export const HEADER_EDITORNAME = "X-KILOCODE-EDITORNAME"
+export const HEADER_MACHINEID = "X-KILOCODE-MACHINEID"
 
 /** Default editor name value */
 export const DEFAULT_EDITOR_NAME = "Kilo CLI"

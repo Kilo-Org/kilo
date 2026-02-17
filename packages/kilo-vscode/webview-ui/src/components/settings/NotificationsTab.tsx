@@ -4,6 +4,7 @@ import { Select } from "@kilocode/kilo-ui/select"
 import { Card } from "@kilocode/kilo-ui/card"
 import { useVSCode } from "../../context/vscode"
 import type { ExtensionMessage } from "../../types/messages"
+import SettingsRow from "./SettingsRow"
 
 interface SoundOption {
   value: string
@@ -45,36 +46,10 @@ const NotificationsTab: Component = () => {
     vscode.postMessage({ type: "updateSetting", key, value })
   }
 
-  const SettingsRow: Component<{ label: string; description: string; last?: boolean; children: any }> = (props) => (
-    <div
-      data-slot="settings-row"
-      style={{
-        display: "flex",
-        "align-items": "center",
-        "justify-content": "space-between",
-        padding: "8px 0",
-        "border-bottom": props.last ? "none" : "1px solid var(--border-weak-base)",
-      }}
-    >
-      <div style={{ flex: 1, "min-width": 0, "margin-right": "12px" }}>
-        <div style={{ "font-weight": "500" }}>{props.label}</div>
-        <div
-          style={{
-            "font-size": "11px",
-            color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
-          }}
-        >
-          {props.description}
-        </div>
-      </div>
-      {props.children}
-    </div>
-  )
-
   return (
     <div>
       <Card>
-        <SettingsRow label="Agent Completion" description="Show notification when agent completes a task">
+        <SettingsRow title="Agent Completion" description="Show notification when agent completes a task">
           <Switch
             checked={agentNotify()}
             onChange={(checked) => {
@@ -86,7 +61,7 @@ const NotificationsTab: Component = () => {
             Agent Completion
           </Switch>
         </SettingsRow>
-        <SettingsRow label="Permission Requests" description="Show notification on permission requests">
+        <SettingsRow title="Permission Requests" description="Show notification on permission requests">
           <Switch
             checked={permNotify()}
             onChange={(checked) => {
@@ -98,7 +73,7 @@ const NotificationsTab: Component = () => {
             Permission Requests
           </Switch>
         </SettingsRow>
-        <SettingsRow label="Errors" description="Show notification on errors" last>
+        <SettingsRow title="Errors" description="Show notification on errors" last>
           <Switch
             checked={errorNotify()}
             onChange={(checked) => {
@@ -114,7 +89,7 @@ const NotificationsTab: Component = () => {
 
       <h4 style={{ "margin-top": "16px", "margin-bottom": "8px" }}>Sounds</h4>
       <Card>
-        <SettingsRow label="Agent Completion Sound" description="Sound to play when agent completes">
+        <SettingsRow title="Agent Completion Sound" description="Sound to play when agent completes">
           <Select
             options={SOUND_OPTIONS}
             current={SOUND_OPTIONS.find((o) => o.value === agentSound())}
@@ -131,7 +106,7 @@ const NotificationsTab: Component = () => {
             triggerVariant="settings"
           />
         </SettingsRow>
-        <SettingsRow label="Permission Request Sound" description="Sound to play on permission requests">
+        <SettingsRow title="Permission Request Sound" description="Sound to play on permission requests">
           <Select
             options={SOUND_OPTIONS}
             current={SOUND_OPTIONS.find((o) => o.value === permSound())}
@@ -148,7 +123,7 @@ const NotificationsTab: Component = () => {
             triggerVariant="settings"
           />
         </SettingsRow>
-        <SettingsRow label="Error Sound" description="Sound to play on errors" last>
+        <SettingsRow title="Error Sound" description="Sound to play on errors" last>
           <Select
             options={SOUND_OPTIONS}
             current={SOUND_OPTIONS.find((o) => o.value === errorSound())}

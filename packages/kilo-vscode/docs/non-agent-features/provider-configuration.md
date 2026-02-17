@@ -2,7 +2,7 @@
 
 **GitHub Issue:** [#175](https://github.com/Kilo-Org/kilo/issues/175)
 **Priority:** P1
-**Status:** ❌ Not started
+**Status:** 🔨 Partial
 
 ## Description
 
@@ -19,7 +19,7 @@ Configure a provider and switch between configured providers. Providers are the 
 
 ## Current State
 
-No provider configuration UI exists. The [`ProvidersTab.tsx`](../../webview-ui/src/components/settings/ProvidersTab.tsx) settings tab is a stub. The CLI manages provider configuration.
+Provider data infrastructure is in place. [`provider.tsx`](../../webview-ui/src/context/provider.tsx) context fetches and exposes provider data, connected providers, defaults, and model lists. This powers the [`ModelSelector.tsx`](../../webview-ui/src/components/chat/ModelSelector.tsx) component. [`ProvidersTab.tsx`](../../webview-ui/src/components/settings/ProvidersTab.tsx) still needs a full configuration UI for adding, editing, and removing providers.
 
 ## Gaps
 

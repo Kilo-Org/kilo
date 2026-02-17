@@ -758,6 +758,8 @@ export const dict = {
   "settings.aboutKiloCode.title": "Kilo Codeについて",
 
   "session.messages.empty": "下にメッセージを入力して会話を始めましょう。",
+  "session.messages.welcome":
+    "Kilo CodeはAIコーディングアシスタントです。機能の構築、バグの修正、コードベースの説明を依頼できます。",
   "session.messages.scrollToBottom": "下にスクロール",
 
   "dialog.model.noProviders": "プロバイダーなし",
@@ -790,6 +792,7 @@ export const dict = {
   "settings.aboutKiloCode.extensionName": "Kilo Code拡張機能",
 
   "settings.agentBehaviour.subtab.modes": "モード",
+  "settings.agentBehaviour.subtab.agents": "Agents",
   "settings.agentBehaviour.subtab.mcpServers": "MCPサーバー",
   "settings.agentBehaviour.subtab.rules": "ルール",
   "settings.agentBehaviour.subtab.workflows": "ワークフロー",

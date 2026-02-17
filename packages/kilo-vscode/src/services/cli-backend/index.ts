@@ -25,6 +25,7 @@ export type {
   McpLocalConfig,
   McpRemoteConfig,
   McpConfig,
+  Config,
 } from "./types"
 
 export { ServerManager } from "./server-manager"

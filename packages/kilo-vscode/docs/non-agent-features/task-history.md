@@ -20,7 +20,7 @@ Persist tasks so that users can continue prior tasks. This includes browsing pas
 
 Basic session history exists:
 
-- [`SessionList.tsx`](../../webview-ui/src/components/history/SessionList.tsx) — lists sessions with relative dates
+- [`SessionList.tsx`](../../webview-ui/src/components/history/SessionList.tsx) — now uses kilo-ui `List` component with keyboard navigation and fuzzy search; lists sessions with relative dates
 - [`session.tsx`](../../webview-ui/src/context/session.tsx) — create, list, select, load messages
 
 ## Gaps

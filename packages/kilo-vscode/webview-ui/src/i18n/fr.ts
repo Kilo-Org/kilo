@@ -774,6 +774,8 @@ export const dict = {
   "settings.aboutKiloCode.title": "À propos de Kilo Code",
 
   "session.messages.empty": "Commencez une conversation en tapant un message ci-dessous.",
+  "session.messages.welcome":
+    "Kilo Code est un assistant de programmation IA. Demandez-lui de créer des fonctionnalités, corriger des bugs ou expliquer votre code.",
   "session.messages.scrollToBottom": "Défiler vers le bas",
 
   "dialog.model.noProviders": "Aucun fournisseur",
@@ -806,6 +808,7 @@ export const dict = {
   "settings.aboutKiloCode.extensionName": "Extension Kilo Code",
 
   "settings.agentBehaviour.subtab.modes": "Modes",
+  "settings.agentBehaviour.subtab.agents": "Agents",
   "settings.agentBehaviour.subtab.mcpServers": "Serveurs MCP",
   "settings.agentBehaviour.subtab.rules": "Règles",
   "settings.agentBehaviour.subtab.workflows": "Flux de travail",

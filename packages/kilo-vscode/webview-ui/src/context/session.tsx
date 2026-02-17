@@ -33,6 +33,7 @@ import type {
   ContextUsage,
   AgentInfo,
   ExtensionMessage,
+  FileAttachment,
 } from "../types/messages"
 
 // Store structure for messages and parts
@@ -87,7 +88,7 @@ interface SessionContextValue {
   selectAgent: (name: string) => void
 
   // Actions
-  sendMessage: (text: string, providerID?: string, modelID?: string) => void
+  sendMessage: (text: string, providerID?: string, modelID?: string, files?: FileAttachment[]) => void
   abort: () => void
   compact: () => void
   respondToPermission: (permissionId: string, response: "once" | "always" | "reject") => void
@@ -491,7 +492,7 @@ export const SessionProvider: ParentComponent = (props) => {
     setSelectedAgentName(name)
   }
 
-  function sendMessage(text: string, providerID?: string, modelID?: string) {
+  function sendMessage(text: string, providerID?: string, modelID?: string, files?: FileAttachment[]) {
     if (!server.isConnected()) {
       console.warn("[Kilo New] Cannot send message: not connected")
       return
@@ -506,6 +507,7 @@ export const SessionProvider: ParentComponent = (props) => {
       providerID,
       modelID,
       agent,
+      files,
     })
   }
 

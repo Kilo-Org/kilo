@@ -1,7 +1,7 @@
 # Markdown Rendering
 
 **Priority:** P0
-**Status:** ❌ Not started
+**Status:** ✅ Complete
 **Source:** [JetBrains plugin analysis](../../LESSONS_LEARNED_JETBRAINS.md), [GitHub Issue #161](https://github.com/Kilo-Org/kilo/issues/161)
 
 ## Description
@@ -19,15 +19,7 @@ Assistant messages render as plain text. No markdown parsing, no syntax highligh
 
 ## Current State
 
-[`TextPartView`](../../webview-ui/src/components/chat/Message.tsx:15) renders raw text:
-
-```tsx
-const TextPartView: Component<{ part: TextPart }> = (props) => {
-  return <div class="message-text">{props.part.text}</div>
-}
-```
-
-No markdown library is imported. No syntax highlighting exists.
+Message.tsx delegates rendering to kilo-ui's `<KiloMessage>` component which internally handles Markdown via `<MarkedProvider>`. Syntax highlighting is provided by shiki (bundled via kilo-ui). All assistant messages render as rich markdown with code blocks, links, lists, etc.
 
 ## Gaps
 

@@ -1,7 +1,16 @@
-import { Component, createSignal, For } from "solid-js"
-import { useLanguage } from "../../context/language"
+import { Component, createSignal, createMemo, For, Show } from "solid-js"
+import { Select } from "@kilocode/kilo-ui/select"
+import { TextField } from "@kilocode/kilo-ui/text-field"
+import { Card } from "@kilocode/kilo-ui/card"
+import { Button } from "@kilocode/kilo-ui/button"
+import { IconButton } from "@kilocode/kilo-ui/icon-button"
 
-type SubtabId = "modes" | "mcpServers" | "rules" | "workflows" | "skills"
+import { useConfig } from "../../context/config"
+import { useSession } from "../../context/session"
+import { useLanguage } from "../../context/language"
+import type { AgentConfig } from "../../types/messages"
+
+type SubtabId = "agents" | "mcpServers" | "rules" | "workflows" | "skills"
 
 interface SubtabConfig {
   id: SubtabId
@@ -9,41 +18,526 @@ interface SubtabConfig {
 }
 
 const subtabs: SubtabConfig[] = [
-  { id: "modes", labelKey: "settings.agentBehaviour.subtab.modes" },
+  { id: "agents", labelKey: "settings.agentBehaviour.subtab.agents" },
   { id: "mcpServers", labelKey: "settings.agentBehaviour.subtab.mcpServers" },
   { id: "rules", labelKey: "settings.agentBehaviour.subtab.rules" },
   { id: "workflows", labelKey: "settings.agentBehaviour.subtab.workflows" },
   { id: "skills", labelKey: "settings.agentBehaviour.subtab.skills" },
 ]
 
+interface SelectOption {
+  value: string
+  label: string
+}
+
+interface SettingRowProps {
+  label: string
+  description: string
+  last?: boolean
+  children: any
+}
+
+const SettingRow: Component<SettingRowProps> = (props) => (
+  <div
+    data-slot="settings-row"
+    style={{
+      display: "flex",
+      "align-items": "center",
+      "justify-content": "space-between",
+      padding: "8px 0",
+      "border-bottom": props.last ? "none" : "1px solid var(--border-weak-base)",
+    }}
+  >
+    <div style={{ flex: 1, "min-width": 0, "margin-right": "12px" }}>
+      <div style={{ "font-weight": "500" }}>{props.label}</div>
+      <div style={{ "font-size": "11px", color: "var(--text-weak-base, var(--vscode-descriptionForeground))" }}>
+        {props.description}
+      </div>
+    </div>
+    {props.children}
+  </div>
+)
+
+const Placeholder: Component<{ text: string }> = (props) => (
+  <Card>
+    <p
+      style={{
+        "font-size": "12px",
+        color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+        margin: 0,
+        "line-height": "1.5",
+      }}
+    >
+      <strong>Not yet implemented.</strong> {props.text}
+    </p>
+  </Card>
+)
+
 const AgentBehaviourTab: Component = () => {
   const language = useLanguage()
-  const [activeSubtab, setActiveSubtab] = createSignal<SubtabId>("modes")
+  const { config, updateConfig } = useConfig()
+  const session = useSession()
+  const [activeSubtab, setActiveSubtab] = createSignal<SubtabId>("agents")
+  const [selectedAgent, setSelectedAgent] = createSignal<string>("")
+  const [newSkillPath, setNewSkillPath] = createSignal("")
+  const [newSkillUrl, setNewSkillUrl] = createSignal("")
+  const [newInstruction, setNewInstruction] = createSignal("")
 
-  const renderSubtabContent = () => {
+  const agentNames = createMemo(() => {
+    const names = session.agents().map((a) => a.name)
+    // Also include any agents from config that might not be in the agent list
+    const configAgents = Object.keys(config().agent ?? {})
+    for (const name of configAgents) {
+      if (!names.includes(name)) {
+        names.push(name)
+      }
+    }
+    return names.sort()
+  })
+
+  const defaultAgentOptions = createMemo<SelectOption[]>(() => [
+    { value: "", label: "Default" },
+    ...agentNames().map((name) => ({ value: name, label: name })),
+  ])
+
+  const agentSelectorOptions = createMemo<SelectOption[]>(() => [
+    { value: "", label: "Select an agent to configure…" },
+    ...agentNames().map((name) => ({ value: name, label: name })),
+  ])
+
+  const currentAgentConfig = createMemo<AgentConfig>(() => {
+    const name = selectedAgent()
+    if (!name) {
+      return {}
+    }
+    return config().agent?.[name] ?? {}
+  })
+
+  const updateAgentConfig = (name: string, partial: Partial<AgentConfig>) => {
+    const existing = config().agent ?? {}
+    const current = existing[name] ?? {}
+    updateConfig({
+      agent: {
+        ...existing,
+        [name]: { ...current, ...partial },
+      },
+    })
+  }
+
+  const instructions = () => config().instructions ?? []
+
+  const addInstruction = () => {
+    const value = newInstruction().trim()
+    if (!value) {
+      return
+    }
+    const current = [...instructions()]
+    if (!current.includes(value)) {
+      current.push(value)
+      updateConfig({ instructions: current })
+    }
+    setNewInstruction("")
+  }
+
+  const removeInstruction = (index: number) => {
+    const current = [...instructions()]
+    current.splice(index, 1)
+    updateConfig({ instructions: current })
+  }
+
+  const skillPaths = () => config().skills?.paths ?? []
+  const skillUrls = () => config().skills?.urls ?? []
+
+  const addSkillPath = () => {
+    const value = newSkillPath().trim()
+    if (!value) {
+      return
+    }
+    const current = [...skillPaths()]
+    if (!current.includes(value)) {
+      current.push(value)
+      updateConfig({ skills: { ...config().skills, paths: current } })
+    }
+    setNewSkillPath("")
+  }
+
+  const removeSkillPath = (index: number) => {
+    const current = [...skillPaths()]
+    current.splice(index, 1)
+    updateConfig({ skills: { ...config().skills, paths: current } })
+  }
+
+  const addSkillUrl = () => {
+    const value = newSkillUrl().trim()
+    if (!value) {
+      return
+    }
+    const current = [...skillUrls()]
+    if (!current.includes(value)) {
+      current.push(value)
+      updateConfig({ skills: { ...config().skills, urls: current } })
+    }
+    setNewSkillUrl("")
+  }
+
+  const removeSkillUrl = (index: number) => {
+    const current = [...skillUrls()]
+    current.splice(index, 1)
+    updateConfig({ skills: { ...config().skills, urls: current } })
+  }
+
+  const renderAgentsSubtab = () => (
+    <div>
+      {/* Default agent */}
+      <Card style={{ "margin-bottom": "12px" }}>
+        <SettingRow label="Default Agent" description="Agent to use when none is specified" last>
+          <Select
+            options={defaultAgentOptions()}
+            current={defaultAgentOptions().find((o) => o.value === (config().default_agent ?? ""))}
+            value={(o) => o.value}
+            label={(o) => o.label}
+            onSelect={(o) => o && updateConfig({ default_agent: o.value || undefined })}
+            variant="secondary"
+            size="small"
+            triggerVariant="settings"
+          />
+        </SettingRow>
+      </Card>
+
+      {/* Agent selector */}
+      <div style={{ "margin-bottom": "12px" }}>
+        <Select
+          options={agentSelectorOptions()}
+          current={agentSelectorOptions().find((o) => o.value === selectedAgent())}
+          value={(o) => o.value}
+          label={(o) => o.label}
+          onSelect={(o) => o && setSelectedAgent(o.value)}
+          variant="secondary"
+          size="small"
+          triggerVariant="settings"
+        />
+      </div>
+
+      <Show when={selectedAgent()}>
+        <Card>
+          {/* Model override */}
+          <SettingRow label="Model Override" description="Override the default model for this agent">
+            <TextField
+              value={currentAgentConfig().model ?? ""}
+              placeholder="e.g. anthropic/claude-sonnet-4-20250514"
+              onChange={(val) =>
+                updateAgentConfig(selectedAgent(), {
+                  model: val.trim() || undefined,
+                })
+              }
+            />
+          </SettingRow>
+
+          {/* System prompt */}
+          <SettingRow label="Custom Prompt" description="Additional system prompt for this agent">
+            <TextField
+              value={currentAgentConfig().prompt ?? ""}
+              placeholder="Custom instructions…"
+              multiline
+              onChange={(val) =>
+                updateAgentConfig(selectedAgent(), {
+                  prompt: val.trim() || undefined,
+                })
+              }
+            />
+          </SettingRow>
+
+          {/* Temperature */}
+          <SettingRow label="Temperature" description="Sampling temperature (0-2)">
+            <TextField
+              value={currentAgentConfig().temperature?.toString() ?? ""}
+              placeholder="Default"
+              onChange={(val) => {
+                const parsed = parseFloat(val)
+                updateAgentConfig(selectedAgent(), { temperature: isNaN(parsed) ? undefined : parsed })
+              }}
+            />
+          </SettingRow>
+
+          {/* Top-p */}
+          <SettingRow label="Top P" description="Nucleus sampling parameter (0-1)">
+            <TextField
+              value={currentAgentConfig().top_p?.toString() ?? ""}
+              placeholder="Default"
+              onChange={(val) => {
+                const parsed = parseFloat(val)
+                updateAgentConfig(selectedAgent(), { top_p: isNaN(parsed) ? undefined : parsed })
+              }}
+            />
+          </SettingRow>
+
+          {/* Max steps */}
+          <SettingRow label="Max Steps" description="Maximum agentic iterations" last>
+            <TextField
+              value={currentAgentConfig().steps?.toString() ?? ""}
+              placeholder="Default"
+              onChange={(val) => {
+                const parsed = parseInt(val, 10)
+                updateAgentConfig(selectedAgent(), { steps: isNaN(parsed) ? undefined : parsed })
+              }}
+            />
+          </SettingRow>
+        </Card>
+      </Show>
+    </div>
+  )
+
+  const renderMcpSubtab = () => {
+    const mcpEntries = createMemo(() => Object.entries(config().mcp ?? {}))
+
     return (
-      <div
-        style={{
-          background: "var(--vscode-editor-background)",
-          border: "1px solid var(--vscode-panel-border)",
-          "border-radius": "4px",
-          padding: "16px",
-        }}
-      >
-        <p
-          style={{
-            "font-size": "12px",
-            color: "var(--vscode-descriptionForeground)",
-            margin: 0,
-            "line-height": "1.5",
-          }}
+      <div>
+        <Show
+          when={mcpEntries().length > 0}
+          fallback={
+            <Card>
+              <div
+                style={{
+                  "font-size": "12px",
+                  color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+                }}
+              >
+                No MCP servers configured. Edit the opencode config file to add MCP servers.
+              </div>
+            </Card>
+          }
         >
-          <strong style={{ color: "var(--vscode-foreground)" }}>This section is not implemented yet.</strong> It will
-          contain configuration options for {activeSubtab()}. During reimplementation, use this space to validate
-          layout, spacing, scrolling behavior, and navigation state before wiring up real controls.
-        </p>
+          <Card>
+            <For each={mcpEntries()}>
+              {([name, mcp], index) => (
+                <div
+                  style={{
+                    padding: "8px 0",
+                    "border-bottom": index() < mcpEntries().length - 1 ? "1px solid var(--border-weak-base)" : "none",
+                  }}
+                >
+                  <div style={{ "font-weight": "500" }}>{name}</div>
+                  <div
+                    style={{
+                      "font-size": "11px",
+                      color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+                      "margin-top": "4px",
+                      "font-family": "var(--vscode-editor-font-family, monospace)",
+                    }}
+                  >
+                    <Show when={mcp.command}>
+                      <div>
+                        command: {mcp.command} {(mcp.args ?? []).join(" ")}
+                      </div>
+                    </Show>
+                    <Show when={mcp.url}>
+                      <div>url: {mcp.url}</div>
+                    </Show>
+                  </div>
+                </div>
+              )}
+            </For>
+          </Card>
+        </Show>
       </div>
     )
+  }
+
+  const renderSkillsSubtab = () => (
+    <div>
+      {/* Skill paths */}
+      <h4 style={{ "margin-top": "0", "margin-bottom": "8px" }}>Skill Folder Paths</h4>
+      <Card style={{ "margin-bottom": "16px" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            "align-items": "center",
+            padding: "8px 0",
+            "border-bottom": skillPaths().length > 0 ? "1px solid var(--border-weak-base)" : "none",
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <TextField
+              value={newSkillPath()}
+              placeholder="e.g. ./skills"
+              onChange={(val) => setNewSkillPath(val)}
+              onKeyDown={(e: KeyboardEvent) => {
+                if (e.key === "Enter") addSkillPath()
+              }}
+            />
+          </div>
+          <Button size="small" onClick={addSkillPath}>
+            Add
+          </Button>
+        </div>
+        <For each={skillPaths()}>
+          {(path, index) => (
+            <div
+              style={{
+                display: "flex",
+                "align-items": "center",
+                "justify-content": "space-between",
+                padding: "6px 0",
+                "border-bottom": index() < skillPaths().length - 1 ? "1px solid var(--border-weak-base)" : "none",
+              }}
+            >
+              <span
+                style={{
+                  "font-family": "var(--vscode-editor-font-family, monospace)",
+                  "font-size": "12px",
+                }}
+              >
+                {path}
+              </span>
+              <IconButton size="small" variant="ghost" icon="close" onClick={() => removeSkillPath(index())} />
+            </div>
+          )}
+        </For>
+      </Card>
+
+      {/* Skill URLs */}
+      <h4 style={{ "margin-top": "0", "margin-bottom": "8px" }}>Skill URLs</h4>
+      <Card>
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            "align-items": "center",
+            padding: "8px 0",
+            "border-bottom": skillUrls().length > 0 ? "1px solid var(--border-weak-base)" : "none",
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <TextField
+              value={newSkillUrl()}
+              placeholder="e.g. https://example.com/skills"
+              onChange={(val) => setNewSkillUrl(val)}
+              onKeyDown={(e: KeyboardEvent) => {
+                if (e.key === "Enter") addSkillUrl()
+              }}
+            />
+          </div>
+          <Button size="small" onClick={addSkillUrl}>
+            Add
+          </Button>
+        </div>
+        <For each={skillUrls()}>
+          {(url, index) => (
+            <div
+              style={{
+                display: "flex",
+                "align-items": "center",
+                "justify-content": "space-between",
+                padding: "6px 0",
+                "border-bottom": index() < skillUrls().length - 1 ? "1px solid var(--border-weak-base)" : "none",
+              }}
+            >
+              <span
+                style={{
+                  "font-family": "var(--vscode-editor-font-family, monospace)",
+                  "font-size": "12px",
+                }}
+              >
+                {url}
+              </span>
+              <IconButton size="small" variant="ghost" icon="close" onClick={() => removeSkillUrl(index())} />
+            </div>
+          )}
+        </For>
+      </Card>
+    </div>
+  )
+
+  const renderRulesSubtab = () => (
+    <div>
+      <Card>
+        <div
+          style={{
+            "padding-bottom": "8px",
+            "border-bottom": "1px solid var(--border-weak-base)",
+          }}
+        >
+          <div style={{ "font-weight": "500" }}>Additional Instruction Files</div>
+          <div
+            style={{
+              "font-size": "11px",
+              color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
+              "margin-top": "2px",
+            }}
+          >
+            Paths to additional instruction files that are included in the system prompt
+          </div>
+        </div>
+
+        {/* Add new instruction path */}
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            "align-items": "center",
+            padding: "8px 0",
+            "border-bottom": instructions().length > 0 ? "1px solid var(--border-weak-base)" : "none",
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <TextField
+              value={newInstruction()}
+              placeholder="e.g. ./INSTRUCTIONS.md"
+              onChange={(val) => setNewInstruction(val)}
+              onKeyDown={(e: KeyboardEvent) => {
+                if (e.key === "Enter") addInstruction()
+              }}
+            />
+          </div>
+          <Button size="small" onClick={addInstruction}>
+            Add
+          </Button>
+        </div>
+
+        {/* Instructions list */}
+        <For each={instructions()}>
+          {(path, index) => (
+            <div
+              style={{
+                display: "flex",
+                "align-items": "center",
+                "justify-content": "space-between",
+                padding: "6px 0",
+                "border-bottom": index() < instructions().length - 1 ? "1px solid var(--border-weak-base)" : "none",
+              }}
+            >
+              <span
+                style={{
+                  "font-family": "var(--vscode-editor-font-family, monospace)",
+                  "font-size": "12px",
+                }}
+              >
+                {path}
+              </span>
+              <IconButton size="small" variant="ghost" icon="close" onClick={() => removeInstruction(index())} />
+            </div>
+          )}
+        </For>
+      </Card>
+    </div>
+  )
+
+  const renderSubtabContent = () => {
+    switch (activeSubtab()) {
+      case "agents":
+        return renderAgentsSubtab()
+      case "mcpServers":
+        return renderMcpSubtab()
+      case "rules":
+        return renderRulesSubtab()
+      case "workflows":
+        return <Placeholder text="Workflows are managed via workflow files in your workspace." />
+      case "skills":
+        return renderSkillsSubtab()
+      default:
+        return null
+    }
   }
 
   return (

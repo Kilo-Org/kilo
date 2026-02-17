@@ -2,7 +2,7 @@
 
 **GitHub Issue:** [#163](https://github.com/Kilo-Org/kilo/issues/163)
 **Priority:** P1
-**Status:** 🔨 Partial (In progress)
+**Status:** ✅ Complete
 
 ## Description
 
@@ -18,7 +18,7 @@ Users should be able to view and switch between the models for the providers tha
 
 ## Current State
 
-No model switcher UI exists. The CLI backend likely has endpoints for listing available models and setting the active model.
+[`ModelSelector.tsx`](../../webview-ui/src/components/chat/ModelSelector.tsx) implements a popover-based selector with search/filter, keyboard navigation (arrow keys + Enter), provider grouping with sort order, free model tags, and selected state. Integrated into [`PromptInput.tsx`](../../webview-ui/src/components/chat/PromptInput.tsx). Provider context in [`provider.tsx`](../../webview-ui/src/context/provider.tsx) fetches providers, connected status, and defaults.
 
 ## Gaps
 

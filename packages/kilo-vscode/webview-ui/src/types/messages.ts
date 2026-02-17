@@ -208,6 +208,90 @@ export interface ModelSelection {
 }
 
 // ============================================
+// Backend Config Types (mirrored for webview)
+// ============================================
+
+export type PermissionLevel = "allow" | "ask" | "deny"
+
+export type PermissionConfig = Partial<Record<string, PermissionLevel>>
+
+export interface AgentConfig {
+  model?: string
+  prompt?: string
+  temperature?: number
+  top_p?: number
+  steps?: number
+  permission?: PermissionConfig
+}
+
+export interface ProviderConfig {
+  name?: string
+  api_key?: string
+  base_url?: string
+  models?: Record<string, unknown>
+}
+
+export interface McpConfig {
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  url?: string
+  headers?: Record<string, string>
+}
+
+export interface CommandConfig {
+  command: string
+  description?: string
+}
+
+export interface SkillsConfig {
+  paths?: string[]
+  urls?: string[]
+}
+
+export interface CompactionConfig {
+  auto?: boolean
+  prune?: boolean
+}
+
+export interface WatcherConfig {
+  ignore?: string[]
+}
+
+export interface ExperimentalConfig {
+  disable_paste_summary?: boolean
+  batch_tool?: boolean
+  primary_tools?: string[]
+  continue_loop_on_deny?: boolean
+  mcp_timeout?: number
+}
+
+export interface Config {
+  permission?: PermissionConfig
+  model?: string
+  small_model?: string
+  default_agent?: string
+  agent?: Record<string, AgentConfig>
+  provider?: Record<string, ProviderConfig>
+  disabled_providers?: string[]
+  enabled_providers?: string[]
+  mcp?: Record<string, McpConfig>
+  command?: Record<string, CommandConfig>
+  instructions?: string[]
+  skills?: SkillsConfig
+  snapshot?: boolean
+  share?: "manual" | "auto" | "disabled"
+  username?: string
+  watcher?: WatcherConfig
+  formatter?: false | Record<string, unknown>
+  lsp?: false | Record<string, unknown>
+  compaction?: CompactionConfig
+  tools?: Record<string, boolean>
+  layout?: "auto" | "stretch"
+  experimental?: ExperimentalConfig
+}
+
+// ============================================
 // Messages FROM extension TO webview
 // ============================================
 
@@ -316,6 +400,11 @@ export interface DeviceAuthCancelledMessage {
   type: "deviceAuthCancelled"
 }
 
+export interface NavigateMessage {
+  type: "navigate"
+  view: "newTask" | "marketplace" | "history" | "profile" | "settings"
+}
+
 export interface ProvidersLoadedMessage {
   type: "providersLoaded"
   providers: Record<string, Provider>
@@ -328,6 +417,21 @@ export interface AgentsLoadedMessage {
   type: "agentsLoaded"
   agents: AgentInfo[]
   defaultAgent: string
+}
+
+export interface AutocompleteSettingsLoadedMessage {
+  type: "autocompleteSettingsLoaded"
+  settings: {
+    enableAutoTrigger: boolean
+    enableSmartInlineTaskKeybinding: boolean
+    enableChatAutocomplete: boolean
+  }
+}
+
+export interface ChatCompletionResultMessage {
+  type: "chatCompletionResult"
+  text: string
+  requestId: string
 }
 
 export interface QuestionRequestMessage {
@@ -356,6 +460,28 @@ export interface BrowserSettingsLoadedMessage {
   settings: BrowserSettings
 }
 
+export interface ConfigLoadedMessage {
+  type: "configLoaded"
+  config: Config
+}
+
+export interface ConfigUpdatedMessage {
+  type: "configUpdated"
+  config: Config
+}
+
+export interface NotificationSettingsLoadedMessage {
+  type: "notificationSettingsLoaded"
+  settings: {
+    notifyAgent: boolean
+    notifyPermissions: boolean
+    notifyErrors: boolean
+    soundAgent: string
+    soundPermissions: string
+    soundErrors: string
+  }
+}
+
 export type ExtensionMessage =
   | ReadyMessage
   | ConnectionStateMessage
@@ -376,16 +502,27 @@ export type ExtensionMessage =
   | DeviceAuthCompleteMessage
   | DeviceAuthFailedMessage
   | DeviceAuthCancelledMessage
+  | NavigateMessage
   | ProvidersLoadedMessage
   | AgentsLoadedMessage
+  | AutocompleteSettingsLoadedMessage
+  | ChatCompletionResultMessage
   | QuestionRequestMessage
   | QuestionResolvedMessage
   | QuestionErrorMessage
   | BrowserSettingsLoadedMessage
+  | ConfigLoadedMessage
+  | ConfigUpdatedMessage
+  | NotificationSettingsLoadedMessage
 
 // ============================================
 // Messages FROM webview TO extension
 // ============================================
+
+export interface FileAttachment {
+  mime: string
+  url: string
+}
 
 export interface SendMessageRequest {
   type: "sendMessage"
@@ -394,6 +531,7 @@ export interface SendMessageRequest {
   providerID?: string
   modelID?: string
   agent?: string
+  files?: FileAttachment[]
 }
 
 export interface AbortRequest {
@@ -446,6 +584,11 @@ export interface CancelLoginRequest {
   type: "cancelLogin"
 }
 
+export interface SetOrganizationRequest {
+  type: "setOrganization"
+  organizationId: string | null
+}
+
 export interface WebviewReadyRequest {
   type: "webviewReady"
 }
@@ -492,6 +635,26 @@ export interface RenameSessionRequest {
   title: string
 }
 
+export interface RequestAutocompleteSettingsMessage {
+  type: "requestAutocompleteSettings"
+}
+
+export interface UpdateAutocompleteSettingMessage {
+  type: "updateAutocompleteSetting"
+  key: "enableAutoTrigger" | "enableSmartInlineTaskKeybinding" | "enableChatAutocomplete"
+  value: boolean
+}
+
+export interface RequestChatCompletionMessage {
+  type: "requestChatCompletion"
+  text: string
+  requestId: string
+}
+
+export interface ChatCompletionAcceptedMessage {
+  type: "chatCompletionAccepted"
+  suggestionLength?: number
+}
 export interface UpdateSettingRequest {
   type: "updateSetting"
   key: string
@@ -500,6 +663,19 @@ export interface UpdateSettingRequest {
 
 export interface RequestBrowserSettingsMessage {
   type: "requestBrowserSettings"
+}
+
+export interface RequestConfigMessage {
+  type: "requestConfig"
+}
+
+export interface UpdateConfigMessage {
+  type: "updateConfig"
+  config: Partial<Config>
+}
+
+export interface RequestNotificationSettingsMessage {
+  type: "requestNotificationSettings"
 }
 
 export type WebviewMessage =
@@ -515,6 +691,7 @@ export type WebviewMessage =
   | RefreshProfileRequest
   | OpenExternalRequest
   | CancelLoginRequest
+  | SetOrganizationRequest
   | WebviewReadyRequest
   | RequestProvidersMessage
   | CompactRequest
@@ -524,8 +701,15 @@ export type WebviewMessage =
   | QuestionRejectRequest
   | DeleteSessionRequest
   | RenameSessionRequest
+  | RequestAutocompleteSettingsMessage
+  | UpdateAutocompleteSettingMessage
+  | RequestChatCompletionMessage
+  | ChatCompletionAcceptedMessage
   | UpdateSettingRequest
   | RequestBrowserSettingsMessage
+  | RequestConfigMessage
+  | UpdateConfigMessage
+  | RequestNotificationSettingsMessage
 
 // ============================================
 // VS Code API type

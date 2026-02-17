@@ -4,7 +4,7 @@ Interactive editing for todo lists surfaced by the agent/tool messages.
 
 ## Location
 
-- [`webview-ui/src/components/chat/tool-message/UpdateTodoListToolBlock.tsx`](../../webview-ui/src/components/chat/tool-message/UpdateTodoListToolBlock.tsx:1)
+Todo list data flows through the SSE pipeline: `todo.updated` events are handled by KiloProvider → webview message → session store with `todos()` accessor. No rendering UI component exists yet. The old `UpdateTodoListToolBlock.tsx` is not present in the new extension.
 
 ## Interactions
 

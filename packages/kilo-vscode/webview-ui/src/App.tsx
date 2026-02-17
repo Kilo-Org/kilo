@@ -9,6 +9,7 @@ import ProfileView from "./components/ProfileView"
 import { VSCodeProvider } from "./context/vscode"
 import { ServerProvider, useServer } from "./context/server"
 import { ProviderProvider } from "./context/provider"
+import { ConfigProvider } from "./context/config"
 import { SessionProvider, useSession } from "./context/session"
 import { LanguageProvider } from "./context/language"
 import { ChatView } from "./components/chat"
@@ -17,6 +18,7 @@ import type { Message as SDKMessage, Part as SDKPart } from "@kilocode/sdk/v2"
 import "./styles/chat.css"
 
 type ViewType = "newTask" | "marketplace" | "history" | "profile" | "settings"
+const VALID_VIEWS = new Set<string>(["newTask", "marketplace", "history", "profile", "settings"])
 
 const DummyView: Component<{ title: string }> = (props) => {
   return (
@@ -118,6 +120,10 @@ const AppContent: Component = () => {
         console.log("[Kilo New] App: 🎬 action:", message.action)
         handleViewAction(message.action)
       }
+      if (message?.type === "navigate" && message.view && VALID_VIEWS.has(message.view)) {
+        console.log("[Kilo New] App: 🧭 navigate:", message.view)
+        setCurrentView(message.view as ViewType)
+      }
     }
     window.addEventListener("message", handler)
     onCleanup(() => window.removeEventListener("message", handler))
@@ -165,11 +171,13 @@ const App: Component = () => {
             <LanguageBridge>
               <MarkedProvider>
                 <ProviderProvider>
-                  <SessionProvider>
-                    <DataBridge>
-                      <AppContent />
-                    </DataBridge>
-                  </SessionProvider>
+                  <ConfigProvider>
+                    <SessionProvider>
+                      <DataBridge>
+                        <AppContent />
+                      </DataBridge>
+                    </SessionProvider>
+                  </ConfigProvider>
                 </ProviderProvider>
               </MarkedProvider>
             </LanguageBridge>

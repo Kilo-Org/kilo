@@ -792,6 +792,8 @@ export const dict = {
   "settings.aboutKiloCode.title": "O Kilo Code-u",
 
   "session.messages.empty": "Započnite razgovor unosom poruke ispod.",
+  "session.messages.welcome":
+    "Kilo Code je AI asistent za programiranje. Zatražite da gradi funkcionalnosti, ispravlja greške ili objasni vašu bazu koda.",
   "session.messages.scrollToBottom": "Pomakni se na dno",
 
   "dialog.model.noProviders": "Nema pružatelja",
@@ -824,6 +826,7 @@ export const dict = {
   "settings.aboutKiloCode.extensionName": "Kilo Code ekstenzija",
 
   "settings.agentBehaviour.subtab.modes": "Modovi",
+  "settings.agentBehaviour.subtab.agents": "Agents",
   "settings.agentBehaviour.subtab.mcpServers": "MCP serveri",
   "settings.agentBehaviour.subtab.rules": "Pravila",
   "settings.agentBehaviour.subtab.workflows": "Tokovi rada",

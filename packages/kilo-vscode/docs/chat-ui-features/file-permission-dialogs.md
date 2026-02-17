@@ -4,7 +4,7 @@ Batch approval UI for file read operations.
 
 ## Location
 
-- [`webview-ui/src/components/chat/tool-message/BatchFilePermission.tsx`](../../webview-ui/src/components/chat/tool-message/BatchFilePermission.tsx:1)
+Permissions are now rendered through kilo-ui's `DataProvider` pattern using `Dialog` + `BasicTool` + `data-component="permission-prompt"`. There is no standalone `BatchFilePermission.tsx` — the permission UI is integrated into the kilo-ui message rendering pipeline.
 
 ## Interactions
 

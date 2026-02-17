@@ -18,4 +18,4 @@
 
 ## Primary implementation anchors
 
-- [`src/services/browser/`](../../src/services/browser/)
+- [`src/services/browser-automation/`](../../src/services/browser-automation/)

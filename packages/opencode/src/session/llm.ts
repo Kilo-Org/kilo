@@ -22,9 +22,9 @@ import { SystemPrompt } from "./system"
 import { Flag } from "@/flag/flag"
 import { PermissionNext } from "@/permission/next"
 import { Auth } from "@/auth"
+import { DEFAULT_HEADERS } from "@/kilocode/const" // kilocode_change
+import { Telemetry } from "@kilocode/kilo-telemetry" // kilocode_change
 // kilocode_change start
-import { DEFAULT_HEADERS } from "@/kilocode/const"
-import { Telemetry, Identity } from "@kilocode/kilo-telemetry"
 import { getKiloProjectId } from "@/kilocode/project-id"
 import { HEADER_PROJECTID } from "@kilocode/kilo-gateway"
 // kilocode_change end
@@ -61,12 +61,11 @@ export namespace LLM {
       modelID: input.model.id,
       providerID: input.model.providerID,
     })
-    const [language, cfg, provider, auth, machineId] = await Promise.all([
+    const [language, cfg, provider, auth] = await Promise.all([
       Provider.getLanguage(input.model),
       Config.get(),
       Provider.getProvider(input.model.providerID),
       Auth.get(input.model.providerID),
-      Identity.getMachineId(), // kilocode_change
     ])
     const isCodex = provider.id === "openai" && auth?.type === "oauth"
 
@@ -235,11 +234,8 @@ export namespace LLM {
           : input.model.providerID !== "anthropic"
             ? DEFAULT_HEADERS // kilocode_change
             : undefined),
-        ...(input.model.api.npm === "@kilocode/kilo-gateway"
-          ? {
-              ...(input.agent.name ? { "x-kilocode-mode": input.agent.name.toLowerCase() } : {}),
-              "x-kilocode-machineid": machineId, // kilocode_change
-            }
+        ...(input.model.api.npm === "@kilocode/kilo-gateway" && input.agent.name
+          ? { "x-kilocode-mode": input.agent.name.toLowerCase() }
           : {}),
         // kilocode_change start - add project ID header for kilo provider
         ...(input.model.api.npm === "@kilocode/kilo-gateway" && kiloProjectId

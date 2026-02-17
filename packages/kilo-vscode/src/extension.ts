@@ -3,6 +3,7 @@ import { KiloProvider } from "./KiloProvider"
 import { AgentManagerProvider } from "./AgentManagerProvider"
 import { EXTENSION_DISPLAY_NAME } from "./constants"
 import { KiloConnectionService } from "./services/cli-backend"
+import { registerAutocompleteProvider } from "./services/autocomplete"
 import { BrowserAutomationService } from "./services/browser-automation"
 
 export function activate(context: vscode.ExtensionContext) {
@@ -56,6 +57,9 @@ export function activate(context: vscode.ExtensionContext) {
       return openKiloInNewTab(context, connectionService)
     }),
   )
+
+  // Register autocomplete provider
+  registerAutocompleteProvider(context, connectionService)
 
   // Dispose services when extension deactivates (kills the server)
   context.subscriptions.push({

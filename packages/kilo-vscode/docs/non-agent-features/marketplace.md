@@ -18,4 +18,4 @@
 
 ## Primary implementation anchors
 
-- [`src/services/marketplace/`](../../src/services/marketplace/)
+No marketplace service directory exists in the new extension. The marketplace feature needs to be built from scratch.

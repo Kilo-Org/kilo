@@ -764,6 +764,8 @@ export const dict = {
   "settings.aboutKiloCode.title": "Om Kilo Code",
 
   "session.messages.empty": "Start en samtale ved at skrive en besked nedenfor.",
+  "session.messages.welcome":
+    "Kilo Code er en AI-kodningsassistent. Bed den om at bygge funktioner, rette fejl eller forklare din kodebase.",
   "session.messages.scrollToBottom": "Rul til bunden",
 
   "dialog.model.noProviders": "Ingen udbydere",
@@ -796,6 +798,7 @@ export const dict = {
   "settings.aboutKiloCode.extensionName": "Kilo Code-udvidelse",
 
   "settings.agentBehaviour.subtab.modes": "Tilstande",
+  "settings.agentBehaviour.subtab.agents": "Agents",
   "settings.agentBehaviour.subtab.mcpServers": "MCP-servere",
   "settings.agentBehaviour.subtab.rules": "Regler",
   "settings.agentBehaviour.subtab.workflows": "Arbejdsgange",

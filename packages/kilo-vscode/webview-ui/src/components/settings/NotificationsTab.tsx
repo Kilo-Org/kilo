@@ -1,30 +1,171 @@
-import { Component } from "solid-js"
+import { Component, createSignal, onCleanup } from "solid-js"
+import { Switch } from "@kilocode/kilo-ui/switch"
+import { Select } from "@kilocode/kilo-ui/select"
+import { Card } from "@kilocode/kilo-ui/card"
+import { useVSCode } from "../../context/vscode"
+import type { ExtensionMessage } from "../../types/messages"
+
+interface SoundOption {
+  value: string
+  label: string
+}
+
+const SOUND_OPTIONS: SoundOption[] = [
+  { value: "default", label: "Default" },
+  { value: "none", label: "None" },
+]
 
 const NotificationsTab: Component = () => {
-  return (
-    <div>
-      <div
-        style={{
-          background: "var(--vscode-editor-background)",
-          border: "1px solid var(--vscode-panel-border)",
-          "border-radius": "4px",
-          padding: "16px",
-        }}
-      >
-        <p
+  const vscode = useVSCode()
+
+  const [agentNotify, setAgentNotify] = createSignal(true)
+  const [permNotify, setPermNotify] = createSignal(true)
+  const [errorNotify, setErrorNotify] = createSignal(true)
+  const [agentSound, setAgentSound] = createSignal("default")
+  const [permSound, setPermSound] = createSignal("default")
+  const [errorSound, setErrorSound] = createSignal("default")
+
+  const unsubscribe = vscode.onMessage((message: ExtensionMessage) => {
+    if (message.type !== "notificationSettingsLoaded") {
+      return
+    }
+    const s = message.settings
+    setAgentNotify(s.notifyAgent)
+    setPermNotify(s.notifyPermissions)
+    setErrorNotify(s.notifyErrors)
+    setAgentSound(s.soundAgent)
+    setPermSound(s.soundPermissions)
+    setErrorSound(s.soundErrors)
+  })
+
+  onCleanup(unsubscribe)
+  vscode.postMessage({ type: "requestNotificationSettings" })
+
+  const save = (key: string, value: unknown) => {
+    vscode.postMessage({ type: "updateSetting", key, value })
+  }
+
+  const SettingsRow: Component<{ label: string; description: string; last?: boolean; children: any }> = (props) => (
+    <div
+      data-slot="settings-row"
+      style={{
+        display: "flex",
+        "align-items": "center",
+        "justify-content": "space-between",
+        padding: "8px 0",
+        "border-bottom": props.last ? "none" : "1px solid var(--border-weak-base)",
+      }}
+    >
+      <div style={{ flex: 1, "min-width": 0, "margin-right": "12px" }}>
+        <div style={{ "font-weight": "500" }}>{props.label}</div>
+        <div
           style={{
-            "font-size": "12px",
-            color: "var(--vscode-descriptionForeground)",
-            margin: 0,
-            "line-height": "1.5",
+            "font-size": "11px",
+            color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
           }}
         >
-          <strong style={{ color: "var(--vscode-foreground)" }}>This section is not implemented yet.</strong> It will
-          contain configuration options and explanatory text related to the selected settings category. During
-          reimplementation, use this space to validate layout, spacing, scrolling behavior, and navigation state before
-          wiring up real controls.
-        </p>
+          {props.description}
+        </div>
       </div>
+      {props.children}
+    </div>
+  )
+
+  return (
+    <div>
+      <Card>
+        <SettingsRow label="Agent Completion" description="Show notification when agent completes a task">
+          <Switch
+            checked={agentNotify()}
+            onChange={(checked) => {
+              setAgentNotify(checked)
+              save("notifications.agent", checked)
+            }}
+            hideLabel
+          >
+            Agent Completion
+          </Switch>
+        </SettingsRow>
+        <SettingsRow label="Permission Requests" description="Show notification on permission requests">
+          <Switch
+            checked={permNotify()}
+            onChange={(checked) => {
+              setPermNotify(checked)
+              save("notifications.permissions", checked)
+            }}
+            hideLabel
+          >
+            Permission Requests
+          </Switch>
+        </SettingsRow>
+        <SettingsRow label="Errors" description="Show notification on errors" last>
+          <Switch
+            checked={errorNotify()}
+            onChange={(checked) => {
+              setErrorNotify(checked)
+              save("notifications.errors", checked)
+            }}
+            hideLabel
+          >
+            Errors
+          </Switch>
+        </SettingsRow>
+      </Card>
+
+      <h4 style={{ "margin-top": "16px", "margin-bottom": "8px" }}>Sounds</h4>
+      <Card>
+        <SettingsRow label="Agent Completion Sound" description="Sound to play when agent completes">
+          <Select
+            options={SOUND_OPTIONS}
+            current={SOUND_OPTIONS.find((o) => o.value === agentSound())}
+            value={(o) => o.value}
+            label={(o) => o.label}
+            onSelect={(o) => {
+              if (o) {
+                setAgentSound(o.value)
+                save("sounds.agent", o.value)
+              }
+            }}
+            variant="secondary"
+            size="small"
+            triggerVariant="settings"
+          />
+        </SettingsRow>
+        <SettingsRow label="Permission Request Sound" description="Sound to play on permission requests">
+          <Select
+            options={SOUND_OPTIONS}
+            current={SOUND_OPTIONS.find((o) => o.value === permSound())}
+            value={(o) => o.value}
+            label={(o) => o.label}
+            onSelect={(o) => {
+              if (o) {
+                setPermSound(o.value)
+                save("sounds.permissions", o.value)
+              }
+            }}
+            variant="secondary"
+            size="small"
+            triggerVariant="settings"
+          />
+        </SettingsRow>
+        <SettingsRow label="Error Sound" description="Sound to play on errors" last>
+          <Select
+            options={SOUND_OPTIONS}
+            current={SOUND_OPTIONS.find((o) => o.value === errorSound())}
+            value={(o) => o.value}
+            label={(o) => o.label}
+            onSelect={(o) => {
+              if (o) {
+                setErrorSound(o.value)
+                save("sounds.errors", o.value)
+              }
+            }}
+            variant="secondary"
+            size="small"
+            triggerVariant="settings"
+          />
+        </SettingsRow>
+      </Card>
     </div>
   )
 }

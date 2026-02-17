@@ -759,6 +759,7 @@ export const dict = {
   "settings.aboutKiloCode.title": "关于 Kilo Code",
 
   "session.messages.empty": "在下方输入消息以开始对话。",
+  "session.messages.welcome": "Kilo Code 是一个 AI 编程助手。让它帮你构建功能、修复 bug 或解释代码库。",
   "session.messages.scrollToBottom": "滚动到底部",
 
   "dialog.model.noProviders": "无供应商",
@@ -791,6 +792,7 @@ export const dict = {
   "settings.aboutKiloCode.extensionName": "Kilo Code 扩展",
 
   "settings.agentBehaviour.subtab.modes": "模式",
+  "settings.agentBehaviour.subtab.agents": "Agents",
   "settings.agentBehaviour.subtab.mcpServers": "MCP 服务器",
   "settings.agentBehaviour.subtab.rules": "规则",
   "settings.agentBehaviour.subtab.workflows": "工作流",

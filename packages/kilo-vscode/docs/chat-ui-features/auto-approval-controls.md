@@ -4,8 +4,7 @@ Interactive UI for configuring and toggling auto-approval.
 
 ## Location
 
-- [`webview-ui/src/components/settings/AutoApproveDropdown.tsx`](../../webview-ui/src/components/settings/AutoApproveDropdown.tsx:1)
-- [`webview-ui/src/components/settings/AutoApproveMenu.tsx`](../../webview-ui/src/components/settings/AutoApproveMenu.tsx:1)
+The old `AutoApproveDropdown.tsx` and `AutoApproveMenu.tsx` components don't exist in the new extension. [`AutoApproveTab.tsx`](../../webview-ui/src/components/settings/AutoApproveTab.tsx) exists in settings but is currently a stub. Auto-approval configuration needs to be built as a new feature.
 
 ## Interactions
 

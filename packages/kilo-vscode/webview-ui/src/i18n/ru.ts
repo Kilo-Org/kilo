@@ -770,6 +770,8 @@ export const dict = {
   "settings.aboutKiloCode.title": "О Kilo Code",
 
   "session.messages.empty": "Начните разговор, введя сообщение ниже.",
+  "session.messages.welcome":
+    "Kilo Code — это AI-помощник для программирования. Попросите его создать функции, исправить ошибки или объяснить вашу кодовую базу.",
   "session.messages.scrollToBottom": "Прокрутить вниз",
 
   "dialog.model.noProviders": "Нет провайдеров",
@@ -802,6 +804,7 @@ export const dict = {
   "settings.aboutKiloCode.extensionName": "Расширение Kilo Code",
 
   "settings.agentBehaviour.subtab.modes": "Режимы",
+  "settings.agentBehaviour.subtab.agents": "Agents",
   "settings.agentBehaviour.subtab.mcpServers": "MCP-серверы",
   "settings.agentBehaviour.subtab.rules": "Правила",
   "settings.agentBehaviour.subtab.workflows": "Рабочие процессы",

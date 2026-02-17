@@ -14,7 +14,7 @@ export default defineConfig({
   expect: {
     timeout: 10_000,
   },
-  fullyParallel: true,
+  fullyParallel: process.env.PLAYWRIGHT_FULLY_PARALLEL === "1",
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: [["html", { outputFolder: "e2e/playwright-report", open: "never" }], ["line"]],
@@ -24,8 +24,8 @@ export default defineConfig({
     reuseExistingServer: reuse,
     timeout: 120_000,
     env: {
-      VITE_OPENCODE_SERVER_HOST: serverHost,
-      VITE_OPENCODE_SERVER_PORT: serverPort,
+      VITE_KILO_SERVER_HOST: serverHost,
+      VITE_KILO_SERVER_PORT: serverPort,
     },
   },
   use: {

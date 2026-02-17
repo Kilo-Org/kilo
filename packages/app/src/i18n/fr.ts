@@ -28,8 +28,8 @@ export const dict = {
   "command.settings.open": "Ouvrir les paramètres",
   "command.session.previous": "Session précédente",
   "command.session.next": "Session suivante",
-  "command.session.previous.unseen": "Previous unread session",
-  "command.session.next.unseen": "Next unread session",
+  "command.session.previous.unseen": "Session non lue précédente",
+  "command.session.next.unseen": "Session non lue suivante",
   "command.session.archive": "Archiver la session",
 
   "command.palette": "Palette de commandes",
@@ -44,8 +44,10 @@ export const dict = {
 
   "command.session.new": "Nouvelle session",
   "command.file.open": "Ouvrir un fichier",
+  "command.tab.close": "Fermer l'onglet",
   "command.context.addSelection": "Ajouter la sélection au contexte",
   "command.context.addSelection.description": "Ajouter les lignes sélectionnées du fichier actuel",
+  "command.input.focus": "Focus input",
   "command.terminal.toggle": "Basculer le terminal",
   "command.fileTree.toggle": "Basculer l'arborescence des fichiers",
   "command.review.toggle": "Basculer la revue",
@@ -211,6 +213,7 @@ export const dict = {
   "prompt.popover.emptyResults": "Aucun résultat correspondant",
   "prompt.popover.emptyCommands": "Aucune commande correspondante",
   "prompt.dropzone.label": "Déposez des images ou des PDF ici",
+  "prompt.dropzone.file.label": "Déposez pour @mentionner le fichier",
   "prompt.slash.badge.custom": "personnalisé",
   "prompt.slash.badge.skill": "skill",
   "prompt.slash.badge.mcp": "mcp",
@@ -232,6 +235,7 @@ export const dict = {
   "prompt.toast.shellSendFailed.title": "Échec de l'envoi de la commande shell",
   "prompt.toast.commandSendFailed.title": "Échec de l'envoi de la commande",
   "prompt.toast.promptSendFailed.title": "Échec de l'envoi du message",
+  "prompt.toast.promptSendFailed.description": "Impossible de récupérer la session",
 
   "dialog.mcp.title": "MCPs",
   "dialog.mcp.description": "{{enabled}} sur {{total}} activés",
@@ -323,22 +327,6 @@ export const dict = {
   "context.usage.clickToView": "Cliquez pour voir le contexte",
   "context.usage.view": "Voir l'utilisation du contexte",
 
-  "language.en": "English",
-  "language.zh": "简体中文",
-  "language.zht": "繁體中文",
-  "language.ko": "한국어",
-  "language.de": "Deutsch",
-  "language.es": "Español",
-  "language.fr": "Français",
-  "language.da": "Dansk",
-  "language.ja": "日本語",
-  "language.pl": "Polski",
-  "language.ru": "Русский",
-  "language.ar": "العربية",
-  "language.no": "Norsk",
-  "language.br": "Português (Brasil)",
-  "language.th": "ไทย",
-
   "toast.language.title": "Langue",
   "toast.language.description": "Passé à {{language}}",
 
@@ -379,8 +367,7 @@ export const dict = {
   "toast.session.listFailed.title": "Échec du chargement des sessions pour {{project}}",
 
   "toast.update.title": "Mise à jour disponible",
-  "toast.update.description":
-    "Une nouvelle version d'Kilo ({{version}}) est maintenant disponible pour installation.",
+  "toast.update.description": "Une nouvelle version d'Kilo ({{version}}) est maintenant disponible pour installation.",
   "toast.update.action.installRestart": "Installer et redémarrer",
   "toast.update.action.notYet": "Pas encore",
 
@@ -522,8 +509,7 @@ export const dict = {
   "sidebar.workspaces.enable": "Activer les espaces de travail",
   "sidebar.workspaces.disable": "Désactiver les espaces de travail",
   "sidebar.gettingStarted.title": "Commencer",
-  "sidebar.gettingStarted.line1":
-    "Kilo inclut des modèles gratuits pour que vous puissiez commencer immédiatement.",
+  "sidebar.gettingStarted.line1": "Kilo inclut des modèles gratuits pour que vous puissiez commencer immédiatement.",
   "sidebar.gettingStarted.line2":
     "Connectez n'importe quel fournisseur pour utiliser des modèles, y compris Claude, GPT, Gemini etc.",
   "sidebar.project.recentSessions": "Sessions récentes",

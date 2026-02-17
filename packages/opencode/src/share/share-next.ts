@@ -11,11 +11,11 @@ import type * as SDK from "@kilocode/sdk/v2"
 export namespace ShareNext {
   const log = Log.create({ service: "share-next" })
 
-  async function url() {
+  export async function url() {
     return Config.get().then((x) => x.enterprise?.url ?? "https://opncd.ai")
   }
 
-  const disabled = process.env["OPENCODE_DISABLE_SHARE"] === "true" || process.env["OPENCODE_DISABLE_SHARE"] === "1"
+  const disabled = process.env["KILO_DISABLE_SHARE"] === "true" || process.env["KILO_DISABLE_SHARE"] === "1"
 
   export async function init() {
     if (disabled) return

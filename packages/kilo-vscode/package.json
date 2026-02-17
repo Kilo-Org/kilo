@@ -2,9 +2,15 @@
   "name": "kilo-code",
   "displayName": "Kilo Code",
   "description": "Kilo Code AI Agent & Autocomplete",
-  "version": "0.0.1",
+  "version": "7.0.23",
+  "publisher": "kilocode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kilo-Org/kilo.git",
+    "directory": "packages/kilo-vscode"
+  },
   "engines": {
-    "vscode": "^1.109.0"
+    "vscode": "^1.108.0"
   },
   "categories": [
     "Other"
@@ -16,8 +22,9 @@
       "activitybar": [
         {
           "id": "kilo-code-sidebar",
-          "title": "Kilo Code",
-          "icon": "$(code)"
+          "title": "Kilo Code (NEW)",
+          "icon": "assets/icons/kilo-light.png",
+          "darkIcon": "assets/icons/kilo-dark.png"
         }
       ]
     },
@@ -26,7 +33,7 @@
         {
           "type": "webview",
           "id": "kilo-code.new.sidebarView",
-          "name": "Kilo Code"
+          "name": "Kilo Code (NEW)"
         }
       ]
     },
@@ -60,6 +67,19 @@
         "command": "kilo-code.new.settingsButtonClicked",
         "title": "Settings",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "kilo-code.new.openInTab",
+        "title": "Kilo Code (NEW)",
+        "icon": {
+          "light": "assets/icons/kilo-light.svg",
+          "dark": "assets/icons/kilo-dark.svg"
+        }
+      },
+      {
+        "command": "kilo-code.new.autocomplete.generateSuggestions",
+        "title": "Generate Suggested Edits",
+        "category": "Kilo Code"
       }
     ],
     "menus": {
@@ -94,39 +114,198 @@
           "group": "navigation@5",
           "when": "view == kilo-code.new.sidebarView"
         }
+      ],
+      "editor/title": [
+        {
+          "command": "kilo-code.new.openInTab",
+          "group": "navigation",
+          "when": "true"
+        }
       ]
+    },
+    "configuration": {
+      "title": "Kilo Code",
+      "properties": {
+        "kilo-code.new.language": {
+          "type": "string",
+          "default": "",
+          "description": "Override the UI language for Kilo Code (e.g. en, de, ja). Empty means use VS Code's display language.",
+          "enum": [
+            "",
+            "en",
+            "zh",
+            "zht",
+            "ko",
+            "de",
+            "es",
+            "fr",
+            "da",
+            "ja",
+            "pl",
+            "ru",
+            "ar",
+            "no",
+            "br",
+            "th",
+            "bs"
+          ],
+          "enumDescriptions": [
+            "Auto (VS Code language)",
+            "English",
+            "简体中文",
+            "繁體中文",
+            "한국어",
+            "Deutsch",
+            "Español",
+            "Français",
+            "Dansk",
+            "日本語",
+            "Polski",
+            "Русский",
+            "العربية",
+            "Norsk",
+            "Português (Brasil)",
+            "ภาษาไทย",
+            "Bosanski"
+          ]
+        },
+        "kilo-code.new.model.providerID": {
+          "type": "string",
+          "default": "kilo",
+          "description": "Default model provider ID for new sessions"
+        },
+        "kilo-code.new.model.modelID": {
+          "type": "string",
+          "default": "kilo/auto",
+          "description": "Default model ID for new sessions"
+        },
+        "kilo-code.new.autocomplete.enableAutoTrigger": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic inline completion suggestions"
+        },
+        "kilo-code.new.autocomplete.enableSmartInlineTaskKeybinding": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable smart inline task keybinding"
+        },
+        "kilo-code.new.autocomplete.enableChatAutocomplete": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable chat textarea autocomplete"
+        },
+        "kilo-code.new.browserAutomation.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable browser automation powered by Playwright. When enabled, the AI agent can interact with web pages in a visible Chrome window."
+        },
+        "kilo-code.new.browserAutomation.useSystemChrome": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use your system's installed Chrome browser instead of downloading a separate Chromium instance."
+        },
+        "kilo-code.new.browserAutomation.headless": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run browser automation in headless mode (no visible window). When disabled, you can watch the agent interact with the browser."
+        },
+        "kilo-code.new.notifications.agent": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notification when agent completes a task"
+        },
+        "kilo-code.new.notifications.permissions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notification on permission requests"
+        },
+        "kilo-code.new.notifications.errors": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notification on errors"
+        },
+        "kilo-code.new.sounds.agent": {
+          "type": "string",
+          "default": "default",
+          "enum": [
+            "default",
+            "none"
+          ],
+          "description": "Sound to play when agent completes"
+        },
+        "kilo-code.new.sounds.permissions": {
+          "type": "string",
+          "default": "default",
+          "enum": [
+            "default",
+            "none"
+          ],
+          "description": "Sound to play on permission requests"
+        },
+        "kilo-code.new.sounds.errors": {
+          "type": "string",
+          "default": "default",
+          "enum": [
+            "default",
+            "none"
+          ],
+          "description": "Sound to play on errors"
+        }
+      }
     }
   },
   "scripts": {
-    "vscode:prepublish": "pnpm run package",
-    "prepare:cli-binary": "node scripts/prepare-cli-binary.mjs",
-    "compile": "pnpm run prepare:cli-binary && pnpm run check-types && pnpm run lint && node esbuild.js",
-    "watch": "npm-run-all -p watch:*",
-    "watch:esbuild": "pnpm run prepare:cli-binary && node esbuild.js --watch",
+    "prepare:cli-binary": "bun script/local-bin.ts",
+    "compile": "bun run prepare:cli-binary && bun run check-types && bun run lint && node esbuild.js",
+    "watch": "bun run --parallel watch:esbuild watch:tsc",
+    "watch:esbuild": "bun run prepare:cli-binary && node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-    "package": "pnpm run prepare:cli-binary && pnpm run check-types && pnpm run lint && node esbuild.js --production",
+    "watch:cli": "bun script/watch-cli.ts",
+    "package": "bun run prepare:cli-binary && bun run check-types && bun run lint && node esbuild.js --production",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
+    "pretest": "bun run compile-tests && bun run compile && bun run lint",
     "check-types": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "lint": "eslint src",
     "test": "vscode-test"
   },
   "devDependencies": {
+    "@types/diff": "^6.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "@types/vscode": "^1.109.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/vscode": "^1.108.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "esbuild": "^0.27.2",
     "esbuild-plugin-solid": "^0.6.0",
     "eslint": "^9.39.2",
-    "npm-run-all": "^4.1.5",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.1",
+    "qrcode": "^1.5.4",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.54.0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@kilocode/kilo-i18n": "workspace:*",
+    "@kilocode/kilo-ui": "workspace:*",
+    "@kilocode/sdk": "workspace:*",
+    "@opencode-ai/ui": "workspace:*",
+    "diff": "^7.0.0",
+    "dotenv": "^16.4.7",
     "eventsource": "^2.0.2",
-    "solid-js": "^1.9.11"
+    "fastest-levenshtein": "^1.0.16",
+    "ignore": "^7.0.3",
+    "js-tiktoken": "^1.0.18",
+    "lru-cache": "^11.0.2",
+    "quick-lru": "^7.0.0",
+    "openai": "^4.85.4",
+    "solid-js": "^1.9.11",
+    "uri-js": "^4.4.1",
+    "web-tree-sitter": "^0.24.7",
+    "zod": "^3.24.2"
   }
 }

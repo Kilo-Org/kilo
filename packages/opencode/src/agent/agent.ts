@@ -10,7 +10,10 @@ import { ProviderTransform } from "../provider/transform"
 
 import PROMPT_GENERATE from "./generate.txt"
 import PROMPT_COMPACTION from "./prompt/compaction.txt"
+import PROMPT_DEBUG from "./prompt/debug.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
+import PROMPT_ASK from "./prompt/ask.txt"
+import PROMPT_ORCHESTRATOR from "./prompt/orchestrator.txt"
 import PROMPT_GUIDE from "./prompt/guide.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
@@ -120,7 +123,8 @@ export namespace Agent {
       // kilocode_change start - Guide Mode for beginner onboarding
       guide: {
         name: "guide",
-        description: "Guide mode for beginners. Interactive onboarding that asks discovery questions and teaches vibe coding principles.",
+        description:
+          "Guide mode for beginners. Interactive onboarding that asks discovery questions and teaches vibe coding principles.",
         prompt: `You are a friendly coding mentor helping beginners learn "vibe coding". 
 
 Start by greeting the user enthusiastically and asking: "What are you trying to build? Describe your idea in your own words."
@@ -148,7 +152,6 @@ Guidelines:
             read: {
               "*": "allow",
             },
-            // Guide mode restricts editing until proper planning
             edit: {
               "*": "deny",
             },
@@ -156,6 +159,84 @@ Guidelines:
               "*": "deny",
             },
             webfetch: "allow",
+          }),
+          user,
+        ),
+        mode: "primary",
+        native: true,
+      },
+      // kilocode_change start - add debug, orchestrator, and ask agents
+      debug: {
+        name: "debug",
+        description: "Diagnose and fix software issues with systematic debugging methodology.",
+        prompt: PROMPT_DEBUG,
+        options: {},
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            question: "allow",
+            plan_enter: "allow",
+          }),
+          user,
+        ),
+        mode: "primary",
+        native: true,
+      },
+      orchestrator: {
+        name: "orchestrator",
+        description: "Coordinate complex tasks by delegating to specialized agents in parallel.",
+        prompt: PROMPT_ORCHESTRATOR,
+        options: {},
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "deny",
+            read: "allow",
+            grep: "allow",
+            glob: "allow",
+            list: "allow",
+            bash: "allow",
+            question: "allow",
+            task: "allow",
+            todoread: "allow",
+            todowrite: "allow",
+            webfetch: "allow",
+            websearch: "allow",
+            codesearch: "allow",
+            external_directory: {
+              [Truncate.GLOB]: "allow",
+            },
+          }),
+          user,
+        ),
+        mode: "primary",
+        native: true,
+      },
+      ask: {
+        name: "ask",
+        description: "Get answers and explanations without making changes to the codebase.",
+        prompt: PROMPT_ASK,
+        options: {},
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "deny",
+            read: {
+              "*": "allow",
+              "*.env": "ask",
+              "*.env.*": "ask",
+              "*.env.example": "allow",
+            },
+            grep: "allow",
+            glob: "allow",
+            list: "allow",
+            question: "allow",
+            webfetch: "allow",
+            websearch: "allow",
+            codesearch: "allow",
+            external_directory: {
+              [Truncate.GLOB]: "allow",
+            },
           }),
           user,
         ),

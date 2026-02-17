@@ -25,9 +25,11 @@ import {
   type SetSessionModeResponse,
   type ToolCallContent,
   type ToolKind,
+  type Usage,
 } from "@agentclientprotocol/sdk"
 
 import { Log } from "../util/log"
+import { pathToFileURL } from "bun"
 import { ACPSessionManager } from "./session"
 import type { ACPConfig } from "./types"
 import { Provider } from "../provider/provider"
@@ -38,7 +40,7 @@ import { Config } from "@/config/config"
 import { Todo } from "@/session/todo"
 import { z } from "zod"
 import { LoadAPIKeyError } from "ai"
-import type { Event, OpencodeClient, SessionMessageResponse } from "@kilocode/sdk/v2"
+import type { AssistantMessage, Event, OpencodeClient, SessionMessageResponse } from "@kilocode/sdk/v2"
 import { applyPatch } from "diff"
 
 import { fetchDefaultModel } from "@kilocode/kilo-gateway" // kilocode_change
@@ -50,6 +52,74 @@ const DEFAULT_VARIANT_VALUE = "default"
 
 export namespace ACP {
   const log = Log.create({ service: "acp-agent" })
+
+  async function getContextLimit(
+    sdk: OpencodeClient,
+    providerID: string,
+    modelID: string,
+    directory: string,
+  ): Promise<number | null> {
+    const providers = await sdk.config
+      .providers({ directory })
+      .then((x) => x.data?.providers ?? [])
+      .catch((error) => {
+        log.error("failed to get providers for context limit", { error })
+        return []
+      })
+
+    const provider = providers.find((p) => p.id === providerID)
+    const model = provider?.models[modelID]
+    return model?.limit.context ?? null
+  }
+
+  async function sendUsageUpdate(
+    connection: AgentSideConnection,
+    sdk: OpencodeClient,
+    sessionID: string,
+    directory: string,
+  ): Promise<void> {
+    const messages = await sdk.session
+      .messages({ sessionID, directory }, { throwOnError: true })
+      .then((x) => x.data)
+      .catch((error) => {
+        log.error("failed to fetch messages for usage update", { error })
+        return undefined
+      })
+
+    if (!messages) return
+
+    const assistantMessages = messages.filter(
+      (m): m is { info: AssistantMessage; parts: SessionMessageResponse["parts"] } => m.info.role === "assistant",
+    )
+
+    const lastAssistant = assistantMessages[assistantMessages.length - 1]
+    if (!lastAssistant) return
+
+    const msg = lastAssistant.info
+    const size = await getContextLimit(sdk, msg.providerID, msg.modelID, directory)
+
+    if (!size) {
+      // Cannot calculate usage without known context size
+      return
+    }
+
+    const used = msg.tokens.input + (msg.tokens.cache?.read ?? 0)
+    const totalCost = assistantMessages.reduce((sum, m) => sum + m.info.cost, 0)
+
+    await connection
+      .sessionUpdate({
+        sessionId: sessionID,
+        update: {
+          sessionUpdate: "usage_update",
+          used,
+          size,
+          cost: { amount: totalCost, currency: "USD" },
+        },
+      })
+      .catch((error) => {
+        log.error("failed to send usage update", { error })
+      })
+  }
 
   export async function init({ sdk: _sdk }: { sdk: OpencodeClient }) {
     return {
@@ -160,8 +230,8 @@ export namespace ACP {
                 const metadata = permission.metadata || {}
                 const filepath = typeof metadata["filepath"] === "string" ? metadata["filepath"] : ""
                 const diff = typeof metadata["diff"] === "string" ? metadata["diff"] : ""
-
-                const content = await Bun.file(filepath).text()
+                const file = Bun.file(filepath)
+                const content = (await file.exists()) ? await file.text() : ""
                 const newContent = getNewContent(content, diff)
 
                 if (newContent) {
@@ -548,6 +618,8 @@ export namespace ACP {
           await this.processMessage(msg)
         }
 
+        await sendUsageUpdate(this.connection, this.sdk, sessionId, directory)
+
         return result
       } catch (e) {
         const error = MessageV2.fromError(e, {
@@ -656,6 +728,8 @@ export namespace ACP {
           await this.processMessage(msg)
         }
 
+        await sendUsageUpdate(this.connection, this.sdk, sessionId, directory)
+
         return mode
       } catch (e) {
         const error = MessageV2.fromError(e, {
@@ -679,11 +753,15 @@ export namespace ACP {
 
         log.info("resume_session", { sessionId, mcpServers: mcpServers.length })
 
-        return this.loadSessionMode({
+        const result = await this.loadSessionMode({
           cwd: directory,
           mcpServers,
           sessionId,
         })
+
+        await sendUsageUpdate(this.connection, this.sdk, sessionId, directory)
+
+        return result
       } catch (e) {
         const error = MessageV2.fromError(e, {
           providerID: this.config.defaultModel?.providerID ?? "unknown",
@@ -911,7 +989,7 @@ export namespace ACP {
                       type: "image",
                       mimeType: effectiveMime,
                       data: base64Data,
-                      uri: `file://${filename}`,
+                      uri: pathToFileURL(filename).href,
                     },
                   },
                 })
@@ -921,13 +999,14 @@ export namespace ACP {
             } else {
               // Non-image: text types get decoded, binary types stay as blob
               const isText = effectiveMime.startsWith("text/") || effectiveMime === "application/json"
+              const fileUri = pathToFileURL(filename).href
               const resource = isText
                 ? {
-                    uri: `file://${filename}`,
+                    uri: fileUri,
                     mimeType: effectiveMime,
                     text: Buffer.from(base64Data, "base64").toString("utf-8"),
                   }
-                : { uri: `file://${filename}`, mimeType: effectiveMime, blob: base64Data }
+                : { uri: fileUri, mimeType: effectiveMime, blob: base64Data }
 
               await this.connection
                 .sessionUpdate({
@@ -1241,13 +1320,22 @@ export namespace ACP {
         return { name, args: rest.join(" ").trim() }
       })()
 
-      const done = {
-        stopReason: "end_turn" as const,
-        _meta: {},
-      }
+      const buildUsage = (msg: AssistantMessage): Usage => ({
+        totalTokens:
+          msg.tokens.input +
+          msg.tokens.output +
+          msg.tokens.reasoning +
+          (msg.tokens.cache?.read ?? 0) +
+          (msg.tokens.cache?.write ?? 0),
+        inputTokens: msg.tokens.input,
+        outputTokens: msg.tokens.output,
+        thoughtTokens: msg.tokens.reasoning || undefined,
+        cachedReadTokens: msg.tokens.cache?.read || undefined,
+        cachedWriteTokens: msg.tokens.cache?.write || undefined,
+      })
 
       if (!cmd) {
-        await this.sdk.session.prompt({
+        const response = await this.sdk.session.prompt({
           sessionID,
           model: {
             providerID: model.providerID,
@@ -1258,14 +1346,22 @@ export namespace ACP {
           agent,
           directory,
         })
-        return done
+        const msg = response.data?.info
+
+        await sendUsageUpdate(this.connection, this.sdk, sessionID, directory)
+
+        return {
+          stopReason: "end_turn" as const,
+          usage: msg ? buildUsage(msg) : undefined,
+          _meta: {},
+        }
       }
 
       const command = await this.config.sdk.command
         .list({ directory }, { throwOnError: true })
         .then((x) => x.data!.find((c) => c.name === cmd.name))
       if (command) {
-        await this.sdk.session.command({
+        const response = await this.sdk.session.command({
           sessionID,
           command: command.name,
           arguments: cmd.args,
@@ -1273,7 +1369,15 @@ export namespace ACP {
           agent,
           directory,
         })
-        return done
+        const msg = response.data?.info
+
+        await sendUsageUpdate(this.connection, this.sdk, sessionID, directory)
+
+        return {
+          stopReason: "end_turn" as const,
+          usage: msg ? buildUsage(msg) : undefined,
+          _meta: {},
+        }
       }
 
       switch (cmd.name) {
@@ -1290,7 +1394,12 @@ export namespace ACP {
           break
       }
 
-      return done
+      await sendUsageUpdate(this.connection, this.sdk, sessionID, directory)
+
+      return {
+        stopReason: "end_turn" as const,
+        _meta: {},
+      }
     }
 
     async cancel(params: CancelNotification) {
@@ -1442,7 +1551,7 @@ export namespace ACP {
           const name = path.split("/").pop() || path
           return {
             type: "file",
-            url: `file://${path}`,
+            url: pathToFileURL(path).href,
             filename: name,
             mime: "text/plain",
           }

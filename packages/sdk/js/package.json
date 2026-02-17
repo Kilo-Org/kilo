@@ -1,9 +1,14 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@kilocode/sdk",
-  "version": "1.0.14",
+  "version": "1.0.23",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kilo-Org/kilo",
+    "directory": "packages/sdk/js"
+  },
   "scripts": {
     "typecheck": "tsgo --noEmit",
     "build": "./script/build.ts"
@@ -29,5 +34,6 @@
   "dependencies": {},
   "publishConfig": {
     "directory": "dist"
-  }
+  },
+  "peerDependencies": {}
 }

@@ -30,7 +30,7 @@ import { HighlightsProvider } from "@/context/highlights"
 import Layout from "@/pages/layout"
 import DirectoryLayout from "@/pages/directory-layout"
 import { ErrorPage } from "./pages/error"
-import { Suspense } from "solid-js"
+import { Suspense, JSX } from "solid-js"
 
 const Home = lazy(() => import("@/pages/home"))
 const Session = lazy(() => import("@/pages/session"))
@@ -43,7 +43,7 @@ function UiI18nBridge(props: ParentProps) {
 
 declare global {
   interface Window {
-    __OPENCODE__?: { updaterEnabled?: boolean; serverPassword?: string; deepLinks?: string[] }
+    __KILO__?: { updaterEnabled?: boolean; serverPassword?: string; deepLinks?: string[] }
   }
 }
 
@@ -84,7 +84,7 @@ function ServerKey(props: ParentProps) {
   )
 }
 
-export function AppInterface(props: { defaultUrl?: string }) {
+export function AppInterface(props: { defaultUrl?: string; children?: JSX.Element; isSidecar?: boolean }) {
   const platform = usePlatform()
 
   const stored = (() => {
@@ -100,18 +100,18 @@ export function AppInterface(props: { defaultUrl?: string }) {
     if (stored) return stored
     if (location.hostname.includes("opencode.ai")) return "http://localhost:4096"
     if (import.meta.env.DEV)
-      return `http://${import.meta.env.VITE_OPENCODE_SERVER_HOST ?? "localhost"}:${import.meta.env.VITE_OPENCODE_SERVER_PORT ?? "4096"}`
+      return `http://${import.meta.env.VITE_KILO_SERVER_HOST ?? "localhost"}:${import.meta.env.VITE_KILO_SERVER_PORT ?? "4096"}`
 
     return window.location.origin
   }
 
   return (
-    <ServerProvider defaultUrl={defaultServerUrl()}>
+    <ServerProvider defaultUrl={defaultServerUrl()} isSidecar={props.isSidecar}>
       <ServerKey>
         <GlobalSDKProvider>
           <GlobalSyncProvider>
             <Router
-              root={(props) => (
+              root={(routerProps) => (
                 <SettingsProvider>
                   <PermissionProvider>
                     <LayoutProvider>
@@ -119,7 +119,10 @@ export function AppInterface(props: { defaultUrl?: string }) {
                         <ModelsProvider>
                           <CommandProvider>
                             <HighlightsProvider>
-                              <Layout>{props.children}</Layout>
+                              <Layout>
+                                {props.children}
+                                {routerProps.children}
+                              </Layout>
                             </HighlightsProvider>
                           </CommandProvider>
                         </ModelsProvider>

@@ -36,18 +36,15 @@ export namespace ToolRegistry {
     const custom = [] as Tool.Info[]
     const glob = new Bun.Glob("{tool,tools}/*.{js,ts}")
 
-    for (const dir of await Config.directories()) {
-      for await (const match of glob.scan({
-        cwd: dir,
-        absolute: true,
-        followSymlinks: true,
-        dot: true,
-      })) {
-        const namespace = path.basename(match, path.extname(match))
-        const mod = await import(match)
-        for (const [id, def] of Object.entries<ToolDefinition>(mod)) {
-          custom.push(fromPlugin(id === "default" ? namespace : `${namespace}_${id}`, def))
-        }
+    const matches = await Config.directories().then((dirs) =>
+      dirs.flatMap((dir) => [...glob.scanSync({ cwd: dir, absolute: true, followSymlinks: true, dot: true })]),
+    )
+    if (matches.length) await Config.waitForDependencies()
+    for (const match of matches) {
+      const namespace = path.basename(match, path.extname(match))
+      const mod = await import(match)
+      for (const [id, def] of Object.entries<ToolDefinition>(mod)) {
+        custom.push(fromPlugin(id === "default" ? namespace : `${namespace}_${id}`, def))
       }
     }
 
@@ -101,7 +98,7 @@ export namespace ToolRegistry {
 
     return [
       InvalidTool,
-      ...(["app", "cli", "desktop"].includes(Flag.OPENCODE_CLIENT) ? [QuestionTool] : []),
+      ...(["app", "cli", "desktop", "vscode"].includes(Flag.KILO_CLIENT) ? [QuestionTool] : []), // kilocode_change
       BashTool,
       ReadTool,
       GlobTool,
@@ -116,9 +113,9 @@ export namespace ToolRegistry {
       CodeSearchTool,
       SkillTool,
       ApplyPatchTool,
-      ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
+      ...(Flag.KILO_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
-      ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool, PlanEnterTool] : []),
+      ...(Flag.KILO_EXPERIMENTAL_PLAN_MODE && Flag.KILO_CLIENT === "cli" ? [PlanExitTool, PlanEnterTool] : []),
       // kilocode_change start - Guide Mode tools
       GuideEnterTool,
       GuideExitTool,
@@ -145,7 +142,7 @@ export namespace ToolRegistry {
           // Enable websearch/codesearch for zen/kilo users OR via enable flag
           // kilocode_change start
           if (t.id === "codesearch" || t.id === "websearch") {
-            return model.providerID === "opencode" || model.providerID === "kilo" || Flag.OPENCODE_ENABLE_EXA
+            return model.providerID === "opencode" || model.providerID === "kilo" || Flag.KILO_ENABLE_EXA
           }
           // kilocode_change end
 

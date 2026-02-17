@@ -1,46 +1,12 @@
-import { test, expect, mock, describe } from "bun:test"
+import { test, expect, describe } from "bun:test"
 import path from "path"
 import { unlink } from "fs/promises"
 
-// === Mocks ===
-// These mocks are required because Provider.list() triggers:
-// 1. BunProc.install("@aws-sdk/credential-providers") - in bedrock custom loader
-// 2. Plugin.list() which calls BunProc.install() for default plugins
-// Without mocks, these would attempt real package installations that timeout in tests.
-
-mock.module("../../src/bun/index", () => ({
-  BunProc: {
-    install: async (pkg: string, _version?: string) => {
-      // Return package name without version for mocking
-      const lastAtIndex = pkg.lastIndexOf("@")
-      return lastAtIndex > 0 ? pkg.substring(0, lastAtIndex) : pkg
-    },
-    run: async () => {
-      throw new Error("BunProc.run should not be called in tests")
-    },
-    which: () => process.execPath,
-    InstallFailedError: class extends Error {},
-  },
-}))
-
-mock.module("@aws-sdk/credential-providers", () => ({
-  fromNodeProviderChain: () => async () => ({
-    accessKeyId: "mock-access-key-id",
-    secretAccessKey: "mock-secret-access-key",
-  }),
-}))
-
-const mockPlugin = () => ({})
-mock.module("opencode-copilot-auth", () => ({ default: mockPlugin }))
-mock.module("opencode-anthropic-auth", () => ({ default: mockPlugin }))
-mock.module("@gitlab/opencode-gitlab-auth", () => ({ default: mockPlugin }))
-
-// Import after mocks are set up
-const { tmpdir } = await import("../fixture/fixture")
-const { Instance } = await import("../../src/project/instance")
-const { Provider } = await import("../../src/provider/provider")
-const { Env } = await import("../../src/env")
-const { Global } = await import("../../src/global")
+import { tmpdir } from "../fixture/fixture"
+import { Instance } from "../../src/project/instance"
+import { Provider } from "../../src/provider/provider"
+import { Env } from "../../src/env"
+import { Global } from "../../src/global"
 
 test("Bedrock: config region takes precedence over AWS_REGION env var", async () => {
   await using tmp = await tmpdir({
@@ -48,7 +14,7 @@ test("Bedrock: config region takes precedence over AWS_REGION env var", async ()
       await Bun.write(
         path.join(dir, "opencode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://app.kilo.ai/config.json",
           provider: {
             "amazon-bedrock": {
               options: {
@@ -80,7 +46,7 @@ test("Bedrock: falls back to AWS_REGION env var when no config region", async ()
       await Bun.write(
         path.join(dir, "opencode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://app.kilo.ai/config.json",
         }),
       )
     },
@@ -105,7 +71,7 @@ test("Bedrock: loads when bearer token from auth.json is present", async () => {
       await Bun.write(
         path.join(dir, "opencode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://app.kilo.ai/config.json",
           provider: {
             "amazon-bedrock": {
               options: {
@@ -173,7 +139,7 @@ test("Bedrock: config profile takes precedence over AWS_PROFILE env var", async 
       await Bun.write(
         path.join(dir, "opencode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://app.kilo.ai/config.json",
           provider: {
             "amazon-bedrock": {
               options: {
@@ -206,7 +172,7 @@ test("Bedrock: includes custom endpoint in options when specified", async () => 
       await Bun.write(
         path.join(dir, "opencode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://app.kilo.ai/config.json",
           provider: {
             "amazon-bedrock": {
               options: {
@@ -239,7 +205,7 @@ test("Bedrock: autoloads when AWS_WEB_IDENTITY_TOKEN_FILE is present", async () 
       await Bun.write(
         path.join(dir, "opencode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://app.kilo.ai/config.json",
           provider: {
             "amazon-bedrock": {
               options: {
@@ -277,7 +243,7 @@ test("Bedrock: model with us. prefix should not be double-prefixed", async () =>
       await Bun.write(
         path.join(dir, "opencode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://app.kilo.ai/config.json",
           provider: {
             "amazon-bedrock": {
               options: {
@@ -314,7 +280,7 @@ test("Bedrock: model with global. prefix should not be prefixed", async () => {
       await Bun.write(
         path.join(dir, "opencode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://app.kilo.ai/config.json",
           provider: {
             "amazon-bedrock": {
               options: {
@@ -350,7 +316,7 @@ test("Bedrock: model with eu. prefix should not be double-prefixed", async () =>
       await Bun.write(
         path.join(dir, "opencode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://app.kilo.ai/config.json",
           provider: {
             "amazon-bedrock": {
               options: {
@@ -386,7 +352,7 @@ test("Bedrock: model without prefix in US region should get us. prefix added", a
       await Bun.write(
         path.join(dir, "opencode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://app.kilo.ai/config.json",
           provider: {
             "amazon-bedrock": {
               options: {

@@ -16,14 +16,16 @@ permissions:
 
 jobs:
   build:
-    # kilocode_change start - disabled for kilo-cli fork (OpenCode infrastructure deployment)
-    if: false
-    # kilocode_change end
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    env:
-      REGISTRY: ghcr.io/${{ github.repository_owner }}
-      TAG: "24.04"
     steps:
+      # kilocode_change start
+      - name: Set lowercase repository owner
+        id: repo
+        run: echo "owner_lc=${OWNER,,}" >> $GITHUB_OUTPUT
+        env:
+          OWNER: ${{ github.repository_owner }}
+      # kilocode_change end
+
       - uses: actions/checkout@v4
 
       - uses: ./.github/actions/setup-bun
@@ -44,5 +46,7 @@ jobs:
       - name: Build and push containers
         run: bun ./packages/containers/script/build.ts --push
         env:
-          REGISTRY: ${{ env.REGISTRY }}
-          TAG: ${{ env.TAG }}
+          # kilocode_change start
+          REGISTRY: ghcr.io/${{ steps.repo.outputs.owner_lc }}
+          TAG: "24.04"
+          # kilocode_change end

@@ -1,132 +1,200 @@
-import { Component, createSignal, onMount, onCleanup, Switch, Match } from "solid-js";
-import Settings, { type ConnectionState } from "./components/Settings";
+import { Component, createSignal, createMemo, Switch, Match, onMount, onCleanup } from "solid-js"
+import { ThemeProvider } from "@kilocode/kilo-ui/theme"
+import { DialogProvider } from "@kilocode/kilo-ui/context/dialog"
+import { MarkedProvider } from "@kilocode/kilo-ui/context/marked"
+import { CodeComponentProvider } from "@kilocode/kilo-ui/context/code"
+import { DiffComponentProvider } from "@kilocode/kilo-ui/context/diff"
+import { Code } from "@kilocode/kilo-ui/code"
+import { Diff } from "@kilocode/kilo-ui/diff"
+import { DataProvider } from "@kilocode/kilo-ui/context/data"
+import { Toast } from "@kilocode/kilo-ui/toast"
+import Settings from "./components/Settings"
+import ProfileView from "./components/ProfileView"
+import { VSCodeProvider } from "./context/vscode"
+import { ServerProvider, useServer } from "./context/server"
+import { ProviderProvider } from "./context/provider"
+import { ConfigProvider } from "./context/config"
+import { SessionProvider, useSession } from "./context/session"
+import { LanguageProvider } from "./context/language"
+import { ChatView } from "./components/chat"
+import SessionList from "./components/history/SessionList"
+import type { Message as SDKMessage, Part as SDKPart } from "@kilocode/sdk/v2"
+import "./styles/chat.css"
 
-type ViewType = 
-  | "newTask"
-  | "marketplace"
-  | "history"
-  | "profile"
-  | "settings";
-
-interface ActionMessage {
-  type: "action";
-  action: string;
-}
-
-interface ReadyMessage {
-  type: "ready";
-  serverInfo?: {
-    port: number;
-  };
-}
-
-interface ConnectionStateMessage {
-  type: "connectionState";
-  state: ConnectionState;
-}
-
-type WebviewMessage = ActionMessage | ReadyMessage | ConnectionStateMessage;
+type ViewType = "newTask" | "marketplace" | "history" | "profile" | "settings"
+const VALID_VIEWS = new Set<string>(["newTask", "marketplace", "history", "profile", "settings"])
 
 const DummyView: Component<{ title: string }> = (props) => {
   return (
-    <div style={{
-      display: "flex",
-      "justify-content": "center",
-      "align-items": "center",
-      height: "100%",
-      "min-height": "200px",
-      "font-size": "24px",
-      color: "var(--vscode-foreground)"
-    }}>
+    <div
+      style={{
+        display: "flex",
+        "justify-content": "center",
+        "align-items": "center",
+        height: "100%",
+        "min-height": "200px",
+        "font-size": "24px",
+        color: "var(--vscode-foreground)",
+      }}
+    >
       <h1>{props.title}</h1>
     </div>
-  );
-};
+  )
+}
 
-const App: Component = () => {
-  const [currentView, setCurrentView] = createSignal<ViewType>("newTask");
-  const [serverPort, setServerPort] = createSignal<number | null>(null);
-  const [connectionState, setConnectionState] = createSignal<ConnectionState>("disconnected");
+/**
+ * Bridge our session store to the DataProvider's expected Data shape.
+ */
+const DataBridge: Component<{ children: any }> = (props) => {
+  const session = useSession()
 
-  const handleMessage = (event: MessageEvent) => {
-    // Debug: log *all* messages received from the extension host.
-    console.log("[Kilo New] App: 📨 window.message received:", {
-      data: event.data,
-      origin: (event as any).origin,
-    });
+  const data = createMemo(() => ({
+    session: session.sessions().map((s) => ({ ...s, id: s.id, role: "user" as const })),
+    session_status: {} as Record<string, any>,
+    session_diff: {} as Record<string, any[]>,
+    message: {
+      [session.currentSessionID() ?? ""]: session.messages() as unknown as SDKMessage[],
+    },
+    part: Object.fromEntries(
+      session
+        .messages()
+        .map((msg) => [msg.id, session.getParts(msg.id) as unknown as SDKPart[]])
+        .filter(([, parts]) => (parts as SDKPart[]).length > 0),
+    ),
+    permission: {
+      [session.currentSessionID() ?? ""]: session.permissions() as unknown as any[],
+    },
+  }))
 
-    const message = event.data as WebviewMessage;
-    console.log("[Kilo New] App: 🔎 Parsed message.type:", (message as any)?.type);
-    
-    switch (message.type) {
-      case "action":
-        console.log("[Kilo New] App: 🎬 action:", message.action);
-        switch (message.action) {
-          case "plusButtonClicked":
-            setCurrentView("newTask");
-            break;
-          case "marketplaceButtonClicked":
-            setCurrentView("marketplace");
-            break;
-          case "historyButtonClicked":
-            setCurrentView("history");
-            break;
-          case "profileButtonClicked":
-            setCurrentView("profile");
-            break;
-          case "settingsButtonClicked":
-            setCurrentView("settings");
-            break;
-        }
-        break;
-      case "ready":
-        console.log("[Kilo New] App: ✅ ready:", message.serverInfo);
-        if (message.serverInfo?.port) {
-          setServerPort(message.serverInfo.port);
-        }
-        break;
-      case "connectionState":
-        console.log("[Kilo New] App: 🔄 connectionState:", message.state);
-        setConnectionState(message.state);
-        break;
-      default:
-        // If the extension sends a new message type, we want to see it immediately.
-        console.warn("[Kilo New] App: ⚠️ Unknown message type:", event.data);
-        break;
+  const respond = (input: { sessionID: string; permissionID: string; response: "once" | "always" | "reject" }) => {
+    session.respondToPermission(input.permissionID, input.response)
+  }
+
+  return (
+    <DataProvider data={data()} directory="" onPermissionRespond={respond}>
+      {props.children}
+    </DataProvider>
+  )
+}
+
+/**
+ * Wraps children in LanguageProvider, passing server-side language info.
+ * Must be below ServerProvider in the hierarchy.
+ */
+const LanguageBridge: Component<{ children: any }> = (props) => {
+  const server = useServer()
+  return (
+    <LanguageProvider vscodeLanguage={server.vscodeLanguage} languageOverride={server.languageOverride}>
+      {props.children}
+    </LanguageProvider>
+  )
+}
+
+// Inner app component that uses the contexts
+const AppContent: Component = () => {
+  const [currentView, setCurrentView] = createSignal<ViewType>("newTask")
+  const session = useSession()
+  const server = useServer()
+
+  const handleViewAction = (action: string) => {
+    switch (action) {
+      case "plusButtonClicked":
+        session.clearCurrentSession()
+        setCurrentView("newTask")
+        break
+      case "marketplaceButtonClicked":
+        setCurrentView("marketplace")
+        break
+      case "historyButtonClicked":
+        setCurrentView("history")
+        break
+      case "profileButtonClicked":
+        setCurrentView("profile")
+        break
+      case "settingsButtonClicked":
+        setCurrentView("settings")
+        break
     }
-  };
+  }
 
   onMount(() => {
-    console.log("[Kilo New] App: 🧩 Mount: adding window.message listener");
-    window.addEventListener("message", handleMessage);
-  });
+    const handler = (event: MessageEvent) => {
+      const message = event.data
+      if (message?.type === "action" && message.action) {
+        console.log("[Kilo New] App: 🎬 action:", message.action)
+        handleViewAction(message.action)
+      }
+      if (message?.type === "navigate" && message.view && VALID_VIEWS.has(message.view)) {
+        console.log("[Kilo New] App: 🧭 navigate:", message.view)
+        setCurrentView(message.view as ViewType)
+      }
+    }
+    window.addEventListener("message", handler)
+    onCleanup(() => window.removeEventListener("message", handler))
+  })
 
-  onCleanup(() => {
-    console.log("[Kilo New] App: 🧹 Cleanup: removing window.message listener");
-    window.removeEventListener("message", handleMessage);
-  });
+  const handleSelectSession = (id: string) => {
+    session.selectSession(id)
+    setCurrentView("newTask")
+  }
 
   return (
     <div class="container">
-      <Switch fallback={<DummyView title="New Task" />}>
+      <Switch fallback={<ChatView />}>
         <Match when={currentView() === "newTask"}>
-          <DummyView title="New Task" />
+          <ChatView onSelectSession={handleSelectSession} />
         </Match>
         <Match when={currentView() === "marketplace"}>
           <DummyView title="Marketplace" />
         </Match>
         <Match when={currentView() === "history"}>
-          <DummyView title="History" />
+          <SessionList onSelectSession={handleSelectSession} />
         </Match>
         <Match when={currentView() === "profile"}>
-          <DummyView title="Profile" />
+          <ProfileView
+            profileData={server.profileData()}
+            deviceAuth={server.deviceAuth()}
+            onLogin={server.startLogin}
+          />
         </Match>
         <Match when={currentView() === "settings"}>
-          <Settings port={serverPort()} connectionState={connectionState()} />
+          <Settings onBack={() => setCurrentView("newTask")} />
         </Match>
       </Switch>
     </div>
-  );
-};
+  )
+}
 
-export default App;
+// Main App component with context providers
+const App: Component = () => {
+  return (
+    <ThemeProvider defaultTheme="kilo-vscode">
+      <DialogProvider>
+        <VSCodeProvider>
+          <ServerProvider>
+            <LanguageBridge>
+              <MarkedProvider>
+                <DiffComponentProvider component={Diff}>
+                  <CodeComponentProvider component={Code}>
+                    <ProviderProvider>
+                      <ConfigProvider>
+                        <SessionProvider>
+                          <DataBridge>
+                            <AppContent />
+                          </DataBridge>
+                        </SessionProvider>
+                      </ConfigProvider>
+                    </ProviderProvider>
+                  </CodeComponentProvider>
+                </DiffComponentProvider>
+              </MarkedProvider>
+            </LanguageBridge>
+          </ServerProvider>
+        </VSCodeProvider>
+        <Toast.Region />
+      </DialogProvider>
+    </ThemeProvider>
+  )
+}
+
+export default App

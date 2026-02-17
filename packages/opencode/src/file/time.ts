@@ -53,7 +53,7 @@ export namespace FileTime {
   }
 
   export async function assert(sessionID: string, filepath: string) {
-    if (Flag.OPENCODE_DISABLE_FILETIME_CHECK === true) {
+    if (Flag.KILO_DISABLE_FILETIME_CHECK === true) {
       return
     }
 

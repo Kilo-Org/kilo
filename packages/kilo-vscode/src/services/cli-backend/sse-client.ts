@@ -15,7 +15,7 @@ export class SSEClient {
   private handlers: Set<SSEEventHandler> = new Set()
   private errorHandlers: Set<SSEErrorHandler> = new Set()
   private stateHandlers: Set<SSEStateHandler> = new Set()
-  private readonly authUsername = "opencode"
+  private readonly authUsername = "kilo"
 
   constructor(private readonly config: ServerConfig) {}
 
@@ -24,31 +24,31 @@ export class SSEClient {
    * @param directory - The workspace directory to subscribe to events for
    */
   connect(directory: string): void {
-    console.log('[Kilo New] SSE: 🔌 connect() called with directory:', directory);
-    
+    console.log("[Kilo New] SSE: 🔌 connect() called with directory:", directory)
+
     // Return early if already connected
     if (this.eventSource) {
-      console.log('[Kilo New] SSE: ⚠️ Already connected, skipping');
+      console.log("[Kilo New] SSE: ⚠️ Already connected, skipping")
       return
     }
 
     // Notify connecting state
-    console.log('[Kilo New] SSE: 🔄 Setting state to "connecting"');
+    console.log('[Kilo New] SSE: 🔄 Setting state to "connecting"')
     this.notifyState("connecting")
 
     // Build URL with directory parameter
     const url = `${this.config.baseUrl}/event?directory=${encodeURIComponent(directory)}`
-    console.log('[Kilo New] SSE: 🌐 Connecting to URL:', url);
+    console.log("[Kilo New] SSE: 🌐 Connecting to URL:", url)
 
     // Create auth header
     const authHeader = `Basic ${Buffer.from(`${this.authUsername}:${this.config.password}`).toString("base64")}`
-    console.log('[Kilo New] SSE: 🔑 Auth header created', {
+    console.log("[Kilo New] SSE: 🔑 Auth header created", {
       username: this.authUsername,
       passwordLength: this.config.password.length,
-    });
+    })
 
     // Create EventSource with headers
-    console.log('[Kilo New] SSE: 🎬 Creating EventSource...');
+    console.log("[Kilo New] SSE: 🎬 Creating EventSource...")
     this.eventSource = new EventSource(url, {
       headers: {
         Authorization: authHeader,
@@ -57,16 +57,16 @@ export class SSEClient {
 
     // Set up onopen handler
     this.eventSource.onopen = () => {
-      console.log('[Kilo New] SSE: ✅ EventSource opened successfully');
+      console.log("[Kilo New] SSE: ✅ EventSource opened successfully")
       this.notifyState("connected")
     }
 
     // Set up onmessage handler
     this.eventSource.onmessage = (messageEvent) => {
-      console.log('[Kilo New] SSE: 📨 Received message event:', messageEvent.data);
+      console.log("[Kilo New] SSE: 📨 Received message event:", messageEvent.data)
       try {
         const event = JSON.parse(messageEvent.data) as SSEEvent
-        console.log('[Kilo New] SSE: 📦 Parsed event type:', event.type);
+        console.log("[Kilo New] SSE: 📦 Parsed event type:", event.type)
         this.notifyEvent(event)
       } catch (error) {
         console.error("[Kilo New] SSE: ❌ Failed to parse event:", error)

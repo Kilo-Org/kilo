@@ -11,19 +11,28 @@ import { CodexAuthPlugin } from "./codex"
 import { Session } from "../session"
 import { NamedError } from "@opencode-ai/util/error"
 import { CopilotAuthPlugin } from "./copilot"
+import { gitlabAuthPlugin as GitlabAuthPlugin } from "@gitlab/opencode-gitlab-auth"
+
 import { KiloAuthPlugin } from "@kilocode/kilo-gateway" // kilocode_change
 
 export namespace Plugin {
   const log = Log.create({ service: "plugin" })
 
-  const BUILTIN = ["opencode-anthropic-auth@0.0.13", "@gitlab/opencode-gitlab-auth@1.3.2"]
+  const BUILTIN = ["opencode-anthropic-auth@0.0.13"]
 
   // Built-in plugins that are directly imported (not installed from npm)
-  const INTERNAL_PLUGINS: PluginInstance[] = [KiloAuthPlugin, CodexAuthPlugin, CopilotAuthPlugin] // kilocode_change
+  // kilocode_change start
+  const INTERNAL_PLUGINS: PluginInstance[] = [
+    KiloAuthPlugin,
+    CodexAuthPlugin,
+    CopilotAuthPlugin,
+    GitlabAuthPlugin as unknown as PluginInstance,
+  ] // kilocode_change end
 
   const state = Instance.state(async () => {
     const client = createOpencodeClient({
       baseUrl: "http://localhost:4096",
+      directory: Instance.directory,
       // @ts-ignore - fetch type incompatibility
       fetch: async (...args) => Server.App().fetch(...args),
     })
@@ -44,9 +53,10 @@ export namespace Plugin {
       hooks.push(init)
     }
 
-    const plugins = [...(config.plugin ?? [])]
-    if (!Flag.OPENCODE_DISABLE_DEFAULT_PLUGINS) {
-      plugins.push(...BUILTIN)
+    let plugins = config.plugin ?? []
+    if (plugins.length) await Config.waitForDependencies()
+    if (!Flag.KILO_DISABLE_DEFAULT_PLUGINS) {
+      plugins = [...BUILTIN, ...plugins]
     }
 
     for (let plugin of plugins) {

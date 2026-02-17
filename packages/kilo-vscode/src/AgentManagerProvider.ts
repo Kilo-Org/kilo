@@ -1,57 +1,57 @@
-import * as vscode from 'vscode';
+import * as vscode from "vscode"
 
 /**
  * AgentManagerProvider manages the Agent Manager webview panel.
  * Opens in the main editor area (not sidebar).
  */
 export class AgentManagerProvider implements vscode.Disposable {
-	public static readonly viewType = 'kilo-code.new.AgentManagerPanel';
+  public static readonly viewType = "kilo-code.new.AgentManagerPanel"
 
-	private panel: vscode.WebviewPanel | undefined;
-	private panelDisposables: vscode.Disposable[] = [];
+  private panel: vscode.WebviewPanel | undefined
+  private panelDisposables: vscode.Disposable[] = []
 
-	constructor(private readonly _extensionUri: vscode.Uri) {}
+  constructor(private readonly _extensionUri: vscode.Uri) {}
 
-	/**
-	 * Open or focus the Agent Manager panel
-	 */
-	public openPanel(): void {
-		if (this.panel) {
-			this.panel.reveal(vscode.ViewColumn.One);
-			return;
-		}
+  /**
+   * Open or focus the Agent Manager panel
+   */
+  public openPanel(): void {
+    if (this.panel) {
+      this.panel.reveal(vscode.ViewColumn.One)
+      return
+    }
 
-		this.panel = vscode.window.createWebviewPanel(
-			AgentManagerProvider.viewType,
-			'Agent Manager',
-			vscode.ViewColumn.One,
-			{
-				enableScripts: true,
-				retainContextWhenHidden: true,
-				localResourceRoots: [this._extensionUri]
-			}
-		);
+    this.panel = vscode.window.createWebviewPanel(
+      AgentManagerProvider.viewType,
+      "Agent Manager",
+      vscode.ViewColumn.One,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [this._extensionUri],
+      },
+    )
 
-		this.panel.webview.html = this._getHtmlForWebview(this.panel.webview);
+    this.panel.webview.html = this._getHtmlForWebview(this.panel.webview)
 
-		this.panel.onDidDispose(
-			() => {
-				// Clean up panel-specific disposables when panel is closed
-				this.panelDisposables.forEach(d => d.dispose());
-				this.panelDisposables = [];
-				this.panel = undefined;
-			},
-			null,
-			this.panelDisposables
-		);
+    this.panel.onDidDispose(
+      () => {
+        // Clean up panel-specific disposables when panel is closed
+        this.panelDisposables.forEach((d) => d.dispose())
+        this.panelDisposables = []
+        this.panel = undefined
+      },
+      null,
+      this.panelDisposables,
+    )
 
-		console.log('Agent Manager panel opened');
-	}
+    console.log("Agent Manager panel opened")
+  }
 
-	private _getHtmlForWebview(webview: vscode.Webview): string {
-		const nonce = getNonce();
+  private _getHtmlForWebview(webview: vscode.Webview): string {
+    const nonce = getNonce()
 
-		return `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
@@ -77,21 +77,21 @@ export class AgentManagerProvider implements vscode.Disposable {
 <body>
 	<h1>Agent Manager</h1>
 </body>
-</html>`;
-	}
+</html>`
+  }
 
-	public dispose(): void {
-		this.panel?.dispose();
-		this.panelDisposables.forEach(d => d.dispose());
-		this.panelDisposables = [];
-	}
+  public dispose(): void {
+    this.panel?.dispose()
+    this.panelDisposables.forEach((d) => d.dispose())
+    this.panelDisposables = []
+  }
 }
 
 function getNonce(): string {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 32; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
-	}
-	return text;
+  let text = ""
+  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+  for (let i = 0; i < 32; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length))
+  }
+  return text
 }

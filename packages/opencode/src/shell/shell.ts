@@ -37,7 +37,7 @@ export namespace Shell {
 
   function fallback() {
     if (process.platform === "win32") {
-      if (Flag.OPENCODE_GIT_BASH_PATH) return Flag.OPENCODE_GIT_BASH_PATH
+      if (Flag.KILO_GIT_BASH_PATH) return Flag.KILO_GIT_BASH_PATH
       const git = Bun.which("git")
       if (git) {
         // git.exe is typically at: C:\Program Files\Git\cmd\git.exe

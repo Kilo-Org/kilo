@@ -1,6 +1,4 @@
 // kilocode_change - new file
-import { dict as en } from "./en"
-type Keys = keyof typeof en
 export const dict = {
   // Kilo Gateway provider translations
   "provider.connect.kiloGateway.line1":
@@ -13,4 +11,4 @@ export const dict = {
   // Provider dialog translations
   "dialog.provider.group.recommended": "おすすめ",
   "dialog.provider.kilo.note": "500以上のAIモデルにアクセス",
-} satisfies Partial<Record<Keys, string>>
+}

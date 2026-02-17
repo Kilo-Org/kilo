@@ -152,6 +152,14 @@ export type MessageAbortedError = {
   }
 }
 
+export type ContextOverflowError = {
+  name: "ContextOverflowError"
+  data: {
+    message: string
+    responseBody?: string
+  }
+}
+
 export type ApiError = {
   name: "APIError"
   data: {
@@ -176,7 +184,13 @@ export type AssistantMessage = {
     created: number
     completed?: number
   }
-  error?: ProviderAuthError | UnknownError | MessageOutputLengthError | MessageAbortedError | ApiError
+  error?:
+    | ProviderAuthError
+    | UnknownError
+    | MessageOutputLengthError
+    | MessageAbortedError
+    | ContextOverflowError
+    | ApiError
   parentID: string
   modelID: string
   providerID: string
@@ -189,6 +203,7 @@ export type AssistantMessage = {
   summary?: boolean
   cost: number
   tokens: {
+    total?: number
     input: number
     output: number
     reasoning: number
@@ -197,6 +212,7 @@ export type AssistantMessage = {
       write: number
     }
   }
+  variant?: string
   finish?: string
 }
 
@@ -403,6 +419,7 @@ export type StepFinishPart = {
   snapshot?: string
   cost: number
   tokens: {
+    total?: number
     input: number
     output: number
     reasoning: number
@@ -819,7 +836,28 @@ export type EventSessionError = {
   type: "session.error"
   properties: {
     sessionID?: string
-    error?: ProviderAuthError | UnknownError | MessageOutputLengthError | MessageAbortedError | ApiError
+    error?:
+      | ProviderAuthError
+      | UnknownError
+      | MessageOutputLengthError
+      | MessageAbortedError
+      | ContextOverflowError
+      | ApiError
+  }
+}
+
+export type EventSessionTurnOpen = {
+  type: "session.turn.open"
+  properties: {
+    sessionID: string
+  }
+}
+
+export type EventSessionTurnClose = {
+  type: "session.turn.close"
+  properties: {
+    sessionID: string
+    reason: "completed" | "error" | "interrupted"
   }
 }
 
@@ -920,6 +958,8 @@ export type Event =
   | EventSessionDeleted
   | EventSessionDiff
   | EventSessionError
+  | EventSessionTurnOpen
+  | EventSessionTurnClose
   | EventVcsBranchUpdated
   | EventPtyCreated
   | EventPtyUpdated
@@ -1313,6 +1353,10 @@ export type KeybindsConfig = {
    * Toggle news on home screen
    */
   news_toggle?: string
+  /**
+   * Toggle thinking blocks visibility
+   */
+  display_thinking?: string
 }
 
 /**
@@ -1662,6 +1706,10 @@ export type Config = {
      * Additional paths to skill folders
      */
     paths?: Array<string>
+    /**
+     * URLs to fetch skills from (e.g., https://example.com/.well-known/skills/)
+     */
+    urls?: Array<string>
   }
   watcher?: {
     ignore?: Array<string>
@@ -1718,6 +1766,9 @@ export type Config = {
   agent?: {
     plan?: AgentConfig
     build?: AgentConfig
+    debug?: AgentConfig
+    orchestrator?: AgentConfig
+    ask?: AgentConfig
     general?: AgentConfig
     explore?: AgentConfig
     title?: AgentConfig
@@ -1797,6 +1848,10 @@ export type Config = {
      * Enable pruning of old tool outputs (default: true)
      */
     prune?: boolean
+    /**
+     * Token buffer for compaction. Leaves enough window to avoid overflow during compaction.
+     */
+    reserved?: number
   }
   experimental?: {
     disable_paste_summary?: boolean
@@ -4192,6 +4247,37 @@ export type KiloOrganizationSetResponses = {
 }
 
 export type KiloOrganizationSetResponse = KiloOrganizationSetResponses[keyof KiloOrganizationSetResponses]
+
+export type KiloFimData = {
+  body?: {
+    prefix: string
+    suffix: string
+    model?: string
+    maxTokens?: number
+    temperature?: number
+  }
+  path?: never
+  query?: {
+    directory?: string
+  }
+  url: "/kilo/fim"
+}
+
+export type KiloFimErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type KiloFimError = KiloFimErrors[keyof KiloFimErrors]
+
+export type KiloFimResponses = {
+  /**
+   * Streaming FIM completion response
+   */
+  200: unknown
+}
 
 export type KiloNotificationsData = {
   body?: never

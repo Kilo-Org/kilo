@@ -1,8 +1,12 @@
 use tauri::{AppHandle, Manager, path::BaseDirectory};
-use tauri_plugin_shell::{ShellExt, process::Command};
+use tauri_plugin_shell::{
+    ShellExt,
+    process::{Command, CommandChild, CommandEvent, TerminatedPayload},
+};
+use tokio::sync::oneshot;
 
 const CLI_INSTALL_DIR: &str = ".kilo/bin";
-const CLI_BINARY_NAME: &str = "opencode";
+const CLI_BINARY_NAME: &str = "kilo"; // kilocode_change
 
 #[derive(serde::Deserialize)]
 pub struct ServerConfig {
@@ -19,7 +23,7 @@ pub async fn get_config(app: &AppHandle) -> Option<Config> {
     create_command(app, "debug config")
         .output()
         .await
-        .inspect_err(|e| eprintln!("Failed to read OC config: {e}"))
+        .inspect_err(|e| tracing::warn!("Failed to read OC config: {e}"))
         .ok()
         .and_then(|out| String::from_utf8(out.stdout.to_vec()).ok())
         .and_then(|s| serde_json::from_str::<Config>(&s).ok())
@@ -62,7 +66,7 @@ pub fn install_cli(app: tauri::AppHandle) -> Result<String, String> {
         return Err("Sidecar binary not found".to_string());
     }
 
-    let temp_script = std::env::temp_dir().join("opencode-install.sh");
+    let temp_script = std::env::temp_dir().join("kilo-install.sh"); // kilocode_change
     std::fs::write(&temp_script, INSTALL_SCRIPT)
         .map_err(|e| format!("Failed to write install script: {}", e))?;
 
@@ -94,12 +98,12 @@ pub fn install_cli(app: tauri::AppHandle) -> Result<String, String> {
 
 pub fn sync_cli(app: tauri::AppHandle) -> Result<(), String> {
     if cfg!(debug_assertions) {
-        println!("Skipping CLI sync for debug build");
+        tracing::debug!("Skipping CLI sync for debug build");
         return Ok(());
     }
 
     if !is_cli_installed() {
-        println!("No CLI installation found, skipping sync");
+        tracing::info!("No CLI installation found, skipping sync");
         return Ok(());
     }
 
@@ -122,21 +126,21 @@ pub fn sync_cli(app: tauri::AppHandle) -> Result<(), String> {
     let app_version = app.package_info().version.clone();
 
     if cli_version >= app_version {
-        println!(
-            "CLI version {} is up to date (app version: {}), skipping sync",
-            cli_version, app_version
+        tracing::info!(
+            %cli_version, %app_version,
+            "CLI is up to date, skipping sync"
         );
         return Ok(());
     }
 
-    println!(
-        "CLI version {} is older than app version {}, syncing",
-        cli_version, app_version
+    tracing::info!(
+        %cli_version, %app_version,
+        "CLI is older than app version, syncing"
     );
 
     install_cli(app)?;
 
-    println!("Synced installed CLI");
+    tracing::info!("Synced installed CLI");
 
     Ok(())
 }
@@ -157,9 +161,9 @@ pub fn create_command(app: &tauri::AppHandle, args: &str) -> Command {
         .sidecar("kilo-cli")
         .unwrap()
         .args(args.split_whitespace())
-        .env("OPENCODE_EXPERIMENTAL_ICON_DISCOVERY", "true")
-        .env("OPENCODE_EXPERIMENTAL_FILEWATCHER", "true")
-        .env("OPENCODE_CLIENT", "desktop")
+        .env("KILO_EXPERIMENTAL_ICON_DISCOVERY", "true")
+        .env("KILO_EXPERIMENTAL_FILEWATCHER", "true")
+        .env("KILO_CLIENT", "desktop")
         .env("XDG_STATE_HOME", &state_dir);
 
     #[cfg(not(target_os = "windows"))]
@@ -175,10 +179,64 @@ pub fn create_command(app: &tauri::AppHandle, args: &str) -> Command {
 
         app.shell()
             .command(&shell)
-            .env("OPENCODE_EXPERIMENTAL_ICON_DISCOVERY", "true")
-            .env("OPENCODE_EXPERIMENTAL_FILEWATCHER", "true")
-            .env("OPENCODE_CLIENT", "desktop")
+            .env("KILO_EXPERIMENTAL_ICON_DISCOVERY", "true")
+            .env("KILO_EXPERIMENTAL_FILEWATCHER", "true")
+            .env("KILO_CLIENT", "desktop")
             .env("XDG_STATE_HOME", &state_dir)
             .args(["-il", "-c", &cmd])
     };
+}
+
+pub fn serve(
+    app: &AppHandle,
+    hostname: &str,
+    port: u32,
+    password: &str,
+) -> (CommandChild, oneshot::Receiver<TerminatedPayload>) {
+    let (exit_tx, exit_rx) = oneshot::channel::<TerminatedPayload>();
+
+    tracing::info!(port, "Spawning sidecar");
+
+    let (mut rx, child) = create_command(
+        app,
+        format!("--print-logs --log-level WARN serve --hostname {hostname} --port {port}").as_str(),
+    )
+    .env("KILO_SERVER_USERNAME", "kilo") // kilocode_change
+    .env("KILO_SERVER_PASSWORD", password) // kilocode_change
+    .spawn()
+    .expect("Failed to spawn kilo"); // kilocode_change
+
+    tokio::spawn(async move {
+        let mut exit_tx = Some(exit_tx);
+        while let Some(event) = rx.recv().await {
+            match event {
+                CommandEvent::Stdout(line_bytes) => {
+                    let line = String::from_utf8_lossy(&line_bytes);
+                    tracing::info!(target: "sidecar", "{line}");
+                }
+                CommandEvent::Stderr(line_bytes) => {
+                    let line = String::from_utf8_lossy(&line_bytes);
+                    tracing::info!(target: "sidecar", "{line}");
+                }
+                CommandEvent::Error(err) => {
+                    tracing::error!(target: "sidecar", "{err}");
+                }
+                CommandEvent::Terminated(payload) => {
+                    tracing::info!(
+                        target: "sidecar",
+                        code = ?payload.code,
+                        signal = ?payload.signal,
+                        "Sidecar terminated"
+                    );
+
+                    if let Some(tx) = exit_tx.take() {
+                        let _ = tx.send(payload);
+                    }
+                }
+                _ => {}
+            }
+        }
+    });
+
+    (child, exit_rx)
 }

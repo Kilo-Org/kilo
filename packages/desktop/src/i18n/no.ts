@@ -25,8 +25,4 @@ export const dict = {
     "CLI installert til {{path}}\n\nStart terminalen på nytt for å bruke 'opencode'-kommandoen.",
   "desktop.cli.failed.title": "Installasjon mislyktes",
   "desktop.cli.failed.message": "Kunne ikke installere CLI: {{error}}",
-
-  "desktop.error.serverStartFailed.title": "Kilo kunne ikke starte",
-  "desktop.error.serverStartFailed.description":
-    "Den lokale Kilo-serveren kunne ikke startes. Start appen på nytt, eller sjekk nettverksinnstillingene dine (VPN/proxy) og prøv igjen.",
 }

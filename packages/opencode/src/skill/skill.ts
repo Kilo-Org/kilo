@@ -11,6 +11,8 @@ import { Filesystem } from "@/util/filesystem"
 import { Flag } from "@/flag/flag"
 import { Bus } from "@/bus"
 import { Session } from "@/session"
+import { Discovery } from "./discovery"
+
 import { KilocodePaths } from "../kilocode/paths" // kilocode_change
 
 export namespace Skill {
@@ -46,7 +48,7 @@ export namespace Skill {
   const EXTERNAL_DIRS = [".claude", ".agents"]
   const EXTERNAL_SKILL_GLOB = new Bun.Glob("skills/**/SKILL.md")
 
-  const OPENCODE_SKILL_GLOB = new Bun.Glob("{skill,skills}/**/SKILL.md")
+  const KILO_SKILL_GLOB = new Bun.Glob("{skill,skills}/**/SKILL.md")
   const SKILL_GLOB = new Bun.Glob("**/SKILL.md")
 
   export const state = Instance.state(async () => {
@@ -105,7 +107,7 @@ export namespace Skill {
 
     // Scan external skill directories (.claude/skills/, .agents/skills/, etc.)
     // Load global (home) first, then project-level (so project-level overwrites)
-    if (!Flag.OPENCODE_DISABLE_EXTERNAL_SKILLS) {
+    if (!Flag.KILO_DISABLE_EXTERNAL_SKILLS) {
       for (const dir of EXTERNAL_DIRS) {
         const root = path.join(Global.Path.home, dir)
         if (!(await Filesystem.isDir(root))) continue
@@ -129,7 +131,7 @@ export namespace Skill {
     })
     for (const dir of kilocodeSkillDirs) {
       const matches = await Array.fromAsync(
-        OPENCODE_SKILL_GLOB.scan({
+        KILO_SKILL_GLOB.scan({
           cwd: dir,
           absolute: true,
           onlyFiles: true,
@@ -149,7 +151,7 @@ export namespace Skill {
 
     // Scan .opencode/skill/ directories
     for (const dir of await Config.directories()) {
-      for await (const match of OPENCODE_SKILL_GLOB.scan({
+      for await (const match of KILO_SKILL_GLOB.scan({
         cwd: dir,
         absolute: true,
         onlyFiles: true,
@@ -175,6 +177,22 @@ export namespace Skill {
         followSymlinks: true,
       })) {
         await addSkill(match)
+      }
+    }
+
+    // Download and load skills from URLs
+    for (const url of config.skills?.urls ?? []) {
+      const list = await Discovery.pull(url)
+      for (const dir of list) {
+        dirs.add(dir)
+        for await (const match of SKILL_GLOB.scan({
+          cwd: dir,
+          absolute: true,
+          onlyFiles: true,
+          followSymlinks: true,
+        })) {
+          await addSkill(match)
+        }
       }
     }
 

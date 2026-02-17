@@ -175,100 +175,6 @@ describe("ProviderTransform.options - gpt-5 textVerbosity", () => {
   })
 })
 
-describe("ProviderTransform.maxOutputTokens", () => {
-  test("returns 32k when modelLimit > 32k", () => {
-    const modelLimit = 100000
-    const result = ProviderTransform.maxOutputTokens("@ai-sdk/openai", {}, modelLimit, OUTPUT_TOKEN_MAX)
-    expect(result).toBe(OUTPUT_TOKEN_MAX)
-  })
-
-  test("returns modelLimit when modelLimit < 32k", () => {
-    const modelLimit = 16000
-    const result = ProviderTransform.maxOutputTokens("@ai-sdk/openai", {}, modelLimit, OUTPUT_TOKEN_MAX)
-    expect(result).toBe(16000)
-  })
-
-  describe("azure", () => {
-    test("returns 32k when modelLimit > 32k", () => {
-      const modelLimit = 100000
-      const result = ProviderTransform.maxOutputTokens("@ai-sdk/azure", {}, modelLimit, OUTPUT_TOKEN_MAX)
-      expect(result).toBe(OUTPUT_TOKEN_MAX)
-    })
-
-    test("returns modelLimit when modelLimit < 32k", () => {
-      const modelLimit = 16000
-      const result = ProviderTransform.maxOutputTokens("@ai-sdk/azure", {}, modelLimit, OUTPUT_TOKEN_MAX)
-      expect(result).toBe(16000)
-    })
-  })
-
-  describe("bedrock", () => {
-    test("returns 32k when modelLimit > 32k", () => {
-      const modelLimit = 100000
-      const result = ProviderTransform.maxOutputTokens("@ai-sdk/amazon-bedrock", {}, modelLimit, OUTPUT_TOKEN_MAX)
-      expect(result).toBe(OUTPUT_TOKEN_MAX)
-    })
-
-    test("returns modelLimit when modelLimit < 32k", () => {
-      const modelLimit = 16000
-      const result = ProviderTransform.maxOutputTokens("@ai-sdk/amazon-bedrock", {}, modelLimit, OUTPUT_TOKEN_MAX)
-      expect(result).toBe(16000)
-    })
-  })
-
-  describe("anthropic without thinking options", () => {
-    test("returns 32k when modelLimit > 32k", () => {
-      const modelLimit = 100000
-      const result = ProviderTransform.maxOutputTokens("@ai-sdk/anthropic", {}, modelLimit, OUTPUT_TOKEN_MAX)
-      expect(result).toBe(OUTPUT_TOKEN_MAX)
-    })
-
-    test("returns modelLimit when modelLimit < 32k", () => {
-      const modelLimit = 16000
-      const result = ProviderTransform.maxOutputTokens("@ai-sdk/anthropic", {}, modelLimit, OUTPUT_TOKEN_MAX)
-      expect(result).toBe(16000)
-    })
-  })
-
-  describe("anthropic with thinking options", () => {
-    test("returns 32k when budgetTokens + 32k <= modelLimit", () => {
-      const modelLimit = 100000
-      const options = {
-        thinking: {
-          type: "enabled",
-          budgetTokens: 10000,
-        },
-      }
-      const result = ProviderTransform.maxOutputTokens("@ai-sdk/anthropic", options, modelLimit, OUTPUT_TOKEN_MAX)
-      expect(result).toBe(OUTPUT_TOKEN_MAX)
-    })
-
-    test("returns modelLimit - budgetTokens when budgetTokens + 32k > modelLimit", () => {
-      const modelLimit = 50000
-      const options = {
-        thinking: {
-          type: "enabled",
-          budgetTokens: 30000,
-        },
-      }
-      const result = ProviderTransform.maxOutputTokens("@ai-sdk/anthropic", options, modelLimit, OUTPUT_TOKEN_MAX)
-      expect(result).toBe(20000)
-    })
-
-    test("returns 32k when thinking type is not enabled", () => {
-      const modelLimit = 100000
-      const options = {
-        thinking: {
-          type: "disabled",
-          budgetTokens: 10000,
-        },
-      }
-      const result = ProviderTransform.maxOutputTokens("@ai-sdk/anthropic", options, modelLimit, OUTPUT_TOKEN_MAX)
-      expect(result).toBe(OUTPUT_TOKEN_MAX)
-    })
-  })
-})
-
 describe("ProviderTransform.schema - gemini array items", () => {
   test("adds missing items for array properties", () => {
     const geminiModel = {
@@ -983,7 +889,11 @@ describe("ProviderTransform.message - OpenRouter/Kilo Gateway thinking stripping
 
     expect(result).toHaveLength(1)
     expect(result[0].content).toHaveLength(1)
-    expect(result[0].content[0]).toEqual({ type: "text", text: "Answer" })
+    // applyCaching adds providerOptions because model.api.id includes "anthropic"
+    const part = result[0].content[0] as any
+    expect(part.type).toEqual("text")
+    expect(part.text).toEqual("Answer")
+    expect(part.providerOptions?.openrouter?.cacheControl).toEqual({ type: "ephemeral" })
   })
 })
 
@@ -1573,7 +1483,7 @@ describe("ProviderTransform.variants", () => {
 
   // kilocode_change start
   describe("@kilocode/kilo-gateway", () => {
-    test("claude models return OPENAI_EFFORTS with reasoning", () => {
+    test("claude models return empty variants (reasoning disabled)", () => {
       const model = createMockModel({
         id: "kilo/anthropic/claude-sonnet-4",
         providerID: "kilo",
@@ -1584,15 +1494,10 @@ describe("ProviderTransform.variants", () => {
         },
       })
       const result = ProviderTransform.variants(model)
-      expect(Object.keys(result)).toEqual(["none", "minimal", "low", "medium", "high", "xhigh"])
-      expect(result.none).toEqual({ reasoning: { effort: "none" } })
-      expect(result.low).toEqual({ reasoning: { effort: "low" } })
-      expect(result.medium).toEqual({ reasoning: { effort: "medium" } })
-      expect(result.high).toEqual({ reasoning: { effort: "high" } })
-      expect(result.xhigh).toEqual({ reasoning: { effort: "xhigh" } })
+      expect(Object.keys(result)).toEqual([])
     })
 
-    test("anthropic models in api.id return OPENAI_EFFORTS with reasoning", () => {
+    test("anthropic models in api.id return empty variants (reasoning disabled)", () => {
       const model = createMockModel({
         id: "kilo/anthropic/claude-opus-4",
         providerID: "kilo",
@@ -1603,8 +1508,7 @@ describe("ProviderTransform.variants", () => {
         },
       })
       const result = ProviderTransform.variants(model)
-      expect(Object.keys(result)).toEqual(["none", "minimal", "low", "medium", "high", "xhigh"])
-      expect(result.low).toEqual({ reasoning: { effort: "low" } })
+      expect(Object.keys(result)).toEqual([])
     })
 
     test("gpt models return OPENAI_EFFORTS with reasoning and encrypted content", () => {
@@ -1668,6 +1572,23 @@ describe("ProviderTransform.variants", () => {
       expect(Object.keys(result)).toEqual(["low", "high"])
       expect(result.low).toEqual({ reasoning: { effort: "low" } })
       expect(result.high).toEqual({ reasoning: { effort: "high" } })
+    })
+
+    test("codex models return OPENAI_EFFORTS with object-based reasoning format", () => {
+      const model = createMockModel({
+        id: "kilo/openai/gpt-5.2-codex",
+        providerID: "kilo",
+        api: {
+          id: "openai/gpt-5.2-codex",
+          url: "https://gateway.kilo.ai",
+          npm: "@kilocode/kilo-gateway",
+        },
+      })
+      const result = ProviderTransform.variants(model)
+      expect(Object.keys(result)).toEqual(["none", "minimal", "low", "medium", "high", "xhigh"])
+      expect(result.low).toEqual({ reasoning: { effort: "low" } })
+      expect(result.high).toEqual({ reasoning: { effort: "high" } })
+      expect(result.xhigh).toEqual({ reasoning: { effort: "xhigh" } })
     })
   })
   // kilocode_change end
@@ -2195,7 +2116,7 @@ describe("ProviderTransform.variants", () => {
 // kilocode_change start
 describe("ProviderTransform.smallOptions", () => {
   describe("@kilocode/kilo-gateway", () => {
-    test("claude models use reasoning.effort format", () => {
+    test("claude models return reasoningEffort minimal", () => {
       const model = createMockModel({
         id: "kilo/anthropic/claude-sonnet-4",
         providerID: "kilo",
@@ -2206,21 +2127,7 @@ describe("ProviderTransform.smallOptions", () => {
         },
       })
       const result = ProviderTransform.smallOptions(model)
-      expect(result).toEqual({ reasoning: { effort: "minimal" } })
-    })
-
-    test("anthropic models in api.id use reasoning.effort format", () => {
-      const model = createMockModel({
-        id: "kilo/anthropic/claude-opus-4",
-        providerID: "kilo",
-        api: {
-          id: "anthropic/claude-opus-4",
-          url: "https://gateway.kilo.ai",
-          npm: "@kilocode/kilo-gateway",
-        },
-      })
-      const result = ProviderTransform.smallOptions(model)
-      expect(result).toEqual({ reasoning: { effort: "minimal" } })
+      expect(result).toEqual({ reasoningEffort: "minimal" })
     })
 
     test("non-claude models use reasoningEffort format", () => {

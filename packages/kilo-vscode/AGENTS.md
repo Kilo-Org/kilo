@@ -105,23 +105,7 @@ While the old extension coexists, runtime labels append `(NEW)` — controlled b
 
 ## Agent Manager
 
-Runs multiple independent AI sessions in parallel, each in its own editor tab (not the sidebar).
-
-**Architecture:**
-
-```
-src/agent-manager/AgentManagerProvider.ts  # Opens WebviewPanel, wires KiloProvider
-src/KiloProvider.ts                         # attachToWebview() added for panel use
-webview-ui/agent-manager/                   # SolidJS UI (entry, root component, styles)
-```
-
-**Extension side**: `AgentManagerProvider` opens a `WebviewPanel`, sets HTML via `buildWebviewHtml()`, then calls `KiloProvider.attachToWebview()` to wire message handling and SSE. The `KiloProvider` instance handles all session communication identically to the sidebar.
-
-**Webview side**: `AgentManagerApp` reuses the full provider chain from `App.tsx` (`LanguageBridge`, `DataBridge` exported from there). Session list is a local `<For>` loop (not the shared `SessionList` component). `ChatView` handles the full chat experience.
-
-**New session**: "+ New Agent" calls `session.clearCurrentSession()` — `KiloProvider.handleSendMessage` auto-creates a fresh session on the next message, giving each agent its own session ID.
-
-**Constraints**: No Share/Refresh buttons. Layout CSS in `agent-manager.css`; component styling via `@kilocode/kilo-ui`. Worktree isolation is not yet implemented.
+Opens as an editor tab (not the sidebar) and lets users run multiple independent AI sessions in parallel. It has a left sidebar listing active sessions and a right panel showing the chat UI for the selected one. Each session is a standard `kilo serve` session. The extension side uses the same `KiloProvider` wiring as the sidebar; the webview side reuses the same provider chain and `ChatView` component.
 
 ## Kilocode Change Markers
 

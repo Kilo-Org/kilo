@@ -1,6 +1,5 @@
 import { Component, Show, For, createSignal, createMemo, createEffect, onMount } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
-import { Card } from "@kilocode/kilo-ui/card"
 import { Select } from "@kilocode/kilo-ui/select"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { useVSCode } from "../context/vscode"
@@ -14,7 +13,7 @@ export interface ProfileViewProps {
   profileData: ProfileData | null | undefined
   deviceAuth: DeviceAuthState
   onLogin: () => void
-  onDone?: () => void
+  onDone: () => void
 }
 
 const formatBalance = (amount: number): string => {
@@ -48,10 +47,10 @@ const KiloBrandLogo: Component = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 50 50"
-    width="74"
-    height="74"
+    width="100"
+    height="100"
     aria-hidden="true"
-    style={{ opacity: 0.9, "margin-bottom": "2px" }}
+    style={{ "margin-top": "16px", "margin-bottom": "16px" }}
   >
     <path
       fill="var(--vscode-descriptionForeground)"
@@ -152,7 +151,7 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
   }
 
   return (
-    <div style={{ padding: "16px" }}>
+    <div style={{ padding: "16px 12px 16px 16px" }}>
       <div
         style={{
           display: "flex",
@@ -172,17 +171,15 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
           {language.t("profile.title")}
         </h2>
         <div style={{ flex: 1 }} />
-        <Show when={props.onDone}>
-          <Button size="small" variant="secondary" onClick={() => props.onDone?.()}>
-            {language.t("common.done")}
-          </Button>
-        </Show>
+        <Button variant="secondary" onClick={props.onDone}>
+          {language.t("common.done")}
+        </Button>
       </div>
 
       <Show
         when={props.profileData}
         fallback={
-          <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+          <div style={{ display: "flex", "flex-direction": "column" }}>
             <Show
               when={props.deviceAuth.status !== "idle"}
               fallback={
@@ -191,57 +188,63 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                     display: "flex",
                     "flex-direction": "column",
                     "align-items": "center",
-                    gap: "10px",
                     "text-align": "center",
-                    padding: "10px 4px 8px",
                   }}
                 >
                   <KiloBrandLogo />
-                  <h3
+                  <h2
                     style={{
-                      margin: 0,
-                      "font-size": "20px",
+                      margin: "0 0 16px 0",
+                      padding: 0,
+                      "font-size": "calc(var(--vscode-font-size, 13px) * 1.5)",
                       "font-weight": "700",
+                      "line-height": "1.2",
                       color: "var(--vscode-foreground)",
                     }}
                   >
                     {language.t("profile.welcome.greeting")}
-                  </h3>
+                  </h2>
                   <p
                     style={{
-                      margin: 0,
-                      "font-size": "13px",
-                      color: "var(--vscode-descriptionForeground)",
+                      margin: "0 0 10px 0",
+                      "text-align": "center",
                     }}
                   >
                     {language.t("profile.welcome.introText1")}
                   </p>
                   <p
                     style={{
-                      margin: 0,
-                      "font-size": "13px",
-                      color: "var(--vscode-descriptionForeground)",
+                      margin: "0 0 10px 0",
+                      "text-align": "center",
                     }}
                   >
                     {language.t("profile.welcome.introText2")}
                   </p>
                   <p
                     style={{
-                      margin: 0,
-                      "font-size": "13px",
-                      color: "var(--vscode-descriptionForeground)",
+                      margin: "0 0 20px 0",
+                      "text-align": "center",
                     }}
                   >
                     {language.t("profile.welcome.introText3")}
                   </p>
-                  <Button
-                    variant="primary"
-                    size="large"
-                    onClick={handleLogin}
-                    style={{ "margin-top": "12px", width: "100%", "min-height": "46px" }}
-                  >
-                    {language.t("profile.welcome.ctaButton")}
-                  </Button>
+                  <div style={{ width: "100%", display: "flex", "flex-direction": "column", gap: "20px" }}>
+                    <Button
+                      variant="primary"
+                      onClick={handleLogin}
+                      style={{
+                        width: "100%",
+                        height: "auto",
+                        "min-height": "40px",
+                        "font-size": "12px",
+                        "font-weight": "600",
+                        "line-height": "1.2",
+                        padding: "14px",
+                      }}
+                    >
+                      {language.t("profile.welcome.ctaButton")}
+                    </Button>
+                  </div>
                 </div>
               }
             >
@@ -259,12 +262,15 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
         }
       >
         {(data) => (
-          <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
-            <Card
+          <div style={{ display: "flex", "flex-direction": "column" }}>
+            <div
               style={{
                 display: "flex",
                 "align-items": "center",
-                gap: "12px",
+                "flex-wrap": "wrap",
+                "row-gap": "16px",
+                gap: "16px",
+                "margin-bottom": "24px",
               }}
             >
               <Show
@@ -275,8 +281,8 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                 fallback={
                   <div
                     style={{
-                      width: "56px",
-                      height: "56px",
+                      width: "64px",
+                      height: "64px",
                       "border-radius": "999px",
                       background: "var(--vscode-button-background)",
                       color: "var(--vscode-button-foreground)",
@@ -297,8 +303,8 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                     src={avatar()}
                     alt="Profile"
                     style={{
-                      width: "56px",
-                      height: "56px",
+                      width: "64px",
+                      height: "64px",
                       "border-radius": "999px",
                       "object-fit": "cover",
                       "flex-shrink": "0",
@@ -306,11 +312,11 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                   />
                 )}
               </Show>
-              <div style={{ "min-width": "0" }}>
+              <div style={{ "min-width": "0", flex: 1 }}>
                 <p
                   style={{
-                    "font-size": "15px",
-                    "font-weight": "600",
+                    "font-size": "18px",
+                    "font-weight": "500",
                     color: "var(--vscode-foreground)",
                     margin: "0 0 4px 0",
                     overflow: "hidden",
@@ -322,7 +328,7 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                 </p>
                 <p
                   style={{
-                    "font-size": "12px",
+                    "font-size": "14px",
                     color: "var(--vscode-descriptionForeground)",
                     margin: 0,
                     overflow: "hidden",
@@ -333,21 +339,10 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                   {data().profile.email}
                 </p>
               </div>
-            </Card>
+            </div>
 
             <Show when={orgOptions().length > 0}>
-              <Card>
-                <p
-                  style={{
-                    "font-size": "11px",
-                    "text-transform": "uppercase",
-                    "letter-spacing": "0.5px",
-                    color: "var(--vscode-descriptionForeground)",
-                    margin: "0 0 8px 0",
-                  }}
-                >
-                  {language.t("profile.account.label")}
-                </p>
+              <div style={{ "margin-bottom": "24px" }}>
                 <Select
                   options={orgOptions()}
                   current={currentOrg()}
@@ -359,87 +354,108 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                   triggerVariant="settings"
                   disabled={switching()}
                 />
-              </Card>
+              </div>
             </Show>
 
-            <div style={{ display: "grid", "grid-template-columns": "repeat(auto-fit, minmax(140px, 1fr))", gap: "8px" }}>
-              <Button variant="secondary" onClick={handleDashboard} style={{ flex: "1" }}>
+            <div
+              style={{
+                display: "grid",
+                "grid-template-columns": "repeat(auto-fit, minmax(225px, 1fr))",
+                gap: "8px",
+              }}
+            >
+              <Button variant="primary" onClick={handleDashboard} style={{ width: "100%" }}>
                 {language.t("profile.action.dashboard")}
               </Button>
-              <Button variant="secondary" onClick={handleLogout} style={{ flex: "1" }}>
+              <Button variant="secondary" onClick={handleLogout} style={{ width: "100%" }}>
                 {language.t("profile.action.logout")}
               </Button>
             </div>
 
-            <Show when={data().currentOrgId}>
-              <Button variant="secondary" onClick={handleUsageDetails} style={{ width: "100%" }}>
-                {language.t("profile.action.usageDetails")}
-              </Button>
-            </Show>
-            <Show when={!data().currentOrgId && (data().profile.organizations?.length ?? 0) === 0}>
-              <Button variant="primary" onClick={handleCreateOrganization} style={{ width: "100%" }}>
-                {language.t("profile.action.createOrganization")}
-              </Button>
-            </Show>
+            <div style={{ "margin-top": "8px" }}>
+              <Show when={data().currentOrgId}>
+                <Button variant="secondary" onClick={handleUsageDetails} style={{ width: "100%" }}>
+                  {language.t("profile.action.usageDetails")}
+                </Button>
+              </Show>
+              <Show when={!data().currentOrgId && (data().profile.organizations?.length ?? 0) === 0}>
+                <Button variant="primary" onClick={handleCreateOrganization} style={{ width: "100%" }}>
+                  {language.t("profile.action.createOrganization")}
+                </Button>
+              </Show>
+            </div>
 
             <div
               style={{
                 height: "1px",
                 background: "var(--vscode-panel-border)",
-                margin: "2px 0",
+                margin: "24px 0",
               }}
             />
 
             <Show when={data().balance}>
               {(balance) => (
-                <Card
+                <div
                   style={{
-                    display: "grid",
-                    gap: "8px",
-                    "justify-items": "center",
-                    padding: "16px 12px",
+                    width: "100%",
+                    display: "flex",
+                    "flex-direction": "column",
+                    "align-items": "center",
                   }}
                 >
-                  <p
+                  <div
                     style={{
-                      "font-size": "11px",
-                      "text-transform": "uppercase",
-                      "letter-spacing": "0.5px",
+                      "font-size": "14px",
                       color: "var(--vscode-descriptionForeground)",
-                      margin: 0,
+                      "margin-bottom": "12px",
                     }}
                   >
                     {language.t("profile.balance.title")}
-                  </p>
-                  <p
+                  </div>
+                  <div
                     style={{
-                      "font-size": "34px",
-                      "font-weight": "700",
-                      color: "var(--vscode-foreground)",
-                      margin: 0,
-                      "font-variant-numeric": "tabular-nums",
-                      "line-height": "1",
+                      display: "flex",
+                      "align-items": "center",
+                      gap: "8px",
+                      "margin-bottom": "24px",
                     }}
                   >
-                    {formatBalance(balance().balance)}
-                  </p>
-                  <Tooltip value={language.t("profile.balance.refresh")} placement="left">
-                    <Button variant="ghost" size="small" onClick={handleRefresh} aria-label={language.t("common.refresh")}>
-                      ↻
-                    </Button>
-                  </Tooltip>
-                </Card>
+                    <div
+                      style={{
+                        "font-size": "36px",
+                        "font-weight": "700",
+                        color: "var(--vscode-foreground)",
+                        "font-variant-numeric": "tabular-nums",
+                        "line-height": "1",
+                      }}
+                    >
+                      {formatBalance(balance().balance)}
+                    </div>
+                    <Tooltip value={language.t("profile.balance.refresh")} placement="left">
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        onClick={handleRefresh}
+                        aria-label={language.t("common.refresh")}
+                        style={{ "min-width": "32px", "margin-top": "2px" }}
+                      >
+                        <span class="codicon codicon-refresh" />
+                      </Button>
+                    </Tooltip>
+                  </div>
+                </div>
               )}
             </Show>
 
             <Show when={!data().currentOrgId}>
-              <Card>
+              <div style={{ width: "100%", "margin-top": "32px" }}>
                 <div
                   style={{
-                    "font-size": "14px",
+                    "font-size": "18px",
                     "font-weight": "600",
-                    "margin-bottom": "10px",
+                    "margin-bottom": "16px",
                     color: "var(--vscode-foreground)",
+                    "text-align": "center",
                   }}
                 >
                   {language.t("profile.shop.title")}
@@ -447,8 +463,9 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                 <div
                   style={{
                     display: "grid",
-                    "grid-template-columns": "repeat(auto-fit, minmax(120px, 1fr))",
-                    gap: "8px",
+                    "grid-template-columns": "repeat(auto-fit, minmax(140px, 1fr))",
+                    gap: "12px",
+                    "margin-bottom": "24px",
                   }}
                 >
                   <For each={CREDIT_PACKAGES}>
@@ -459,9 +476,11 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                           border: `1px solid ${
                             pkg.popular ? "var(--vscode-button-background)" : "var(--vscode-input-border)"
                           }`,
+                          "box-shadow": pkg.popular ? "0 0 0 1px var(--vscode-button-background)" : "none",
                           "border-radius": "8px",
-                          padding: "8px",
+                          padding: "16px",
                           background: "var(--vscode-editor-background)",
+                          transition: "box-shadow 120ms ease",
                         }}
                       >
                         <Show when={pkg.popular}>
@@ -473,57 +492,58 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
                               transform: "translateX(-50%)",
                               background: "var(--vscode-button-background)",
                               color: "var(--vscode-button-foreground)",
-                              "font-size": "10px",
+                              "font-size": "12px",
                               "font-weight": "600",
-                              padding: "2px 6px",
+                              padding: "2px 8px",
                               "border-radius": "999px",
                               "text-transform": "uppercase",
                               "letter-spacing": "0.4px",
-                          }}
-                        >
+                            }}
+                          >
                             {language.t("profile.shop.popular")}
                           </div>
                         </Show>
-                        <div
-                          style={{
-                            "font-size": "20px",
-                            "font-weight": "700",
-                            color: "var(--vscode-foreground)",
-                            "text-align": "center",
-                            "margin-top": pkg.popular ? "6px" : "0",
-                            "font-variant-numeric": "tabular-nums",
-                          }}
-                        >
-                          ${pkg.credits}
+                        <div style={{ "text-align": "center" }}>
+                          <div
+                            style={{
+                              "font-size": "24px",
+                              "font-weight": "700",
+                              color: "var(--vscode-foreground)",
+                              "margin-top": pkg.popular ? "6px" : "0",
+                              "margin-bottom": "4px",
+                              "font-variant-numeric": "tabular-nums",
+                            }}
+                          >
+                            ${pkg.credits}
+                          </div>
+                          <div
+                            style={{
+                              "font-size": "14px",
+                              color: "var(--vscode-descriptionForeground)",
+                              "margin-bottom": "8px",
+                            }}
+                          >
+                            {language.t("profile.shop.credits")}
+                          </div>
+                          <Button
+                            variant={pkg.popular ? "primary" : "secondary"}
+                            size="small"
+                            style={{ width: "100%" }}
+                            onClick={() => handleBuyCredits(pkg.credits)}
+                          >
+                            {language.t("profile.shop.action")}
+                          </Button>
                         </div>
-                        <div
-                          style={{
-                            "font-size": "11px",
-                            color: "var(--vscode-descriptionForeground)",
-                            "text-align": "center",
-                            "margin-bottom": "8px",
-                          }}
-                        >
-                          {language.t("profile.shop.credits")}
-                        </div>
-                        <Button
-                          variant={pkg.popular ? "primary" : "secondary"}
-                          size="small"
-                          style={{ width: "100%" }}
-                          onClick={() => handleBuyCredits(pkg.credits)}
-                        >
-                          {language.t("profile.shop.action")}
-                        </Button>
                       </div>
                     )}
                   </For>
                 </div>
-                <div style={{ display: "flex", "justify-content": "center", "margin-top": "10px" }}>
-                  <Button variant="ghost" size="small" onClick={handleDashboard}>
+                <div style={{ display: "flex", "justify-content": "center" }}>
+                  <Button variant="secondary" size="small" onClick={handleDashboard}>
                     {language.t("profile.shop.viewAll")}
                   </Button>
                 </div>
-              </Card>
+              </div>
             </Show>
           </div>
         )}

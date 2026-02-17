@@ -32,6 +32,9 @@ import { useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv"
 import { useTextareaKeybindings } from "../textarea-keybindings"
 import { DialogSkill } from "../dialog-skill"
+// kilocode_change start
+import { DialogTool } from "../dialog-tool"
+// kilocode_change end
 
 export type PromptProps = {
   sessionID?: string
@@ -351,6 +354,19 @@ export function Prompt(props: PromptProps) {
           ))
         },
       },
+      // kilocode_change start
+      {
+        title: "Tools",
+        value: "prompt.tools",
+        category: "Prompt",
+        slash: {
+          name: "tools",
+        },
+        onSelect: () => {
+          dialog.replace(() => <DialogTool />)
+        },
+      },
+      // kilocode_change end
     ]
   })
 

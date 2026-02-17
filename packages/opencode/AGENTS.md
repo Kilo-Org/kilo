@@ -64,3 +64,35 @@ Hono-based HTTP server with OpenAPI spec generation. SSE for real-time events. W
 ## Providers and Models
 
 Uses the **Vercel AI SDK** as the abstraction layer. Providers are loaded from a bundled map or dynamically installed at runtime. Models come from models.dev (external API), cached locally.
+
+## Tools
+
+### codebase_search
+
+Requires configuration in `opencode.json`:
+
+```json
+{
+  "provider": {
+    "kilo": {
+      "options": {
+        "codebase_search": {
+          "embedModel": "codestral-embed-2505", // or "text-embedding-3-small" for OpenAI, "nomic-embed-text" for Ollama
+          "vectorDb": {
+            "type": "qdrant",
+            "url": "http://localhost:6333"
+          },
+          "similarityThreshold": 0.4,
+          "maxResults": 50
+        }
+      }
+    }
+  }
+}
+```
+
+- **Embedding providers supported**: OpenAI (text-embedding-3-small), Mistral (codestral-embed-2505), Ollama (nomic-embed-text)
+- **Vector database supported**: Qdrant
+- **API keys**: Configure in auth settings (`~/.local/share/kilo/auth.json`) for openai, mistral, qdrant
+- **Collection name**: Automatically generated from workspace path using SHA-256 hash
+- **Requirements**: Qdrant running and accessible, collection exists with indexed data

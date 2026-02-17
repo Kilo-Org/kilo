@@ -10,7 +10,7 @@ export namespace CodebaseSearchCollection {
    * Generate collection name from workspace path
    * Uses SHA-256 hash truncated to 16 hex chars
    * Pattern: ws-{hash16}
-   * 
+   *
    * This matches the Kilo Code VSCode extension pattern for compatibility
    * with collections created by the extension.
    */
@@ -23,10 +23,7 @@ export namespace CodebaseSearchCollection {
    * Get collection name for a workspace
    * Returns explicit collection name if provided, otherwise generates one
    */
-  export function get(
-    workspacePath: string,
-    explicitCollection?: string,
-  ): string {
+  export function get(workspacePath: string, explicitCollection?: string): string {
     return explicitCollection || generateFromWorkspace(workspacePath)
   }
 

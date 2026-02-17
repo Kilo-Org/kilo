@@ -129,6 +129,7 @@ This tool is only available when the Codebase Indexing feature is properly confi
 - **Index Status**: Codebase must be indexed (status: "Indexed" or "Indexing")
 
 **Supported Embedding Models**:
+
 - `codestral-embed-2505` (Mistral) - default, code-optimized
 - `text-embedding-3-small` (OpenAI)
 - Other models via Ollama
@@ -182,21 +183,25 @@ When the codebase_search tool is invoked, it follows this process:
 **Effective Query Patterns**:
 
 **Good: Conceptual and specific**
+
 ```
 query: "user authentication and password validation"
 ```
 
 **Good: Feature-focused**
+
 ```
 query: "database connection pool setup"
 ```
 
 **Good: Problem-oriented**
+
 ```
 query: "error handling for API requests"
 ```
 
 **Less effective: Too generic**
+
 ```
 query: "function"
 ```
@@ -211,6 +216,7 @@ query: "function"
 ### Result Interpretation
 
 **Similarity Scores**:
+
 - **0.8-1.0**: Highly relevant matches, likely exactly what you're looking for
 - **0.6-0.8**: Good matches with strong conceptual similarity
 - **0.4-0.6**: Potentially relevant but may require review
@@ -218,6 +224,7 @@ query: "function"
 
 **Result Structure**:
 Each search result includes:
+
 - **File Path**: Workspace-relative path to the file containing the match
 - **Score**: Similarity score indicating relevance (0.4-1.0)
 - **Line Range**: Start and end line numbers for the code block
@@ -249,11 +256,11 @@ OpenCode provides two modules for custom tools:
 1. **Config Module** ([`packages/opencode/src/config/config.ts`](packages/opencode/src/config/config.ts:1273-1295))
    - Stores non-sensitive settings in `opencode.json`
    - `codebaseSearch` object with:
-      - `projectId` - Project ID for codebase search
-      - `embedModel` - Embedding model (default: "codestral-embed-2505")
-      - `vectorDb` - Vector database configuration (Qdrant or LanceDB)
-      - `similarityThreshold` - Minimum similarity score for results (default: 0.4)
-      - `maxResults` - Maximum number of results to return (default: 50)
+     - `projectId` - Project ID for codebase search
+     - `embedModel` - Embedding model (default: "codestral-embed-2505")
+     - `vectorDb` - Vector database configuration (Qdrant or LanceDB)
+     - `similarityThreshold` - Minimum similarity score for results (default: 0.4)
+     - `maxResults` - Maximum number of results to return (default: 50)
 
 2. **Auth Module** ([`packages/opencode/src/auth/index.ts`](packages/opencode/src/auth/index.ts:38))
    - Stores sensitive credentials in `~/.local/share/kilo/auth.json`
@@ -343,70 +350,88 @@ Use the optional path parameter to focus searches on specific parts of your code
 
 Search within API modules:
 ```
+
 query: "endpoint validation middleware"
 path: "src/api"
+
 ```
 
 Search in test files:
 ```
+
 query: "mock data setup patterns"
 path: "tests"
+
 ```
 
 Search specific feature directories:
 ```
+
 query: "component state management"
 path: "src/components/auth"
+
 ```
 
 ## Usage Examples
 
 ### Searching for authentication code in a specific directory
 ```
+
 <codebase_search>
 <query>user login and authentication logic</query>
 <path>src/auth</path>
 </codebase_search>
+
 ```
 
 ### Searching for entire workspace
 ```
+
 <codebase_search>
 <query>environment variables and application configuration</query>
 </codebase_search>
+
 ```
 
 ### Searching for database-related code in a specific directory
 ```
+
 <codebase_search>
 <query>database connection and query execution</query>
 <path>src/data</path>
 </codebase_search>
+
 ```
 
 ### Looking for error handling patterns in API code
 ```
+
 <codebase_search>
 <query>HTTP error responses and exception handling</query>
 <path>src/api</path>
 </codebase_search>
+
 ```
 
 ### Searching for testing utilities and mock setups
 ```
+
 <codebase_search>
 <query>test setup and mock data creation</query>
 <path>tests</path>
 </codebase_search>
+
 ```
 
 ### Searching for React hooks
 ```
+
 <codebase_search>
 <query>useState hook implementation</query>
 <path>src/components</path>
 </codebase_search>
-```
+
+````
 
 ### Step 2: Create Tool File
 
@@ -555,7 +580,7 @@ export default tool({
     )
   },
 }
-```
+````
 
 ### Step 3: Configuration Examples
 

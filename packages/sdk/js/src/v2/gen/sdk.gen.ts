@@ -17,6 +17,7 @@ import type {
   Config as Config3,
   ConfigGetResponses,
   ConfigProvidersResponses,
+  ConfigReloadResponses,
   ConfigUpdateErrors,
   ConfigUpdateResponses,
   EventSubscribeResponses,
@@ -703,6 +704,25 @@ export class Config2 extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Reload configuration
+   *
+   * Invalidate config cache and reload from files.
+   */
+  public reload<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "directory" }] }])
+    return (options?.client ?? this.client).post<ConfigReloadResponses, unknown, ThrowOnError>({
+      url: "/config/reload",
+      ...options,
+      ...params,
     })
   }
 

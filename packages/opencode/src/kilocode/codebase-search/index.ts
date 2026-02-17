@@ -1,11 +1,11 @@
 // kilocode_change - new file
 /**
  * Kilo Code codebase search module
- * 
+ *
  * This module provides Kilo-specific configuration and utilities for
  * the codebase-search tool. It extracts Kilo-specific logic from the
  * shared tool implementation to minimize merge conflicts with upstream.
- * 
+ *
  * Components:
  * - types.ts: Configuration schemas and types
  * - config.ts: Configuration loading and validation

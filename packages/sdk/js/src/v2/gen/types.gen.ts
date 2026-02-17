@@ -2680,6 +2680,26 @@ export type ConfigUpdateResponses = {
 
 export type ConfigUpdateResponse = ConfigUpdateResponses[keyof ConfigUpdateResponses]
 
+export type ConfigReloadData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+  }
+  url: "/config/reload"
+}
+
+export type ConfigReloadResponses = {
+  /**
+   * Config cache invalidated
+   */
+  200: {
+    success: boolean
+  }
+}
+
+export type ConfigReloadResponse = ConfigReloadResponses[keyof ConfigReloadResponses]
+
 export type ConfigProvidersData = {
   body?: never
   path?: never

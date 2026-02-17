@@ -62,6 +62,31 @@ export const ConfigRoutes = lazy(() =>
         return c.json(config)
       },
     )
+    // kilocode_change start - Add reload endpoint to invalidate config cache
+    .post(
+      "/reload",
+      describeRoute({
+        summary: "Reload configuration",
+        description: "Invalidate config cache and reload from files.",
+        operationId: "config.reload",
+        responses: {
+          200: {
+            description: "Config cache invalidated",
+            content: {
+              "application/json": {
+                schema: resolver(z.object({ success: z.boolean() })),
+              },
+            },
+          },
+        },
+      }),
+      async (c) => {
+        const { Instance } = await import("../../project/instance")
+        await Instance.dispose()
+        return c.json({ success: true })
+      },
+    )
+    // kilocode_change end
     .get(
       "/providers",
       describeRoute({

@@ -854,6 +854,46 @@
         ]
       }
     },
+    "/config/reload": {
+      "post": {
+        "operationId": "config.reload",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "directory",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "summary": "Reload configuration",
+        "description": "Invalidate config cache and reload from files.",
+        "responses": {
+          "200": {
+            "description": "Config cache invalidated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["success"]
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@kilocode/sdk\n\nconst client = createOpencodeClient()\nawait client.config.reload({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/config/providers": {
       "get": {
         "operationId": "config.providers",

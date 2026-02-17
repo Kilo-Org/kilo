@@ -91,10 +91,7 @@ export namespace CodebaseSearchEmbeddings {
   /**
    * Generate embedding using Ollama (local)
    */
-  export async function generateOllama(
-    text: string,
-    model = "nomic-embed-text",
-  ): Promise<number[]> {
+  export async function generateOllama(text: string, model = "nomic-embed-text"): Promise<number[]> {
     const response = await fetch("http://localhost:11434/api/embeddings", {
       method: "POST",
       headers: {
@@ -123,11 +120,7 @@ export namespace CodebaseSearchEmbeddings {
   /**
    * Generate embedding using the configured provider
    */
-  export async function generate(
-    text: string,
-    embedModel: string,
-    authMap: AuthMap,
-  ): Promise<number[]> {
+  export async function generate(text: string, embedModel: string, authMap: AuthMap): Promise<number[]> {
     const { provider, modelId } = getProvider(embedModel)
 
     if (provider === "openai") {

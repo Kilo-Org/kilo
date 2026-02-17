@@ -136,6 +136,7 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
   }
 
   const handleCreateOrganization = () => {
+    // TODO(telemetry): capture CREATE_ORGANIZATION_LINK_CLICKED analytics event when telemetry pipeline is implemented.
     vscode.postMessage({ type: "openExternal", url: `${APP_BASE_URL}/organizations/new` })
   }
 

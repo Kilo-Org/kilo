@@ -745,14 +745,31 @@ export const dict = {
 
   "common.retry": "Erneut versuchen",
   "common.refresh": "Aktualisieren",
+  "common.done": "Done",
 
   "profile.title": "Profil",
   "profile.notLoggedIn": "Nicht angemeldet",
   "profile.action.login": "Mit Kilo Code anmelden",
+  "profile.welcome.greeting": "Welcome to Kilo Code!",
+  "profile.welcome.introText1": "Kilo Code is a free, open source AI coding agent.",
+  "profile.welcome.introText2": "It works with the latest AI models like Claude Opus 4.5, Gemini 3 Pro, GPT-5.2, and 450+ more.",
+  "profile.welcome.introText3": "Create a free account and get $20 in bonus credits when you top-up for the first time.",
+  "profile.welcome.ctaButton": "Get Started",
   "profile.balance.title": "Guthaben",
   "profile.balance.refresh": "Guthaben aktualisieren",
+
   "profile.action.dashboard": "Dashboard",
   "profile.action.logout": "Abmelden",
+  "profile.account.label": "Account",
+  "profile.account.personal": "Personal Account",
+
+  "profile.action.usageDetails": "Usage Details",
+  "profile.action.createOrganization": "Create Organization",
+  "profile.shop.title": "Buy Credits",
+  "profile.shop.popular": "Popular",
+  "profile.shop.credits": "credits",
+  "profile.shop.action": "Buy",
+  "profile.shop.viewAll": "View all options",
 
   "settings.section.configuration": "Konfiguration",
   "settings.agentBehaviour.title": "Agentenverhalten",

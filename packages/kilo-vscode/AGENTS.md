@@ -103,6 +103,26 @@ New webview features must use **`@kilocode/kilo-ui`** components instead of raw 
 
 While the old extension coexists, runtime labels append `(NEW)` — controlled by the flag in [`constants.ts`](src/constants.ts). Static labels in `package.json` must be updated separately. Remove this convention once the old extension is retired.
 
+## Agent Manager
+
+Runs multiple independent AI sessions in parallel, each in its own editor tab (not the sidebar).
+
+**Architecture:**
+
+```
+src/agent-manager/AgentManagerProvider.ts  # Opens WebviewPanel, wires KiloProvider
+src/KiloProvider.ts                         # attachToWebview() added for panel use
+webview-ui/agent-manager/                   # SolidJS UI (entry, root component, styles)
+```
+
+**Extension side**: `AgentManagerProvider` opens a `WebviewPanel`, sets HTML via `buildWebviewHtml()`, then calls `KiloProvider.attachToWebview()` to wire message handling and SSE. The `KiloProvider` instance handles all session communication identically to the sidebar.
+
+**Webview side**: `AgentManagerApp` reuses the full provider chain from `App.tsx` (`LanguageBridge`, `DataBridge` exported from there). Session list is a local `<For>` loop (not the shared `SessionList` component). `ChatView` handles the full chat experience.
+
+**New session**: "+ New Agent" calls `session.clearCurrentSession()` — `KiloProvider.handleSendMessage` auto-creates a fresh session on the next message, giving each agent its own session ID.
+
+**Constraints**: No Share/Refresh buttons. Layout CSS in `agent-manager.css`; component styling via `@kilocode/kilo-ui`. Worktree isolation is not yet implemented.
+
 ## Kilocode Change Markers
 
 This package is entirely Kilo-specific — `kilocode_change` markers are NOT needed in any files under `packages/kilo-vscode/`. The markers are only necessary when modifying shared upstream opencode files.

@@ -811,7 +811,7 @@ model: "anthropic/claude-sonnet-4-5"
 modes/
 node_modules/
 openai/gpt-4.1
-opencode.ai/config.json
+app.kilo.ai/config.json
 opencode/<model-id>
 opencode/gpt-5.1-codex
 opencode/gpt-5.2-codex

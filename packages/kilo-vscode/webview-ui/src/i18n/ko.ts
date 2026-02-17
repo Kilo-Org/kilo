@@ -766,12 +766,14 @@ export const dict = {
   "session.messages.welcome":
     "Kilo Code는 AI 코딩 어시스턴트입니다. 기능 구축, 버그 수정 또는 코드베이스 설명을 요청하세요.",
   "session.messages.scrollToBottom": "하단으로 스크롤",
+  "session.status.writingResponse": "응답 작성 중...",
+  "session.status.retrying": "재시도 중 ({{ attempt }}번째 시도)… {{ message }}",
+  "session.status.working": "작업 중...",
 
   "dialog.model.noProviders": "공급자 없음",
 
   "prompt.placeholder.connecting": "서버에 연결 중...",
-  "prompt.placeholder.default": "메시지를 입력하세요...",
-  "prompt.hint.sendShortcut": "Enter로 전송, Shift+Enter로 줄 바꿈",
+  "prompt.placeholder.default": "메시지를 입력하세요... (Enter로 전송, Shift+Enter로 줄 바꿈)",
 
   "context.usage.sessionCost": "세션 비용",
 
@@ -794,7 +796,12 @@ export const dict = {
   "settings.aboutKiloCode.status.label": "상태:",
   "settings.aboutKiloCode.port.label": "포트:",
   "settings.aboutKiloCode.versionInfo": "버전 정보",
+  "settings.aboutKiloCode.version.label": "버전:",
   "settings.aboutKiloCode.extensionName": "Kilo Code 확장 프로그램",
+  "settings.aboutKiloCode.community": "커뮤니티 및 지원",
+  "settings.aboutKiloCode.feedback.prefix": "질문이나 피드백이 있으시면 다음에서 이슈를 열어주세요",
+  "settings.aboutKiloCode.feedback.or": "또는",
+  "settings.aboutKiloCode.support.prefix": "결제 또는 계정 관련 문의는 고객 지원팀에 문의하세요",
 
   "settings.agentBehaviour.subtab.modes": "모드",
   "settings.agentBehaviour.subtab.agents": "Agents",

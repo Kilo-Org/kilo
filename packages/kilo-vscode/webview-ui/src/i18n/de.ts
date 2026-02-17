@@ -773,12 +773,14 @@ export const dict = {
   "session.messages.welcome":
     "Kilo Code ist ein KI-Programmierassistent. Bitten Sie ihn, Funktionen zu erstellen, Fehler zu beheben oder Ihre Codebasis zu erklären.",
   "session.messages.scrollToBottom": "Nach unten scrollen",
+  "session.status.writingResponse": "Antwort wird geschrieben…",
+  "session.status.retrying": "Erneuter Versuch ({{ attempt }})… {{ message }}",
+  "session.status.working": "Wird bearbeitet…",
 
   "dialog.model.noProviders": "Keine Anbieter",
 
   "prompt.placeholder.connecting": "Verbindung zum Server wird hergestellt...",
-  "prompt.placeholder.default": "Nachricht eingeben...",
-  "prompt.hint.sendShortcut": "Enter zum Senden, Shift+Enter für neue Zeile",
+  "prompt.placeholder.default": "Nachricht eingeben... (Enter zum Senden, Shift+Enter für neue Zeile)",
 
   "context.usage.sessionCost": "Sitzungskosten",
 
@@ -801,7 +803,13 @@ export const dict = {
   "settings.aboutKiloCode.status.label": "Status:",
   "settings.aboutKiloCode.port.label": "Port:",
   "settings.aboutKiloCode.versionInfo": "Versionsinformationen",
+  "settings.aboutKiloCode.version.label": "Version:",
   "settings.aboutKiloCode.extensionName": "Kilo Code Erweiterung",
+  "settings.aboutKiloCode.community": "Community & Support",
+  "settings.aboutKiloCode.feedback.prefix": "Bei Fragen oder Feedback können Sie ein Issue eröffnen auf",
+  "settings.aboutKiloCode.feedback.or": "oder",
+  "settings.aboutKiloCode.support.prefix":
+    "Bei Abrechnungs- oder Kontofragen wenden Sie sich an den Kundensupport unter",
 
   "settings.agentBehaviour.subtab.modes": "Modi",
   "settings.agentBehaviour.subtab.agents": "Agents",

@@ -773,12 +773,14 @@ export const dict = {
   "session.messages.welcome":
     "Kilo Code — это AI-помощник для программирования. Попросите его создать функции, исправить ошибки или объяснить вашу кодовую базу.",
   "session.messages.scrollToBottom": "Прокрутить вниз",
+  "session.status.writingResponse": "Пишу ответ…",
+  "session.status.retrying": "Повторная попытка ({{ attempt }})… {{ message }}",
+  "session.status.working": "Работаю…",
 
   "dialog.model.noProviders": "Нет провайдеров",
 
   "prompt.placeholder.connecting": "Подключение к серверу...",
-  "prompt.placeholder.default": "Введите сообщение...",
-  "prompt.hint.sendShortcut": "Enter для отправки, Shift+Enter для новой строки",
+  "prompt.placeholder.default": "Введите сообщение... (Enter для отправки, Shift+Enter для новой строки)",
 
   "context.usage.sessionCost": "Стоимость сессии",
 
@@ -801,7 +803,12 @@ export const dict = {
   "settings.aboutKiloCode.status.label": "Статус:",
   "settings.aboutKiloCode.port.label": "Порт:",
   "settings.aboutKiloCode.versionInfo": "Информация о версии",
+  "settings.aboutKiloCode.version.label": "Версия:",
   "settings.aboutKiloCode.extensionName": "Расширение Kilo Code",
+  "settings.aboutKiloCode.community": "Сообщество и поддержка",
+  "settings.aboutKiloCode.feedback.prefix": "Если у вас есть вопросы или отзывы, создайте issue на",
+  "settings.aboutKiloCode.feedback.or": "или",
+  "settings.aboutKiloCode.support.prefix": "По вопросам оплаты или аккаунта обращайтесь в службу поддержки по адресу",
 
   "settings.agentBehaviour.subtab.modes": "Режимы",
   "settings.agentBehaviour.subtab.agents": "Agents",

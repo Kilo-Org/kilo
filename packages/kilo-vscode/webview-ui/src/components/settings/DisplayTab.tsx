@@ -3,6 +3,7 @@ import { Select } from "@kilocode/kilo-ui/select"
 import { TextField } from "@kilocode/kilo-ui/text-field"
 import { Card } from "@kilocode/kilo-ui/card"
 import { useConfig } from "../../context/config"
+import SettingsRow from "./SettingsRow"
 
 interface LayoutOption {
   value: string
@@ -20,27 +21,7 @@ const DisplayTab: Component = () => {
   return (
     <div>
       <Card>
-        <div
-          data-slot="settings-row"
-          style={{
-            display: "flex",
-            "align-items": "center",
-            "justify-content": "space-between",
-            padding: "8px 0",
-            "border-bottom": "1px solid var(--border-weak-base)",
-          }}
-        >
-          <div style={{ flex: 1, "min-width": 0, "margin-right": "12px" }}>
-            <div style={{ "font-weight": "500" }}>Username</div>
-            <div
-              style={{
-                "font-size": "11px",
-                color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
-              }}
-            >
-              Custom username displayed in conversations
-            </div>
-          </div>
+        <SettingsRow title="Username" description="Custom username displayed in conversations">
           <div style={{ width: "160px" }}>
             <TextField
               value={config().username ?? ""}
@@ -48,28 +29,9 @@ const DisplayTab: Component = () => {
               onChange={(val) => updateConfig({ username: val.trim() || undefined })}
             />
           </div>
-        </div>
+        </SettingsRow>
 
-        <div
-          data-slot="settings-row"
-          style={{
-            display: "flex",
-            "align-items": "center",
-            "justify-content": "space-between",
-            padding: "8px 0",
-          }}
-        >
-          <div style={{ flex: 1, "min-width": 0, "margin-right": "12px" }}>
-            <div style={{ "font-weight": "500" }}>Layout</div>
-            <div
-              style={{
-                "font-size": "11px",
-                color: "var(--text-weak-base, var(--vscode-descriptionForeground))",
-              }}
-            >
-              Layout mode for the chat interface
-            </div>
-          </div>
+        <SettingsRow title="Layout" description="Layout mode for the chat interface" last>
           <Select
             options={LAYOUT_OPTIONS}
             current={LAYOUT_OPTIONS.find((o) => o.value === (config().layout ?? "auto"))}
@@ -80,7 +42,7 @@ const DisplayTab: Component = () => {
             size="small"
             triggerVariant="settings"
           />
-        </div>
+        </SettingsRow>
       </Card>
     </div>
   )

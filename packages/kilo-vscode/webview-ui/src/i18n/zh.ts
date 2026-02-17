@@ -761,12 +761,14 @@ export const dict = {
   "session.messages.empty": "在下方输入消息以开始对话。",
   "session.messages.welcome": "Kilo Code 是一个 AI 编程助手。让它帮你构建功能、修复 bug 或解释代码库。",
   "session.messages.scrollToBottom": "滚动到底部",
+  "session.status.writingResponse": "正在撰写回复…",
+  "session.status.retrying": "正在重试（第 {{ attempt }} 次）… {{ message }}",
+  "session.status.working": "处理中…",
 
   "dialog.model.noProviders": "无供应商",
 
   "prompt.placeholder.connecting": "正在连接服务器...",
-  "prompt.placeholder.default": "输入消息...",
-  "prompt.hint.sendShortcut": "按 Enter 发送，Shift+Enter 换行",
+  "prompt.placeholder.default": "输入消息... (Enter 发送，Shift+Enter 换行)",
 
   "context.usage.sessionCost": "会话费用",
 
@@ -789,7 +791,12 @@ export const dict = {
   "settings.aboutKiloCode.status.label": "状态：",
   "settings.aboutKiloCode.port.label": "端口：",
   "settings.aboutKiloCode.versionInfo": "版本信息",
+  "settings.aboutKiloCode.version.label": "版本：",
   "settings.aboutKiloCode.extensionName": "Kilo Code 扩展",
+  "settings.aboutKiloCode.community": "社区与支持",
+  "settings.aboutKiloCode.feedback.prefix": "如果您有任何问题或反馈，欢迎在以下平台提交 issue",
+  "settings.aboutKiloCode.feedback.or": "或",
+  "settings.aboutKiloCode.support.prefix": "如有账单或账户问题，请联系客户支持",
 
   "settings.agentBehaviour.subtab.modes": "模式",
   "settings.agentBehaviour.subtab.agents": "Agents",

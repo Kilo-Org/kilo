@@ -55,7 +55,7 @@ test("model fetch uses accountId from OAuth auth as kilocodeOrganizationId", asy
       await Bun.write(
         path.join(dir, "opencode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://app.kilo.ai/config.json",
         }),
       )
     },
@@ -94,7 +94,7 @@ test("model fetch without OAuth accountId does not set kilocodeOrganizationId", 
       await Bun.write(
         path.join(dir, "opencode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://app.kilo.ai/config.json",
         }),
       )
     },

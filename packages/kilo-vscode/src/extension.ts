@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 import { KiloProvider } from "./KiloProvider"
-import { AgentManagerProvider } from "./AgentManagerProvider"
+import { AgentManagerProvider } from "./agent-manager/AgentManagerProvider"
 import { EXTENSION_DISPLAY_NAME } from "./constants"
 import { KiloConnectionService } from "./services/cli-backend"
 import { registerAutocompleteProvider } from "./services/autocomplete"
@@ -26,11 +26,16 @@ export function activate(context: vscode.ExtensionContext) {
   // Create the provider with shared service
   const provider = new KiloProvider(context.extensionUri, connectionService)
 
-  // Register the webview view provider for the sidebar
-  context.subscriptions.push(vscode.window.registerWebviewViewProvider(KiloProvider.viewType, provider))
+  // Register the webview view provider for the sidebar.
+  // retainContextWhenHidden keeps the webview alive when switching to other sidebar panels.
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(KiloProvider.viewType, provider, {
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
+  )
 
   // Create Agent Manager provider for editor panel
-  const agentManagerProvider = new AgentManagerProvider(context.extensionUri)
+  const agentManagerProvider = new AgentManagerProvider(context.extensionUri, connectionService)
   context.subscriptions.push(agentManagerProvider)
 
   // Register toolbar button command handlers

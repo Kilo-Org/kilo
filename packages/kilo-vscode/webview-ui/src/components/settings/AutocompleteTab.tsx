@@ -1,7 +1,9 @@
 import { Component, createSignal, onCleanup } from "solid-js"
 import { Switch } from "@kilocode/kilo-ui/switch"
+import { Card } from "@kilocode/kilo-ui/card"
 import { useVSCode } from "../../context/vscode"
 import type { ExtensionMessage } from "../../types/messages"
+import SettingsRow from "./SettingsRow"
 
 const AutocompleteTab: Component = () => {
   const vscode = useVSCode()
@@ -31,30 +33,48 @@ const AutocompleteTab: Component = () => {
   }
 
   return (
-    <div data-component="autocomplete-settings" style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
-      <Switch
-        checked={enableAutoTrigger()}
-        onChange={(checked) => updateSetting("enableAutoTrigger", checked)}
-        description="Automatically show inline completion suggestions as you type"
-      >
-        Enable automatic inline completions
-      </Switch>
+    <div data-component="autocomplete-settings">
+      <Card>
+        <SettingsRow
+          title="Enable automatic inline completions"
+          description="Automatically show inline completion suggestions as you type"
+        >
+          <Switch
+            checked={enableAutoTrigger()}
+            onChange={(checked) => updateSetting("enableAutoTrigger", checked)}
+            hideLabel
+          >
+            Enable automatic inline completions
+          </Switch>
+        </SettingsRow>
 
-      <Switch
-        checked={enableSmartInlineTaskKeybinding()}
-        onChange={(checked) => updateSetting("enableSmartInlineTaskKeybinding", checked)}
-        description="Use a smart keybinding for triggering inline tasks"
-      >
-        Enable smart inline task keybinding
-      </Switch>
+        <SettingsRow
+          title="Enable smart inline task keybinding"
+          description="Use a smart keybinding for triggering inline tasks"
+        >
+          <Switch
+            checked={enableSmartInlineTaskKeybinding()}
+            onChange={(checked) => updateSetting("enableSmartInlineTaskKeybinding", checked)}
+            hideLabel
+          >
+            Enable smart inline task keybinding
+          </Switch>
+        </SettingsRow>
 
-      <Switch
-        checked={enableChatAutocomplete()}
-        onChange={(checked) => updateSetting("enableChatAutocomplete", checked)}
-        description="Show autocomplete suggestions in the chat textarea"
-      >
-        Enable chat textarea autocomplete
-      </Switch>
+        <SettingsRow
+          title="Enable chat textarea autocomplete"
+          description="Show autocomplete suggestions in the chat textarea"
+          last
+        >
+          <Switch
+            checked={enableChatAutocomplete()}
+            onChange={(checked) => updateSetting("enableChatAutocomplete", checked)}
+            hideLabel
+          >
+            Enable chat textarea autocomplete
+          </Switch>
+        </SettingsRow>
+      </Card>
     </div>
   )
 }

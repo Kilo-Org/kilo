@@ -773,12 +773,14 @@ export const dict = {
   "session.messages.welcome":
     "Kilo Code es un asistente de programación con IA. Pídele que cree funcionalidades, corrija errores o explique tu código.",
   "session.messages.scrollToBottom": "Desplazar al final",
+  "session.status.writingResponse": "Escribiendo respuesta…",
+  "session.status.retrying": "Reintentando (intento {{ attempt }})… {{ message }}",
+  "session.status.working": "Trabajando…",
 
   "dialog.model.noProviders": "Sin proveedores",
 
   "prompt.placeholder.connecting": "Conectando al servidor...",
-  "prompt.placeholder.default": "Escribe un mensaje...",
-  "prompt.hint.sendShortcut": "Pulsa Enter para enviar, Shift+Enter para nueva línea",
+  "prompt.placeholder.default": "Escribe un mensaje... (Enter para enviar, Shift+Enter para nueva línea)",
 
   "context.usage.sessionCost": "Coste de la sesión",
 
@@ -801,7 +803,12 @@ export const dict = {
   "settings.aboutKiloCode.status.label": "Estado:",
   "settings.aboutKiloCode.port.label": "Puerto:",
   "settings.aboutKiloCode.versionInfo": "Información de versión",
+  "settings.aboutKiloCode.version.label": "Versión:",
   "settings.aboutKiloCode.extensionName": "Extensión Kilo Code",
+  "settings.aboutKiloCode.community": "Comunidad y soporte",
+  "settings.aboutKiloCode.feedback.prefix": "Si tienes preguntas o comentarios, abre un issue en",
+  "settings.aboutKiloCode.feedback.or": "o",
+  "settings.aboutKiloCode.support.prefix": "Para preguntas de facturación o cuenta, contacta al Soporte al Cliente en",
 
   "settings.agentBehaviour.subtab.modes": "Modos",
   "settings.agentBehaviour.subtab.agents": "Agents",

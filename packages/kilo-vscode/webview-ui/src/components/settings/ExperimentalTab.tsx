@@ -4,6 +4,7 @@ import { Select } from "@kilocode/kilo-ui/select"
 import { TextField } from "@kilocode/kilo-ui/text-field"
 import { Card } from "@kilocode/kilo-ui/card"
 import { useConfig } from "../../context/config"
+import SettingsRow from "./SettingsRow"
 
 interface ShareOption {
   value: string
@@ -15,27 +16,6 @@ const SHARE_OPTIONS: ShareOption[] = [
   { value: "auto", label: "Auto" },
   { value: "disabled", label: "Disabled" },
 ]
-
-const SettingsRow: Component<{ label: string; description: string; last?: boolean; children: any }> = (props) => (
-  <div
-    data-slot="settings-row"
-    style={{
-      display: "flex",
-      "align-items": "center",
-      "justify-content": "space-between",
-      padding: "8px 0",
-      "border-bottom": props.last ? "none" : "1px solid var(--border-weak-base)",
-    }}
-  >
-    <div style={{ flex: 1, "min-width": 0, "margin-right": "12px" }}>
-      <div style={{ "font-weight": "500" }}>{props.label}</div>
-      <div style={{ "font-size": "11px", color: "var(--text-weak-base, var(--vscode-descriptionForeground))" }}>
-        {props.description}
-      </div>
-    </div>
-    {props.children}
-  </div>
-)
 
 const ExperimentalTab: Component = () => {
   const { config, updateConfig } = useConfig()
@@ -52,7 +32,7 @@ const ExperimentalTab: Component = () => {
     <div>
       <Card>
         {/* Share mode */}
-        <SettingsRow label="Share Mode" description="How session sharing behaves">
+        <SettingsRow title="Share Mode" description="How session sharing behaves">
           <Select
             options={SHARE_OPTIONS}
             current={SHARE_OPTIONS.find((o) => o.value === (config().share ?? "manual"))}
@@ -65,7 +45,7 @@ const ExperimentalTab: Component = () => {
           />
         </SettingsRow>
 
-        <SettingsRow label="Formatter" description="Enable the automatic code formatter">
+        <SettingsRow title="Formatter" description="Enable the automatic code formatter">
           <Switch
             checked={config().formatter !== false}
             onChange={(checked) => updateConfig({ formatter: checked ? {} : false })}
@@ -75,7 +55,7 @@ const ExperimentalTab: Component = () => {
           </Switch>
         </SettingsRow>
 
-        <SettingsRow label="LSP" description="Enable language server protocol integration">
+        <SettingsRow title="LSP" description="Enable language server protocol integration">
           <Switch
             checked={config().lsp !== false}
             onChange={(checked) => updateConfig({ lsp: checked ? {} : false })}
@@ -85,7 +65,7 @@ const ExperimentalTab: Component = () => {
           </Switch>
         </SettingsRow>
 
-        <SettingsRow label="Disable Paste Summary" description="Don't summarize large pasted content">
+        <SettingsRow title="Disable Paste Summary" description="Don't summarize large pasted content">
           <Switch
             checked={experimental().disable_paste_summary ?? false}
             onChange={(checked) => updateExperimental("disable_paste_summary", checked)}
@@ -95,7 +75,7 @@ const ExperimentalTab: Component = () => {
           </Switch>
         </SettingsRow>
 
-        <SettingsRow label="Batch Tool" description="Enable batching of multiple tool calls">
+        <SettingsRow title="Batch Tool" description="Enable batching of multiple tool calls">
           <Switch
             checked={experimental().batch_tool ?? false}
             onChange={(checked) => updateExperimental("batch_tool", checked)}
@@ -105,7 +85,7 @@ const ExperimentalTab: Component = () => {
           </Switch>
         </SettingsRow>
 
-        <SettingsRow label="Continue on Deny" description="Continue the agent loop when a permission is denied">
+        <SettingsRow title="Continue on Deny" description="Continue the agent loop when a permission is denied">
           <Switch
             checked={experimental().continue_loop_on_deny ?? false}
             onChange={(checked) => updateExperimental("continue_loop_on_deny", checked)}
@@ -116,7 +96,7 @@ const ExperimentalTab: Component = () => {
         </SettingsRow>
 
         {/* MCP timeout */}
-        <SettingsRow label="MCP Timeout (ms)" description="Timeout for MCP server requests in milliseconds" last>
+        <SettingsRow title="MCP Timeout (ms)" description="Timeout for MCP server requests in milliseconds" last>
           <TextField
             value={String(experimental().mcp_timeout ?? 60000)}
             onChange={(val) => {
@@ -135,7 +115,7 @@ const ExperimentalTab: Component = () => {
         <Card>
           <For each={Object.entries(config().tools ?? {})}>
             {([name, enabled], index) => (
-              <SettingsRow label={name} description="" last={index() >= Object.keys(config().tools ?? {}).length - 1}>
+              <SettingsRow title={name} description="" last={index() >= Object.keys(config().tools ?? {}).length - 1}>
                 <Switch
                   checked={enabled}
                   onChange={(checked) => updateConfig({ tools: { ...config().tools, [name]: checked } })}

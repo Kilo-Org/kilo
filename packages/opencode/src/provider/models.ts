@@ -158,6 +158,155 @@ export namespace ModelsDev {
       }
     }
 
+    // Inject ollama provider for local model support
+    // kilocode_change start
+    if (!providers["ollama"]) {
+      const config = await Config.get()
+      const ollamaBaseURL =
+        config.provider?.["ollama"]?.options?.baseURL ?? process.env.OLLAMA_HOST ?? "http://localhost:11434"
+      const ollamaApiKey = config.provider?.["ollama"]?.options?.apiKey ?? process.env.OLLAMA_API_KEY
+
+      const defaultOllamaModels: Record<string, Model> = {
+        "llama3.2": {
+          id: "llama3.2",
+          name: "Llama 3.2",
+          family: "llama",
+          release_date: "2024-09-01",
+          attachment: false,
+          reasoning: false,
+          temperature: true,
+          tool_call: false,
+          cost: { input: 0, output: 0 },
+          limit: { context: 128000, output: 4096 },
+          modalities: { input: ["text"], output: ["text"] },
+          options: { baseURL: `${ollamaBaseURL}/v1`, ...(ollamaApiKey ? { apiKey: ollamaApiKey } : {}) },
+          provider: { npm: "@ai-sdk/openai-compatible" },
+        },
+        "llama3.1": {
+          id: "llama3.1",
+          name: "Llama 3.1",
+          family: "llama",
+          release_date: "2024-07-01",
+          attachment: false,
+          reasoning: false,
+          temperature: true,
+          tool_call: false,
+          cost: { input: 0, output: 0 },
+          limit: { context: 128000, output: 4096 },
+          modalities: { input: ["text"], output: ["text"] },
+          options: { baseURL: `${ollamaBaseURL}/v1`, ...(ollamaApiKey ? { apiKey: ollamaApiKey } : {}) },
+          provider: { npm: "@ai-sdk/openai-compatible" },
+        },
+        mistral: {
+          id: "mistral",
+          name: "Mistral",
+          family: "mistral",
+          release_date: "2023-12-01",
+          attachment: false,
+          reasoning: false,
+          temperature: true,
+          tool_call: false,
+          cost: { input: 0, output: 0 },
+          limit: { context: 32768, output: 4096 },
+          modalities: { input: ["text"], output: ["text"] },
+          options: { baseURL: `${ollamaBaseURL}/v1`, ...(ollamaApiKey ? { apiKey: ollamaApiKey } : {}) },
+          provider: { npm: "@ai-sdk/openai-compatible" },
+        },
+      }
+
+      const fetchOllamaModels = async (): Promise<Record<string, Model>> => {
+        const fetchOptions: RequestInit = { signal: AbortSignal.timeout(5000) }
+        if (ollamaApiKey) {
+          fetchOptions.headers = { Authorization: `Bearer ${ollamaApiKey}` }
+        }
+        try {
+          const response = await fetch(`${ollamaBaseURL}/api/tags`, fetchOptions)
+          if (!response.ok && ollamaApiKey) {
+            const v1Response = await fetch(`${ollamaBaseURL}/v1/models`, fetchOptions)
+            if (v1Response.ok) {
+              const data = (await v1Response.json()) as { data?: Array<{ id: string }> }
+              if (data.data?.length) {
+                const models: Record<string, Model> = {}
+                for (const model of data.data) {
+                  models[model.id] = {
+                    id: model.id,
+                    name: model.id,
+                    family: "unknown",
+                    release_date: new Date().toISOString().split("T")[0],
+                    attachment: false,
+                    reasoning: false,
+                    temperature: true,
+                    tool_call: false,
+                    cost: { input: 0, output: 0 },
+                    limit: { context: 4096, output: 4096 },
+                    modalities: { input: ["text"], output: ["text"] },
+                    options: { baseURL: `${ollamaBaseURL}/v1`, ...(ollamaApiKey ? { apiKey: ollamaApiKey } : {}) },
+                    provider: { npm: "@ai-sdk/openai-compatible" },
+                  }
+                }
+                return models
+              }
+            }
+          }
+          if (response.ok) {
+            const data = (await response.json()) as {
+              models?: Array<{ name: string; details?: { context_length?: number } }>
+            }
+            if (data.models?.length) {
+              const models: Record<string, Model> = {}
+              for (const model of data.models) {
+                const contextLength = model.details?.context_length ?? 4096
+                models[model.name] = {
+                  id: model.name,
+                  name: model.name,
+                  family: "unknown",
+                  release_date: new Date().toISOString().split("T")[0],
+                  attachment: false,
+                  reasoning: false,
+                  temperature: true,
+                  tool_call: false,
+                  cost: { input: 0, output: 0 },
+                  limit: { context: contextLength, output: 4096 },
+                  modalities: { input: ["text"], output: ["text"] },
+                  options: { baseURL: `${ollamaBaseURL}/v1`, ...(ollamaApiKey ? { apiKey: ollamaApiKey } : {}) },
+                  provider: { npm: "@ai-sdk/openai-compatible" },
+                }
+              }
+              return models
+            }
+          }
+        } catch {
+          // Silently fail - will use defaults
+        }
+        return defaultOllamaModels
+      }
+
+      const isConfigured = config.provider?.["ollama"]?.options?.baseURL || process.env.OLLAMA_HOST
+      const ollamaModels = isConfigured ? await fetchOllamaModels() : defaultOllamaModels
+
+      providers["ollama"] = {
+        id: "ollama",
+        name: "Ollama",
+        env: ["OLLAMA_HOST", "OLLAMA_API_KEY"],
+        api: `${ollamaBaseURL}/v1`,
+        npm: "@ai-sdk/openai-compatible",
+        models: ollamaModels,
+      }
+
+      // Fetch models in background for unconfigured instances
+      if (!isConfigured) {
+        fetchOllamaModels()
+          .then((models) => {
+            if (Object.keys(models).length > 0 && providers["ollama"]) {
+              providers["ollama"].models = models
+              log.info("Ollama models fetched in background", { count: Object.keys(models).length })
+            }
+          })
+          .catch(() => {})
+      }
+    }
+    // kilocode_change end
+
     return providers
     // kilocode_change end
   }

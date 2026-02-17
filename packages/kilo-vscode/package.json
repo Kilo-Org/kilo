@@ -4,6 +4,7 @@
   "description": "Kilo Code AI Agent & Autocomplete",
   "version": "7.0.23",
   "publisher": "kilocode",
+  "icon": "assets/icons/kilo-light.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/Kilo-Org/kilo.git",

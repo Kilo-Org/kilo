@@ -603,8 +603,11 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       }
 
       const config = vscode.workspace.getConfiguration("kilo-code.new.model")
-      const providerID = config.get<string>("providerID", "kilo")
-      const modelID = config.get<string>("modelID", "kilo/auto")
+      const configProviderID = config.get<string>("providerID")
+      const configModelID = config.get<string>("modelID")
+
+      const providerID = configProviderID || Object.keys(response.default)[0] || "kilo"
+      const modelID = configModelID || response.default[providerID] || "kilo/auto"
 
       const message = {
         type: "providersLoaded",

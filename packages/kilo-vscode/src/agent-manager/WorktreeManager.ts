@@ -61,8 +61,8 @@ export class WorktreeManager {
     let worktreePath = path.join(this.dir, branch)
 
     if (fs.existsSync(worktreePath)) {
-      this.log(`Worktree directory exists, removing: ${worktreePath}`)
-      await fs.promises.rm(worktreePath, { recursive: true, force: true })
+      this.log(`Worktree directory exists, cleaning up before re-creation: ${worktreePath}`)
+      await this.removeWorktree(worktreePath)
     }
 
     try {
@@ -87,23 +87,37 @@ export class WorktreeManager {
 
   /**
    * Remove a worktree directory and its git bookkeeping.
-   * Called when a worktree session is deleted via the Agent Manager UI
-   * (AgentManagerProvider.onMessage intercepts "deleteSession" and calls this
-   * before the session is removed from the server).
-   * Tries a clean remove first; falls back to --force if the worktree has
-   * uncommitted changes or is otherwise locked.
+   * Called in two scenarios:
+   * 1. Cleanup before re-creation in createWorktree (leftover from crash/interrupted creation)
+   * 2. Future: session deletion from the Agent Manager UI
+   *
+   * Tries `git worktree remove` first to properly clean up .git/worktrees/ bookkeeping,
+   * then --force for dirty worktrees, then falls back to fs.rm for orphaned directories
+   * that git doesn't know about.
    */
   async removeWorktree(worktreePath: string): Promise<void> {
-    try {
-      await this.git.raw(["worktree", "remove", worktreePath])
+    const clean = await this.git.raw(["worktree", "remove", worktreePath]).then(
+      () => true,
+      () => false,
+    )
+    if (clean) {
       this.log(`Removed worktree: ${worktreePath}`)
-    } catch {
-      try {
-        await this.git.raw(["worktree", "remove", "--force", worktreePath])
-        this.log(`Force removed worktree: ${worktreePath}`)
-      } catch (error) {
-        this.log(`Failed to remove worktree: ${error}`)
-      }
+      return
+    }
+
+    const forced = await this.git.raw(["worktree", "remove", "--force", worktreePath]).then(
+      () => true,
+      () => false,
+    )
+    if (forced) {
+      this.log(`Force removed worktree: ${worktreePath}`)
+      return
+    }
+
+    // Git doesn't know about this directory — remove it directly
+    if (fs.existsSync(worktreePath)) {
+      await fs.promises.rm(worktreePath, { recursive: true, force: true })
+      this.log(`Removed orphaned worktree directory: ${worktreePath}`)
     }
   }
 

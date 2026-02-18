@@ -1,6 +1,6 @@
 // Agent Manager root component
 
-import { Component, For, Show, createSignal, createEffect, onMount } from "solid-js"
+import { Component, For, Show, createSignal, createEffect, onMount, onCleanup } from "solid-js"
 import { ThemeProvider } from "@kilocode/kilo-ui/theme"
 import { DialogProvider } from "@kilocode/kilo-ui/context/dialog"
 import { MarkedProvider } from "@kilocode/kilo-ui/context/marked"
@@ -47,7 +47,7 @@ const AgentManagerContent: Component = () => {
   const [setup, setSetup] = createSignal<SetupState>({ active: false, message: "" })
 
   onMount(() => {
-    vscode.onMessage((msg) => {
+    const unsub = vscode.onMessage((msg) => {
       if (msg.type === "agentManager.sessionMeta") {
         const meta = msg as AgentManagerSessionMetaMessage
         setSessionMeta((prev) => ({
@@ -72,6 +72,7 @@ const AgentManagerContent: Component = () => {
         }
       }
     })
+    onCleanup(() => unsub())
   })
 
   // Reset mode when session is cleared

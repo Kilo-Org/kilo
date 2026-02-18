@@ -182,6 +182,60 @@ describe("WorktreeManager.removeWorktree", () => {
     // Should not throw
     await mgr.removeWorktree(path.join(root, ".kilocode", "worktrees", "nonexistent"))
   })
+
+  it("removes orphaned directory that git does not know about", async () => {
+    const root = await createTempRepo()
+    const mgr = createManager(root)
+
+    // Create an orphaned directory (not a real worktree)
+    const orphanPath = path.join(root, ".kilocode", "worktrees", "orphan")
+    await fs.mkdir(orphanPath, { recursive: true })
+    await fs.writeFile(path.join(orphanPath, "file.txt"), "orphan")
+
+    await mgr.removeWorktree(orphanPath)
+
+    const exists = await fs
+      .stat(orphanPath)
+      .then(() => true)
+      .catch(() => false)
+    expect(exists).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// WorktreeManager -- createWorktree cleans up leftover directories
+// ---------------------------------------------------------------------------
+
+describe("WorktreeManager.createWorktree cleanup", () => {
+  it("cleans up leftover worktree directory before re-creation", async () => {
+    const root = await createTempRepo()
+    const mgr = createManager(root)
+
+    // Create a worktree, then remove it improperly (just delete via git but leave artifacts)
+    const first = await mgr.createWorktree({ existingBranch: undefined, prompt: "cleanup-test" })
+    const branch = first.branch
+
+    // Remove the worktree properly, then recreate the directory as an orphan
+    // to simulate a crash that left a stale directory
+    await mgr.removeWorktree(first.path)
+    await fs.mkdir(first.path, { recursive: true })
+    await fs.writeFile(path.join(first.path, "stale.txt"), "leftover")
+
+    // Creating a worktree with the same branch name (via existingBranch) should
+    // clean up the stale directory and succeed
+    const second = await mgr.createWorktree({ existingBranch: branch })
+
+    expect(second.branch).toBe(branch)
+    const gitFile = await fs.stat(path.join(second.path, ".git"))
+    expect(gitFile.isFile()).toBe(true)
+
+    // Stale file should be gone
+    const staleExists = await fs
+      .stat(path.join(second.path, "stale.txt"))
+      .then(() => true)
+      .catch(() => false)
+    expect(staleExists).toBe(false)
+  })
 })
 
 // ---------------------------------------------------------------------------

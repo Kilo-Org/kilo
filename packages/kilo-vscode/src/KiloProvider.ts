@@ -27,9 +27,6 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   private unsubscribeState: (() => void) | null = null
   private webviewMessageDisposable: vscode.Disposable | null = null
 
-  /** Per-message directory override, set during message processing. */
-  private messageDirectory: string | undefined
-
   /** Optional interceptor called before the standard message handler.
    *  Return null to consume the message, or return a (possibly transformed) message. */
   private onBeforeMessage: ((msg: Record<string, unknown>) => Promise<Record<string, unknown> | null>) | null = null
@@ -205,149 +202,146 @@ export class KiloProvider implements vscode.WebviewViewProvider {
         message = result
       }
 
-      // Per-message directory override: if the interceptor injected a `directory`
-      // field, getWorkspaceDirectory() will use it for this message's handlers.
-      this.messageDirectory = message.directory as string | undefined
+      // Capture directory override as a local so it's safe across async boundaries.
+      // Only trust `directory` when an interceptor is attached (e.g., AgentManagerProvider).
+      const dir = this.onBeforeMessage ? (message.directory as string | undefined) : undefined
 
-      try {
-        switch (message.type) {
-          case "webviewReady":
-            console.log("[Kilo New] KiloProvider: ✅ webviewReady received")
-            this.isWebviewReady = true
-            await this.syncWebviewState("webviewReady")
-            break
-          case "sendMessage": {
-            const files = z
-              .array(z.object({ mime: z.string(), url: z.string().startsWith("file://") }))
-              .optional()
-              .catch(undefined)
-              .parse(message.files)
-            await this.handleSendMessage(
-              message.text,
-              message.sessionID,
-              message.providerID,
-              message.modelID,
-              message.agent,
-              files,
-            )
-            break
-          }
-          case "abort":
-            await this.handleAbort(message.sessionID)
-            break
-          case "permissionResponse":
-            await this.handlePermissionResponse(message.permissionId, message.sessionID, message.response)
-            break
-          case "createSession":
-            await this.handleCreateSession()
-            break
-          case "clearSession":
-            this.currentSession = null
-            this.trackedSessionIds.clear()
-            break
-          case "loadMessages":
-            await this.handleLoadMessages(message.sessionID)
-            break
-          case "loadSessions":
-            await this.handleLoadSessions()
-            break
-          case "login":
-            await this.handleLogin()
-            break
-          case "cancelLogin":
-            this.loginAttempt++
-            this.postMessage({ type: "deviceAuthCancelled" })
-            break
-          case "logout":
-            await this.handleLogout()
-            break
-          case "setOrganization":
-            if (typeof message.organizationId === "string" || message.organizationId === null) {
-              await this.handleSetOrganization(message.organizationId)
-            }
-            break
-          case "refreshProfile":
-            await this.handleRefreshProfile()
-            break
-          case "openExternal":
-            if (message.url) {
-              vscode.env.openExternal(vscode.Uri.parse(message.url))
-            }
-            break
-          case "requestProviders":
-            await this.fetchAndSendProviders()
-            break
-          case "compact":
-            await this.handleCompact(message.sessionID, message.providerID, message.modelID)
-            break
-          case "requestAgents":
-            await this.fetchAndSendAgents()
-            break
-          case "questionReply":
-            await this.handleQuestionReply(message.requestID, message.answers)
-            break
-          case "questionReject":
-            await this.handleQuestionReject(message.requestID)
-            break
-          case "requestConfig":
-            await this.fetchAndSendConfig()
-            break
-          case "updateConfig":
-            await this.handleUpdateConfig(message.config)
-            break
-          case "setLanguage":
-            await vscode.workspace
-              .getConfiguration("kilo-code.new")
-              .update("language", message.locale || undefined, vscode.ConfigurationTarget.Global)
-            break
-          case "requestAutocompleteSettings":
-            this.sendAutocompleteSettings()
-            break
-          case "updateAutocompleteSetting": {
-            const allowedKeys = new Set([
-              "enableAutoTrigger",
-              "enableSmartInlineTaskKeybinding",
-              "enableChatAutocomplete",
-            ])
-            if (allowedKeys.has(message.key)) {
-              await vscode.workspace
-                .getConfiguration("kilo-code.new.autocomplete")
-                .update(message.key, message.value, vscode.ConfigurationTarget.Global)
-              this.sendAutocompleteSettings()
-            }
-            break
-          }
-          case "requestChatCompletion":
-            void handleChatCompletionRequest(
-              { type: "requestChatCompletion", text: message.text, requestId: message.requestId },
-              { postMessage: (msg) => this.postMessage(msg) },
-              this.connectionService,
-            )
-            break
-          case "chatCompletionAccepted":
-            handleChatCompletionAccepted({ type: "chatCompletionAccepted", suggestionLength: message.suggestionLength })
-            break
-          case "deleteSession":
-            await this.handleDeleteSession(message.sessionID)
-            break
-          case "renameSession":
-            await this.handleRenameSession(message.sessionID, message.title)
-            break
-          case "updateSetting":
-            await this.handleUpdateSetting(message.key, message.value)
-            break
-          case "requestBrowserSettings":
-            this.sendBrowserSettings()
-            break
-          case "requestNotificationSettings":
-            this.sendNotificationSettings()
-            break
-          case "resetAllSettings":
-            await this.handleResetAllSettings()
-            break
+      switch (message.type) {
+        case "webviewReady":
+          console.log("[Kilo New] KiloProvider: ✅ webviewReady received")
+          this.isWebviewReady = true
+          await this.syncWebviewState("webviewReady")
+          break
+        case "sendMessage": {
+          const files = z
+            .array(z.object({ mime: z.string(), url: z.string().startsWith("file://") }))
+            .optional()
+            .catch(undefined)
+            .parse(message.files)
+          await this.handleSendMessage(
+            message.text,
+            message.sessionID,
+            message.providerID,
+            message.modelID,
+            message.agent,
+            files,
+            dir,
+          )
+          break
         }
-      } finally {
-        this.messageDirectory = undefined
+        case "abort":
+          await this.handleAbort(message.sessionID, dir)
+          break
+        case "permissionResponse":
+          await this.handlePermissionResponse(message.permissionId, message.sessionID, message.response, dir)
+          break
+        case "createSession":
+          await this.handleCreateSession(dir)
+          break
+        case "clearSession":
+          this.currentSession = null
+          this.trackedSessionIds.clear()
+          break
+        case "loadMessages":
+          await this.handleLoadMessages(message.sessionID, dir)
+          break
+        case "loadSessions":
+          await this.handleLoadSessions(dir)
+          break
+        case "login":
+          await this.handleLogin(dir)
+          break
+        case "cancelLogin":
+          this.loginAttempt++
+          this.postMessage({ type: "deviceAuthCancelled" })
+          break
+        case "logout":
+          await this.handleLogout()
+          break
+        case "setOrganization":
+          if (typeof message.organizationId === "string" || message.organizationId === null) {
+            await this.handleSetOrganization(message.organizationId)
+          }
+          break
+        case "refreshProfile":
+          await this.handleRefreshProfile()
+          break
+        case "openExternal":
+          if (message.url) {
+            vscode.env.openExternal(vscode.Uri.parse(message.url))
+          }
+          break
+        case "requestProviders":
+          await this.fetchAndSendProviders(dir)
+          break
+        case "compact":
+          await this.handleCompact(message.sessionID, message.providerID, message.modelID, dir)
+          break
+        case "requestAgents":
+          await this.fetchAndSendAgents(dir)
+          break
+        case "questionReply":
+          await this.handleQuestionReply(message.requestID, message.answers, dir)
+          break
+        case "questionReject":
+          await this.handleQuestionReject(message.requestID, dir)
+          break
+        case "requestConfig":
+          await this.fetchAndSendConfig(dir)
+          break
+        case "updateConfig":
+          await this.handleUpdateConfig(message.config)
+          break
+        case "setLanguage":
+          await vscode.workspace
+            .getConfiguration("kilo-code.new")
+            .update("language", message.locale || undefined, vscode.ConfigurationTarget.Global)
+          break
+        case "requestAutocompleteSettings":
+          this.sendAutocompleteSettings()
+          break
+        case "updateAutocompleteSetting": {
+          const allowedKeys = new Set([
+            "enableAutoTrigger",
+            "enableSmartInlineTaskKeybinding",
+            "enableChatAutocomplete",
+          ])
+          if (allowedKeys.has(message.key)) {
+            await vscode.workspace
+              .getConfiguration("kilo-code.new.autocomplete")
+              .update(message.key, message.value, vscode.ConfigurationTarget.Global)
+            this.sendAutocompleteSettings()
+          }
+          break
+        }
+        case "requestChatCompletion":
+          void handleChatCompletionRequest(
+            { type: "requestChatCompletion", text: message.text, requestId: message.requestId },
+            { postMessage: (msg) => this.postMessage(msg) },
+            this.connectionService,
+          )
+          break
+        case "chatCompletionAccepted":
+          handleChatCompletionAccepted({ type: "chatCompletionAccepted", suggestionLength: message.suggestionLength })
+          break
+        case "deleteSession":
+          await this.handleDeleteSession(message.sessionID, dir)
+          break
+        case "renameSession":
+          await this.handleRenameSession(message.sessionID, message.title, dir)
+          break
+        case "updateSetting":
+          await this.handleUpdateSetting(message.key, message.value)
+          break
+        case "requestBrowserSettings":
+          this.sendBrowserSettings()
+          break
+        case "requestNotificationSettings":
+          this.sendNotificationSettings()
+          break
+        case "resetAllSettings":
+          await this.handleResetAllSettings()
+          break
       }
     })
   }
@@ -460,7 +454,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   /**
    * Handle creating a new session.
    */
-  private async handleCreateSession(): Promise<void> {
+  private async handleCreateSession(dir?: string): Promise<void> {
     if (!this.httpClient) {
       this.postMessage({
         type: "error",
@@ -470,7 +464,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(dir)
       const session = await this.httpClient.createSession(workspaceDir)
       this.currentSession = session
       this.trackedSessionIds.add(session.id)
@@ -492,7 +486,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   /**
    * Handle loading messages for a session.
    */
-  private async handleLoadMessages(sessionID: string): Promise<void> {
+  private async handleLoadMessages(sessionID: string, dir?: string): Promise<void> {
     // Track the session so we receive its SSE events
     this.trackedSessionIds.add(sessionID)
 
@@ -505,7 +499,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(dir)
       const messagesData = await this.httpClient.getMessages(sessionID, workspaceDir)
 
       // Update currentSession so fallback logic in handleSendMessage/handleAbort
@@ -552,7 +546,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   /**
    * Handle loading all sessions.
    */
-  private async handleLoadSessions(): Promise<void> {
+  private async handleLoadSessions(dir?: string): Promise<void> {
     if (!this.httpClient) {
       this.postMessage({
         type: "error",
@@ -562,7 +556,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(dir)
       const sessions = await this.httpClient.listSessions(workspaceDir)
 
       this.postMessage({
@@ -581,14 +575,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   /**
    * Handle deleting a session.
    */
-  private async handleDeleteSession(sessionID: string): Promise<void> {
+  private async handleDeleteSession(sessionID: string, dir?: string): Promise<void> {
     if (!this.httpClient) {
       this.postMessage({ type: "error", message: "Not connected to CLI backend" })
       return
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(dir)
       await this.httpClient.deleteSession(sessionID, workspaceDir)
       this.trackedSessionIds.delete(sessionID)
       if (this.currentSession?.id === sessionID) {
@@ -607,14 +601,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   /**
    * Handle renaming a session.
    */
-  private async handleRenameSession(sessionID: string, title: string): Promise<void> {
+  private async handleRenameSession(sessionID: string, title: string, dir?: string): Promise<void> {
     if (!this.httpClient) {
       this.postMessage({ type: "error", message: "Not connected to CLI backend" })
       return
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(dir)
       const updated = await this.httpClient.updateSession(sessionID, { title }, workspaceDir)
       if (this.currentSession?.id === sessionID) {
         this.currentSession = updated
@@ -637,7 +631,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * keyed by their real `provider.id` (e.g. "anthropic", "openai"). We re-key
    * the map here so the rest of the code can use provider.id everywhere.
    */
-  private async fetchAndSendProviders(): Promise<void> {
+  private async fetchAndSendProviders(dir?: string): Promise<void> {
     if (!this.httpClient) {
       // httpClient not ready — serve from cache if available
       if (this.cachedProvidersMessage) {
@@ -647,7 +641,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(dir)
       const response = await this.httpClient.listProviders(workspaceDir)
 
       // Re-key providers from numeric indices to provider.id
@@ -677,7 +671,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   /**
    * Fetch agents (modes) from the backend and send to webview.
    */
-  private async fetchAndSendAgents(): Promise<void> {
+  private async fetchAndSendAgents(dir?: string): Promise<void> {
     if (!this.httpClient) {
       if (this.cachedAgentsMessage) {
         this.postMessage(this.cachedAgentsMessage)
@@ -686,7 +680,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(dir)
       const agents = await this.httpClient.listAgents(workspaceDir)
 
       // Filter to only visible primary/all modes (not subagents, not hidden)
@@ -716,7 +710,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   /**
    * Fetch backend config and send to webview.
    */
-  private async fetchAndSendConfig(): Promise<void> {
+  private async fetchAndSendConfig(dir?: string): Promise<void> {
     if (!this.httpClient) {
       if (this.cachedConfigMessage) {
         this.postMessage(this.cachedConfigMessage)
@@ -725,7 +719,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(dir)
       const config = await this.httpClient.getConfig(workspaceDir)
 
       const message = {
@@ -797,6 +791,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     modelID?: string,
     agent?: string,
     files?: Array<{ mime: string; url: string }>,
+    dir?: string,
   ): Promise<void> {
     if (!this.httpClient) {
       this.postMessage({
@@ -807,7 +802,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(dir)
 
       // Create session if needed
       if (!sessionID && !this.currentSession) {
@@ -864,7 +859,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   /**
    * Handle abort request from the webview.
    */
-  private async handleAbort(sessionID?: string): Promise<void> {
+  private async handleAbort(sessionID?: string, dir?: string): Promise<void> {
     if (!this.httpClient) {
       return
     }
@@ -875,7 +870,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(dir)
       await this.httpClient.abortSession(targetSessionID, workspaceDir)
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to abort session:", error)
@@ -885,7 +880,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   /**
    * Handle compact (context summarization) request from the webview.
    */
-  private async handleCompact(sessionID?: string, providerID?: string, modelID?: string): Promise<void> {
+  private async handleCompact(sessionID?: string, providerID?: string, modelID?: string, dir?: string): Promise<void> {
     if (!this.httpClient) {
       this.postMessage({
         type: "error",
@@ -910,7 +905,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(dir)
       await this.httpClient.summarize(target, providerID, modelID, workspaceDir)
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to compact session:", error)
@@ -928,6 +923,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     permissionId: string,
     sessionID: string,
     response: "once" | "always" | "reject",
+    dir?: string,
   ): Promise<void> {
     if (!this.httpClient) {
       return
@@ -940,7 +936,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(dir)
       await this.httpClient.respondToPermission(targetSessionID, permissionId, response, workspaceDir)
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to respond to permission:", error)
@@ -950,14 +946,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   /**
    * Handle question reply from the webview.
    */
-  private async handleQuestionReply(requestID: string, answers: string[][]): Promise<void> {
+  private async handleQuestionReply(requestID: string, answers: string[][], dir?: string): Promise<void> {
     if (!this.httpClient) {
       this.postMessage({ type: "questionError", requestID })
       return
     }
 
     try {
-      await this.httpClient.replyToQuestion(requestID, answers, this.getWorkspaceDirectory())
+      await this.httpClient.replyToQuestion(requestID, answers, this.getWorkspaceDirectory(dir))
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to reply to question:", error)
       this.postMessage({ type: "questionError", requestID })
@@ -967,14 +963,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   /**
    * Handle question reject (dismiss) from the webview.
    */
-  private async handleQuestionReject(requestID: string): Promise<void> {
+  private async handleQuestionReject(requestID: string, dir?: string): Promise<void> {
     if (!this.httpClient) {
       this.postMessage({ type: "questionError", requestID })
       return
     }
 
     try {
-      await this.httpClient.rejectQuestion(requestID, this.getWorkspaceDirectory())
+      await this.httpClient.rejectQuestion(requestID, this.getWorkspaceDirectory(dir))
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to reject question:", error)
       this.postMessage({ type: "questionError", requestID })
@@ -986,7 +982,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
    * Uses the provider OAuth flow: authorize → open browser → callback (polls until complete).
    * Sends device auth messages so the webview can display a QR code, verification code, and timer.
    */
-  private async handleLogin(): Promise<void> {
+  private async handleLogin(dir?: string): Promise<void> {
     if (!this.httpClient) {
       return
     }
@@ -996,7 +992,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     console.log("[Kilo New] KiloProvider: 🔐 Starting login flow...")
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(dir)
 
       // Step 1: Initiate OAuth authorization
       const auth = await this.httpClient.oauthAuthorize("kilo", 0, workspaceDir)
@@ -1363,10 +1359,10 @@ export class KiloProvider implements vscode.WebviewViewProvider {
 
   /**
    * Get the workspace directory.
-   * Uses per-message override if set (e.g., worktree directory from AgentManagerProvider).
+   * @param override - Optional directory override (e.g., worktree path from AgentManagerProvider).
    */
-  private getWorkspaceDirectory(): string {
-    if (this.messageDirectory) return this.messageDirectory
+  private getWorkspaceDirectory(override?: string): string {
+    if (override) return override
     const workspaceFolders = vscode.workspace.workspaceFolders
     if (workspaceFolders && workspaceFolders.length > 0) {
       return workspaceFolders[0].uri.fsPath

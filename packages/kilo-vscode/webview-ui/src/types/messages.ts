@@ -715,6 +715,14 @@ export interface ResetAllSettingsRequest {
   type: "resetAllSettings"
 }
 
+// Agent Manager worktree messages
+export interface CreateWorktreeSessionRequest {
+  type: "agentManager.createWorktreeSession"
+  text: string
+  providerID?: string
+  modelID?: string
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -748,6 +756,7 @@ export type WebviewMessage =
   | UpdateConfigMessage
   | RequestNotificationSettingsMessage
   | ResetAllSettingsRequest
+  | CreateWorktreeSessionRequest
 
 // ============================================
 // VS Code API type

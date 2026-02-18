@@ -20,6 +20,7 @@ export class AgentManagerProvider implements vscode.Disposable {
   private provider: KiloProvider | undefined
   private outputChannel: vscode.OutputChannel
   private worktrees: WorktreeManager | undefined
+  private headWatcher: vscode.FileSystemWatcher | undefined
 
   /** Per-session worktree metadata. Only populated for worktree sessions. */
   private meta = new Map<string, { branch: string; path: string; parentBranch: string }>()
@@ -29,6 +30,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     private readonly connectionService: KiloConnectionService,
   ) {
     this.outputChannel = vscode.window.createOutputChannel("Kilo Agent Manager")
+    this.watchHead()
   }
 
   private log(...args: unknown[]) {
@@ -218,8 +220,17 @@ export class AgentManagerProvider implements vscode.Disposable {
   }
 
   // ---------------------------------------------------------------------------
-  // Repo info
+  // Repo info + branch watching
   // ---------------------------------------------------------------------------
+
+  /** Watch .git/HEAD for branch switches and push updates to the webview. */
+  private watchHead(): void {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+    if (!root) return
+    const pattern = new vscode.RelativePattern(root, ".git/HEAD")
+    this.headWatcher = vscode.workspace.createFileSystemWatcher(pattern)
+    this.headWatcher.onDidChange(() => void this.sendRepoInfo())
+  }
 
   private async sendRepoInfo(): Promise<void> {
     const mgr = this.getWorktreeManager()
@@ -297,6 +308,7 @@ export class AgentManagerProvider implements vscode.Disposable {
   }
 
   public dispose(): void {
+    this.headWatcher?.dispose()
     this.provider?.dispose()
     this.panel?.dispose()
     this.outputChannel.dispose()

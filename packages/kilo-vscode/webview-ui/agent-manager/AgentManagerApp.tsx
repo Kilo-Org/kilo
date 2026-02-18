@@ -52,7 +52,10 @@ const AgentManagerContent: Component = () => {
   const [sessionMeta, setSessionMeta] = createSignal<Record<string, WorktreeMeta>>({})
   const [setup, setSetup] = createSignal<SetupState>({ active: false, message: "" })
   const [repoBranch, setRepoBranch] = createSignal<string | undefined>()
-  const [localSessionID, setLocalSessionID] = createSignal<string | undefined>()
+
+  // Recover persisted local session ID from webview state
+  const persisted = vscode.getState<{ localSessionID?: string }>()
+  const [localSessionID, setLocalSessionID] = createSignal<string | undefined>(persisted?.localSessionID)
 
   // Whether the user is viewing the local workspace
   const [onLocal, setOnLocal] = createSignal(true)
@@ -154,9 +157,21 @@ const AgentManagerContent: Component = () => {
     })
   })
 
+  // Persist local session ID to webview state for recovery
+  createEffect(() => {
+    const lid = localSessionID()
+    vscode.setState({ localSessionID: lid })
+  })
+
   // Reset worktree mode when no session is selected
   createEffect(() => {
     if (!session.currentSessionID()) worktreeMode.setMode("local")
+  })
+
+  // If we have a persisted local session, select it on mount
+  onMount(() => {
+    const lid = localSessionID()
+    if (lid) session.selectSession(lid)
   })
 
   const getMeta = (sessionId: string): WorktreeMeta | undefined => sessionMeta()[sessionId]

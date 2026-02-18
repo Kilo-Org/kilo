@@ -202,42 +202,7 @@ export class MarketplaceService {
   }
 
   private parseStructured(text: string): unknown {
-    const trimmed = text.trim()
-    if (!trimmed) {
-      return {}
-    }
-    if (this.looksLikeHtml(trimmed)) {
-      throw new Error("Received HTML content where structured marketplace data was expected")
-    }
-
-    try {
-      const parsed = JSON.parse(trimmed)
-      if (typeof parsed === "string") {
-        const reparsed = parsed.trim()
-        if (!reparsed) {
-          return {}
-        }
-        if (this.looksLikeHtml(reparsed)) {
-          throw new Error("Received HTML content where structured marketplace data was expected")
-        }
-        try {
-          return JSON.parse(reparsed)
-        } catch {
-          return YAML.parse(reparsed)
-        }
-      }
-      return parsed
-    } catch {
-      const parsedYaml = YAML.parse(trimmed)
-      if (typeof parsedYaml === "string" && this.looksLikeHtml(parsedYaml)) {
-        throw new Error("Received HTML content where structured marketplace data was expected")
-      }
-      return parsedYaml
-    }
-  }
-
-  private looksLikeHtml(text: string): boolean {
-    return /^\s*<!doctype\s+html/i.test(text) || /^\s*<html[\s>]/i.test(text)
+    return JSON.parse(text.trim())
   }
 
   private async fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {

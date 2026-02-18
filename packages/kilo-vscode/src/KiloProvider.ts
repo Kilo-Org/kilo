@@ -613,6 +613,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       const workspaceDir = this.getWorkspaceDirectory(sessionID)
       await this.httpClient.deleteSession(sessionID, workspaceDir)
       this.trackedSessionIds.delete(sessionID)
+      this.sessionDirectories.delete(sessionID)
       if (this.currentSession?.id === sessionID) {
         this.currentSession = null
       }
@@ -1419,5 +1420,6 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     this.unsubscribeState?.()
     this.webviewMessageDisposable?.dispose()
     this.trackedSessionIds.clear()
+    this.sessionDirectories.clear()
   }
 }

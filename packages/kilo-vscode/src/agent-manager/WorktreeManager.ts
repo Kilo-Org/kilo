@@ -117,6 +117,10 @@ export class WorktreeManager {
 
     // Git doesn't know about this directory — remove it directly
     if (fs.existsSync(worktreePath)) {
+      if (!worktreePath.startsWith(this.dir)) {
+        this.log(`Refusing to remove path outside worktrees directory: ${worktreePath}`)
+        return
+      }
       await fs.promises.rm(worktreePath, { recursive: true, force: true })
       this.log(`Removed orphaned worktree directory: ${worktreePath}`)
     }

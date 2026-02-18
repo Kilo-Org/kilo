@@ -166,7 +166,9 @@ export class AgentManagerProvider implements vscode.Disposable {
 
     // Step 3: Store meta + persist session ID
     this.meta.set(session.id, worktree)
-    void mgr.writeMetadata(worktree.path, session.id, worktree.parentBranch)
+    mgr
+      .writeMetadata(worktree.path, session.id, worktree.parentBranch)
+      .catch((err) => this.log(`Failed to persist worktree metadata: ${err}`))
 
     // Register with KiloProvider: set directory override so all operations for
     // this session use the worktree path, then register the session itself.
@@ -228,6 +230,7 @@ export class AgentManagerProvider implements vscode.Disposable {
         if (!wt.sessionId) continue
         this.meta.set(wt.sessionId, { branch: wt.branch, path: wt.path, parentBranch: wt.parentBranch })
         this.provider?.setSessionDirectory(wt.sessionId, wt.path)
+        this.provider?.trackSession(wt.sessionId)
         this.postToWebview({
           type: "agentManager.sessionMeta",
           sessionId: wt.sessionId,

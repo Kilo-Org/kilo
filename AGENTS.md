@@ -85,6 +85,32 @@ function foo() {
 }
 ```
 
+### No empty catch blocks
+
+Never leave a `catch` block empty. An empty `catch` silently swallows errors and hides bugs. If you're tempted to write one, ask yourself:
+
+1. Is the `try`/`catch` even needed? (prefer removing it)
+2. Should the error be handled explicitly? (recover, retry, rethrow)
+3. At minimum, log it so failures are visible
+
+Good:
+
+```ts
+try {
+  await save(data)
+} catch (err) {
+  log.error("save failed", { err })
+}
+```
+
+Bad:
+
+```ts
+try {
+  await save(data)
+} catch {}
+```
+
 ### Prefer single word naming
 
 Try your best to find a single word name for your variables, functions, etc.

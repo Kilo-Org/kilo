@@ -9,9 +9,9 @@ import { WorktreeManager, type CreateWorktreeResult } from "./WorktreeManager"
  *
  * Worktree sessions are fully set up (worktree + server session) before
  * the first message is sent. The interceptor on KiloProvider.attachToWebview
- * handles two concerns:
- * 1. Routing custom agent-manager messages (createWorktreeSession)
- * 2. Injecting `directory` on session-scoped messages for worktree sessions
+ * routes custom agent-manager messages (e.g., createWorktreeSession).
+ * Directory resolution for worktree sessions is handled by KiloProvider's
+ * sessionDirectories map, registered via setSessionDirectory() at creation time.
  */
 export class AgentManagerProvider implements vscode.Disposable {
   public static readonly viewType = "kilo-code.new.AgentManagerPanel"

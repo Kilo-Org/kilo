@@ -4,6 +4,7 @@ import { type HttpClient, type SessionInfo, type SSEEvent, type KiloConnectionSe
 import { handleChatCompletionRequest } from "./services/autocomplete/chat-autocomplete/handleChatCompletionRequest"
 import { handleChatCompletionAccepted } from "./services/autocomplete/chat-autocomplete/handleChatCompletionAccepted"
 import { buildWebviewHtml } from "./utils"
+import { editorContextUrl } from "./editor-context"
 
 export class KiloProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "kilo-code.new.sidebarView"
@@ -780,7 +781,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       // Inject active editor file as context
       const editor = vscode.window.activeTextEditor
       if (editor && editor.document.uri.scheme === "file") {
-        const url = editor.document.uri.toString()
+        const url = editorContextUrl(editor)
         const already = files?.some((f) => f.url === url)
         if (!already) {
           parts.push({ type: "file", mime: "text/plain", url })

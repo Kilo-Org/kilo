@@ -807,7 +807,9 @@ export function Prompt(props: PromptProps) {
           customBorderChars={{
             ...EmptyBorder,
             vertical: "┃",
-            bottomLeft: "╹",
+            // kilocode_change start - keep full rail to the seam; separator row below provides half-height tail
+            bottomLeft: "┃",
+            // kilocode_change end
           }}
         >
           <box
@@ -1038,7 +1040,9 @@ export function Prompt(props: PromptProps) {
           borderColor={highlight()}
           customBorderChars={{
             ...EmptyBorder,
-            vertical: theme.backgroundElement.a !== 0 ? "╹" : " ",
+            // kilocode_change start - render only the seam half in the final row for a 4.5-cell rail
+            vertical: "╹",
+            // kilocode_change end
           }}
         >
           <box

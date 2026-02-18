@@ -43,7 +43,7 @@ export const skillMarketplaceItemSchema = baseMarketplaceItemSchema.extend({
   type: z.literal("skill"),
   category: z.string(),
   githubUrl: z.string().url(),
-  content: z.string().min(1),
+  content: z.string().url(),
   displayName: z.string(),
   displayCategory: z.string(),
 })
@@ -73,7 +73,7 @@ export const rawSkillSchema = z.object({
   description: z.string(),
   category: z.string(),
   githubUrl: z.string().url(),
-  content: z.string().min(1),
+  content: z.string().url(),
 })
 
 export const skillsMarketplaceCatalogSchema = z.object({

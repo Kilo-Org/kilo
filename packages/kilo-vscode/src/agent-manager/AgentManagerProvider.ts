@@ -199,11 +199,17 @@ export class AgentManagerProvider implements vscode.Disposable {
     })
 
     // Step 4: Send the first message directly via httpClient
-    // TODO: When image/file attachments are supported, build the parts array
-    // from msg.files the same way KiloProvider.handleSendMessage does.
-    if (text) {
+    const fileParts = ((msg.files ?? []) as Array<{ mime: string; url: string }>).map((f) => ({
+      type: "file" as const,
+      mime: f.mime,
+      url: f.url,
+    }))
+    if (text || fileParts.length > 0) {
       try {
-        const parts: Array<{ type: "text"; text: string }> = [{ type: "text", text }]
+        const parts: Array<{ type: "text"; text: string } | { type: "file"; mime: string; url: string }> = [
+          ...fileParts,
+          ...(text ? [{ type: "text" as const, text }] : []),
+        ]
         await client.sendMessage(session.id, parts, worktree.path, {
           providerID: msg.providerID as string | undefined,
           modelID: msg.modelID as string | undefined,

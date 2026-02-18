@@ -285,6 +285,7 @@ export const PromptInput: Component = () => {
         providerID: sel?.providerID,
         modelID: sel?.modelID,
         agent: session.selectedAgent(),
+        files: attachments,
       })
     } else {
       session.sendMessage(message, sel?.providerID, sel?.modelID, attachments)

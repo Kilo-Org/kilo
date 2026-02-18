@@ -9,7 +9,7 @@ export namespace Flag {
   export const KILO_GIT_BASH_PATH = process.env["KILO_GIT_BASH_PATH"]
   export const KILO_CONFIG = process.env["KILO_CONFIG"]
   export declare const KILO_CONFIG_DIR: string | undefined
-  export const KILO_CONFIG_CONTENT = process.env["KILO_CONFIG_CONTENT"]
+  export declare const KILO_CONFIG_CONTENT: string | undefined
   export const KILO_DISABLE_AUTOUPDATE = truthy("KILO_DISABLE_AUTOUPDATE")
   export const KILO_DISABLE_PRUNE = truthy("KILO_DISABLE_PRUNE")
   export const KILO_DISABLE_TERMINAL_TITLE = truthy("KILO_DISABLE_TERMINAL_TITLE")
@@ -34,7 +34,10 @@ export namespace Flag {
   export const KILO_EXPERIMENTAL_FILEWATCHER = truthy("KILO_EXPERIMENTAL_FILEWATCHER")
   export const KILO_EXPERIMENTAL_DISABLE_FILEWATCHER = truthy("KILO_EXPERIMENTAL_DISABLE_FILEWATCHER")
   export const KILO_EXPERIMENTAL_ICON_DISCOVERY = KILO_EXPERIMENTAL || truthy("KILO_EXPERIMENTAL_ICON_DISCOVERY")
-  export const KILO_EXPERIMENTAL_DISABLE_COPY_ON_SELECT = truthy("KILO_EXPERIMENTAL_DISABLE_COPY_ON_SELECT")
+
+  const copy = process.env["KILO_EXPERIMENTAL_DISABLE_COPY_ON_SELECT"]
+  export const KILO_EXPERIMENTAL_DISABLE_COPY_ON_SELECT =
+    copy === undefined ? process.platform === "win32" : truthy("KILO_EXPERIMENTAL_DISABLE_COPY_ON_SELECT")
   export const KILO_ENABLE_EXA = truthy("KILO_ENABLE_EXA") || KILO_EXPERIMENTAL || truthy("KILO_EXPERIMENTAL_EXA")
   export const KILO_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS = number("KILO_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS")
   export const KILO_EXPERIMENTAL_OUTPUT_TOKEN_MAX = number("KILO_EXPERIMENTAL_OUTPUT_TOKEN_MAX")
@@ -83,6 +86,17 @@ Object.defineProperty(Flag, "KILO_CONFIG_DIR", {
 Object.defineProperty(Flag, "KILO_CLIENT", {
   get() {
     return process.env["KILO_CLIENT"] ?? "cli"
+  },
+  enumerable: true,
+  configurable: false,
+})
+
+// Dynamic getter for KILO_CONFIG_CONTENT
+// This must be evaluated at access time, not module load time,
+// because external tooling may set this env var at runtime
+Object.defineProperty(Flag, "KILO_CONFIG_CONTENT", {
+  get() {
+    return process.env["KILO_CONFIG_CONTENT"]
   },
   enumerable: true,
   configurable: false,

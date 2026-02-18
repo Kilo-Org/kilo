@@ -46,22 +46,6 @@ function resolveApiBaseUrl(): string {
   return backendBase
 }
 
-function resolveMarketplaceBaseUrls(): string[] {
-  const explicitApi = process.env.KILO_API_URL?.trim()
-  const backendBase = process.env.KILOCODE_BACKEND_BASE_URL?.trim()
-  const preferred = resolveApiBaseUrl()
-  const candidates = [
-    preferred,
-    explicitApi,
-    backendBase,
-    DEFAULT_API_BASE_URL,
-    DEFAULT_BACKEND_BASE_URL,
-  ]
-    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-    .map((value) => value.replace(/\/+$/, ""))
-  return Array.from(new Set(candidates))
-}
-
 type CacheEntry = {
   items: MarketplaceItem[]
   fetchedAt: number
@@ -185,35 +169,31 @@ export class MarketplaceService {
   }
 
   private async fetchCatalogText(route: string): Promise<string> {
-    const baseUrls = resolveMarketplaceBaseUrls()
+    const baseUrl = resolveApiBaseUrl()
+    const url = `${baseUrl}${route}`
     const errors: string[] = []
 
-    for (const baseUrl of baseUrls) {
-      const url = `${baseUrl}${route}`
-      for (let attempt = 1; attempt <= MARKETPLACE_FETCH_RETRIES; attempt++) {
-        try {
-          const response = await this.fetchWithTimeout(url, MARKETPLACE_FETCH_TIMEOUT_MS)
-          const text = await response.text()
-          if (!response.ok) {
-            const snippet = text.trim().slice(0, 140)
-            const failure = `(${response.status}) ${url}${snippet ? `: ${snippet}` : ""}`
-            if (response.status >= 500 || response.status === 429) {
-              errors.push(`Marketplace request failed ${failure}`)
-              await this.delayBeforeRetry(attempt)
-              continue
-            }
+    for (let attempt = 1; attempt <= MARKETPLACE_FETCH_RETRIES; attempt++) {
+      try {
+        const response = await this.fetchWithTimeout(url, MARKETPLACE_FETCH_TIMEOUT_MS)
+        const text = await response.text()
+        if (!response.ok) {
+          const snippet = text.trim().slice(0, 140)
+          const failure = `(${response.status}) ${url}${snippet ? `: ${snippet}` : ""}`
+          if (response.status >= 500 || response.status === 429) {
             errors.push(`Marketplace request failed ${failure}`)
-            break
+            await this.delayBeforeRetry(attempt)
+            continue
           }
-          if (this.looksLikeHtml(text)) {
-            errors.push(`Marketplace endpoint ${url} returned HTML instead of JSON/YAML`)
-            break
-          }
-          return text
-        } catch (error) {
-          errors.push(`Marketplace request failed (${url}): ${error instanceof Error ? error.message : String(error)}`)
-          await this.delayBeforeRetry(attempt)
+          throw new Error(`Marketplace request failed ${failure}`)
         }
+        return text
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith("Marketplace request failed")) {
+          throw error
+        }
+        errors.push(`Marketplace request failed (${url}): ${error instanceof Error ? error.message : String(error)}`)
+        await this.delayBeforeRetry(attempt)
       }
     }
 

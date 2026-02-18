@@ -504,6 +504,11 @@ export const dict = {
 
   "session.context.addToContext": "Add {{selection}} to context",
 
+  "session.modeSwitch.switching": "Switching to {{mode}} mode…",
+  "session.modeSwitch.waiting": "Waiting for current task to complete",
+  "session.modeSwitch.notAvailable": "Agent not available",
+  "session.modeSwitch.fallback": '"{{requested}}" not found, using "{{actual}}"',
+
   "session.new.worktree.main": "Main branch",
   "session.new.worktree.mainWithBranch": "Main branch ({{branch}})",
   "session.new.worktree.create": "Create new worktree",

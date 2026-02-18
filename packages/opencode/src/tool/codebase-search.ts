@@ -85,7 +85,7 @@ async function searchQdrant(
 }
 
 // Helper function to format search results
-function formatResults(
+export function formatResults(
   query: string,
   results: Array<{ filePath: string; score: number; startLine: number; endLine: number; codeChunk: string }>,
   similarityThreshold = 0.4,

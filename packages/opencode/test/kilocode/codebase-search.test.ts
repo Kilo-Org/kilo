@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test"
 import { CodebaseSearchCollection } from "@/kilocode/codebase-search/collection"
 import { CodebaseSearchTypes, CODEBASE_SEARCH_DEFAULTS } from "@/kilocode/codebase-search/types"
 import { CodebaseSearchEmbeddings } from "@/kilocode/codebase-search/embeddings"
+import { formatResults } from "@/tool/codebase-search"
 
 describe("CodebaseSearchCollection", () => {
   test("generates consistent collection names from workspace paths", () => {
@@ -134,5 +135,70 @@ describe("CodebaseSearchEmbeddings", () => {
       provider: "openai",
       modelId: "text-embedding-3-small",
     })
+  })
+})
+
+describe("formatResults", () => {
+  test("returns 'no results' message for empty results", () => {
+    const output = formatResults("test query", [])
+    expect(output).toBe('No relevant code snippets found for query: "test query"')
+  })
+
+  test("returns 'no results' message for null/undefined results", () => {
+    expect(formatResults("test", null as any)).toContain("No relevant code snippets found")
+    expect(formatResults("test", undefined as any)).toContain("No relevant code snippets found")
+  })
+
+  test("filters results below similarity threshold", () => {
+    const results = [
+      { filePath: "/src/a.ts", score: 0.8, startLine: 1, endLine: 10, codeChunk: "code a" },
+      { filePath: "/src/b.ts", score: 0.2, startLine: 5, endLine: 15, codeChunk: "code b" },
+    ]
+    const output = formatResults("test", results, 0.5)
+    expect(output).toContain("/src/a.ts")
+    expect(output).not.toContain("/src/b.ts")
+  })
+
+  test("returns message when all results below threshold", () => {
+    const results = [
+      { filePath: "/src/a.ts", score: 0.1, startLine: 1, endLine: 10, codeChunk: "code a" },
+    ]
+    const output = formatResults("test", results, 0.5)
+    expect(output).toContain("No relevant code snippets found")
+    expect(output).toContain("below similarity threshold of 0.5")
+  })
+
+  test("limits results to maxResults", () => {
+    const results = [
+      { filePath: "/src/a.ts", score: 0.9, startLine: 1, endLine: 10, codeChunk: "code a" },
+      { filePath: "/src/b.ts", score: 0.8, startLine: 5, endLine: 15, codeChunk: "code b" },
+      { filePath: "/src/c.ts", score: 0.7, startLine: 20, endLine: 30, codeChunk: "code c" },
+    ]
+    const output = formatResults("test", results, 0.5, 2)
+    expect(output).toContain("/src/a.ts")
+    expect(output).toContain("/src/b.ts")
+    expect(output).not.toContain("/src/c.ts")
+  })
+
+  test("formats output with all fields", () => {
+    const results = [
+      { filePath: "/src/test.ts", score: 0.856, startLine: 10, endLine: 25, codeChunk: "  function hello() {}  " },
+    ]
+    const output = formatResults("my query", results, 0.5)
+    expect(output).toContain("Query: my query")
+    expect(output).toContain("File path: /src/test.ts")
+    expect(output).toContain("Score: 0.856")
+    expect(output).toContain("Lines: 10-25")
+    expect(output).toContain("Code Chunk:")
+    expect(output).toContain("function hello() {}") // trimmed
+  })
+
+  test("handles results without codeChunk", () => {
+    const results = [
+      { filePath: "/src/test.ts", score: 0.8, startLine: 1, endLine: 5, codeChunk: "" },
+    ]
+    const output = formatResults("test", results, 0.5)
+    expect(output).toContain("File path: /src/test.ts")
+    expect(output).not.toContain("Code Chunk:")
   })
 })

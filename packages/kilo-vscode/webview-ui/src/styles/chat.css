@@ -178,6 +178,65 @@
   }
 }
 
+/* Image Attachments */
+.image-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 8px 0;
+}
+
+.image-attachment {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.image-attachment img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+  display: block;
+}
+
+.image-attachment-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--vscode-badge-background, #4d4d4d);
+  color: var(--vscode-badge-foreground, #fff);
+  border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.15));
+  font-size: 11px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  padding: 0;
+
+  &:hover {
+    background: var(--vscode-errorForeground, #f48771);
+    color: #fff;
+  }
+}
+
+.image-attachment:hover .image-attachment-remove {
+  opacity: 1;
+}
+
+.prompt-input-container--dragging {
+  border-color: var(--border-focus, var(--vscode-focusBorder, #007fd4));
+  border-style: dashed;
+}
+
 .prompt-input-wrapper {
   display: flex;
   gap: 8px;

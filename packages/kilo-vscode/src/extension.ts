@@ -5,11 +5,7 @@ import { EXTENSION_DISPLAY_NAME } from "./constants"
 import { KiloConnectionService } from "./services/cli-backend"
 import { registerAutocompleteProvider } from "./services/autocomplete"
 import { BrowserAutomationService } from "./services/browser-automation"
-
-const VERSION_KEY = "kilo-code.new.version"
-const CHANGELOG_ACTION = "View Changelog"
-const CHANGELOG_URL = "https://github.com/Kilo-Org/kilo/blob/dev/packages/kilo-vscode/CHANGELOG.md"
-const RELEASE_URL = "https://github.com/Kilo-Org/kilo/releases/tag"
+import { showChangelogOnUpdate as showChangelog, VERSION_KEY } from "./changelog"
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Kilo Code extension is now active")
@@ -92,37 +88,13 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {}
 
 async function showChangelogOnUpdate(context: vscode.ExtensionContext) {
-  const version = String(context.extension.packageJSON.version || "")
-
-  if (!version) {
-    return
-  }
-
-  const previous = context.globalState.get<string>(VERSION_KEY)
-
-  if (!previous) {
-    await context.globalState.update(VERSION_KEY, version)
-    return
-  }
-
-  if (previous === version) {
-    return
-  }
-
-  await context.globalState.update(VERSION_KEY, version)
-  const clicked = await vscode.window.showInformationMessage(`Kilo Code was updated to v${version}.`, CHANGELOG_ACTION)
-
-  if (clicked !== CHANGELOG_ACTION) {
-    return
-  }
-
-  const tag = version.startsWith("v") ? version : `v${version}`
-  const release = `${RELEASE_URL}/${encodeURIComponent(tag)}`
-  const opened = await vscode.env.openExternal(vscode.Uri.parse(release))
-
-  if (!opened) {
-    await vscode.env.openExternal(vscode.Uri.parse(CHANGELOG_URL))
-  }
+  await showChangelog({
+    version: String(context.extension.packageJSON.version || ""),
+    previous: context.globalState.get<string>(VERSION_KEY),
+    update: (version) => context.globalState.update(VERSION_KEY, version),
+    show: (message, action) => vscode.window.showInformationMessage(message, action),
+    open: (url) => vscode.env.openExternal(vscode.Uri.parse(url)),
+  })
 }
 
 async function openKiloInNewTab(context: vscode.ExtensionContext, connectionService: KiloConnectionService) {

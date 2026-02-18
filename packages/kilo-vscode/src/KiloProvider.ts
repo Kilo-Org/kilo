@@ -24,9 +24,15 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   private cachedConfigMessage: unknown = null
 
   private trackedSessionIds: Set<string> = new Set()
+  /** Per-session directory overrides (e.g., worktree paths registered by AgentManagerProvider). */
+  private sessionDirectories = new Map<string, string>()
   private unsubscribeEvent: (() => void) | null = null
   private unsubscribeState: (() => void) | null = null
   private webviewMessageDisposable: vscode.Disposable | null = null
+
+  /** Optional interceptor called before the standard message handler.
+   *  Return null to consume the message, or return a (possibly transformed) message. */
+  private onBeforeMessage: ((msg: Record<string, unknown>) => Promise<Record<string, unknown> | null>) | null = null
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -146,12 +152,57 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Register a session created externally (e.g., worktree sessions from AgentManagerProvider).
+   * Sets currentSession, adds to trackedSessionIds, and notifies the webview.
+   */
+  public registerSession(session: SessionInfo): void {
+    this.currentSession = session
+    this.trackedSessionIds.add(session.id)
+    this.postMessage({
+      type: "sessionCreated",
+      session: this.sessionToWebview(session),
+    })
+  }
+
+  /**
+   * Add a session ID to the tracked set without changing currentSession.
+   * Used to re-register worktree sessions after clearSession wipes the set.
+   */
+  public trackSession(sessionId: string): void {
+    this.trackedSessionIds.add(sessionId)
+  }
+
+  /**
+   * Register a directory override for a session (e.g., worktree path).
+   * When set, all operations for this session use this directory instead of the workspace root.
+   */
+  public setSessionDirectory(sessionId: string, directory: string): void {
+    this.sessionDirectories.set(sessionId, directory)
+  }
+
+  /**
+   * Re-fetch and send the full session list to the webview.
+   * Called by AgentManagerProvider after worktree recovery completes.
+   */
+  public refreshSessions(): void {
+    void this.handleLoadSessions()
+  }
+
+  /**
    * Attach to a webview that already has its own HTML set.
    * Sets up message handling and connection without overriding HTML content.
+   *
+   * @param options.onBeforeMessage - Optional interceptor called before the standard handler.
+   *   Return null to consume the message (stop propagation), or return the message
+   *   (possibly transformed) to continue with standard handling.
    */
-  public attachToWebview(webview: vscode.Webview): void {
+  public attachToWebview(
+    webview: vscode.Webview,
+    options?: { onBeforeMessage?: (msg: Record<string, unknown>) => Promise<Record<string, unknown> | null> },
+  ): void {
     this.isWebviewReady = false
     this.webview = webview
+    this.onBeforeMessage = options?.onBeforeMessage ?? null
     this.setupWebviewMessageHandler(webview)
     this.initializeConnection()
   }
@@ -163,6 +214,18 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   private setupWebviewMessageHandler(webview: vscode.Webview): void {
     this.webviewMessageDisposable?.dispose()
     this.webviewMessageDisposable = webview.onDidReceiveMessage(async (message) => {
+      // Run interceptor if attached (e.g., AgentManagerProvider worktree logic)
+      if (this.onBeforeMessage) {
+        try {
+          const result = await this.onBeforeMessage(message)
+          if (result === null) return // consumed by interceptor
+          message = result
+        } catch (error) {
+          console.error("[Kilo New] KiloProvider: interceptor error:", error)
+          return
+        }
+      }
+
       switch (message.type) {
         case "webviewReady":
           console.log("[Kilo New] KiloProvider: ✅ webviewReady received")
@@ -473,7 +536,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(sessionID)
       const messagesData = await this.httpClient.getMessages(sessionID, workspaceDir)
 
       // Update currentSession so fallback logic in handleSendMessage/handleAbort
@@ -533,6 +596,26 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       const workspaceDir = this.getWorkspaceDirectory()
       const sessions = await this.httpClient.listSessions(workspaceDir)
 
+      // Also fetch sessions from worktree directories so they appear in the list
+      const worktreeDirs = new Set(this.sessionDirectories.values())
+      const extra = await Promise.all(
+        [...worktreeDirs].map((dir) =>
+          this.httpClient!.listSessions(dir).catch((err) => {
+            console.error(`[Kilo New] KiloProvider: Failed to list sessions for ${dir}:`, err)
+            return [] as SessionInfo[]
+          }),
+        ),
+      )
+      const seen = new Set(sessions.map((s) => s.id))
+      for (const batch of extra) {
+        for (const s of batch) {
+          if (!seen.has(s.id)) {
+            sessions.push(s)
+            seen.add(s.id)
+          }
+        }
+      }
+
       this.postMessage({
         type: "sessionsLoaded",
         sessions: sessions.map((s) => this.sessionToWebview(s)),
@@ -556,9 +639,10 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(sessionID)
       await this.httpClient.deleteSession(sessionID, workspaceDir)
       this.trackedSessionIds.delete(sessionID)
+      this.sessionDirectories.delete(sessionID)
       if (this.currentSession?.id === sessionID) {
         this.currentSession = null
       }
@@ -582,7 +666,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(sessionID)
       const updated = await this.httpClient.updateSession(sessionID, { title }, workspaceDir)
       if (this.currentSession?.id === sessionID) {
         this.currentSession = updated
@@ -775,7 +859,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(sessionID || this.currentSession?.id)
 
       // Create session if needed
       if (!sessionID && !this.currentSession) {
@@ -843,7 +927,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(targetSessionID)
       await this.httpClient.abortSession(targetSessionID, workspaceDir)
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to abort session:", error)
@@ -878,7 +962,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(target)
       await this.httpClient.summarize(target, providerID, modelID, workspaceDir)
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to compact session:", error)
@@ -908,7 +992,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      const workspaceDir = this.getWorkspaceDirectory()
+      const workspaceDir = this.getWorkspaceDirectory(targetSessionID)
       await this.httpClient.respondToPermission(targetSessionID, permissionId, response, workspaceDir)
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to respond to permission:", error)
@@ -925,7 +1009,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      await this.httpClient.replyToQuestion(requestID, answers, this.getWorkspaceDirectory())
+      await this.httpClient.replyToQuestion(requestID, answers, this.getWorkspaceDirectory(this.currentSession?.id))
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to reply to question:", error)
       this.postMessage({ type: "questionError", requestID })
@@ -942,7 +1026,7 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      await this.httpClient.rejectQuestion(requestID, this.getWorkspaceDirectory())
+      await this.httpClient.rejectQuestion(requestID, this.getWorkspaceDirectory(this.currentSession?.id))
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to reject question:", error)
       this.postMessage({ type: "questionError", requestID })
@@ -1330,9 +1414,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * Get the workspace directory.
+   * Get the workspace directory for a session.
+   * Checks session directory overrides first (e.g., worktree paths), then falls back to workspace root.
    */
-  private getWorkspaceDirectory(): string {
+  private getWorkspaceDirectory(sessionId?: string): string {
+    if (sessionId) {
+      const dir = this.sessionDirectories.get(sessionId)
+      if (dir) return dir
+    }
     const workspaceFolders = vscode.workspace.workspaceFolders
     if (workspaceFolders && workspaceFolders.length > 0) {
       return workspaceFolders[0].uri.fsPath
@@ -1360,5 +1449,6 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     this.unsubscribeState?.()
     this.webviewMessageDisposable?.dispose()
     this.trackedSessionIds.clear()
+    this.sessionDirectories.clear()
   }
 }

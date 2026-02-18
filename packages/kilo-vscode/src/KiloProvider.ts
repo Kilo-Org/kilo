@@ -587,6 +587,26 @@ export class KiloProvider implements vscode.WebviewViewProvider {
       const workspaceDir = this.getWorkspaceDirectory()
       const sessions = await this.httpClient.listSessions(workspaceDir)
 
+      // Also fetch sessions from worktree directories so they appear in the list
+      const worktreeDirs = new Set(this.sessionDirectories.values())
+      const extra = await Promise.all(
+        [...worktreeDirs].map((dir) =>
+          this.httpClient!.listSessions(dir).catch((err) => {
+            console.error(`[Kilo New] KiloProvider: Failed to list sessions for ${dir}:`, err)
+            return [] as SessionInfo[]
+          }),
+        ),
+      )
+      const seen = new Set(sessions.map((s) => s.id))
+      for (const batch of extra) {
+        for (const s of batch) {
+          if (!seen.has(s.id)) {
+            sessions.push(s)
+            seen.add(s.id)
+          }
+        }
+      }
+
       this.postMessage({
         type: "sessionsLoaded",
         sessions: sessions.map((s) => this.sessionToWebview(s)),

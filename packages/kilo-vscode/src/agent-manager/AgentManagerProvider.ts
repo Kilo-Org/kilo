@@ -20,6 +20,8 @@ export class AgentManagerProvider implements vscode.Disposable {
   private provider: KiloProvider | undefined
   private outputChannel: vscode.OutputChannel
   private worktrees: WorktreeManager | undefined
+  /** Resolves when worktree recovery is complete. Interceptor awaits this for loadSessions. */
+  private recovered: Promise<void> = Promise.resolve()
 
   /** Per-session worktree metadata. Only populated for worktree sessions. */
   private meta = new Map<string, { branch: string; path: string; parentBranch: string }>()
@@ -67,7 +69,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       onBeforeMessage: (msg) => this.onMessage(msg),
     })
 
-    void this.recoverWorktrees()
+    this.recovered = this.recoverWorktrees()
 
     this.panel.onDidDispose(() => {
       this.log("Panel disposed")
@@ -86,6 +88,9 @@ export class AgentManagerProvider implements vscode.Disposable {
 
     // Custom agent-manager messages -- consumed here, never reach KiloProvider
     if (type === "agentManager.createWorktreeSession") return this.onCreateWorktreeSession(msg)
+
+    // Wait for recovery before loading sessions so worktree directories are registered
+    if (type === "loadSessions") await this.recovered
 
     // After clearSession, re-register worktree sessions so SSE events keep flowing
     if (type === "clearSession") {

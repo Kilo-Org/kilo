@@ -449,18 +449,8 @@ export class MarketplaceService {
     if (!parsed) {
       return
     }
-    let slug = item.id
-    try {
-      const modeData = YAML.parse(item.content)
-      if (modeData && typeof modeData === "object") {
-        const parsedSlug = (modeData as Record<string, unknown>).slug
-        if (typeof parsedSlug === "string" && parsedSlug.length > 0) {
-          slug = parsedSlug
-        }
-      }
-    } catch {
-      // Fallback to item.id if content is invalid.
-    }
+    const modeData = YAML.parse(item.content)
+    const slug = modeData?.slug && typeof modeData.slug === "string" ? modeData.slug : item.id
     const existingModes = Array.isArray(parsed.customModes) ? parsed.customModes : []
     const nextModes = existingModes.filter((mode) => {
       if (!mode || typeof mode !== "object") {

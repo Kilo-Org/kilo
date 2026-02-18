@@ -1,7 +1,7 @@
 import os from "node:os"
 import path from "node:path"
 import fs from "node:fs/promises"
-import { createReadStream, existsSync } from "node:fs"
+import { createReadStream } from "node:fs"
 import { pipeline } from "node:stream/promises"
 import zlib from "node:zlib"
 import * as YAML from "yaml"
@@ -270,23 +270,11 @@ export class MarketplaceService {
   }
 
   private getProjectKiloDirectoryPath(): string {
-    const workspaceDir = this.getWorkspaceDir()
-    const kiloDir = path.join(workspaceDir, ".kilocode")
-    const legacyDir = path.join(workspaceDir, ".roo")
-    if (existsSync(legacyDir) && !existsSync(kiloDir)) {
-      return legacyDir
-    }
-    return kiloDir
+    return path.join(this.getWorkspaceDir(), ".kilocode")
   }
 
   private getGlobalKiloDirectoryPath(): string {
-    const home = os.homedir()
-    const kiloDir = path.join(home, ".kilocode")
-    const legacyDir = path.join(home, ".roo")
-    if (existsSync(legacyDir) && !existsSync(kiloDir)) {
-      return legacyDir
-    }
-    return kiloDir
+    return path.join(os.homedir(), ".kilocode")
   }
 
   private mcpFilePath(target: "project" | "global"): string {

@@ -3,7 +3,7 @@
  * Text input with send/abort buttons and ghost-text autocomplete for the chat interface
  */
 
-import { Component, createSignal, createEffect, onCleanup, Show } from "solid-js"
+import { Component, createSignal, createEffect, on, onCleanup, Show, untrack } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { useSession } from "../../context/session"
@@ -32,25 +32,24 @@ export const PromptInput: Component = () => {
   let textareaRef: HTMLTextAreaElement | undefined
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
   let requestCounter = 0
-  let prevKey: string | undefined
-
-  // Save/restore input text when switching sessions
-  createEffect(() => {
-    const key = sessionKey()
-    if (prevKey !== undefined && prevKey !== key) {
-      drafts.set(prevKey, text())
-    }
-    const draft = drafts.get(key) ?? ""
-    setText(draft)
-    setGhostText("")
-    if (textareaRef) {
-      textareaRef.value = draft
-      // Reset height then adjust
-      textareaRef.style.height = "auto"
-      textareaRef.style.height = `${Math.min(textareaRef.scrollHeight, 200)}px`
-    }
-    prevKey = key
-  })
+  // Save/restore input text when switching sessions.
+  // Uses `on()` to track only sessionKey — avoids re-running on every keystroke.
+  createEffect(
+    on(sessionKey, (key, prev) => {
+      if (prev !== undefined && prev !== key) {
+        drafts.set(prev, untrack(text))
+      }
+      const draft = drafts.get(key) ?? ""
+      setText(draft)
+      setGhostText("")
+      if (textareaRef) {
+        textareaRef.value = draft
+        // Reset height then adjust
+        textareaRef.style.height = "auto"
+        textareaRef.style.height = `${Math.min(textareaRef.scrollHeight, 200)}px`
+      }
+    }),
+  )
 
   const isBusy = () => session.status() === "busy"
   const isDisabled = () => !server.isConnected()

@@ -5,7 +5,6 @@ export interface MarketplaceItemBase {
   id: string
   name: string
   description: string
-  managedByOrganization?: boolean
   author?: string
   authorUrl?: string
   tags?: string[]
@@ -66,8 +65,4 @@ export interface MarketplaceCatalogResult {
   errors?: string[]
 }
 
-export interface MarketplaceOrganizationPolicy {
-  hideMarketplaceMcps?: boolean
-  hiddenMcps?: string[]
-  mcps?: Array<Omit<MarketplaceMcpItem, "type">>
-}
+

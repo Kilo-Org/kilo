@@ -20,7 +20,6 @@ const baseMarketplaceItemSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   description: z.string(),
-  managedByOrganization: z.boolean().optional(),
   author: z.string().optional(),
   authorUrl: z.string().url().optional(),
   tags: z.array(z.string()).optional(),
@@ -78,12 +77,6 @@ export const rawSkillSchema = z.object({
 
 export const skillsMarketplaceCatalogSchema = z.object({
   items: z.array(rawSkillSchema),
-})
-
-export const marketplaceOrganizationPolicySchema = z.object({
-  hideMarketplaceMcps: z.boolean().optional(),
-  hiddenMcps: z.array(z.string()).optional(),
-  mcps: z.array(mcpMarketplaceItemSchema.omit({ type: true })).optional(),
 })
 
 export type MarketplaceItemSchema = z.infer<typeof marketplaceItemSchema>

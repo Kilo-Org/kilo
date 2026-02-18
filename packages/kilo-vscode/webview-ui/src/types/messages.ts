@@ -197,7 +197,6 @@ export interface MarketplaceItemBase {
   id: string
   name: string
   description: string
-  managedByOrganization?: boolean
   author?: string
   authorUrl?: string
   tags?: string[]

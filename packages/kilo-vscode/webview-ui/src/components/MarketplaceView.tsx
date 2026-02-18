@@ -4,7 +4,6 @@ import { Button } from "@kilocode/kilo-ui/button"
 import { Card } from "@kilocode/kilo-ui/card"
 import { Icon } from "@kilocode/kilo-ui/icon"
 import { useVSCode } from "../context/vscode"
-import { useServer } from "../context/server"
 import { useLanguage } from "../context/language"
 import type {
   ExtensionMessage,
@@ -49,7 +48,6 @@ const itemFilterTags = (item: MarketplaceItem): string[] => {
 
 const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
   const vscode = useVSCode()
-  const server = useServer()
   const language = useLanguage()
 
   const [activeTab, setActiveTab] = createSignal<MarketplaceItemType>("mcp")
@@ -64,37 +62,6 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
   const [selectedMethodByItem, setSelectedMethodByItem] = createStore<Record<string, number>>({})
   const [parameterValuesByItem, setParameterValuesByItem] = createStore<Record<string, Record<string, string>>>({})
   const [pendingActionsByItem, setPendingActionsByItem] = createStore<Record<string, ItemActionState>>({})
-
-  const currentOrganizationName = createMemo(() => {
-    const profile = server.profileData()
-    const organizations = profile?.profile?.organizations ?? []
-    const currentOrgId = profile?.currentOrgId
-    if (organizations.length === 0) {
-      return null
-    }
-    if (currentOrgId) {
-      const current = organizations.find((org) => org.id === currentOrgId)
-      if (current?.name) {
-        return current.name
-      }
-    }
-    // Legacy UI used cloud user org name directly; fall back to the single known org.
-    if (organizations.length === 1) {
-      return organizations[0]?.name ?? null
-    }
-    return null
-  })
-  const currentOrganizationLabel = createMemo(() => currentOrganizationName() ?? "")
-  const organizationRefreshKey = createMemo(() => {
-    const profile = server.profileData()
-    const organizations = profile?.profile?.organizations ?? []
-    const currentOrgId = profile?.currentOrgId ?? ""
-    const orgNames = organizations
-      .map((org) => `${org.id}:${org.name}`)
-      .sort()
-      .join("|")
-    return `${currentOrgId}|${orgNames}`
-  })
 
   let initialized = false
   createEffect(() => {
@@ -118,19 +85,6 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
     setStatusMessage(null)
     vscode.postMessage({ type: "requestMarketplaceData" })
   }
-
-  let lastOrganizationRefreshKey: string | undefined
-  createEffect(() => {
-    const key = organizationRefreshKey()
-    if (key === lastOrganizationRefreshKey) {
-      return
-    }
-    const hadPreviousKey = lastOrganizationRefreshKey !== undefined
-    lastOrganizationRefreshKey = key
-    if (hadPreviousKey) {
-      requestData()
-    }
-  })
 
   onMount(() => {
     const unsubscribe = vscode.onMessage((message: ExtensionMessage) => {
@@ -240,19 +194,7 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
       })
   })
 
-  const organizationManagedItems = createMemo(() => {
-    if (activeTab() !== "mcp") {
-      return [] as MarketplaceItem[]
-    }
-    return filteredItems().filter((item) => item.type === "mcp" && !!item.managedByOrganization)
-  })
-
-  const catalogItems = createMemo(() => {
-    if (activeTab() !== "mcp") {
-      return filteredItems()
-    }
-    return filteredItems().filter((item) => !(item.type === "mcp" && !!item.managedByOrganization))
-  })
+  const catalogItems = createMemo(() => filteredItems())
 
   const hasActiveFilters = createMemo(() => {
     return (
@@ -429,7 +371,6 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
     const filterTags = itemFilterTags(item)
     const projectInstalled = isInstalledInTarget(item, "project")
     const globalInstalled = isInstalledInTarget(item, "global")
-    const managedByOrganization = !!item.managedByOrganization
     const projectActionState = () => pendingActionsByItem[actionKey(item.id, "project")]
     const globalActionState = () => pendingActionsByItem[actionKey(item.id, "global")]
     const prerequisites = getMcpPrerequisites(item)
@@ -538,22 +479,6 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
                   }}
                 >
                   {language.t("marketplace.card.installed.global")}
-                </span>
-              </Show>
-              <Show when={managedByOrganization}>
-                <span
-                  style={{
-                    "font-size": "10px",
-                    "text-transform": "uppercase",
-                    padding: "2px 6px",
-                    "border-radius": "999px",
-                    border: "1px solid var(--vscode-input-border)",
-                    color: "var(--vscode-descriptionForeground)",
-                  }}
-                >
-                  {currentOrganizationLabel()
-                    ? language.t("marketplace.card.managedBy.organizationNamed", { organization: currentOrganizationLabel() })
-                    : language.t("marketplace.card.managedBy.organization")}
                 </span>
               </Show>
             </div>
@@ -666,47 +591,36 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
           </div>
         </Show>
 
-        <Show
-          when={!managedByOrganization}
-          fallback={
-            <div style={{ "font-size": "12px", color: "var(--vscode-descriptionForeground)" }}>
-              {currentOrganizationLabel()
-                ? language.t("marketplace.card.managedNotice.named", { organization: currentOrganizationLabel() })
-                : language.t("marketplace.card.managedNotice.default")}
-            </div>
-          }
-        >
-          <div style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
-            <Button
-              size="small"
-              variant={projectInstalled ? "ghost" : "primary"}
-              onClick={() => (projectInstalled ? handleRemove(item, "project") : handleInstall(item, "project"))}
-              disabled={isActionPending(item, "project") || isActionPending(item, "global")}
-            >
-              {projectActionState() === "installing"
-                ? language.t("marketplace.action.installing")
-                : projectActionState() === "removing"
-                  ? language.t("marketplace.action.removing")
-                  : projectInstalled
-                    ? language.t("marketplace.action.removeProject")
-                    : language.t("marketplace.action.installProject")}
-            </Button>
-            <Button
-              size="small"
-              variant={globalInstalled ? "ghost" : "secondary"}
-              onClick={() => (globalInstalled ? handleRemove(item, "global") : handleInstall(item, "global"))}
-              disabled={isActionPending(item, "project") || isActionPending(item, "global")}
-            >
-              {globalActionState() === "installing"
-                ? language.t("marketplace.action.installing")
-                : globalActionState() === "removing"
-                  ? language.t("marketplace.action.removing")
-                  : globalInstalled
-                    ? language.t("marketplace.action.removeGlobal")
-                    : language.t("marketplace.action.installGlobal")}
-            </Button>
-          </div>
-        </Show>
+        <div style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
+          <Button
+            size="small"
+            variant={projectInstalled ? "ghost" : "primary"}
+            onClick={() => (projectInstalled ? handleRemove(item, "project") : handleInstall(item, "project"))}
+            disabled={isActionPending(item, "project") || isActionPending(item, "global")}
+          >
+            {projectActionState() === "installing"
+              ? language.t("marketplace.action.installing")
+              : projectActionState() === "removing"
+                ? language.t("marketplace.action.removing")
+                : projectInstalled
+                  ? language.t("marketplace.action.removeProject")
+                  : language.t("marketplace.action.installProject")}
+          </Button>
+          <Button
+            size="small"
+            variant={globalInstalled ? "ghost" : "secondary"}
+            onClick={() => (globalInstalled ? handleRemove(item, "global") : handleInstall(item, "global"))}
+            disabled={isActionPending(item, "project") || isActionPending(item, "global")}
+          >
+            {globalActionState() === "installing"
+              ? language.t("marketplace.action.installing")
+              : globalActionState() === "removing"
+                ? language.t("marketplace.action.removing")
+                : globalInstalled
+                  ? language.t("marketplace.action.removeGlobal")
+                  : language.t("marketplace.action.installGlobal")}
+          </Button>
+        </div>
       </Card>
     )
   }
@@ -841,7 +755,7 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
         <div style={{ "font-size": "11px", color: "var(--vscode-descriptionForeground)" }}>
           {language.t("marketplace.results", {
             tab: activeTabLabel(),
-            count: organizationManagedItems().length + catalogItems().length,
+            count: catalogItems().length,
           })}
         </div>
 
@@ -968,7 +882,7 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
           </div>
         </Show>
 
-      <Show when={!loading() && organizationManagedItems().length + catalogItems().length === 0}>
+      <Show when={!loading() && catalogItems().length === 0}>
         <div
           style={{
             display: "grid",
@@ -995,55 +909,9 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
         </div>
       </Show>
 
-      <Show when={!loading() && organizationManagedItems().length > 0}>
-        <div style={{ display: "grid", gap: "8px" }}>
-          <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
-            <span style={{ "font-size": "12px", opacity: 0.8 }}>🏢</span>
-            <div
-              style={{
-                "font-size": "12px",
-                "font-weight": 600,
-                color: "var(--vscode-descriptionForeground)",
-                "text-transform": "uppercase",
-                "letter-spacing": "0.03em",
-                "white-space": "nowrap",
-              }}
-            >
-              {currentOrganizationLabel()
-                ? language.t("marketplace.section.organizationManaged.named", { organization: currentOrganizationLabel() })
-                : language.t("marketplace.section.organizationManaged.default")}
-            </div>
-            <div style={{ height: "1px", background: "var(--vscode-panel-border)", flex: 1 }} />
-          </div>
-          <div style={{ display: "grid", gap: "8px", "grid-template-columns": "repeat(auto-fit, minmax(240px, 1fr))" }}>
-            <For each={organizationManagedItems()}>{(item) => renderItemCard(item)}</For>
-          </div>
-        </div>
-      </Show>
-
       <Show when={!loading() && catalogItems().length > 0}>
-        <div style={{ display: "grid", gap: "8px" }}>
-          <Show when={organizationManagedItems().length > 0}>
-            <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
-              <span style={{ "font-size": "12px", opacity: 0.8 }}>🌐</span>
-              <div
-                style={{
-                  "font-size": "12px",
-                  "font-weight": 600,
-                  color: "var(--vscode-descriptionForeground)",
-                  "text-transform": "uppercase",
-                  "letter-spacing": "0.03em",
-                  "white-space": "nowrap",
-                }}
-              >
-                {language.t("marketplace.section.catalog")}
-              </div>
-              <div style={{ height: "1px", background: "var(--vscode-panel-border)", flex: 1 }} />
-            </div>
-          </Show>
-          <div style={{ display: "grid", gap: "8px", "grid-template-columns": "repeat(auto-fit, minmax(240px, 1fr))" }}>
-            <For each={catalogItems()}>{(item) => renderItemCard(item)}</For>
-          </div>
+        <div style={{ display: "grid", gap: "8px", "grid-template-columns": "repeat(auto-fit, minmax(240px, 1fr))" }}>
+          <For each={catalogItems()}>{(item) => renderItemCard(item)}</For>
         </div>
       </Show>
 

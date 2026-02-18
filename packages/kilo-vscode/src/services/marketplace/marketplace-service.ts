@@ -81,7 +81,7 @@ export class MarketplaceService {
       errors.push(error instanceof Error ? error.message : String(error))
     }
 
-    const installedMetadata = await this.getInstalledMetadata(items).catch((error) => {
+    const installedMetadata = await this.getInstalledMetadata().catch((error) => {
       errors.push(error instanceof Error ? error.message : String(error))
       return { project: {}, global: {} } satisfies MarketplaceInstalledMetadata
     })
@@ -98,10 +98,6 @@ export class MarketplaceService {
   }
 
   async installItem(item: MarketplaceItem, options: MarketplaceInstallOptions): Promise<void> {
-    if (item.managedByOrganization) {
-      throw new Error("This item is managed by your organization")
-    }
-
     switch (item.type) {
       case "mode":
         await this.installMode(item, options.target)
@@ -118,10 +114,6 @@ export class MarketplaceService {
   }
 
   async removeItem(item: MarketplaceItem, target: "project" | "global"): Promise<void> {
-    if (item.managedByOrganization) {
-      throw new Error("This item is managed by your organization")
-    }
-
     switch (item.type) {
       case "mode":
         await this.removeMode(item, target)
@@ -410,7 +402,7 @@ export class MarketplaceService {
     return parsed as Record<string, unknown>
   }
 
-  private async getInstalledMetadata(catalogItems: MarketplaceItem[]): Promise<MarketplaceInstalledMetadata> {
+  private async getInstalledMetadata(): Promise<MarketplaceInstalledMetadata> {
     const metadata: MarketplaceInstalledMetadata = { project: {}, global: {} }
 
     await this.collectModeMetadata("project", metadata.project)
@@ -419,21 +411,8 @@ export class MarketplaceService {
     await this.collectMcpMetadata("global", metadata.global)
     await this.collectSkillsMetadata("project", metadata.project)
     await this.collectSkillsMetadata("global", metadata.global)
-    this.markOrganizationManagedItemsInstalled(catalogItems, metadata)
 
     return metadata
-  }
-
-  private markOrganizationManagedItemsInstalled(
-    catalogItems: MarketplaceItem[],
-    metadata: MarketplaceInstalledMetadata,
-  ): void {
-    for (const item of catalogItems) {
-      if (!item.managedByOrganization) {
-        continue
-      }
-      metadata.global[item.id] = { type: item.type }
-    }
   }
 
   private async collectModeMetadata(

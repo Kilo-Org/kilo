@@ -73,7 +73,7 @@ export class WorktreeManager {
       await this.git.raw(args)
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
-      if (!msg.includes("already exists")) {
+      if (!msg.includes("already exists") || params.existingBranch) {
         throw new Error(`Failed to create worktree: ${msg}`)
       }
       // Branch name collision -- retry with unique suffix

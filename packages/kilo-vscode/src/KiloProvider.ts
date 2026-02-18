@@ -233,7 +233,12 @@ export class KiloProvider implements vscode.WebviewViewProvider {
           break
         case "sendMessage": {
           const files = z
-            .array(z.object({ mime: z.string(), url: z.string().startsWith("file://") }))
+            .array(
+              z.object({
+                mime: z.string(),
+                url: z.string().refine((u) => u.startsWith("file://") || u.startsWith("data:")),
+              }),
+            )
             .optional()
             .catch(undefined)
             .parse(message.files)

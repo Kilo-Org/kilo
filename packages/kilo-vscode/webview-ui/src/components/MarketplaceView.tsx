@@ -96,8 +96,13 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
     return `${currentOrgId}|${orgNames}`
   })
 
+  let initialized = false
   createEffect(() => {
     const tab = activeTab()
+    if (!initialized) {
+      initialized = true
+      return
+    }
     vscode.postMessage({
       type: "telemetryEvent",
       event: "Marketplace Tab Viewed",

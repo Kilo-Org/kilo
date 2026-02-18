@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 import { KiloProvider } from "./KiloProvider"
-import { AgentManagerProvider } from "./AgentManagerProvider"
+import { AgentManagerProvider } from "./agent-manager/AgentManagerProvider"
 import { EXTENSION_DISPLAY_NAME } from "./constants"
 import { KiloConnectionService } from "./services/cli-backend"
 import { registerAutocompleteProvider } from "./services/autocomplete"
@@ -35,7 +35,7 @@ export function activate(context: vscode.ExtensionContext) {
   )
 
   // Create Agent Manager provider for editor panel
-  const agentManagerProvider = new AgentManagerProvider(context.extensionUri)
+  const agentManagerProvider = new AgentManagerProvider(context.extensionUri, connectionService)
   context.subscriptions.push(agentManagerProvider)
 
   // Register toolbar button command handlers

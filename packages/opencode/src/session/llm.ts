@@ -44,6 +44,7 @@ export namespace LLM {
     small?: boolean
     tools: Record<string, Tool>
     retries?: number
+    toolChoice?: "auto" | "required" | "none"
   }
 
   export type StreamOutput = StreamTextResult<ToolSet, unknown>
@@ -221,6 +222,7 @@ export namespace LLM {
       providerOptions: ProviderTransform.providerOptions(input.model, params.options),
       activeTools: Object.keys(tools).filter((x) => x !== "invalid"),
       tools,
+      toolChoice: input.toolChoice,
       maxOutputTokens,
       abortSignal: input.abort,
       headers: {

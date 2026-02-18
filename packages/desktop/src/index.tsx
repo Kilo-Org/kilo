@@ -1,14 +1,7 @@
 // @refresh reload
 import { webviewZoom } from "./webview-zoom"
 import { render } from "solid-js/web"
-import {
-  AppBaseProviders,
-  AppInterface,
-  PlatformProvider,
-  Platform,
-  DisplayBackend,
-  useCommand,
-} from "@opencode-ai/app"
+import { AppBaseProviders, AppInterface, PlatformProvider, Platform, useCommand } from "@opencode-ai/app"
 import { open, save } from "@tauri-apps/plugin-dialog"
 import { getCurrent, onOpenUrl } from "@tauri-apps/plugin-deep-link"
 import { openPath as openerOpenPath } from "@tauri-apps/plugin-opener"
@@ -352,7 +345,7 @@ const createPlatform = (password: Accessor<string | null>): Platform => ({
   },
 
   getDisplayBackend: async () => {
-    const result = await invoke<DisplayBackend | null>("get_display_backend").catch(() => null)
+    const result = await commands.getDisplayBackend().catch(() => null)
     return result
   },
 
@@ -451,11 +444,9 @@ type ServerReadyData = { url: string; password: string | null }
 // Gate component that waits for the server to be ready
 function ServerGate(props: { children: (data: Accessor<ServerReadyData>) => JSX.Element }) {
   const [serverData] = createResource(() => commands.awaitInitialization(new Channel<InitStep>() as any))
-
   if (serverData.state === "errored") throw serverData.error
 
   return (
-    // Not using suspense as not all components are compatible with it (undefined refs)
     <Show
       when={serverData.state !== "pending" && serverData()}
       fallback={

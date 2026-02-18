@@ -1,20 +1,79 @@
 /**
  * PromptInput component
- * Text input with send/abort buttons and ghost-text autocomplete for the chat interface
+ * Text input with send/abort buttons, ghost-text autocomplete, and @ file mention support
  */
 
-import { Component, createSignal, createEffect, on, onCleanup, Show, untrack } from "solid-js"
+import { Component, createSignal, createEffect, on, For, Index, onCleanup, Show, untrack } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
+import { Popover } from "@kilocode/kilo-ui/popover"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
+import { FileIcon } from "@kilocode/kilo-ui/file-icon"
 import { useSession } from "../../context/session"
 import { useServer } from "../../context/server"
 import { useLanguage } from "../../context/language"
 import { useVSCode } from "../../context/vscode"
+import { useWorktreeMode, type SessionMode } from "../../context/worktree-mode"
 import { ModelSelector } from "./ModelSelector"
 import { ModeSwitcher } from "./ModeSwitcher"
+import { useFileMention } from "../../hooks/useFileMention"
 
 const AUTOCOMPLETE_DEBOUNCE_MS = 500
 const MIN_TEXT_LENGTH = 3
+
+const WORKTREE_OPTIONS = [
+  { id: "local" as const, label: "Local", description: "Run in current workspace" },
+  { id: "worktree" as const, label: "Worktree", description: "Run in isolated git worktree" },
+]
+
+/**
+ * Popover-based Local/Worktree selector shown in the Agent Manager's prompt footer.
+ * Matches the visual style of ModeSwitcher and ModelSelector.
+ */
+const WorktreeSelector: Component = () => {
+  const ctx = useWorktreeMode()!
+  const [open, setOpen] = createSignal(false)
+
+  function pick(mode: SessionMode) {
+    ctx.setMode(mode)
+    setOpen(false)
+  }
+
+  const label = () => (ctx.mode() === "worktree" ? "Worktree" : "Local")
+
+  return (
+    <Popover
+      placement="top-start"
+      open={open()}
+      onOpenChange={setOpen}
+      triggerAs={Button}
+      triggerProps={{ variant: "ghost", size: "small" }}
+      trigger={
+        <>
+          <span class="worktree-selector-label">{label()}</span>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ "flex-shrink": "0" }}>
+            <path d="M8 4l4 5H4l4-5z" />
+          </svg>
+        </>
+      }
+    >
+      <div class="worktree-selector-list" role="listbox">
+        <For each={WORKTREE_OPTIONS}>
+          {(opt) => (
+            <div
+              class={`worktree-selector-item${opt.id === ctx.mode() ? " selected" : ""}`}
+              role="option"
+              aria-selected={opt.id === ctx.mode()}
+              onClick={() => pick(opt.id)}
+            >
+              <span class="worktree-selector-item-name">{opt.label}</span>
+              <span class="worktree-selector-item-desc">{opt.description}</span>
+            </div>
+          )}
+        </For>
+      </div>
+    </Popover>
+  )
+}
 
 // Per-session input text storage (module-level so it survives remounts)
 const drafts = new Map<string, string>()
@@ -24,12 +83,17 @@ export const PromptInput: Component = () => {
   const server = useServer()
   const language = useLanguage()
   const vscode = useVSCode()
+  const worktreeMode = useWorktreeMode()
+  const mention = useFileMention(vscode)
 
   const sessionKey = () => session.currentSessionID() ?? "__new__"
 
   const [text, setText] = createSignal("")
   const [ghostText, setGhostText] = createSignal("")
+
   let textareaRef: HTMLTextAreaElement | undefined
+  let highlightRef: HTMLDivElement | undefined
+  let dropdownRef: HTMLDivElement | undefined
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
   let requestCounter = 0
   // Save/restore input text when switching sessions.
@@ -55,15 +119,11 @@ export const PromptInput: Component = () => {
   const isDisabled = () => !server.isConnected()
   const canSend = () => text().trim().length > 0 && !isBusy() && !isDisabled()
 
-  // Listen for chat completion results from the extension
   const unsubscribe = vscode.onMessage((message) => {
-    if (message.type === "chatCompletionResult") {
-      const result = message as { type: "chatCompletionResult"; text: string; requestId: string }
-      // Only apply if the requestId matches the latest request
-      const expectedId = `chat-ac-${requestCounter}`
-      if (result.requestId === expectedId && result.text) {
-        setGhostText(result.text)
-      }
+    if (message.type !== "chatCompletionResult") return
+    const result = message as { type: "chatCompletionResult"; text: string; requestId: string }
+    if (result.requestId === `chat-ac-${requestCounter}` && result.text) {
+      setGhostText(result.text)
     }
   })
 
@@ -72,29 +132,18 @@ export const PromptInput: Component = () => {
     const current = text()
     if (current) drafts.set(sessionKey(), current)
     unsubscribe()
-    if (debounceTimer) {
-      clearTimeout(debounceTimer)
-    }
+    if (debounceTimer) clearTimeout(debounceTimer)
   })
 
-  // Request autocomplete from the extension
-  const requestAutocomplete = (currentText: string) => {
-    if (currentText.length < MIN_TEXT_LENGTH || isDisabled()) {
+  const requestAutocomplete = (val: string) => {
+    if (val.length < MIN_TEXT_LENGTH || isDisabled()) {
       setGhostText("")
       return
     }
-
     requestCounter++
-    const requestId = `chat-ac-${requestCounter}`
-
-    vscode.postMessage({
-      type: "requestChatCompletion",
-      text: currentText,
-      requestId,
-    })
+    vscode.postMessage({ type: "requestChatCompletion", text: val, requestId: `chat-ac-${requestCounter}` })
   }
 
-  // Accept the ghost text suggestion
   const acceptSuggestion = () => {
     const suggestion = ghostText()
     if (!suggestion) return
@@ -102,65 +151,109 @@ export const PromptInput: Component = () => {
     const newText = text() + suggestion
     setText(newText)
     setGhostText("")
+    vscode.postMessage({ type: "chatCompletionAccepted", suggestionLength: suggestion.length })
 
-    // Notify extension of acceptance for telemetry
-    vscode.postMessage({
-      type: "chatCompletionAccepted",
-      suggestionLength: suggestion.length,
-    })
-
-    // Update textarea
     if (textareaRef) {
       textareaRef.value = newText
       adjustHeight()
     }
   }
 
-  // Dismiss the ghost text
-  const dismissSuggestion = () => {
-    setGhostText("")
+  const dismissSuggestion = () => setGhostText("")
+
+  const scrollToActiveItem = () => {
+    if (!dropdownRef) return
+    const items = dropdownRef.querySelectorAll(".file-mention-item")
+    const active = items[mention.mentionIndex()] as HTMLElement | undefined
+    if (active) active.scrollIntoView({ block: "nearest" })
   }
 
-  // Auto-resize textarea
+  const syncHighlightScroll = () => {
+    if (highlightRef && textareaRef) {
+      highlightRef.scrollTop = textareaRef.scrollTop
+    }
+  }
+
   const adjustHeight = () => {
     if (!textareaRef) return
     textareaRef.style.height = "auto"
     textareaRef.style.height = `${Math.min(textareaRef.scrollHeight, 200)}px`
   }
 
+  const buildHighlightSegments = (val: string) => {
+    const paths = mention.mentionedPaths()
+    if (paths.size === 0) return [{ text: val, highlight: false }]
+
+    const segments: { text: string; highlight: boolean }[] = []
+    let remaining = val
+
+    while (remaining.length > 0) {
+      let earliest = -1
+      let earliestPath = ""
+
+      for (const path of paths) {
+        const token = `@${path}`
+        const idx = remaining.indexOf(token)
+        if (idx !== -1 && (earliest === -1 || idx < earliest)) {
+          earliest = idx
+          earliestPath = path
+        }
+      }
+
+      if (earliest === -1) {
+        segments.push({ text: remaining, highlight: false })
+        break
+      }
+
+      if (earliest > 0) {
+        segments.push({ text: remaining.substring(0, earliest), highlight: false })
+      }
+
+      const token = `@${earliestPath}`
+      segments.push({ text: token, highlight: true })
+      remaining = remaining.substring(earliest + token.length)
+    }
+
+    return segments
+  }
+
   const handleInput = (e: InputEvent) => {
     const target = e.target as HTMLTextAreaElement
-    setText(target.value)
+    const val = target.value
+    setText(val)
     adjustHeight()
-
-    // Clear existing ghost text on new input
     setGhostText("")
+    syncHighlightScroll()
 
-    // Debounce autocomplete request
-    if (debounceTimer) {
-      clearTimeout(debounceTimer)
+    mention.onInput(val, target.selectionStart ?? val.length)
+
+    if (mention.showMention()) {
+      setGhostText("")
+      if (debounceTimer) clearTimeout(debounceTimer)
+      return
     }
-    debounceTimer = setTimeout(() => {
-      requestAutocomplete(target.value)
-    }, AUTOCOMPLETE_DEBOUNCE_MS)
+
+    if (debounceTimer) clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(() => requestAutocomplete(val), AUTOCOMPLETE_DEBOUNCE_MS)
   }
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    // Tab or ArrowRight to accept ghost text
+    if (mention.onKeyDown(e, textareaRef, setText, adjustHeight)) {
+      setGhostText("")
+      queueMicrotask(scrollToActiveItem)
+      return
+    }
+
     if ((e.key === "Tab" || e.key === "ArrowRight") && ghostText()) {
       e.preventDefault()
       acceptSuggestion()
       return
     }
-
-    // Escape to dismiss ghost text
     if (e.key === "Escape" && ghostText()) {
       e.preventDefault()
       dismissSuggestion()
       return
     }
-
-    // Enter to send (without shift)
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       dismissSuggestion()
@@ -172,26 +265,85 @@ export const PromptInput: Component = () => {
     const message = text().trim()
     if (!message || isBusy() || isDisabled()) return
 
+    const files = mention.parseFileAttachments(message)
     const sel = session.selected()
-    session.sendMessage(message, sel?.providerID, sel?.modelID)
+    const attachments = files.length > 0 ? files : undefined
+
+    // In agent manager worktree mode with no session yet, route through a separate
+    // message type so the extension creates the worktree + session before the webview
+    // tries to update local state for a nonexistent session.
+    if (worktreeMode?.mode() === "worktree" && !session.currentSessionID()) {
+      vscode.postMessage({
+        type: "agentManager.createWorktreeSession",
+        text: message,
+        providerID: sel?.providerID,
+        modelID: sel?.modelID,
+        agent: session.selectedAgent(),
+      })
+    } else {
+      session.sendMessage(message, sel?.providerID, sel?.modelID, attachments)
+    }
+
+    requestCounter++
     setText("")
     setGhostText("")
+    if (debounceTimer) clearTimeout(debounceTimer)
+    mention.closeMention()
     drafts.delete(sessionKey())
 
-    // Reset textarea height
-    if (textareaRef) {
-      textareaRef.style.height = "auto"
-    }
+    if (textareaRef) textareaRef.style.height = "auto"
   }
 
-  const handleAbort = () => {
-    session.abort()
+  const fileName = (path: string) => path.replaceAll("\\", "/").split("/").pop() ?? path
+  const dirName = (path: string) => {
+    const parts = path.replaceAll("\\", "/").split("/")
+    if (parts.length <= 1) return ""
+    const dir = parts.slice(0, -1).join("/")
+    return dir.length > 30 ? `…/${parts.slice(-3, -1).join("/")}` : dir
   }
 
   return (
     <div class="prompt-input-container">
+      <Show when={mention.showMention()}>
+        <div class="file-mention-dropdown" ref={dropdownRef}>
+          <Show
+            when={mention.mentionResults().length > 0}
+            fallback={<div class="file-mention-empty">No files found</div>}
+          >
+            <For each={mention.mentionResults()}>
+              {(path, index) => (
+                <div
+                  class="file-mention-item"
+                  classList={{ "file-mention-item--active": index() === mention.mentionIndex() }}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    if (textareaRef) mention.selectFile(path, textareaRef, setText, adjustHeight)
+                  }}
+                  onMouseEnter={() => mention.setMentionIndex(index())}
+                >
+                  <FileIcon node={{ path, type: "file" }} class="file-mention-icon" />
+                  <span class="file-mention-name">{fileName(path)}</span>
+                  <span class="file-mention-dir">{dirName(path)}</span>
+                </div>
+              )}
+            </For>
+          </Show>
+        </div>
+      </Show>
       <div class="prompt-input-wrapper">
         <div class="prompt-input-ghost-wrapper">
+          <div class="prompt-input-highlight-overlay" ref={highlightRef} aria-hidden="true">
+            <Index each={buildHighlightSegments(text())}>
+              {(seg) => (
+                <Show when={seg().highlight} fallback={<span>{seg().text}</span>}>
+                  <span class="prompt-input-file-mention">{seg().text}</span>
+                </Show>
+              )}
+            </Index>
+            <Show when={ghostText()}>
+              <span class="prompt-input-ghost-text">{ghostText()}</span>
+            </Show>
+          </div>
           <textarea
             ref={textareaRef}
             class="prompt-input"
@@ -201,21 +353,19 @@ export const PromptInput: Component = () => {
             value={text()}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
+            onScroll={syncHighlightScroll}
             disabled={isDisabled()}
             rows={1}
           />
-          <Show when={ghostText()}>
-            <div class="prompt-input-ghost-overlay" aria-hidden="true">
-              <span class="prompt-input-ghost-text-hidden">{text()}</span>
-              <span class="prompt-input-ghost-text">{ghostText()}</span>
-            </div>
-          </Show>
         </div>
       </div>
       <div class="prompt-input-hint">
         <div class="prompt-input-hint-selectors">
           <ModeSwitcher />
           <ModelSelector />
+          <Show when={worktreeMode && !session.currentSessionID()}>
+            <WorktreeSelector />
+          </Show>
         </div>
         <div class="prompt-input-hint-actions">
           <Show
@@ -237,7 +387,12 @@ export const PromptInput: Component = () => {
             }
           >
             <Tooltip value={language.t("prompt.action.stop")} placement="top">
-              <Button variant="ghost" size="small" onClick={handleAbort} aria-label={language.t("prompt.action.stop")}>
+              <Button
+                variant="ghost"
+                size="small"
+                onClick={() => session.abort()}
+                aria-label={language.t("prompt.action.stop")}
+              >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                   <rect x="3" y="3" width="10" height="10" rx="1" />
                 </svg>

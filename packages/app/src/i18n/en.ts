@@ -504,6 +504,11 @@ export const dict = {
 
   "session.context.addToContext": "Add {{selection}} to context",
 
+  "session.modeSwitch.switching": "Switching to {{mode}} mode…",
+  "session.modeSwitch.waiting": "Waiting for current task to complete",
+  "session.modeSwitch.notAvailable": "Agent not available",
+  "session.modeSwitch.fallback": '"{{requested}}" not found, using "{{actual}}"',
+
   "session.new.worktree.main": "Main branch",
   "session.new.worktree.mainWithBranch": "Main branch ({{branch}})",
   "session.new.worktree.create": "Create new worktree",
@@ -583,6 +588,9 @@ export const dict = {
   "settings.section.server": "Server",
   "settings.tab.general": "General",
   "settings.tab.shortcuts": "Shortcuts",
+  "settings.desktop.section.wsl": "WSL",
+  "settings.desktop.wsl.title": "WSL integration",
+  "settings.desktop.wsl.description": "Run the Kilo server inside WSL on Windows.",
 
   "settings.general.section.appearance": "Appearance",
   "settings.general.section.notifications": "System notifications",

@@ -461,6 +461,15 @@ export class HttpClient {
   }
 
   // ============================================
+  // File Search Methods
+  // ============================================
+
+  async findFiles(query: string, directory: string): Promise<string[]> {
+    const params = new URLSearchParams({ query, dirs: "false", limit: "10" })
+    return this.request<string[]>("GET", `/find/file?${params.toString()}`, undefined, { directory })
+  }
+
+  // ============================================
   // MCP Methods
   // ============================================
 

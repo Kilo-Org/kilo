@@ -77,6 +77,9 @@ const AgentManagerContent: Component = () => {
 
   const selectLocal = () => {
     setOnLocal(true)
+    // Request fresh branch info — cheap git rev-parse, ensures branch name
+    // is current even if the user switched branches in an external terminal
+    vscode.postMessage({ type: "agentManager.requestRepoInfo" })
     const lid = localSessionID()
     if (lid) {
       session.selectSession(lid)

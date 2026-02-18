@@ -757,6 +757,10 @@ export interface TelemetryRequest {
   properties?: Record<string, unknown>
 }
 
+export interface RequestRepoInfoMessage {
+  type: "agentManager.requestRepoInfo"
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -794,6 +798,7 @@ export type WebviewMessage =
   | SyncSessionRequest
   | CreateWorktreeSessionRequest
   | TelemetryRequest
+  | RequestRepoInfoMessage
 
 // ============================================
 // VS Code API type

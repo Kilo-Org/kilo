@@ -20,8 +20,6 @@ export class AgentManagerProvider implements vscode.Disposable {
   private provider: KiloProvider | undefined
   private outputChannel: vscode.OutputChannel
   private worktrees: WorktreeManager | undefined
-  /** Resolves when worktree recovery is complete. Interceptor awaits this for loadSessions. */
-  private recovered: Promise<void> = Promise.resolve()
 
   /** Per-session worktree metadata. Only populated for worktree sessions. */
   private meta = new Map<string, { branch: string; path: string; parentBranch: string }>()
@@ -69,7 +67,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       onBeforeMessage: (msg) => this.onMessage(msg),
     })
 
-    this.recovered = this.recoverWorktrees()
+    void this.recoverWorktrees()
 
     this.panel.onDidDispose(() => {
       this.log("Panel disposed")
@@ -88,9 +86,6 @@ export class AgentManagerProvider implements vscode.Disposable {
 
     // Custom agent-manager messages -- consumed here, never reach KiloProvider
     if (type === "agentManager.createWorktreeSession") return this.onCreateWorktreeSession(msg)
-
-    // Wait for recovery before loading sessions so worktree directories are registered
-    if (type === "loadSessions") await this.recovered
 
     // After clearSession, re-register worktree sessions so SSE events keep flowing
     if (type === "clearSession") {
@@ -231,19 +226,24 @@ export class AgentManagerProvider implements vscode.Disposable {
 
     try {
       const discovered = await mgr.discoverWorktrees()
-      for (const wt of discovered) {
-        if (!wt.sessionId) continue
-        this.meta.set(wt.sessionId, { branch: wt.branch, path: wt.path, parentBranch: wt.parentBranch })
-        this.provider?.setSessionDirectory(wt.sessionId, wt.path)
-        this.provider?.trackSession(wt.sessionId)
+      const recovered = discovered.filter((wt) => wt.sessionId)
+      for (const wt of recovered) {
+        this.meta.set(wt.sessionId!, { branch: wt.branch, path: wt.path, parentBranch: wt.parentBranch })
+        this.provider?.setSessionDirectory(wt.sessionId!, wt.path)
+        this.provider?.trackSession(wt.sessionId!)
         this.postToWebview({
           type: "agentManager.sessionMeta",
-          sessionId: wt.sessionId,
+          sessionId: wt.sessionId!,
           mode: "worktree",
           branch: wt.branch,
           path: wt.path,
           parentBranch: wt.parentBranch,
         })
+      }
+      // Re-send the full session list so worktree sessions appear
+      // (the initial loadSessions may have completed before recovery finished)
+      if (recovered.length > 0) {
+        this.provider?.refreshSessions()
       }
     } catch (error) {
       this.log(`Failed to discover worktrees: ${error}`)

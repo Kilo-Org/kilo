@@ -180,6 +180,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Re-fetch and send the full session list to the webview.
+   * Called by AgentManagerProvider after worktree recovery completes.
+   */
+  public refreshSessions(): void {
+    void this.handleLoadSessions()
+  }
+
+  /**
    * Attach to a webview that already has its own HTML set.
    * Sets up message handling and connection without overriding HTML content.
    *

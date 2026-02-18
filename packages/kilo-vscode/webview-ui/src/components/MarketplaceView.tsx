@@ -1,4 +1,4 @@
-import { Component, For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js"
+import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { Button } from "@kilocode/kilo-ui/button"
 import { Card } from "@kilocode/kilo-ui/card"
@@ -171,7 +171,7 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
     })
 
     requestData()
-    return () => unsubscribe()
+    onCleanup(() => unsubscribe())
   })
 
   const isInstalledInTarget = (item: MarketplaceItem, target: "project" | "global"): boolean => {

@@ -494,6 +494,25 @@ export interface NotificationSettingsLoadedMessage {
   }
 }
 
+// Agent Manager worktree session metadata
+export interface AgentManagerSessionMetaMessage {
+  type: "agentManager.sessionMeta"
+  sessionId: string
+  mode: "local" | "worktree"
+  branch?: string
+  path?: string
+  parentBranch?: string
+}
+
+// Agent Manager worktree setup progress
+export interface AgentManagerWorktreeSetupMessage {
+  type: "agentManager.worktreeSetup"
+  status: "creating" | "starting" | "ready" | "error"
+  message: string
+  sessionId?: string
+  branch?: string
+}
+
 export type ExtensionMessage =
   | ReadyMessage
   | ConnectionStateMessage
@@ -526,6 +545,8 @@ export type ExtensionMessage =
   | ConfigLoadedMessage
   | ConfigUpdatedMessage
   | NotificationSettingsLoadedMessage
+  | AgentManagerSessionMetaMessage
+  | AgentManagerWorktreeSetupMessage
 
 // ============================================
 // Messages FROM webview TO extension

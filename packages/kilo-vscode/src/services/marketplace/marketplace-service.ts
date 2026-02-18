@@ -500,7 +500,7 @@ export class MarketplaceService {
       throw new Error(`MCP item "${item.id}" has empty server configuration content`)
     }
 
-    const parsedServer = this.sanitizeMcpServerConfig(this.parseStructured(contentToUse), mcpId)
+    const parsedServer = this.parseStructured(contentToUse) as Record<string, unknown>
 
     let existing: Record<string, unknown> = {}
     try {
@@ -614,91 +614,6 @@ export class MarketplaceService {
       throw new Error(`Marketplace ${kind} id "${rawId}" is invalid`)
     }
     return id
-  }
-
-  private sanitizeMcpServerConfig(input: unknown, itemId: string): Record<string, unknown> {
-    if (!input || typeof input !== "object" || Array.isArray(input)) {
-      throw new Error(`MCP item "${itemId}" has invalid server configuration content`)
-    }
-    this.assertSafeObjectKeys(input, `MCP item "${itemId}"`)
-
-    const config = { ...(input as Record<string, unknown>) }
-
-    if (config.command !== undefined) {
-      if (typeof config.command === "string") {
-        const command = config.command.trim()
-        if (!command) {
-          throw new Error(`MCP item "${itemId}" has an empty command`)
-        }
-        config.command = command
-      } else if (Array.isArray(config.command)) {
-        const command = config.command.map((entry) => String(entry).trim()).filter((entry) => entry.length > 0)
-        if (command.length === 0) {
-          throw new Error(`MCP item "${itemId}" has an empty command array`)
-        }
-        config.command = command
-      } else {
-        throw new Error(`MCP item "${itemId}" has invalid command`)
-      }
-    }
-
-    if (config.args !== undefined) {
-      if (!Array.isArray(config.args) || config.args.some((arg) => typeof arg !== "string")) {
-        throw new Error(`MCP item "${itemId}" has invalid args`)
-      }
-      config.args = config.args.map((arg) => arg.trim())
-    }
-
-    if (config.env !== undefined) {
-      if (!this.isStringRecord(config.env)) {
-        throw new Error(`MCP item "${itemId}" has invalid env`)
-      }
-      config.env = { ...config.env }
-    }
-
-    if (config.environment !== undefined) {
-      if (!this.isStringRecord(config.environment)) {
-        throw new Error(`MCP item "${itemId}" has invalid environment`)
-      }
-      config.environment = { ...config.environment }
-    }
-
-    if (config.timeout !== undefined) {
-      if (typeof config.timeout !== "number" || !Number.isFinite(config.timeout) || config.timeout <= 0 || config.timeout > 600_000) {
-        throw new Error(`MCP item "${itemId}" has invalid timeout`)
-      }
-    }
-
-    if (config.enabled !== undefined && typeof config.enabled !== "boolean") {
-      throw new Error(`MCP item "${itemId}" has invalid enabled flag`)
-    }
-
-    return config
-  }
-
-  private isStringRecord(value: unknown): value is Record<string, string> {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return false
-    }
-    return Object.values(value).every((entry) => typeof entry === "string")
-  }
-
-  private assertSafeObjectKeys(value: unknown, context: string): void {
-    if (!value || typeof value !== "object") {
-      return
-    }
-    if (Array.isArray(value)) {
-      for (const entry of value) {
-        this.assertSafeObjectKeys(entry, context)
-      }
-      return
-    }
-    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
-      if (UNSAFE_OBJECT_KEYS.has(key)) {
-        throw new Error(`${context} contains unsafe key "${key}"`)
-      }
-      this.assertSafeObjectKeys(nested, context)
-    }
   }
 
   private assertSafeTarPath(rawPath: string, itemId: string, field: "name" | "linkname"): void {

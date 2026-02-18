@@ -6,7 +6,7 @@ import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
 import { InlineInput } from "@opencode-ai/ui/inline-input"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { SessionTurn } from "@opencode-ai/ui/session-turn"
-import type { UserMessage } from "@opencode-ai/sdk/v2"
+import type { UserMessage } from "@kilocode/sdk/v2"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
 
 const boundaryTarget = (root: HTMLElement, target: EventTarget | null) => {

@@ -5,7 +5,7 @@ import {
   type ProviderAuthResponse,
   type ProviderListResponse,
   createOpencodeClient,
-} from "@opencode-ai/sdk/v2/client"
+} from "@kilocode/sdk/v2/client"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { useGlobalSDK } from "./global-sdk"
 import type { InitError } from "../pages/error"

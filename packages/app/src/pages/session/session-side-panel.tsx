@@ -21,7 +21,7 @@ import { useFile, type SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useSync } from "@/context/sync"
-import type { Message, UserMessage } from "@opencode-ai/sdk/v2/client"
+import type { Message, UserMessage } from "@kilocode/sdk/v2/client"
 
 type SessionSidePanelViewModel = {
   messages: () => Message[]

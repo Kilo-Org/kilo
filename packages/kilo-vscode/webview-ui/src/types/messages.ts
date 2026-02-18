@@ -295,6 +295,7 @@ export interface Config {
   compaction?: CompactionConfig
   tools?: Record<string, boolean>
   layout?: "auto" | "stretch"
+  fontSize?: number
   experimental?: ExperimentalConfig
 }
 

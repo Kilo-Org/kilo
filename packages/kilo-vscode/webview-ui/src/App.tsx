@@ -1,4 +1,4 @@
-import { Component, createSignal, createMemo, Switch, Match, onMount, onCleanup } from "solid-js"
+import { Component, createSignal, createMemo, Switch, Match, onMount, onCleanup, createEffect } from "solid-js"
 import { ThemeProvider } from "@kilocode/kilo-ui/theme"
 import { DialogProvider } from "@kilocode/kilo-ui/context/dialog"
 import { MarkedProvider } from "@kilocode/kilo-ui/context/marked"
@@ -13,7 +13,7 @@ import ProfileView from "./components/ProfileView"
 import { VSCodeProvider } from "./context/vscode"
 import { ServerProvider, useServer } from "./context/server"
 import { ProviderProvider } from "./context/provider"
-import { ConfigProvider } from "./context/config"
+import { ConfigProvider, useConfig } from "./context/config"
 import { SessionProvider, useSession } from "./context/session"
 import { LanguageProvider } from "./context/language"
 import { ChatView } from "./components/chat"
@@ -95,6 +95,19 @@ const AppContent: Component = () => {
   const [currentView, setCurrentView] = createSignal<ViewType>("newTask")
   const session = useSession()
   const server = useServer()
+  const { config } = useConfig()
+
+  const fontSize = createMemo(() => config().fontSize ?? 13)
+
+  // Apply font size on load and when it changes
+  createEffect(() => {
+    const size = fontSize()
+    const root = document.documentElement
+    root.style.setProperty("--font-size-small", `${size}px`)
+    root.style.setProperty("--font-size-base", `${size + 1}px`)
+    root.style.setProperty("--font-size-large", `${size + 3}px`)
+    root.style.setProperty("--font-size-x-large", `${size + 7}px`)
+  })
 
   const handleViewAction = (action: string) => {
     switch (action) {

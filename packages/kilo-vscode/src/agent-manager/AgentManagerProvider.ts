@@ -87,13 +87,6 @@ export class AgentManagerProvider implements vscode.Disposable {
     // Custom agent-manager messages -- consumed here, never reach KiloProvider
     if (type === "agentManager.createWorktreeSession") return this.onCreateWorktreeSession(msg)
 
-    // Inject directory for worktree sessions on any session-scoped message
-    const sessionId = msg.sessionID as string | undefined
-    if (sessionId) {
-      const worktree = this.meta.get(sessionId)
-      if (worktree) return { ...msg, directory: worktree.path }
-    }
-
     // After clearSession, re-register worktree sessions so SSE events keep flowing
     if (type === "clearSession") {
       void Promise.resolve().then(() => {
@@ -175,8 +168,12 @@ export class AgentManagerProvider implements vscode.Disposable {
     this.meta.set(session.id, worktree)
     void mgr.writeMetadata(worktree.path, session.id, worktree.parentBranch)
 
-    // Register with KiloProvider (sets currentSession, tracks, notifies webview)
-    this.provider?.registerSession(session)
+    // Register with KiloProvider: set directory override so all operations for
+    // this session use the worktree path, then register the session itself.
+    if (this.provider) {
+      this.provider.setSessionDirectory(session.id, worktree.path)
+      this.provider.registerSession(session)
+    }
 
     // Notify webview about worktree metadata (for badges/icons)
     this.postToWebview({
@@ -230,6 +227,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       for (const wt of discovered) {
         if (!wt.sessionId) continue
         this.meta.set(wt.sessionId, { branch: wt.branch, path: wt.path, parentBranch: wt.parentBranch })
+        this.provider?.setSessionDirectory(wt.sessionId, wt.path)
         this.postToWebview({
           type: "agentManager.sessionMeta",
           sessionId: wt.sessionId,

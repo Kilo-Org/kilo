@@ -1,7 +1,11 @@
 // Agent Manager root component
 
 import { Component, For, Show, createSignal, createEffect, createMemo, onMount, onCleanup } from "solid-js"
-import type { ExtensionMessage } from "../src/types/messages"
+import type {
+  ExtensionMessage,
+  AgentManagerSessionMetaMessage,
+  AgentManagerWorktreeSetupMessage,
+} from "../src/types/messages"
 import { ThemeProvider } from "@kilocode/kilo-ui/theme"
 import { DialogProvider } from "@kilocode/kilo-ui/context/dialog"
 import { MarkedProvider } from "@kilocode/kilo-ui/context/marked"
@@ -22,7 +26,6 @@ import { WorktreeModeProvider, useWorktreeMode, type SessionMode } from "../src/
 import { ChatView } from "../src/components/chat"
 import { LanguageBridge, DataBridge } from "../src/App"
 import { formatRelativeDate } from "../src/utils/date"
-import type { AgentManagerSessionMetaMessage, AgentManagerWorktreeSetupMessage } from "../src/types/messages"
 import "./agent-manager.css"
 
 interface WorktreeMeta {

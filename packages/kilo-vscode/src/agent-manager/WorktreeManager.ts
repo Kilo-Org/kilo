@@ -9,6 +9,9 @@
 import * as path from "path"
 import * as fs from "fs"
 import simpleGit, { type SimpleGit } from "simple-git"
+import { generateBranchName } from "./branch-name"
+
+export { generateBranchName }
 
 export interface WorktreeInfo {
   branch: string
@@ -26,20 +29,6 @@ export interface CreateWorktreeResult {
 
 const KILOCODE_DIR = ".kilocode"
 const SESSION_ID_FILE = "session-id"
-
-/**
- * Generate a valid git branch name from a prompt.
- */
-export function generateBranchName(prompt: string): string {
-  const sanitized = prompt
-    .slice(0, 50)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-+/g, "-")
-
-  return `${sanitized || "kilo"}-${Date.now()}`
-}
 
 export class WorktreeManager {
   private readonly root: string
@@ -96,6 +85,14 @@ export class WorktreeManager {
     return { branch, path: worktreePath, parentBranch: parent }
   }
 
+  /**
+   * Remove a worktree directory and its git bookkeeping.
+   * Called when a worktree session is deleted via the Agent Manager UI
+   * (AgentManagerProvider.onMessage intercepts "deleteSession" and calls this
+   * before the session is removed from the server).
+   * Tries a clean remove first; falls back to --force if the worktree has
+   * uncommitted changes or is otherwise locked.
+   */
   async removeWorktree(worktreePath: string): Promise<void> {
     try {
       await this.git.raw(["worktree", "remove", worktreePath])

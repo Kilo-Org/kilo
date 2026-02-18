@@ -498,7 +498,7 @@ export interface NotificationSettingsLoadedMessage {
 export interface AgentManagerSessionMetaMessage {
   type: "agentManager.sessionMeta"
   sessionId: string
-  mode: "local" | "worktree"
+  mode: import("../context/worktree-mode").SessionMode
   branch?: string
   path?: string
   parentBranch?: string

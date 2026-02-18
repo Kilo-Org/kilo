@@ -17,7 +17,7 @@ import { ServerProvider } from "../src/context/server"
 import { ProviderProvider } from "../src/context/provider"
 import { ConfigProvider } from "../src/context/config"
 import { SessionProvider, useSession } from "../src/context/session"
-import { WorktreeModeProvider, useWorktreeMode } from "../src/context/worktree-mode"
+import { WorktreeModeProvider, useWorktreeMode, type SessionMode } from "../src/context/worktree-mode"
 import { ChatView } from "../src/components/chat"
 import { LanguageBridge, DataBridge } from "../src/App"
 import { formatRelativeDate } from "../src/utils/date"
@@ -25,7 +25,7 @@ import type { AgentManagerSessionMetaMessage, AgentManagerWorktreeSetupMessage }
 import "./agent-manager.css"
 
 interface WorktreeMeta {
-  mode: "local" | "worktree"
+  mode: SessionMode
   branch?: string
   path?: string
   parentBranch?: string

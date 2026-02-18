@@ -91,13 +91,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     const sessionId = msg.sessionID as string | undefined
     if (sessionId) {
       const worktree = this.meta.get(sessionId)
-      if (worktree) {
-        // Clean up on delete
-        if (type === "deleteSession") {
-          await this.removeWorktree(sessionId)
-        }
-        return { ...msg, directory: worktree.path }
-      }
+      if (worktree) return { ...msg, directory: worktree.path }
     }
 
     // After clearSession, re-register worktree sessions so SSE events keep flowing
@@ -225,14 +219,6 @@ export class AgentManagerProvider implements vscode.Disposable {
   // ---------------------------------------------------------------------------
   // Worktree management
   // ---------------------------------------------------------------------------
-
-  private async removeWorktree(sessionId: string): Promise<void> {
-    const worktree = this.meta.get(sessionId)
-    if (!worktree) return
-    this.meta.delete(sessionId)
-    const mgr = this.getWorktreeManager()
-    if (mgr) await mgr.removeWorktree(worktree.path)
-  }
 
   private async recoverWorktrees(): Promise<void> {
     const mgr = this.getWorktreeManager()

@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from "bun:test"
 import os from "node:os"
 import path from "node:path"
 import fs from "node:fs/promises"
-import { WorktreeManager, generateBranchName } from "../../src/agent-manager/WorktreeManager"
+import { WorktreeManager } from "../../src/agent-manager/WorktreeManager"
+import { generateBranchName } from "../../src/agent-manager/branch-name"
 import simpleGit from "simple-git"
 
 // Each test gets its own temp directory -- no shared state, safe to run in parallel.

@@ -27,6 +27,7 @@ import { WorktreeModeProvider, useWorktreeMode, type SessionMode } from "../src/
 import { ChatView } from "../src/components/chat"
 import { LanguageBridge, DataBridge } from "../src/App"
 import { formatRelativeDate } from "../src/utils/date"
+import { resolveNavigation } from "./navigate"
 import "./agent-manager.css"
 
 interface WorktreeMeta {
@@ -51,19 +52,45 @@ const AgentManagerContent: Component = () => {
   const [sessionMeta, setSessionMeta] = createSignal<Record<string, WorktreeMeta>>({})
   const [setup, setSetup] = createSignal<SetupState>({ active: false, message: "" })
   const [repoBranch, setRepoBranch] = createSignal<string | undefined>()
+  const [localSessionID, setLocalSessionID] = createSignal<string | undefined>()
 
+  // Whether the user is viewing the local workspace
+  const [onLocal, setOnLocal] = createSignal(true)
+
+  const isLocal = () => {
+    const lid = localSessionID()
+    const current = session.currentSessionID()
+    if (onLocal() && !current) return true
+    if (lid && current === lid) return true
+    return false
+  }
+
+  // Sessions list excludes the local session
   const sorted = createMemo(() =>
-    [...session.sessions()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [...session.sessions()]
+      .filter((s) => s.id !== localSessionID())
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
   )
 
+  const selectLocal = () => {
+    setOnLocal(true)
+    const lid = localSessionID()
+    if (lid) {
+      session.selectSession(lid)
+    } else {
+      session.clearCurrentSession()
+    }
+  }
+
   const navigate = (direction: "up" | "down") => {
-    const list = sorted()
-    if (list.length === 0) return
-    const current = session.currentSessionID()
-    const idx = current ? list.findIndex((s) => s.id === current) : -1
-    const next = direction === "up" ? idx - 1 : idx + 1
-    if (next < 0 || next >= list.length) return
-    session.selectSession(list[next]!.id)
+    const ids = sorted().map((s) => s.id)
+    const current = isLocal() ? undefined : session.currentSessionID()
+    const result = resolveNavigation(direction, current, ids)
+    if (result.action === "local") selectLocal()
+    else if (result.action === "select") {
+      setOnLocal(false)
+      session.selectSession(result.id)
+    }
   }
 
   onMount(() => {
@@ -75,6 +102,18 @@ const AgentManagerContent: Component = () => {
       else if (msg.action === "sessionNext") navigate("down")
     }
     window.addEventListener("message", handler)
+
+    // When a session is created while the user is on local with no local
+    // session yet, adopt it. The session context sets currentSessionID before
+    // this listener fires, so we also re-assert onLocal to keep the sidebar
+    // highlight on the local item rather than the SESSIONS list.
+    const unsubCreate = vscode.onMessage((msg) => {
+      if (msg.type === "sessionCreated" && onLocal() && !localSessionID()) {
+        const created = msg as { type: string; session: { id: string } }
+        setLocalSessionID(created.session.id)
+        setOnLocal(true)
+      }
+    })
 
     // Worktree metadata and setup progress messages
     const unsub = vscode.onMessage((msg) => {
@@ -110,11 +149,12 @@ const AgentManagerContent: Component = () => {
 
     onCleanup(() => {
       window.removeEventListener("message", handler)
+      unsubCreate()
       unsub()
     })
   })
 
-  // Reset mode when session is cleared
+  // Reset worktree mode when no session is selected
   createEffect(() => {
     if (!session.currentSessionID()) worktreeMode.setMode("local")
   })
@@ -125,13 +165,17 @@ const AgentManagerContent: Component = () => {
     <div class="am-layout">
       <div class="am-sidebar">
         <div class="am-sidebar-header">AGENT MANAGER</div>
-        <Button variant="primary" size="large" onClick={() => session.clearCurrentSession()}>
+        <Button
+          variant="primary"
+          size="large"
+          onClick={() => {
+            setOnLocal(false)
+            session.clearCurrentSession()
+          }}
+        >
           + New Agent
         </Button>
-        <button
-          class={`am-local-item ${!session.currentSessionID() ? "am-local-item-active" : ""}`}
-          onClick={() => session.clearCurrentSession()}
-        >
+        <button class={`am-local-item ${isLocal() ? "am-local-item-active" : ""}`} onClick={() => selectLocal()}>
           <svg class="am-local-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="2.5" y="3.5" width="15" height="10" rx="1" stroke="currentColor" />
             <path d="M6 16.5H14" stroke="currentColor" stroke-linecap="square" />
@@ -151,8 +195,11 @@ const AgentManagerContent: Component = () => {
               const meta = () => getMeta(s.id)
               return (
                 <button
-                  class={`am-item ${s.id === session.currentSessionID() ? "am-item-active" : ""}`}
-                  onClick={() => session.selectSession(s.id)}
+                  class={`am-item ${!isLocal() && s.id === session.currentSessionID() ? "am-item-active" : ""}`}
+                  onClick={() => {
+                    setOnLocal(false)
+                    session.selectSession(s.id)
+                  }}
                 >
                   <span class="am-item-title">
                     {s.title || "Untitled"}
@@ -188,7 +235,12 @@ const AgentManagerContent: Component = () => {
             </div>
           </div>
         </Show>
-        <ChatView onSelectSession={(id) => session.selectSession(id)} />
+        <ChatView
+          onSelectSession={(id) => {
+            setOnLocal(false)
+            session.selectSession(id)
+          }}
+        />
       </div>
     </div>
   )

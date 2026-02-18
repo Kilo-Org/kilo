@@ -69,6 +69,10 @@ export class SSEClient {
         const raw = JSON.parse(messageEvent.data)
         // Global endpoint wraps events as { directory, payload: { type, properties } }
         const event = (raw.payload ?? raw) as SSEEvent
+        if (!event.type) {
+          console.warn("[Kilo New] SSE: ⚠️ Received event without type:", raw)
+          return
+        }
         console.log("[Kilo New] SSE: 📦 Parsed event type:", event.type)
         this.notifyEvent(event)
       } catch (error) {

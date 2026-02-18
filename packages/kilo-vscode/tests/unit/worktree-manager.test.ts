@@ -242,25 +242,41 @@ describe("WorktreeManager.createWorktree cleanup", () => {
 // WorktreeManager -- session ID persistence
 // ---------------------------------------------------------------------------
 
-describe("WorktreeManager session ID", () => {
-  it("round-trips writeSessionId / readSessionId", async () => {
+describe("WorktreeManager metadata", () => {
+  it("round-trips writeMetadata / readMetadata with parentBranch", async () => {
     const root = await createTempRepo()
     const mgr = createManager(root)
     const result = await mgr.createWorktree({ prompt: "session-test" })
 
-    await mgr.writeSessionId(result.path, "sess-abc-123")
-    const id = await mgr.readSessionId(result.path)
+    await mgr.writeMetadata(result.path, "sess-abc-123", "feature-branch")
+    const meta = await mgr.readMetadata(result.path)
 
-    expect(id).toBe("sess-abc-123")
+    expect(meta?.sessionId).toBe("sess-abc-123")
+    expect(meta?.parentBranch).toBe("feature-branch")
   })
 
-  it("returns undefined when no session ID file exists", async () => {
+  it("returns undefined when no metadata exists", async () => {
     const root = await createTempRepo()
     const mgr = createManager(root)
     const result = await mgr.createWorktree({ prompt: "no-session" })
 
-    const id = await mgr.readSessionId(result.path)
-    expect(id).toBeUndefined()
+    const meta = await mgr.readMetadata(result.path)
+    expect(meta).toBeUndefined()
+  })
+
+  it("reads legacy session-id file when metadata.json is missing", async () => {
+    const root = await createTempRepo()
+    const mgr = createManager(root)
+    const result = await mgr.createWorktree({ prompt: "legacy-test" })
+
+    // Write only the legacy session-id file (no metadata.json)
+    const dir = path.join(result.path, ".kilocode")
+    await fs.mkdir(dir, { recursive: true })
+    await fs.writeFile(path.join(dir, "session-id"), "legacy-sess-456", "utf-8")
+
+    const meta = await mgr.readMetadata(result.path)
+    expect(meta?.sessionId).toBe("legacy-sess-456")
+    expect(meta?.parentBranch).toBeUndefined()
   })
 })
 
@@ -276,8 +292,8 @@ describe("WorktreeManager.discoverWorktrees", () => {
     const wt1 = await mgr.createWorktree({ prompt: "discover-one" })
     const wt2 = await mgr.createWorktree({ prompt: "discover-two" })
 
-    await mgr.writeSessionId(wt1.path, "sess-1")
-    await mgr.writeSessionId(wt2.path, "sess-2")
+    await mgr.writeMetadata(wt1.path, "sess-1", "main")
+    await mgr.writeMetadata(wt2.path, "sess-2", "main")
 
     const discovered = await mgr.discoverWorktrees()
 
@@ -302,7 +318,7 @@ describe("WorktreeManager.discoverWorktrees", () => {
     expect(discovered).toEqual([])
   })
 
-  it("includes worktrees without session IDs (sessionId undefined)", async () => {
+  it("includes worktrees without metadata (sessionId undefined)", async () => {
     const root = await createTempRepo()
     const mgr = createManager(root)
 
@@ -311,6 +327,20 @@ describe("WorktreeManager.discoverWorktrees", () => {
     const discovered = await mgr.discoverWorktrees()
     expect(discovered.length).toBe(1)
     expect(discovered[0].sessionId).toBeUndefined()
+  })
+
+  it("recovers parentBranch from persisted metadata", async () => {
+    const root = await createTempRepo()
+    const mgr = createManager(root)
+
+    const wt = await mgr.createWorktree({ prompt: "parent-recovery" })
+    await mgr.writeMetadata(wt.path, "sess-parent", "feature/my-branch")
+
+    const discovered = await mgr.discoverWorktrees()
+    const found = discovered.find((d) => d.sessionId === "sess-parent")
+
+    expect(found).toBeDefined()
+    expect(found!.parentBranch).toBe("feature/my-branch")
   })
 })
 

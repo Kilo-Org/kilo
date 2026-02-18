@@ -173,7 +173,7 @@ export class AgentManagerProvider implements vscode.Disposable {
 
     // Step 3: Store meta + persist session ID
     this.meta.set(session.id, worktree)
-    void mgr.writeSessionId(worktree.path, session.id)
+    void mgr.writeMetadata(worktree.path, session.id, worktree.parentBranch)
 
     // Register with KiloProvider (sets currentSession, tracks, notifies webview)
     this.provider?.registerSession(session)

@@ -29,6 +29,7 @@ export interface CreateWorktreeResult {
 
 const KILOCODE_DIR = ".kilocode"
 const SESSION_ID_FILE = "session-id"
+const METADATA_FILE = "metadata.json"
 
 export class WorktreeManager {
   private readonly root: string
@@ -131,22 +132,41 @@ export class WorktreeManager {
     return results.filter((info): info is WorktreeInfo => info !== undefined)
   }
 
-  async writeSessionId(worktreePath: string, sessionId: string): Promise<void> {
+  async writeMetadata(worktreePath: string, sessionId: string, parentBranch: string): Promise<void> {
     const dir = path.join(worktreePath, KILOCODE_DIR)
     if (!fs.existsSync(dir)) await fs.promises.mkdir(dir, { recursive: true })
 
-    await fs.promises.writeFile(path.join(dir, SESSION_ID_FILE), sessionId, "utf-8")
-    this.log(`Wrote session ID ${sessionId} to ${worktreePath}`)
+    // Write both formats: session-id for backward compat, metadata.json for parentBranch
+    await Promise.all([
+      fs.promises.writeFile(path.join(dir, SESSION_ID_FILE), sessionId, "utf-8"),
+      fs.promises.writeFile(path.join(dir, METADATA_FILE), JSON.stringify({ sessionId, parentBranch }), "utf-8"),
+    ])
+    this.log(`Wrote metadata for session ${sessionId} to ${worktreePath}`)
     await this.ensureWorktreeExclude(worktreePath)
   }
 
-  async readSessionId(worktreePath: string): Promise<string | undefined> {
+  async readMetadata(worktreePath: string): Promise<{ sessionId: string; parentBranch?: string } | undefined> {
+    const dir = path.join(worktreePath, KILOCODE_DIR)
+
+    // Try metadata.json first (has parentBranch)
     try {
-      const content = await fs.promises.readFile(path.join(worktreePath, KILOCODE_DIR, SESSION_ID_FILE), "utf-8")
-      return content.trim()
+      const content = await fs.promises.readFile(path.join(dir, METADATA_FILE), "utf-8")
+      const data = JSON.parse(content)
+      if (data.sessionId) return { sessionId: data.sessionId, parentBranch: data.parentBranch }
     } catch {
-      return undefined
+      // Fall back to session-id file
     }
+
+    // Legacy: plain text session-id file
+    try {
+      const content = await fs.promises.readFile(path.join(dir, SESSION_ID_FILE), "utf-8")
+      const id = content.trim()
+      if (id) return { sessionId: id }
+    } catch {
+      // No metadata
+    }
+
+    return undefined
   }
 
   // ---------------------------------------------------------------------------
@@ -226,13 +246,20 @@ export class WorktreeManager {
 
     try {
       const git = simpleGit(wtPath)
-      const [branch, stat, parent, sessionId] = await Promise.all([
+      const [branch, stat, meta] = await Promise.all([
         git.revparse(["--abbrev-ref", "HEAD"]),
         fs.promises.stat(wtPath),
-        this.defaultBranch(),
-        this.readSessionId(wtPath),
+        this.readMetadata(wtPath),
       ])
-      return { branch: branch.trim(), path: wtPath, parentBranch: parent, createdAt: stat.birthtimeMs, sessionId }
+      // Use persisted parentBranch if available, fall back to defaultBranch
+      const parent = meta?.parentBranch ?? (await this.defaultBranch())
+      return {
+        branch: branch.trim(),
+        path: wtPath,
+        parentBranch: parent,
+        createdAt: stat.birthtimeMs,
+        sessionId: meta?.sessionId,
+      }
     } catch (error) {
       this.log(`Failed to get info for worktree ${wtPath}: ${error}`)
       return undefined

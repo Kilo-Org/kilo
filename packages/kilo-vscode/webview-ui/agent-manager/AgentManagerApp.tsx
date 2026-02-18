@@ -1,6 +1,6 @@
 // Agent Manager root component
 
-import { Component, For, Show, createSignal, createEffect, onMount, onCleanup } from "solid-js"
+import { Component, For, Show, createSignal, createEffect, createMemo, onMount, onCleanup } from "solid-js"
 import { ThemeProvider } from "@kilocode/kilo-ui/theme"
 import { DialogProvider } from "@kilocode/kilo-ui/context/dialog"
 import { MarkedProvider } from "@kilocode/kilo-ui/context/marked"
@@ -45,6 +45,10 @@ const AgentManagerContent: Component = () => {
 
   const [sessionMeta, setSessionMeta] = createSignal<Record<string, WorktreeMeta>>({})
   const [setup, setSetup] = createSignal<SetupState>({ active: false, message: "" })
+
+  const sorted = createMemo(() =>
+    [...session.sessions()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+  )
 
   onMount(() => {
     const unsub = vscode.onMessage((msg) => {
@@ -91,7 +95,7 @@ const AgentManagerContent: Component = () => {
         </Button>
         <div class="am-sessions-header">SESSIONS</div>
         <div class="am-list">
-          <For each={session.sessions()}>
+          <For each={sorted()}>
             {(s) => {
               const meta = () => getMeta(s.id)
               return (

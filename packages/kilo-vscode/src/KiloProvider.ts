@@ -197,9 +197,14 @@ export class KiloProvider implements vscode.WebviewViewProvider {
     this.webviewMessageDisposable = webview.onDidReceiveMessage(async (message) => {
       // Run interceptor if attached (e.g., AgentManagerProvider worktree logic)
       if (this.onBeforeMessage) {
-        const result = await this.onBeforeMessage(message)
-        if (result === null) return // consumed by interceptor
-        message = result
+        try {
+          const result = await this.onBeforeMessage(message)
+          if (result === null) return // consumed by interceptor
+          message = result
+        } catch (error) {
+          console.error("[Kilo New] KiloProvider: interceptor error:", error)
+          return
+        }
       }
 
       // Capture directory override as a local so it's safe across async boundaries.

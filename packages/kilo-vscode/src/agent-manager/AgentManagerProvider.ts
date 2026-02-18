@@ -68,6 +68,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     })
 
     void this.recoverWorktrees()
+    void this.sendRepoInfo()
 
     this.panel.onDidDispose(() => {
       this.log("Panel disposed")
@@ -214,6 +215,21 @@ export class AgentManagerProvider implements vscode.Disposable {
 
     this.log(`Worktree session ready: session=${session.id} branch=${worktree.branch}`)
     return null
+  }
+
+  // ---------------------------------------------------------------------------
+  // Repo info
+  // ---------------------------------------------------------------------------
+
+  private async sendRepoInfo(): Promise<void> {
+    const mgr = this.getWorktreeManager()
+    if (!mgr) return
+    try {
+      const branch = await mgr.currentBranch()
+      this.postToWebview({ type: "agentManager.repoInfo", branch })
+    } catch (error) {
+      this.log(`Failed to get current branch: ${error}`)
+    }
   }
 
   // ---------------------------------------------------------------------------

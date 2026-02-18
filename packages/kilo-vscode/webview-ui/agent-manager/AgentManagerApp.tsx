@@ -4,6 +4,7 @@ import { Component, For, Show, createSignal, createEffect, createMemo, onMount, 
 import type {
   ExtensionMessage,
   AgentManagerSessionMetaMessage,
+  AgentManagerRepoInfoMessage,
   AgentManagerWorktreeSetupMessage,
 } from "../src/types/messages"
 import { ThemeProvider } from "@kilocode/kilo-ui/theme"
@@ -49,6 +50,7 @@ const AgentManagerContent: Component = () => {
 
   const [sessionMeta, setSessionMeta] = createSignal<Record<string, WorktreeMeta>>({})
   const [setup, setSetup] = createSignal<SetupState>({ active: false, message: "" })
+  const [repoBranch, setRepoBranch] = createSignal<string | undefined>()
 
   const sorted = createMemo(() =>
     [...session.sessions()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -89,6 +91,11 @@ const AgentManagerContent: Component = () => {
         }))
       }
 
+      if (msg.type === "agentManager.repoInfo") {
+        const info = msg as AgentManagerRepoInfoMessage
+        setRepoBranch(info.branch)
+      }
+
       if (msg.type === "agentManager.worktreeSetup") {
         const ev = msg as AgentManagerWorktreeSetupMessage
         if (ev.status === "ready" || ev.status === "error") {
@@ -121,6 +128,22 @@ const AgentManagerContent: Component = () => {
         <Button variant="primary" size="large" onClick={() => session.clearCurrentSession()}>
           + New Agent
         </Button>
+        <button
+          class={`am-local-item ${!session.currentSessionID() ? "am-local-item-active" : ""}`}
+          onClick={() => session.clearCurrentSession()}
+        >
+          <svg class="am-local-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2.5" y="3.5" width="15" height="10" rx="1" stroke="currentColor" />
+            <path d="M6 16.5H14" stroke="currentColor" stroke-linecap="square" />
+            <path d="M10 13.5V16.5" stroke="currentColor" />
+          </svg>
+          <div class="am-local-text">
+            <span class="am-local-label">local</span>
+            <Show when={repoBranch()}>
+              <span class="am-local-branch">{repoBranch()}</span>
+            </Show>
+          </div>
+        </button>
         <div class="am-sessions-header">SESSIONS</div>
         <div class="am-list">
           <For each={sorted()}>

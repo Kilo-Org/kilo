@@ -241,6 +241,7 @@ export const PromptInput: Component = () => {
         text: message,
         providerID: sel?.providerID,
         modelID: sel?.modelID,
+        agent: session.selectedAgent(),
       })
     } else {
       session.sendMessage(message, sel?.providerID, sel?.modelID)

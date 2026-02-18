@@ -721,6 +721,7 @@ export interface CreateWorktreeSessionRequest {
   text: string
   providerID?: string
   modelID?: string
+  agent?: string
 }
 
 export type WebviewMessage =

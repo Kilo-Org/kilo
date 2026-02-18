@@ -205,6 +205,7 @@ export class AgentManagerProvider implements vscode.Disposable {
         await client.sendMessage(session.id, parts, worktree.path, {
           providerID: msg.providerID as string | undefined,
           modelID: msg.modelID as string | undefined,
+          agent: msg.agent as string | undefined,
         })
       } catch (error) {
         const err = error instanceof Error ? error.message : String(error)
@@ -267,6 +268,10 @@ export class AgentManagerProvider implements vscode.Disposable {
       title: "Agent Manager",
       port: this.connectionService.getServerInfo()?.port,
     })
+  }
+
+  public postMessage(message: unknown): void {
+    this.panel?.webview.postMessage(message)
   }
 
   public dispose(): void {

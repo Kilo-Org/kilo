@@ -103,7 +103,7 @@ export namespace Provider {
             // TODO: Add adaptive thinking headers when @ai-sdk/anthropic supports it:
             // adaptive-thinking-2026-01-28,effort-2025-11-24,max-effort-2026-01-24
             "anthropic-beta":
-              "claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14,context-1m-2025-08-07",
+              "claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
           },
         },
       }
@@ -1024,6 +1024,19 @@ export namespace Provider {
           ...options["headers"],
           ...model.headers,
         }
+
+      // Only send context-1m beta header when the model actually supports >200K context
+      // This prevents "extra usage is required for long context requests" errors
+      // for users on plans that don't include the long context beta (e.g. Max plan)
+      if (model.api.npm === "@ai-sdk/anthropic" && model.limit.context > 200_000) {
+        const existing = options["headers"]?.["anthropic-beta"] ?? ""
+        if (!existing.includes("context-1m-2025-08-07")) {
+          options["headers"] = {
+            ...options["headers"],
+            "anthropic-beta": existing ? `${existing},context-1m-2025-08-07` : "context-1m-2025-08-07",
+          }
+        }
+      }
 
       const key = Bun.hash.xxHash32(JSON.stringify({ providerID: model.providerID, npm: model.api.npm, options }))
       const existing = s.sdk.get(key)

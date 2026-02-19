@@ -1034,6 +1034,7 @@ export namespace Provider {
       // Only send context-1m beta header when the model actually supports >200K context
       // This prevents "extra usage is required for long context requests" errors
       // for users on plans that don't include the long context beta (e.g. Max plan)
+      // kilocode_change start
       if (model.api.npm === "@ai-sdk/anthropic" && model.limit.context > 200_000) {
         const existing = options["headers"]?.["anthropic-beta"] ?? ""
         if (!existing.includes("context-1m-2025-08-07")) {

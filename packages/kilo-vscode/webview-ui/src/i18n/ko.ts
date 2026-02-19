@@ -747,6 +747,15 @@ export const dict = {
   "profile.action.dashboard": "대시보드",
   "profile.action.logout": "로그아웃",
 
+  "marketplace.status.actionTimeout": "Marketplace {{action}} 작업 시간이 초과되었습니다. 다시 시도해 주세요.",
+  "marketplace.status.requestTimeout": "Marketplace 요청 시간이 초과되었습니다. 다시 시도해 주세요.",
+  "marketplace.status.projectInstallRequiresWorkspace":
+    "프로젝트 범위의 Marketplace 항목을 설치하려면 워크스페이스 폴더를 여세요.",
+  "marketplace.status.projectInstallRequiresWorkspaceTooltip":
+    "프로젝트 범위에 설치하려면 워크스페이스 폴더를 여세요.",
+  "marketplace.status.noWorkspaceBanner":
+    "프로젝트 설치를 사용하려면 워크스페이스 폴더를 여세요. 전역 설치는 계속 사용할 수 있습니다.",
+
   "settings.section.configuration": "구성",
   "settings.agentBehaviour.title": "에이전트 동작",
   "settings.autoApprove.title": "자동 승인",

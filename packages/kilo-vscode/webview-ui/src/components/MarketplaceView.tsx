@@ -105,7 +105,7 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
           delete state[key]
         }),
       )
-      const timeoutMessage = `Marketplace ${action} timed out. Please try again.`
+      const timeoutMessage = language.t("marketplace.status.actionTimeout", { action })
       setActionErrorsByItem(key, timeoutMessage)
       setStatusMessage(timeoutMessage)
     }, MARKETPLACE_ACTION_TIMEOUT_MS)
@@ -136,7 +136,7 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
     catalogRequestTimeout = setTimeout(() => {
       catalogRequestTimeout = undefined
       setLoading(false)
-      setStatusMessage("Marketplace request timed out. Please try again.")
+      setStatusMessage(language.t("marketplace.status.requestTimeout"))
     }, MARKETPLACE_CATALOG_TIMEOUT_MS)
     vscode.postMessage({ type: "requestMarketplaceData" })
   }
@@ -388,7 +388,7 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
       })
       setActionErrorsByItem(
         actionKey(item.id, target),
-        "Open a workspace folder to install project-scoped marketplace items.",
+        language.t("marketplace.status.projectInstallRequiresWorkspace"),
       )
       return
     }
@@ -405,7 +405,6 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
           target,
           reason: "missing_required_fields",
           missingRequiredCount: missingRequired.length,
-          missingRequiredFields: missingRequired,
         },
       })
       setActionErrorsByItem(
@@ -750,7 +749,9 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
               variant={projectInstalled ? "ghost" : "primary"}
               onClick={() => (projectInstalled ? handleRemove(item, "project") : handleInstall(item, "project"))}
               disabled={projectInstallDisabled || isActionPending(item, "project") || isActionPending(item, "global")}
-              title={projectInstallDisabled ? "Open a workspace folder to install to project scope." : undefined}
+              title={
+                projectInstallDisabled ? language.t("marketplace.status.projectInstallRequiresWorkspaceTooltip") : undefined
+              }
             >
               {projectActionState() === "installing"
                 ? language.t("marketplace.action.installing")
@@ -1011,7 +1012,7 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
               "border-radius": "6px",
             }}
           >
-            Open a workspace folder to enable project installs. Global installs remain available.
+            {language.t("marketplace.status.noWorkspaceBanner")}
           </div>
         </Show>
 

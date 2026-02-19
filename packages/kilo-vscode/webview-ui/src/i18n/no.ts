@@ -751,6 +751,15 @@ export const dict = {
   "profile.action.dashboard": "Kontrollpanel",
   "profile.action.logout": "Logg ut",
 
+  "marketplace.status.actionTimeout": "Marketplace-handlingen ({{action}}) fikk tidsavbrudd. Prøv igjen.",
+  "marketplace.status.requestTimeout": "Marketplace-forespørselen fikk tidsavbrudd. Prøv igjen.",
+  "marketplace.status.projectInstallRequiresWorkspace":
+    "Åpne en workspace-mappe for å installere Marketplace-elementer i prosjektomfang.",
+  "marketplace.status.projectInstallRequiresWorkspaceTooltip":
+    "Åpne en workspace-mappe for å installere i prosjektomfang.",
+  "marketplace.status.noWorkspaceBanner":
+    "Åpne en workspace-mappe for å aktivere prosjektinstallasjoner. Globale installasjoner er fortsatt tilgjengelige.",
+
   "settings.section.configuration": "Konfigurasjon",
   "settings.agentBehaviour.title": "Agentoppførsel",
   "settings.autoApprove.title": "Automatisk godkjenning",

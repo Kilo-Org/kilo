@@ -740,6 +740,15 @@ export const dict = {
   "profile.action.dashboard": "แดชบอร์ด",
   "profile.action.logout": "ออกจากระบบ",
 
+  "marketplace.status.actionTimeout": "การดำเนินการ Marketplace ({{action}}) หมดเวลา โปรดลองอีกครั้ง",
+  "marketplace.status.requestTimeout": "คำขอ Marketplace หมดเวลา โปรดลองอีกครั้ง",
+  "marketplace.status.projectInstallRequiresWorkspace":
+    "เปิดโฟลเดอร์เวิร์กสเปซเพื่อติดตั้งรายการ Marketplace ในขอบเขตโปรเจ็กต์",
+  "marketplace.status.projectInstallRequiresWorkspaceTooltip":
+    "เปิดโฟลเดอร์เวิร์กสเปซเพื่อติดตั้งในขอบเขตโปรเจ็กต์",
+  "marketplace.status.noWorkspaceBanner":
+    "เปิดโฟลเดอร์เวิร์กสเปซเพื่อเปิดใช้งานการติดตั้งระดับโปรเจ็กต์ การติดตั้งแบบโกลบอลยังคงใช้งานได้",
+
   "settings.section.configuration": "การกำหนดค่า",
   "settings.agentBehaviour.title": "พฤติกรรมของเอเจนต์",
   "settings.autoApprove.title": "อนุมัติอัตโนมัติ",

@@ -748,6 +748,15 @@ export const dict = {
   "profile.action.dashboard": "Dashboard",
   "profile.action.logout": "Log ud",
 
+  "marketplace.status.actionTimeout": "Marketplace-handlingen ({{action}}) fik timeout. Prøv igen.",
+  "marketplace.status.requestTimeout": "Marketplace-forespørgslen fik timeout. Prøv igen.",
+  "marketplace.status.projectInstallRequiresWorkspace":
+    "Åbn en workspace-mappe for at installere Marketplace-elementer på projektniveau.",
+  "marketplace.status.projectInstallRequiresWorkspaceTooltip":
+    "Åbn en workspace-mappe for at installere til projektniveau.",
+  "marketplace.status.noWorkspaceBanner":
+    "Åbn en workspace-mappe for at aktivere projektinstallationer. Globale installationer er stadig tilgængelige.",
+
   "settings.section.configuration": "Konfiguration",
   "settings.agentBehaviour.title": "Agentadfærd",
   "settings.autoApprove.title": "Automatisk godkendelse",

@@ -758,6 +758,15 @@ export const dict = {
   "profile.action.dashboard": "Tableau de bord",
   "profile.action.logout": "Déconnexion",
 
+  "marketplace.status.actionTimeout": "L'action Marketplace ({{action}}) a expiré. Réessaie.",
+  "marketplace.status.requestTimeout": "La requête Marketplace a expiré. Réessaie.",
+  "marketplace.status.projectInstallRequiresWorkspace":
+    "Ouvrez un dossier d'espace de travail pour installer des éléments Marketplace au niveau du projet.",
+  "marketplace.status.projectInstallRequiresWorkspaceTooltip":
+    "Ouvrez un dossier d'espace de travail pour installer au niveau du projet.",
+  "marketplace.status.noWorkspaceBanner":
+    "Ouvrez un dossier d'espace de travail pour activer les installations de projet. Les installations globales restent disponibles.",
+
   "settings.section.configuration": "Configuration",
   "settings.agentBehaviour.title": "Comportement de l'agent",
   "settings.autoApprove.title": "Approbation automatique",

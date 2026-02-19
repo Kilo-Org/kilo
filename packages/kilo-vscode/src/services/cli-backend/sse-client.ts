@@ -64,7 +64,6 @@ export class SSEClient {
 
     // Set up onmessage handler
     this.eventSource.onmessage = (messageEvent) => {
-      console.log("[Kilo New] SSE: 📨 Received message event:", messageEvent.data)
       try {
         const raw = JSON.parse(messageEvent.data)
         // Global endpoint wraps events as { directory, payload: { type, properties } }
@@ -73,7 +72,6 @@ export class SSEClient {
           console.warn("[Kilo New] SSE: ⚠️ Received event without type:", raw)
           return
         }
-        console.log("[Kilo New] SSE: 📦 Parsed event type:", event.type)
         this.notifyEvent(event)
       } catch (error) {
         console.error("[Kilo New] SSE: ❌ Failed to parse event:", error)

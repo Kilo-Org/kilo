@@ -754,6 +754,15 @@ export const dict = {
   "profile.action.dashboard": "Panel",
   "profile.action.logout": "Cerrar sesión",
 
+  "marketplace.status.actionTimeout": "La acción de Marketplace ({{action}}) excedió el tiempo de espera. Inténtalo de nuevo.",
+  "marketplace.status.requestTimeout": "La solicitud de Marketplace excedió el tiempo de espera. Inténtalo de nuevo.",
+  "marketplace.status.projectInstallRequiresWorkspace":
+    "Abre una carpeta de espacio de trabajo para instalar elementos de Marketplace con alcance de proyecto.",
+  "marketplace.status.projectInstallRequiresWorkspaceTooltip":
+    "Abre una carpeta de espacio de trabajo para instalar en el alcance del proyecto.",
+  "marketplace.status.noWorkspaceBanner":
+    "Abre una carpeta de espacio de trabajo para habilitar instalaciones de proyecto. Las instalaciones globales siguen disponibles.",
+
   "settings.section.configuration": "Configuración",
   "settings.agentBehaviour.title": "Comportamiento del agente",
   "settings.autoApprove.title": "Aprobación automática",

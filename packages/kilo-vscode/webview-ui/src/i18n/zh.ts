@@ -743,6 +743,12 @@ export const dict = {
   "profile.action.dashboard": "控制面板",
   "profile.action.logout": "退出登录",
 
+  "marketplace.status.actionTimeout": "Marketplace {{action}} 操作超时，请重试。",
+  "marketplace.status.requestTimeout": "Marketplace 请求超时，请重试。",
+  "marketplace.status.projectInstallRequiresWorkspace": "请打开工作区文件夹以安装项目范围的 Marketplace 项目。",
+  "marketplace.status.projectInstallRequiresWorkspaceTooltip": "请打开工作区文件夹以安装到项目范围。",
+  "marketplace.status.noWorkspaceBanner": "请打开工作区文件夹以启用项目安装。全局安装仍可用。",
+
   "settings.section.configuration": "配置",
   "settings.agentBehaviour.title": "智能体行为",
   "settings.autoApprove.title": "自动审批",

@@ -754,6 +754,15 @@ export const dict = {
   "profile.action.dashboard": "Панель управления",
   "profile.action.logout": "Выйти",
 
+  "marketplace.status.actionTimeout": "Действие Marketplace ({{action}}) превысило время ожидания. Попробуйте снова.",
+  "marketplace.status.requestTimeout": "Запрос Marketplace превысил время ожидания. Попробуйте снова.",
+  "marketplace.status.projectInstallRequiresWorkspace":
+    "Откройте папку рабочей области, чтобы устанавливать элементы Marketplace в область проекта.",
+  "marketplace.status.projectInstallRequiresWorkspaceTooltip":
+    "Откройте папку рабочей области, чтобы установить в область проекта.",
+  "marketplace.status.noWorkspaceBanner":
+    "Откройте папку рабочей области, чтобы включить установки в проект. Глобальные установки остаются доступными.",
+
   "settings.section.configuration": "Конфигурация",
   "settings.agentBehaviour.title": "Поведение агента",
   "settings.autoApprove.title": "Автоодобрение",

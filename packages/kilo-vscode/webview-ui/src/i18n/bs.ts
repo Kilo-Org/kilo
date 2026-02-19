@@ -776,6 +776,15 @@ export const dict = {
   "profile.action.dashboard": "Kontrolna ploča",
   "profile.action.logout": "Odjava",
 
+  "marketplace.status.actionTimeout": "Marketplace radnja ({{action}}) je istekla. Pokušajte ponovo.",
+  "marketplace.status.requestTimeout": "Marketplace zahtjev je istekao. Pokušajte ponovo.",
+  "marketplace.status.projectInstallRequiresWorkspace":
+    "Otvorite folder radnog prostora da instalirate Marketplace stavke na nivou projekta.",
+  "marketplace.status.projectInstallRequiresWorkspaceTooltip":
+    "Otvorite folder radnog prostora za instalaciju na nivou projekta.",
+  "marketplace.status.noWorkspaceBanner":
+    "Otvorite folder radnog prostora da omogućite instalacije na nivou projekta. Globalne instalacije su i dalje dostupne.",
+
   "settings.section.configuration": "Konfiguracija",
   "settings.agentBehaviour.title": "Ponašanje agenta",
   "settings.autoApprove.title": "Automatsko odobravanje",

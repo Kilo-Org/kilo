@@ -742,6 +742,12 @@ export const dict = {
   "profile.action.dashboard": "لوحة التحكم",
   "profile.action.logout": "تسجيل الخروج",
 
+  "marketplace.status.actionTimeout": "انتهت مهلة عملية Marketplace ({{action}}). يُرجى المحاولة مرة أخرى.",
+  "marketplace.status.requestTimeout": "انتهت مهلة طلب Marketplace. يُرجى المحاولة مرة أخرى.",
+  "marketplace.status.projectInstallRequiresWorkspace": "افتح مجلد مساحة عمل لتثبيت عناصر Marketplace على مستوى المشروع.",
+  "marketplace.status.projectInstallRequiresWorkspaceTooltip": "افتح مجلد مساحة عمل للتثبيت على مستوى المشروع.",
+  "marketplace.status.noWorkspaceBanner": "افتح مجلد مساحة عمل لتفعيل التثبيت على مستوى المشروع. يظل التثبيت العام متاحًا.",
+
   "settings.section.configuration": "الإعدادات",
   "settings.agentBehaviour.title": "سلوك الوكيل",
   "settings.autoApprove.title": "الموافقة التلقائية",

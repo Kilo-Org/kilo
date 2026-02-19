@@ -742,6 +742,15 @@ export const dict = {
   "profile.action.dashboard": "ダッシュボード",
   "profile.action.logout": "ログアウト",
 
+  "marketplace.status.actionTimeout": "Marketplace の{{action}}がタイムアウトしました。もう一度お試しください。",
+  "marketplace.status.requestTimeout": "Marketplace のリクエストがタイムアウトしました。もう一度お試しください。",
+  "marketplace.status.projectInstallRequiresWorkspace":
+    "プロジェクトスコープの Marketplace 項目をインストールするには、ワークスペースフォルダーを開いてください。",
+  "marketplace.status.projectInstallRequiresWorkspaceTooltip":
+    "プロジェクトスコープにインストールするには、ワークスペースフォルダーを開いてください。",
+  "marketplace.status.noWorkspaceBanner":
+    "プロジェクトへのインストールを有効にするにはワークスペースフォルダーを開いてください。グローバルへのインストールは引き続き利用できます。",
+
   "settings.section.configuration": "設定",
   "settings.agentBehaviour.title": "エージェントの動作",
   "settings.autoApprove.title": "自動承認",

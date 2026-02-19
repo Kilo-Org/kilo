@@ -750,6 +750,15 @@ export const dict = {
   "profile.action.dashboard": "Panel",
   "profile.action.logout": "Wyloguj się",
 
+  "marketplace.status.actionTimeout": "Działanie Marketplace ({{action}}) przekroczyło limit czasu. Spróbuj ponownie.",
+  "marketplace.status.requestTimeout": "Żądanie Marketplace przekroczyło limit czasu. Spróbuj ponownie.",
+  "marketplace.status.projectInstallRequiresWorkspace":
+    "Otwórz folder obszaru roboczego, aby instalować elementy Marketplace w zakresie projektu.",
+  "marketplace.status.projectInstallRequiresWorkspaceTooltip":
+    "Otwórz folder obszaru roboczego, aby instalować w zakresie projektu.",
+  "marketplace.status.noWorkspaceBanner":
+    "Otwórz folder obszaru roboczego, aby włączyć instalacje projektowe. Instalacje globalne pozostają dostępne.",
+
   "settings.section.configuration": "Konfiguracja",
   "settings.agentBehaviour.title": "Zachowanie agenta",
   "settings.autoApprove.title": "Automatyczne zatwierdzanie",

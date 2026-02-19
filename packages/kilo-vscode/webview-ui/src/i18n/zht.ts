@@ -740,6 +740,12 @@ export const dict = {
   "profile.action.dashboard": "控制面板",
   "profile.action.logout": "登出",
 
+  "marketplace.status.actionTimeout": "Marketplace {{action}} 作業逾時，請再試一次。",
+  "marketplace.status.requestTimeout": "Marketplace 請求逾時，請再試一次。",
+  "marketplace.status.projectInstallRequiresWorkspace": "請開啟工作區資料夾，以安裝專案範圍的 Marketplace 項目。",
+  "marketplace.status.projectInstallRequiresWorkspaceTooltip": "請開啟工作區資料夾，以安裝到專案範圍。",
+  "marketplace.status.noWorkspaceBanner": "請開啟工作區資料夾以啟用專案安裝。全域安裝仍可使用。",
+
   "settings.section.configuration": "設定",
   "settings.agentBehaviour.title": "代理行為",
   "settings.autoApprove.title": "自動核准",

@@ -754,6 +754,16 @@ export const dict = {
   "profile.action.dashboard": "Dashboard",
   "profile.action.logout": "Abmelden",
 
+  "marketplace.status.actionTimeout":
+    "Die Marketplace-Aktion ({{action}}) hat das Zeitlimit überschritten. Bitte versuche es erneut.",
+  "marketplace.status.requestTimeout": "Die Marketplace-Anfrage hat das Zeitlimit überschritten. Bitte versuche es erneut.",
+  "marketplace.status.projectInstallRequiresWorkspace":
+    "Öffne einen Workspace-Ordner, um projektbezogene Marketplace-Elemente zu installieren.",
+  "marketplace.status.projectInstallRequiresWorkspaceTooltip":
+    "Öffne einen Workspace-Ordner, um im Projektbereich zu installieren.",
+  "marketplace.status.noWorkspaceBanner":
+    "Öffne einen Workspace-Ordner, um Projektinstallationen zu aktivieren. Globale Installationen bleiben verfügbar.",
+
   "settings.section.configuration": "Konfiguration",
   "settings.agentBehaviour.title": "Agentenverhalten",
   "settings.autoApprove.title": "Automatisch genehmigen",

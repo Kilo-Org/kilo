@@ -64,5 +64,3 @@ export interface MarketplaceCatalogResult {
   installedMetadata: MarketplaceInstalledMetadata
   errors?: string[]
 }
-
-

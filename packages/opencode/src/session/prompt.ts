@@ -812,8 +812,7 @@ export namespace SessionPrompt {
           const ctx = context(args, options)
           // kilocode_change start - warm agent blast-radius enforcement
           const warmCheck = await (async () => {
-            const warmCtx = (globalThis as any).__warmContext
-            if (!warmCtx?.enabled || !warmCtx.activeTask) return undefined
+            if (!(globalThis as any).__warmContext?.enabled && process.env.KILO_WARM !== "1") return undefined
             const { WarmIntegration } = await import("../warm")
             return WarmIntegration.checkTool(item.id, args, ctx.sessionID)
           })()
@@ -869,8 +868,7 @@ export namespace SessionPrompt {
 
         // kilocode_change start - warm agent blast-radius enforcement for MCP tools
         const warmCheck = await (async () => {
-          const warmCtx = (globalThis as any).__warmContext
-          if (!warmCtx?.enabled || !warmCtx.activeTask) return undefined
+          if (!(globalThis as any).__warmContext?.enabled && process.env.KILO_WARM !== "1") return undefined
           const { WarmIntegration } = await import("../warm")
           return WarmIntegration.checkTool(key, args, ctx.sessionID)
         })()

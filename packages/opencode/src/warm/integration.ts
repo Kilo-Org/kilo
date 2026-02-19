@@ -8,7 +8,7 @@
 import { Log } from "../util/log"
 import { Audit } from "./audit"
 import { Invariant } from "./invariant"
-import type { WarmSession } from "./warm-session"
+import type { WarmSession as WarmSessionType } from "./warm-session"
 import type { TaskState } from "./task-state"
 import type { AgentState } from "./agent-state"
 
@@ -17,17 +17,60 @@ export namespace WarmIntegration {
 
   // ---- Context Access ----
 
-  export function getContext(): WarmSession.WarmContext | undefined {
+  export function getContext(): WarmSessionType.WarmContext | undefined {
     return (globalThis as any).__warmContext
   }
 
-  export function setContext(ctx: WarmSession.WarmContext): void {
+  export function setContext(ctx: WarmSessionType.WarmContext): void {
     ;(globalThis as any).__warmContext = ctx
   }
 
   export function isEnabled(): boolean {
+    // Check both explicit context and env var
     const ctx = getContext()
-    return ctx?.enabled === true
+    if (ctx?.enabled) return true
+    return process.env.KILO_WARM === "1"
+  }
+
+  /**
+   * Lazily initialize warm context for a session if KILO_WARM=1 is set
+   * but no context exists yet. This handles the TUI case where the
+   * worker thread has the env var but warm init hasn't happened yet.
+   */
+  export async function ensureContext(sessionID: string): Promise<WarmSessionType.WarmContext | undefined> {
+    const existing = getContext()
+    if (existing?.enabled) return existing
+
+    if (process.env.KILO_WARM !== "1") return undefined
+
+    // Lazy init: create warm context on first tool call
+    const { WarmSession } = await import("./warm-session")
+    const ctx = WarmSession.createContext(sessionID, {
+      autoApproveDispatch: false,
+    })
+    setContext(ctx)
+
+    // Register default agent
+    await WarmSession.registerAgent(ctx, {
+      id: `agent_${sessionID.slice(0, 16)}`,
+      agentName: "code",
+      capabilities: ["read", "edit", "bash", "write", "glob", "grep", "webfetch", "websearch", "task"],
+    })
+
+    // Create default task scoped to working directory
+    await WarmSession.createDefaultTask(ctx, {
+      message: "interactive session",
+      workingDirectory: process.cwd().replace(/\\/g, "/"),
+    })
+
+    log.info("warm context auto-initialized", {
+      sessionID,
+      agentID: ctx.activeAgent?.id,
+      taskID: ctx.activeTask?.id,
+      scope: ctx.activeTask?.blastRadius.paths,
+    })
+
+    return ctx
   }
 
   // ---- Tool Pre-Check ----
@@ -43,7 +86,8 @@ export namespace WarmIntegration {
     args: Record<string, unknown>,
     sessionID: string,
   ): Promise<ToolCheckResult> {
-    const ctx = getContext()
+    // Auto-initialize if KILO_WARM env is set but context doesn't exist yet
+    const ctx = await ensureContext(sessionID)
     if (!ctx?.enabled || !ctx.activeTask) {
       return { allowed: true, logged: false }
     }

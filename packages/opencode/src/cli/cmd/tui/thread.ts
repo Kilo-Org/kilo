@@ -76,7 +76,14 @@ export const TuiThreadCommand = cmd({
       .option("agent", {
         type: "string",
         describe: "agent to use",
+      })
+      // kilocode_change start - warm agents orchestration
+      .option("warm", {
+        type: "boolean",
+        describe: "enable warm agents orchestration with warmness scoring and blast-radius enforcement",
+        default: false,
       }),
+      // kilocode_change end
   handler: async (args) => {
     // Keep ENABLE_PROCESSED_INPUT cleared even if other code flips it.
     // (Important when running under `bun run` wrappers on Windows.)
@@ -109,10 +116,16 @@ export const TuiThreadCommand = cmd({
         return
       }
 
+      // kilocode_change start - pass warm flag to worker via environment
+      const workerEnv = Object.fromEntries(
+        Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+      )
+      if (args.warm) {
+        workerEnv.KILO_WARM = "1"
+      }
+      // kilocode_change end
       const worker = new Worker(workerPath, {
-        env: Object.fromEntries(
-          Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
-        ),
+        env: workerEnv,
       })
       worker.onerror = (e) => {
         Log.Default.error(e)

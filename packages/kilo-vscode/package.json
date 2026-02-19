@@ -102,6 +102,26 @@
         "category": "Kilo Code"
       },
       {
+        "command": "kilo-code.new.agentManager.newTab",
+        "title": "Agent Manager: New Tab",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.agentManager.closeTab",
+        "title": "Agent Manager: Close Tab",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.agentManager.newWorktree",
+        "title": "Agent Manager: New Worktree",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.agentManager.closeWorktree",
+        "title": "Agent Manager: Close Worktree",
+        "category": "Kilo Code"
+      },
+      {
         "command": "kilo-code.new.generateCommitMessage",
         "title": "Generate Commit Message",
         "category": "Kilo Code (NEW)",
@@ -287,6 +307,30 @@
         "command": "kilo-code.new.agentManager.nextTab",
         "key": "ctrl+right",
         "mac": "cmd+right",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.newTab",
+        "key": "ctrl+t",
+        "mac": "cmd+t",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.closeTab",
+        "key": "ctrl+w",
+        "mac": "cmd+w",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.newWorktree",
+        "key": "ctrl+n",
+        "mac": "cmd+n",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.closeWorktree",
+        "key": "ctrl+shift+w",
+        "mac": "cmd+shift+w",
         "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
       }
     ],

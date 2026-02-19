@@ -11,7 +11,8 @@ import type {
   SessionInfo,
 } from "../src/types/messages"
 import { ThemeProvider } from "@kilocode/kilo-ui/theme"
-import { DialogProvider } from "@kilocode/kilo-ui/context/dialog"
+import { DialogProvider, useDialog } from "@kilocode/kilo-ui/context/dialog"
+import { Dialog } from "@kilocode/kilo-ui/dialog"
 import { MarkedProvider } from "@kilocode/kilo-ui/context/marked"
 import { CodeComponentProvider } from "@kilocode/kilo-ui/context/code"
 import { DiffComponentProvider } from "@kilocode/kilo-ui/context/diff"
@@ -32,7 +33,7 @@ import { WorktreeModeProvider } from "../src/context/worktree-mode"
 import { ChatView } from "../src/components/chat"
 import { LanguageBridge, DataBridge } from "../src/App"
 import { formatRelativeDate } from "../src/utils/date"
-import { validateLocalSession } from "./navigate"
+import { validateLocalSession, nextSelectionAfterDelete, LOCAL } from "./navigate"
 import "./agent-manager.css"
 
 interface SetupState {
@@ -42,17 +43,21 @@ interface SetupState {
   error?: boolean
 }
 
-/** Sidebar selection: "local" for workspace, worktree ID for a worktree, or null for an unassigned session. */
-type SidebarSelection = "local" | string | null
+/** Sidebar selection: LOCAL for workspace, worktree ID for a worktree, or null for an unassigned session. */
+type SidebarSelection = typeof LOCAL | string | null
+
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent)
+const modKey = isMac ? "\u2318" : "Ctrl+"
 
 const AgentManagerContent: Component = () => {
   const session = useSession()
   const vscode = useVSCode()
+  const dialog = useDialog()
 
   const [setup, setSetup] = createSignal<SetupState>({ active: false, message: "" })
   const [worktrees, setWorktrees] = createSignal<WorktreeState[]>([])
   const [managedSessions, setManagedSessions] = createSignal<ManagedSessionState[]>([])
-  const [selection, setSelection] = createSignal<SidebarSelection>("local")
+  const [selection, setSelection] = createSignal<SidebarSelection>(LOCAL)
   const [repoBranch, setRepoBranch] = createSignal<string | undefined>()
   const [deletingWorktrees, setDeletingWorktrees] = createSignal<Set<string>>(new Set())
 
@@ -130,7 +135,7 @@ const AgentManagerContent: Component = () => {
   // Sessions for the currently selected worktree (tab bar), sorted by creation date
   const activeWorktreeSessions = createMemo((): SessionInfo[] => {
     const sel = selection()
-    if (!sel || sel === "local") return []
+    if (!sel || sel === LOCAL) return []
     const managed = managedSessions().filter((ms) => ms.worktreeId === sel)
     const ids = new Set(managed.map((ms) => ms.id))
     return session
@@ -142,7 +147,7 @@ const AgentManagerContent: Component = () => {
   // Active tab sessions: local sessions when on "local", worktree sessions otherwise
   const activeTabs = createMemo((): SessionInfo[] => {
     const sel = selection()
-    if (sel === "local") return localSessions()
+    if (sel === LOCAL) return localSessions()
     if (sel) return activeWorktreeSessions()
     return []
   })
@@ -150,7 +155,7 @@ const AgentManagerContent: Component = () => {
   // Whether the selected context has zero sessions
   const contextEmpty = createMemo(() => {
     const sel = selection()
-    if (sel === "local") return localSessionIDs().length === 0
+    if (sel === LOCAL) return localSessionIDs().length === 0
     if (sel) return activeWorktreeSessions().length === 0
     return false
   })
@@ -172,8 +177,8 @@ const AgentManagerContent: Component = () => {
 
   // Navigate sidebar items with arrow keys
   const navigate = (direction: "up" | "down") => {
-    const flat: { type: "local" | "wt" | "session"; id: string }[] = [
-      { type: "local", id: "local" },
+    const flat: { type: typeof LOCAL | "wt" | "session"; id: string }[] = [
+      { type: LOCAL, id: LOCAL },
       ...worktrees().map((wt) => ({ type: "wt" as const, id: wt.id })),
       ...unassignedSessions().map((s) => ({ type: "session" as const, id: s.id })),
     ]
@@ -185,7 +190,7 @@ const AgentManagerContent: Component = () => {
     if (next < 0 || next >= flat.length) return
 
     const item = flat[next]!
-    if (item.type === "local") {
+    if (item.type === LOCAL) {
       selectLocal()
     } else if (item.type === "wt") {
       selectWorktree(item.id)
@@ -218,7 +223,7 @@ const AgentManagerContent: Component = () => {
   }
 
   const selectLocal = () => {
-    setSelection("local")
+    setSelection(LOCAL)
     vscode.postMessage({ type: "agentManager.requestRepoInfo" })
     const locals = localSessions()
     const first = locals[0]
@@ -254,17 +259,29 @@ const AgentManagerContent: Component = () => {
       else if (msg.action === "sessionNext") navigate("down")
       else if (msg.action === "tabPrevious") navigateTab("left")
       else if (msg.action === "tabNext") navigateTab("right")
+      else if (msg.action === "newTab") handleNewTabForCurrentSelection()
+      else if (msg.action === "closeTab") closeActiveTab()
+      else if (msg.action === "newWorktree") handleNewWorktreeOrPromote()
+      else if (msg.action === "closeWorktree") closeSelectedWorktree()
     }
     window.addEventListener("message", handler)
 
-    // Prevent Cmd+Up/Down/Left/Right from triggering native scroll
-    const preventScroll = (e: KeyboardEvent) => {
+    // Prevent Cmd+Arrow/T/W/N from triggering native browser actions
+    const preventDefaults = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
         e.preventDefault()
       }
+      // Prevent browser defaults for our shortcuts (new tab, close tab, new window)
+      if (["t", "w", "n"].includes(e.key.toLowerCase()) && !e.shiftKey) {
+        e.preventDefault()
+      }
+      // Prevent defaults for shift variants (close worktree)
+      if (e.key.toLowerCase() === "w" && e.shiftKey) {
+        e.preventDefault()
+      }
     }
-    window.addEventListener("keydown", preventScroll)
+    window.addEventListener("keydown", preventDefaults)
 
     // When the panel regains focus (e.g. returning from terminal), focus the prompt
     const onWindowFocus = () => window.dispatchEvent(new Event("focusPrompt"))
@@ -273,7 +290,7 @@ const AgentManagerContent: Component = () => {
     // When a session is created while on local, replace the current pending tab with the real session.
     // Guard against duplicate sessionCreated events (HTTP response + SSE can both fire).
     const unsubCreate = vscode.onMessage((msg) => {
-      if (msg.type === "sessionCreated" && selection() === "local") {
+      if (msg.type === "sessionCreated" && selection() === LOCAL) {
         const created = msg as { type: string; session: { id: string } }
         if (localSessionIDs().includes(created.session.id)) return
         const pending = activePendingId()
@@ -300,6 +317,9 @@ const AgentManagerContent: Component = () => {
           globalThis.setTimeout(() => setSetup({ active: false, message: "" }), error ? 3000 : 500)
           if (!error && ev.sessionId) {
             session.selectSession(ev.sessionId)
+            // Auto-switch sidebar to the worktree containing this session
+            const ms = managedSessions().find((s) => s.id === ev.sessionId)
+            if (ms?.worktreeId) setSelection(ms.worktreeId)
           }
         } else {
           setSetup({ active: true, message: ev.message, branch: ev.branch })
@@ -331,7 +351,7 @@ const AgentManagerContent: Component = () => {
 
     onCleanup(() => {
       window.removeEventListener("message", handler)
-      window.removeEventListener("keydown", preventScroll)
+      window.removeEventListener("keydown", preventDefaults)
       window.removeEventListener("focus", onWindowFocus)
       unsubCreate()
       unsub()
@@ -351,11 +371,48 @@ const AgentManagerContent: Component = () => {
     vscode.postMessage({ type: "agentManager.createWorktree" })
   }
 
+  const confirmDeleteWorktree = (worktreeId: string) => {
+    const wt = worktrees().find((w) => w.id === worktreeId)
+    if (!wt) return
+    const doDelete = () => {
+      setDeletingWorktrees((prev) => new Set([...prev, wt.id]))
+      vscode.postMessage({ type: "agentManager.deleteWorktree", worktreeId: wt.id })
+      if (selection() === wt.id) {
+        const next = nextSelectionAfterDelete(
+          wt.id,
+          worktrees().map((w) => w.id),
+        )
+        if (next === LOCAL) selectLocal()
+        else selectWorktree(next)
+      }
+      dialog.close()
+    }
+    dialog.show(() => (
+      <Dialog title="Delete Worktree" fit>
+        <div class="am-confirm">
+          <div class="am-confirm-message">
+            <Icon name="trash" size="small" />
+            <span>
+              Delete worktree <code class="am-confirm-branch">{wt.branch}</code>? This removes the worktree from disk
+              and dissociates all sessions.
+            </span>
+          </div>
+          <div class="am-confirm-actions">
+            <Button variant="ghost" size="large" onClick={() => dialog.close()}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="large" class="am-confirm-delete" onClick={doDelete} autofocus>
+              Delete
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    ))
+  }
+
   const handleDeleteWorktree = (worktreeId: string, e: MouseEvent) => {
     e.stopPropagation()
-    setDeletingWorktrees((prev) => new Set([...prev, worktreeId]))
-    vscode.postMessage({ type: "agentManager.deleteWorktree", worktreeId })
-    if (selection() === worktreeId) selectLocal()
+    confirmDeleteWorktree(worktreeId)
   }
 
   const handlePromote = (sessionId: string, e: MouseEvent) => {
@@ -365,7 +422,7 @@ const AgentManagerContent: Component = () => {
 
   const handleAddSession = () => {
     const sel = selection()
-    if (sel === "local") {
+    if (sel === LOCAL) {
       addPendingTab()
     } else if (sel) {
       vscode.postMessage({ type: "agentManager.addSessionToWorktree", worktreeId: sel })
@@ -407,12 +464,61 @@ const AgentManagerContent: Component = () => {
     }
   }
 
+  // Close the currently active tab via keyboard shortcut.
+  // If no tabs remain, fall through to close the selected worktree.
+  const closeActiveTab = () => {
+    const tabs = activeTabs()
+    if (tabs.length === 0) {
+      closeSelectedWorktree()
+      return
+    }
+    const current = session.currentSessionID()
+    const pending = activePendingId()
+    const target = current
+      ? tabs.find((s) => s.id === current)
+      : pending
+        ? tabs.find((s) => s.id === pending)
+        : undefined
+    if (!target) return
+    const synthetic = new MouseEvent("click")
+    handleCloseTab(target.id, synthetic)
+  }
+
+  // Cmd+T: add a new tab strictly to the current selection (no side effects)
+  const handleNewTabForCurrentSelection = () => {
+    const sel = selection()
+    if (sel === LOCAL) {
+      addPendingTab()
+    } else if (sel) {
+      // Pass the captured worktree ID directly to avoid race conditions
+      vscode.postMessage({ type: "agentManager.addSessionToWorktree", worktreeId: sel })
+    }
+  }
+
+  // Cmd+N: if an unassigned session is selected, promote it; otherwise create a new worktree
+  const handleNewWorktreeOrPromote = () => {
+    const sel = selection()
+    const sid = session.currentSessionID()
+    if (sel === null && sid && !worktreeSessionIds().has(sid)) {
+      vscode.postMessage({ type: "agentManager.promoteSession", sessionId: sid })
+      return
+    }
+    handleCreateWorktree()
+  }
+
+  // Close the currently selected worktree with a confirmation dialog
+  const closeSelectedWorktree = () => {
+    const sel = selection()
+    if (!sel || sel === LOCAL) return
+    confirmDeleteWorktree(sel)
+  }
+
   return (
     <div class="am-layout">
       <div class="am-sidebar">
         {/* Local workspace item */}
         <button
-          class={`am-local-item ${selection() === "local" ? "am-local-item-active" : ""}`}
+          class={`am-local-item ${selection() === LOCAL ? "am-local-item-active" : ""}`}
           data-sidebar-id="local"
           onClick={() => selectLocal()}
         >
@@ -548,7 +654,7 @@ const AgentManagerContent: Component = () => {
               icon="plus"
               size="small"
               variant="ghost"
-              label="New session"
+              label={`New session (${modKey}T)`}
               class="am-tab-add"
               onClick={handleAddSession}
             />
@@ -564,6 +670,7 @@ const AgentManagerContent: Component = () => {
             <div class="am-empty-state-text">No sessions open</div>
             <Button variant="primary" size="small" onClick={handleAddSession}>
               New session
+              <span class="am-shortcut-hint">{modKey}T</span>
             </Button>
           </div>
         </Show>

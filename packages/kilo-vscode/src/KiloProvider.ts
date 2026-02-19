@@ -369,7 +369,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         case "requestFileSearch": {
           const client = this.httpClient
           if (client) {
-            const dir = this.getWorkspaceDirectory()
+            const dir = this.getWorkspaceDirectory(this.currentSession?.id)
             void client
               .findFiles(message.query, dir)
               .then((paths) => {

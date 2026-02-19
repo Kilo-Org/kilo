@@ -305,6 +305,11 @@ const AgentManagerContent: Component = () => {
         }
       }
 
+      if (msg.type === "agentManager.sessionAdded") {
+        const ev = msg as { type: string; sessionId: string; worktreeId: string }
+        session.selectSession(ev.sessionId)
+      }
+
       if (msg.type === "agentManager.state") {
         const state = msg as AgentManagerStateMessage
         setWorktrees(state.worktrees)

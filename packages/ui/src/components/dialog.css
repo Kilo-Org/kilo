@@ -108,6 +108,20 @@
           outline: none;
         }
       }
+
+      /* Confirmation dialog slots */
+      [data-slot="dialog-confirm"] {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 0 24px 16px 24px;
+      }
+
+      [data-slot="dialog-confirm-actions"] {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
       &:focus-visible {
         outline: none;
       }

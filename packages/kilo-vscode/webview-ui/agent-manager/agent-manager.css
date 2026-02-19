@@ -460,15 +460,7 @@
   flex-shrink: 0;
 }
 
-/* Confirmation dialog */
-
-.am-confirm {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 0 24px 20px 24px;
-  outline: none;
-}
+/* Confirmation dialog (layout from kilo-ui data-slot="dialog-confirm") */
 
 .am-confirm-message {
   display: flex;
@@ -492,12 +484,6 @@
   border-radius: var(--radius-sm);
   background: var(--surface-inset-base);
   white-space: nowrap;
-}
-
-.am-confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
 }
 
 .am-confirm-delete {

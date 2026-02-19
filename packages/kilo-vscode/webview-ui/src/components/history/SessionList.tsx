@@ -84,9 +84,9 @@ const SessionList: Component<SessionListProps> = (props) => {
   function confirmDelete(s: SessionInfo) {
     dialog.show(() => (
       <Dialog title={language.t("session.delete.title")} fit>
-        <div class="dialog-confirm-body">
+        <div data-slot="dialog-confirm">
           <span>{language.t("session.delete.confirm", { name: s.title || language.t("session.untitled") })}</span>
-          <div class="dialog-confirm-actions">
+          <div data-slot="dialog-confirm-actions">
             <Button variant="ghost" size="large" onClick={() => dialog.close()}>
               {language.t("common.cancel")}
             </Button>

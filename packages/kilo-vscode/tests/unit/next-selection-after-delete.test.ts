@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { nextSelectionAfterDelete } from "../../webview-ui/agent-manager/navigate"
+import { nextSelectionAfterDelete, LOCAL } from "../../webview-ui/agent-manager/navigate"
 
 describe("nextSelectionAfterDelete", () => {
   it("selects the worktree below when deleting from the middle", () => {
@@ -14,16 +14,16 @@ describe("nextSelectionAfterDelete", () => {
     expect(nextSelectionAfterDelete("a", ["a", "b", "c"])).toBe("b")
   })
 
-  it("falls back to local when deleting the only worktree", () => {
-    expect(nextSelectionAfterDelete("a", ["a"])).toBe("local")
+  it("falls back to LOCAL when deleting the only worktree", () => {
+    expect(nextSelectionAfterDelete("a", ["a"])).toBe(LOCAL)
   })
 
-  it("falls back to local when ID is not found", () => {
-    expect(nextSelectionAfterDelete("x", ["a", "b"])).toBe("local")
+  it("falls back to LOCAL when ID is not found", () => {
+    expect(nextSelectionAfterDelete("x", ["a", "b"])).toBe(LOCAL)
   })
 
-  it("falls back to local when list is empty", () => {
-    expect(nextSelectionAfterDelete("a", [])).toBe("local")
+  it("falls back to LOCAL when list is empty", () => {
+    expect(nextSelectionAfterDelete("a", [])).toBe(LOCAL)
   })
 
   it("handles two-item list deleting first", () => {

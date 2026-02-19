@@ -33,7 +33,7 @@ import { WorktreeModeProvider } from "../src/context/worktree-mode"
 import { ChatView } from "../src/components/chat"
 import { LanguageBridge, DataBridge } from "../src/App"
 import { formatRelativeDate } from "../src/utils/date"
-import { validateLocalSession, nextSelectionAfterDelete } from "./navigate"
+import { validateLocalSession, nextSelectionAfterDelete, LOCAL } from "./navigate"
 import "./agent-manager.css"
 
 interface SetupState {
@@ -43,8 +43,8 @@ interface SetupState {
   error?: boolean
 }
 
-/** Sidebar selection: "local" for workspace, worktree ID for a worktree, or null for an unassigned session. */
-type SidebarSelection = "local" | string | null
+/** Sidebar selection: LOCAL for workspace, worktree ID for a worktree, or null for an unassigned session. */
+type SidebarSelection = typeof LOCAL | string | null
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent)
 const modKey = isMac ? "\u2318" : "Ctrl+"
@@ -57,7 +57,7 @@ const AgentManagerContent: Component = () => {
   const [setup, setSetup] = createSignal<SetupState>({ active: false, message: "" })
   const [worktrees, setWorktrees] = createSignal<WorktreeState[]>([])
   const [managedSessions, setManagedSessions] = createSignal<ManagedSessionState[]>([])
-  const [selection, setSelection] = createSignal<SidebarSelection>("local")
+  const [selection, setSelection] = createSignal<SidebarSelection>(LOCAL)
   const [repoBranch, setRepoBranch] = createSignal<string | undefined>()
 
   // Recover persisted local session IDs from webview state
@@ -134,7 +134,7 @@ const AgentManagerContent: Component = () => {
   // Sessions for the currently selected worktree (tab bar), sorted by creation date
   const activeWorktreeSessions = createMemo((): SessionInfo[] => {
     const sel = selection()
-    if (!sel || sel === "local") return []
+    if (!sel || sel === LOCAL) return []
     const managed = managedSessions().filter((ms) => ms.worktreeId === sel)
     const ids = new Set(managed.map((ms) => ms.id))
     return session
@@ -146,7 +146,7 @@ const AgentManagerContent: Component = () => {
   // Active tab sessions: local sessions when on "local", worktree sessions otherwise
   const activeTabs = createMemo((): SessionInfo[] => {
     const sel = selection()
-    if (sel === "local") return localSessions()
+    if (sel === LOCAL) return localSessions()
     if (sel) return activeWorktreeSessions()
     return []
   })
@@ -154,7 +154,7 @@ const AgentManagerContent: Component = () => {
   // Whether the selected context has zero sessions
   const contextEmpty = createMemo(() => {
     const sel = selection()
-    if (sel === "local") return localSessionIDs().length === 0
+    if (sel === LOCAL) return localSessionIDs().length === 0
     if (sel) return activeWorktreeSessions().length === 0
     return false
   })
@@ -176,8 +176,8 @@ const AgentManagerContent: Component = () => {
 
   // Navigate sidebar items with arrow keys
   const navigate = (direction: "up" | "down") => {
-    const flat: { type: "local" | "wt" | "session"; id: string }[] = [
-      { type: "local", id: "local" },
+    const flat: { type: typeof LOCAL | "wt" | "session"; id: string }[] = [
+      { type: LOCAL, id: LOCAL },
       ...worktrees().map((wt) => ({ type: "wt" as const, id: wt.id })),
       ...unassignedSessions().map((s) => ({ type: "session" as const, id: s.id })),
     ]
@@ -189,7 +189,7 @@ const AgentManagerContent: Component = () => {
     if (next < 0 || next >= flat.length) return
 
     const item = flat[next]!
-    if (item.type === "local") {
+    if (item.type === LOCAL) {
       selectLocal()
     } else if (item.type === "wt") {
       selectWorktree(item.id)
@@ -222,7 +222,7 @@ const AgentManagerContent: Component = () => {
   }
 
   const selectLocal = () => {
-    setSelection("local")
+    setSelection(LOCAL)
     vscode.postMessage({ type: "agentManager.requestRepoInfo" })
     const locals = localSessions()
     const first = locals[0]
@@ -289,7 +289,7 @@ const AgentManagerContent: Component = () => {
     // When a session is created while on local, replace the current pending tab with the real session.
     // Guard against duplicate sessionCreated events (HTTP response + SSE can both fire).
     const unsubCreate = vscode.onMessage((msg) => {
-      if (msg.type === "sessionCreated" && selection() === "local") {
+      if (msg.type === "sessionCreated" && selection() === LOCAL) {
         const created = msg as { type: string; session: { id: string } }
         if (localSessionIDs().includes(created.session.id)) return
         const pending = activePendingId()
@@ -369,14 +369,14 @@ const AgentManagerContent: Component = () => {
           wt.id,
           worktrees().map((w) => w.id),
         )
-        if (next === "local") selectLocal()
+        if (next === LOCAL) selectLocal()
         else selectWorktree(next)
       }
       dialog.close()
     }
     dialog.show(() => (
       <Dialog title="Delete Worktree" fit>
-        <div class="am-confirm">
+        <div data-slot="dialog-confirm">
           <div class="am-confirm-message">
             <Icon name="trash" size="small" />
             <span>
@@ -384,7 +384,7 @@ const AgentManagerContent: Component = () => {
               and dissociates all sessions.
             </span>
           </div>
-          <div class="am-confirm-actions">
+          <div data-slot="dialog-confirm-actions">
             <Button variant="ghost" size="large" onClick={() => dialog.close()}>
               Cancel
             </Button>
@@ -409,7 +409,7 @@ const AgentManagerContent: Component = () => {
 
   const handleAddSession = () => {
     const sel = selection()
-    if (sel === "local") {
+    if (sel === LOCAL) {
       addPendingTab()
     } else if (sel) {
       vscode.postMessage({ type: "agentManager.addSessionToWorktree", worktreeId: sel })
@@ -474,7 +474,7 @@ const AgentManagerContent: Component = () => {
   // Cmd+T: add a new tab strictly to the current selection (no side effects)
   const handleNewTabForCurrentSelection = () => {
     const sel = selection()
-    if (sel === "local") {
+    if (sel === LOCAL) {
       addPendingTab()
     } else if (sel) {
       // Pass the captured worktree ID directly to avoid race conditions
@@ -496,7 +496,7 @@ const AgentManagerContent: Component = () => {
   // Close the currently selected worktree with a confirmation dialog
   const closeSelectedWorktree = () => {
     const sel = selection()
-    if (!sel || sel === "local") return
+    if (!sel || sel === LOCAL) return
     confirmDeleteWorktree(sel)
   }
 
@@ -505,7 +505,7 @@ const AgentManagerContent: Component = () => {
       <div class="am-sidebar">
         {/* Local workspace item */}
         <button
-          class={`am-local-item ${selection() === "local" ? "am-local-item-active" : ""}`}
+          class={`am-local-item ${selection() === LOCAL ? "am-local-item-active" : ""}`}
           data-sidebar-id="local"
           onClick={() => selectLocal()}
         >

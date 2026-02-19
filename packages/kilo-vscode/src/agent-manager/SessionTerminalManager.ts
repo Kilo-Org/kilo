@@ -83,6 +83,8 @@ export class SessionTerminalManager {
 
   dispose(): void {
     vscode.commands.executeCommand("setContext", "kilo-code.agentTerminalFocus", false)
+    for (const entry of this.terminals.values()) entry.terminal.dispose()
+    this.terminals.clear()
     for (const d of this.disposables) d.dispose()
   }
 

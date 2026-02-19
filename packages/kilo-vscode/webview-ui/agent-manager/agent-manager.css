@@ -118,6 +118,7 @@
 /* Worktree item — larger card style */
 
 .am-worktree-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -151,7 +152,19 @@
 }
 
 .am-worktree-close {
+  position: absolute;
+  right: 4px;
   flex-shrink: 0;
+  opacity: 0;
+}
+
+.am-worktree-item:hover .am-worktree-branch {
+  mask-image: linear-gradient(to right, black calc(100% - 48px), transparent calc(100% - 16px));
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 48px), transparent calc(100% - 16px));
+}
+
+.am-worktree-item:hover .am-worktree-close {
+  opacity: 1;
 }
 
 /* Session list */
@@ -168,6 +181,7 @@
 /* Session items */
 
 .am-item {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -219,7 +233,13 @@
 /* Promote button on session rows */
 
 .am-item-promote {
+  position: absolute;
+  right: 4px;
   flex-shrink: 0;
+  opacity: 0;
+}
+
+.am-item:hover .am-item-time {
   opacity: 0;
 }
 

@@ -9,11 +9,11 @@
 .am-sidebar {
   width: 260px;
   min-width: 200px;
-  border-right: 1px solid var(--border-weak-base, var(--vscode-panel-border, #333));
+  border-right: 1px solid var(--border-weak-base);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  background: var(--surface-base, var(--vscode-sideBar-background, #181818));
+  background: var(--surface-base);
   padding: 8px;
   gap: 4px;
 }
@@ -25,32 +25,34 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   background: none;
   border: none;
   width: 100%;
   text-align: left;
-  color: var(--text-base, var(--vscode-foreground));
-  font-size: 13px;
-  font-family: inherit;
+  color: var(--text-base);
+  font-size: var(--font-size-base);
   flex-shrink: 0;
-  transition: background-color 0.15s ease;
 }
 
 .am-local-item:hover {
-  background: var(--surface-inset-base-hover, rgba(255, 255, 255, 0.05));
+  background: var(--surface-inset-base-hover);
+}
+
+.am-local-item:active {
+  opacity: 0.8;
 }
 
 .am-local-item-active {
-  background: var(--surface-base-active, rgba(255, 255, 255, 0.08));
+  background: var(--surface-base-active);
 }
 
 .am-local-icon {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
-  color: var(--text-weaker, var(--vscode-descriptionForeground, #666));
+  color: var(--text-weaker);
 }
 
 .am-local-text {
@@ -61,14 +63,14 @@
 }
 
 .am-local-label {
-  font-size: 13px;
+  font-size: var(--font-size-base);
   font-weight: 500;
   line-height: 1.4;
 }
 
 .am-local-branch {
-  font-size: 11px;
-  color: var(--text-weaker, var(--vscode-descriptionForeground, #777));
+  font-size: var(--font-size-small);
+  color: var(--text-weaker);
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -96,11 +98,11 @@
 }
 
 .am-section-label {
-  font-size: 11px;
+  font-size: var(--font-size-small);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-weak, var(--vscode-descriptionForeground, #888));
+  color: var(--text-weak);
 }
 
 /* Worktree list */
@@ -120,19 +122,23 @@
   align-items: center;
   gap: 8px;
   padding: 10px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 13px;
-  color: var(--text-base, var(--vscode-foreground));
+  font-size: var(--font-size-base);
+  color: var(--text-base);
 }
 
 .am-worktree-item:hover {
-  background: var(--surface-inset-base-hover, var(--vscode-list-hoverBackground, #2a2d2e));
+  background: var(--surface-inset-base-hover);
+}
+
+.am-worktree-item:active {
+  opacity: 0.8;
 }
 
 .am-worktree-item-active {
-  background: var(--surface-interactive-base, var(--vscode-list-activeSelectionBackground, #04395e));
-  color: var(--text-on-interactive-base, var(--vscode-list-activeSelectionForeground, #fff));
+  background: var(--surface-interactive-base);
+  color: var(--text-on-interactive-base);
 }
 
 .am-worktree-branch {
@@ -167,25 +173,27 @@
   justify-content: space-between;
   gap: 8px;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   background: none;
   border: none;
   width: 100%;
   text-align: left;
-  color: var(--text-base, var(--vscode-foreground));
-  font-size: 13px;
-  font-family: inherit;
-  transition: background-color 0.15s ease;
+  color: var(--text-base);
+  font-size: var(--font-size-base);
 }
 
 .am-item:hover {
-  background: var(--surface-inset-base-hover, rgba(255, 255, 255, 0.05));
+  background: var(--surface-inset-base-hover);
+}
+
+.am-item:active {
+  opacity: 0.8;
 }
 
 .am-item-active {
-  background: var(--surface-base-active, rgba(255, 255, 255, 0.08));
-  color: var(--text-base, var(--vscode-foreground));
+  background: var(--surface-base-active);
+  color: var(--text-base);
 }
 
 .am-item-title {
@@ -198,14 +206,14 @@
 }
 
 .am-item-time {
-  font-size: 11px;
+  font-size: var(--font-size-small);
   white-space: nowrap;
-  color: var(--text-weaker, var(--vscode-descriptionForeground, #888));
+  color: var(--text-weaker);
   flex-shrink: 0;
 }
 
 .am-item-active .am-item-time {
-  color: var(--text-weaker, var(--vscode-descriptionForeground, #888));
+  color: var(--text-weaker);
 }
 
 /* Promote button on session rows */
@@ -213,7 +221,6 @@
 .am-item-promote {
   flex-shrink: 0;
   opacity: 0;
-  transition: opacity 0.1s ease;
 }
 
 .am-item:hover .am-item-promote {
@@ -229,18 +236,21 @@
   gap: 6px;
   width: 100%;
   padding: 8px;
-  border: 1px dashed var(--border-weak-base, var(--vscode-panel-border, #444));
-  border-radius: 6px;
+  border: 1px dashed var(--border-weak-base);
+  border-radius: var(--radius-sm);
   background: none;
-  color: var(--text-weak, var(--vscode-descriptionForeground, #888));
+  color: var(--text-weak);
   font-size: 12px;
-  font-family: inherit;
   cursor: pointer;
 }
 
 .am-worktree-create:hover {
-  background: var(--surface-inset-base-hover, var(--vscode-list-hoverBackground, #2a2d2e));
-  color: var(--text-base, var(--vscode-foreground));
+  background: var(--surface-inset-base-hover);
+  color: var(--text-base);
+}
+
+.am-worktree-create:active {
+  opacity: 0.8;
 }
 
 /* Detail pane */
@@ -259,8 +269,8 @@
 .am-tab-bar {
   display: flex;
   align-items: center;
-  border-bottom: 1px solid var(--border-weak-base, var(--vscode-panel-border, #333));
-  background: var(--surface-base, var(--vscode-editorGroupHeader-tabsBackground, #1e1e1e));
+  border-bottom: 1px solid var(--border-weak-base);
+  background: var(--surface-base);
   height: 36px;
   padding: 0 4px;
   flex-shrink: 0;
@@ -280,9 +290,8 @@
   gap: 6px;
   padding: 0 12px;
   background: none;
-  color: var(--text-weak, var(--vscode-tab-inactiveForeground, #888));
+  color: var(--text-weak);
   font-size: 12px;
-  font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
   border: none;
@@ -292,12 +301,12 @@
 }
 
 .am-tab:hover {
-  color: var(--text-base, var(--vscode-tab-activeForeground, #fff));
+  color: var(--text-base);
 }
 
 .am-tab-active {
-  color: var(--text-base, var(--vscode-tab-activeForeground, #fff));
-  border-bottom-color: var(--surface-interactive-base, var(--vscode-focusBorder, #007acc));
+  color: var(--text-base);
+  border-bottom-color: var(--surface-interactive-base);
 }
 
 .am-tab-label {
@@ -308,21 +317,11 @@
 }
 
 .am-tab-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border: none;
-  background: none;
-  color: inherit;
-  font-size: 14px;
-  line-height: 1;
-  border-radius: 3px;
-  cursor: pointer;
-  opacity: 0;
   flex-shrink: 0;
-  transition: opacity 0.1s ease;
+}
+
+.am-tab .am-tab-close {
+  opacity: 0;
 }
 
 .am-tab:hover .am-tab-close {
@@ -335,7 +334,6 @@
 
 .am-tab-close:hover {
   opacity: 1;
-  background: var(--surface-inset-base-hover, rgba(255, 255, 255, 0.1));
 }
 
 .am-tab-add {
@@ -360,15 +358,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
-  background: var(--surface-inset-base, var(--vscode-input-background, #252526));
-  color: var(--text-weaker, var(--vscode-descriptionForeground, #555));
+  border-radius: var(--radius-xl);
+  background: var(--surface-inset-base);
+  color: var(--text-weaker);
 }
 
 .am-empty-state-text {
   font-size: 15px;
   font-weight: 500;
-  color: var(--text-weak, var(--vscode-descriptionForeground, #888));
+  color: var(--text-weak);
 }
 
 /* Read-only session wrapper + banner */
@@ -388,13 +386,13 @@
   gap: 12px;
   padding: 14px 16px;
   flex-shrink: 0;
-  border-top: 1px solid var(--border-weak-base, var(--vscode-panel-border, #333));
-  background: var(--surface-inset-base, var(--vscode-input-background, #252526));
+  border-top: 1px solid var(--border-weak-base);
+  background: var(--surface-inset-base);
 }
 
 .am-readonly-text {
-  font-size: 13px;
-  color: var(--text-weak, var(--vscode-descriptionForeground, #888));
+  font-size: var(--font-size-base);
+  color: var(--text-weak);
 }
 
 /* Setup overlay */
@@ -406,7 +404,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-base, var(--vscode-editor-background, #1e1e1e));
+  background: var(--surface-base);
   animation: am-fade-in 0.15s ease;
 }
 
@@ -429,20 +427,20 @@
 }
 
 .am-setup-card > [data-component="icon"] {
-  color: var(--text-weak, var(--vscode-descriptionForeground, #888));
+  color: var(--text-weak);
   opacity: 0.5;
 }
 
 .am-setup-title {
-  font-size: 16px;
+  font-size: var(--font-size-large);
   font-weight: 600;
-  color: var(--text-base, var(--vscode-foreground));
+  color: var(--text-base);
 }
 
 .am-setup-branch {
   font-size: 12px;
-  color: var(--text-weak, var(--vscode-descriptionForeground, #888));
-  font-family: var(--vscode-editor-font-family, monospace);
+  color: var(--text-weak);
+  font-family: var(--font-family-mono, monospace);
 }
 
 .am-setup-status {
@@ -450,10 +448,10 @@
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-radius: 6px;
-  background: var(--surface-inset-base, var(--vscode-input-background, #252526));
-  color: var(--text-base, var(--vscode-foreground));
-  font-size: 13px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset-base);
+  color: var(--text-base);
+  font-size: var(--font-size-base);
 }
 
 .am-setup-spinner {

@@ -515,13 +515,14 @@ const AgentManagerContent: Component = () => {
                         onMouseDown={(e: MouseEvent) => handleTabMouseDown(s.id, e)}
                       >
                         <span class="am-tab-label">{s.title || "Untitled"}</span>
-                        <button
+                        <IconButton
+                          icon="close-small"
+                          size="small"
+                          variant="ghost"
+                          label="Close tab"
                           class="am-tab-close"
                           onClick={(e: MouseEvent) => handleCloseTab(s.id, e)}
-                          aria-label="Close tab"
-                        >
-                          ×
-                        </button>
+                        />
                       </div>
                     </Tooltip>
                   )

@@ -65,30 +65,30 @@ The code-level taint analysis (SQL injection, XSS, etc.) has more overlap with t
 - **Cloud agents** - Runs as cloud agents, not locally in the extension
 - **Teams/Enterprise plan feature** - Gated to paid tiers
 - **Integration with existing tools** - Consume output from:
-    - Dependabot alerts (via GitHub API)
-    - `npm audit` / `yarn audit`
-    - Language-specific scanners (brakeman for Ruby, etc.)
-    - SBOM (Software Bill of Materials) data
+  - Dependabot alerts (via GitHub API)
+  - `npm audit` / `yarn audit`
+  - Language-specific scanners (brakeman for Ruby, etc.)
+  - SBOM (Software Bill of Materials) data
 - **PR-triggered analysis** - Run security analysis on pull requests
 - **Manual full-repo scans** - Support on-demand scanning of entire repositories
 - **Structured output** - Provide severity, CWE classification, reproduction steps, and suggested fixes
 - **Historical tracking** - Maintain database records of:
-    - Security issues found
-    - Security issues fixed
-    - Security issues ignored (with justification)
+  - Security issues found
+  - Security issues fixed
+  - Security issues ignored (with justification)
 
 ### Security Analysis Capabilities
 
 - **Dependency vulnerability analysis** - Contextualize dependency alerts against actual usage
 - **Code-level vulnerability detection** - Sink-to-source taint analysis for:
-    - SQL Injection
-    - Cross-Site Scripting (XSS)
-    - Command Injection
-    - Authentication/Authorization bypasses
+  - SQL Injection
+  - Cross-Site Scripting (XSS)
+  - Command Injection
+  - Authentication/Authorization bypasses
 - **Validation agent** - For each finding, determine:
-    - Is the issue relevant to this codebase?
-    - Is the issue exploitable? (argue for and against)
-    - Has the issue been fixed?
+  - Is the issue relevant to this codebase?
+  - Is the issue exploitable? (argue for and against)
+  - Has the issue been fixed?
 
 ### Non-requirements
 
@@ -148,18 +148,18 @@ Normalizes input from various security tools into a common format:
 
 ```typescript
 type SecurityFinding = {
-	source: "dependabot" | "npm-audit" | "sbom" | "code-analysis"
-	type: "dependency" | "code"
-	severity: "critical" | "high" | "medium" | "low"
-	cwe?: string
-	package?: string
-	version?: string
-	location?: {
-		file: string
-		line: number
-	}
-	description: string
-	rawData: unknown
+  source: "dependabot" | "npm-audit" | "sbom" | "code-analysis"
+  type: "dependency" | "code"
+  severity: "critical" | "high" | "medium" | "low"
+  cwe?: string
+  package?: string
+  version?: string
+  location?: {
+    file: string
+    line: number
+  }
+  description: string
+  rawData: unknown
 }
 ```
 
@@ -229,63 +229,59 @@ For high-confidence findings:
 
 ```typescript
 type SecurityIssue = {
-	id: string
-	repositoryId: string
-	status: "open" | "fixed" | "ignored" | "false-positive"
-	finding: SecurityFinding
-	analysis: {
-		isRelevant: boolean
-		relevanceReasoning: string
-		isExploitable: boolean | "unknown"
-		exploitabilityReasoning: string
-		suggestedFix?: string
-		proofOfConcept?: string
-	}
-	validation?: {
-		sandboxTested: boolean
-		exploitConfirmed: boolean
-		testOutput?: string
-	}
-	metadata: {
-		createdAt: Date
-		updatedAt: Date
-		prNumber?: number
-		ignoredReason?: string
-		fixedInCommit?: string
-		dependabotAlertId?: number // Link to GitHub Dependabot alert
-	}
+  id: string
+  repositoryId: string
+  status: "open" | "fixed" | "ignored" | "false-positive"
+  finding: SecurityFinding
+  analysis: {
+    isRelevant: boolean
+    relevanceReasoning: string
+    isExploitable: boolean | "unknown"
+    exploitabilityReasoning: string
+    suggestedFix?: string
+    proofOfConcept?: string
+  }
+  validation?: {
+    sandboxTested: boolean
+    exploitConfirmed: boolean
+    testOutput?: string
+  }
+  metadata: {
+    createdAt: Date
+    updatedAt: Date
+    prNumber?: number
+    ignoredReason?: string
+    fixedInCommit?: string
+    dependabotAlertId?: number // Link to GitHub Dependabot alert
+  }
 }
 ```
 
 ### Trigger Modes
 
 1. **PR Analysis** - Triggered on pull request creation/update
-
-    - Analyze changed files for new vulnerabilities
-    - Check if PR introduces new dependency vulnerabilities
-    - Comment findings directly on PR
+   - Analyze changed files for new vulnerabilities
+   - Check if PR introduces new dependency vulnerabilities
+   - Comment findings directly on PR
 
 2. **Scheduled Full Scan** - Periodic repository-wide analysis
-
-    - Complete dependency audit
-    - Full codebase taint analysis
-    - Update historical tracking
+   - Complete dependency audit
+   - Full codebase taint analysis
+   - Update historical tracking
 
 3. **Manual Trigger** - On-demand scanning
-
-    - User-initiated full or partial scans
-    - Re-analysis of specific findings
+   - User-initiated full or partial scans
+   - Re-analysis of specific findings
 
 4. **Dependabot Alert Trigger** - When new Dependabot alerts appear
-
-    - Automatically analyze new vulnerability alerts
-    - Provide contextualized risk assessment
+   - Automatically analyze new vulnerability alerts
+   - Provide contextualized risk assessment
 
 5. **Security Issue Trigger** - GitHub issues or email reports classified as security issues
-    - Triggered when issues are labeled with P0-P3 severity
-    - Automatically analyze reported security concerns
-    - Validate whether the reported issue is exploitable
-    - Provide contextualized assessment and suggested remediation
+   - Triggered when issues are labeled with P0-P3 severity
+   - Automatically analyze reported security concerns
+   - Validate whether the reported issue is exploitable
+   - Provide contextualized assessment and suggested remediation
 
 ## Scope/Implementation
 

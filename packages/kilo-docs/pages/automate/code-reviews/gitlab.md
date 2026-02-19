@@ -27,8 +27,8 @@ You can connect using **OAuth** or a **Personal Access Token (PAT)**. Choose the
 {% tab label="OAuth (GitLab.com)" %}
 
 1. Go to the **Integrations** page:
-    - **Personal**: [app.kilo.ai/integrations/gitlab](https://app.kilo.ai/integrations/gitlab)
-    - **Organization**: Your organization → Integrations → GitLab
+   - **Personal**: [app.kilo.ai/integrations/gitlab](https://app.kilo.ai/integrations/gitlab)
+   - **Organization**: Your organization → Integrations → GitLab
 2. Click **Connect GitLab**
 3. Authorize the application on GitLab
 4. You'll be redirected back to Kilo with the connection active
@@ -40,10 +40,10 @@ For self-hosted GitLab instances using OAuth, you need to register an OAuth appl
 
 1. In your GitLab instance, go to **Admin Area → Applications** (or **User Settings → Applications**)
 2. Create a new application:
-    - **Name**: `Kilo Code`
-    - **Redirect URI**: `https://app.kilo.ai/api/integrations/gitlab/callback`
-    - **Scopes**: `api`, `read_user`, `read_repository`, `write_repository`
-    - **Confidential**: Yes
+   - **Name**: `Kilo Code`
+   - **Redirect URI**: `https://app.kilo.ai/api/integrations/gitlab/callback`
+   - **Scopes**: `api`, `read_user`, `read_repository`, `write_repository`
+   - **Confidential**: Yes
 3. Copy the **Application ID** and **Secret**
 4. In Kilo, go to the GitLab integration page
 5. Enter your **Instance URL**, **Client ID**, and **Client Secret**
@@ -67,16 +67,16 @@ For self-hosted GitLab instances using OAuth, you need to register an OAuth appl
 ### Step 2: Configure the Review Agent
 
 1. Go to **Code Reviews**:
-    - **Personal**: [app.kilo.ai/code-reviews](https://app.kilo.ai/code-reviews)
-    - **Organization**: Your organization → Code Reviews
+   - **Personal**: [app.kilo.ai/code-reviews](https://app.kilo.ai/code-reviews)
+   - **Organization**: Your organization → Code Reviews
 2. Toggle **Enable AI Code Review** to on
 3. Configure your preferences:
-    - **AI Model** — Select from available models (default: Claude Sonnet 4.5)
-    - **Review Style** — Strict, Balanced, or Lenient
-    - **Repository Selection** — All repositories or select specific ones
-    - **Focus Areas** — Security, performance, bugs, style, testing, documentation
-    - **Max Review Time** — 5 to 30 minutes
-    - **Custom Instructions** — Add team-specific review guidelines
+   - **AI Model** — Select from available models (default: Claude Sonnet 4.5)
+   - **Review Style** — Strict, Balanced, or Lenient
+   - **Repository Selection** — All repositories or select specific ones
+   - **Focus Areas** — Security, performance, bugs, style, testing, documentation
+   - **Max Review Time** — 5 to 30 minutes
+   - **Custom Instructions** — Add team-specific review guidelines
 4. Click **Save Configuration**
 
 When you select repositories, Kilo **automatically creates webhooks** on each project.
@@ -101,9 +101,9 @@ When a review triggers:
 1. A 👀 reaction appears on the MR — this means Kilo is reviewing
 2. The AI model analyzes the diff and changed files
 3. The agent posts:
-    - A **summary note** on the MR with overall findings
-    - **Inline discussion comments** on specific lines with issues and suggestions
-    - Severity tags (critical, warning, info)
+   - A **summary note** on the MR with overall findings
+   - **Inline discussion comments** on specific lines with issues and suggestions
+   - Severity tags (critical, warning, info)
 
 ### When You Push New Commits
 

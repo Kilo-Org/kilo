@@ -61,18 +61,18 @@ git checkout -b docs/your-change-description
 ### Testing Your Changes
 
 - Run the test suite:
-    ```bash
-    npm test
-    ```
+  ```bash
+  npm test
+  ```
 - Manually test your changes in the development extension
 
 ### Creating a Pull Request
 
 1. Push your changes to your fork:
 
-    ```bash
-    git push origin your-branch-name
-    ```
+   ```bash
+   git push origin your-branch-name
+   ```
 
 2. Go to the [Kilo Code repository](https://github.com/Kilo-Org/kilocode)
 
@@ -81,10 +81,10 @@ git checkout -b docs/your-change-description
 4. Select your fork and branch
 
 5. Fill out the PR template with:
-    - A clear description of the changes
-    - Any related issues
-    - Testing steps
-    - Screenshots (if applicable)
+   - A clear description of the changes
+   - Any related issues
+   - Testing steps
+   - Screenshots (if applicable)
 
 ## Contributing to the Kilo Marketplace
 
@@ -111,19 +111,18 @@ For larger features, we write engineering specs to align on requirements before 
 Documentation improvements are highly valued contributions:
 
 1. Follow the documentation style guide:
-
-    - Use clear, concise language
-    - Include examples where appropriate
-    - Use absolute paths starting from `/docs/` for internal links (except within the same directory)
-    - Don't include `.md` extensions in links
+   - Use clear, concise language
+   - Include examples where appropriate
+   - Use absolute paths starting from `/docs/` for internal links (except within the same directory)
+   - Don't include `.md` extensions in links
 
 2. Test your documentation changes by running the docs site locally:
 
-    ```bash
-    cd apps/kilocode-docs
-    pnpm install
-    pnpm start
-    ```
+   ```bash
+   cd apps/kilocode-docs
+   pnpm install
+   pnpm start
+   ```
 
 3. Submit a PR with your documentation changes
 

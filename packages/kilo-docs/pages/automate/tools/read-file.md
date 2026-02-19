@@ -45,38 +45,36 @@ When the `read_file` tool is invoked, it follows this process:
 1. **Parameter Validation**: Validates the required `path` parameter and optional parameters
 2. **Path Resolution**: Resolves the relative path to an absolute path
 3. **Reading Strategy Selection**:
-    - The tool uses a strict priority hierarchy (explained in detail below)
-    - It chooses between range reading, auto-truncation, or full file reading
+   - The tool uses a strict priority hierarchy (explained in detail below)
+   - It chooses between range reading, auto-truncation, or full file reading
 4. **Content Processing**:
-    - Adds line numbers to the content (e.g., "1 | const x = 13") where `1 |` is the line number.
-    - For truncated files, adds truncation notice and method definitions
-    - For special formats (PDF, DOCX, IPYNB), extracts readable text
+   - Adds line numbers to the content (e.g., "1 | const x = 13") where `1 |` is the line number.
+   - For truncated files, adds truncation notice and method definitions
+   - For special formats (PDF, DOCX, IPYNB), extracts readable text
 
 ## Reading Strategy Priority
 
 The tool uses a clear decision hierarchy to determine how to read a file:
 
 1. **First Priority: Explicit Line Range**
-
-    - If either `start_line` or `end_line` is provided, the tool always performs a range read
-    - The implementation efficiently streams only the requested lines, making it suitable for processing large files
-    - This takes precedence over all other options
+   - If either `start_line` or `end_line` is provided, the tool always performs a range read
+   - The implementation efficiently streams only the requested lines, making it suitable for processing large files
+   - This takes precedence over all other options
 
 2. **Second Priority: Auto-Truncation for Large Files**
-
-    - This only applies when ALL of these conditions are met:
-        - Neither `start_line` nor `end_line` is specified
-        - The `auto_truncate` parameter is set to `true`
-        - The file is not a binary file
-        - The file exceeds the configured line threshold (typically 500-1000 lines)
-    - When auto-truncation activates, the tool:
-        - Reads only the first portion of the file (determined by the maxReadFileLine setting)
-        - Adds a truncation notice showing the number of lines displayed vs. total
-        - Provides a summary of method definitions with their line ranges
+   - This only applies when ALL of these conditions are met:
+     - Neither `start_line` nor `end_line` is specified
+     - The `auto_truncate` parameter is set to `true`
+     - The file is not a binary file
+     - The file exceeds the configured line threshold (typically 500-1000 lines)
+   - When auto-truncation activates, the tool:
+     - Reads only the first portion of the file (determined by the maxReadFileLine setting)
+     - Adds a truncation notice showing the number of lines displayed vs. total
+     - Provides a summary of method definitions with their line ranges
 
 3. **Default Behavior: Read Entire File**
-    - If neither of the above conditions are met, it reads the entire file content
-    - For special formats like PDF, DOCX, and IPYNB, it uses specialized extractors
+   - If neither of the above conditions are met, it reads the entire file content
+   - For special formats like PDF, DOCX, and IPYNB, it uses specialized extractors
 
 ## Examples When Used
 

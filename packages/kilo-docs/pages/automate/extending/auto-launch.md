@@ -33,9 +33,9 @@ This happens seamlessly in the background, requiring no manual intervention.
 
 ```json
 {
-	"prompt": "Your task description here",
-	"profile": "Profile Name (optional)",
-	"mode": "mode-name (optional)"
+  "prompt": "Your task description here",
+  "profile": "Profile Name (optional)",
+  "mode": "mode-name (optional)"
 }
 ```
 
@@ -48,12 +48,12 @@ This happens seamlessly in the background, requiring no manual intervention.
 - **`profile`** (string): Name of an existing [API Configuration Profile](/docs/ai-providers) to use for this task. Must exactly match a profile name from your settings.
 
 - **`mode`** (string): The Kilo Code mode to use for this task. Available modes:
-    - `"code"` - General-purpose coding tasks
-    - `"architect"` - Planning and technical design
-    - `"ask"` - Questions and explanations
-    - `"debug"` - Problem diagnosis and troubleshooting
-    - `"test"` - Testing-focused workflows
-    - Custom mode slugs (if you have [custom modes](/docs/customize/custom-modes))
+  - `"code"` - General-purpose coding tasks
+  - `"architect"` - Planning and technical design
+  - `"ask"` - Questions and explanations
+  - `"debug"` - Problem diagnosis and troubleshooting
+  - `"test"` - Testing-focused workflows
+  - Custom mode slugs (if you have [custom modes](/docs/customize/custom-modes))
 
 ## Example Configurations
 
@@ -61,7 +61,7 @@ This happens seamlessly in the background, requiring no manual intervention.
 
 ```json
 {
-	"prompt": "Review this codebase and suggest improvements for performance and maintainability"
+  "prompt": "Review this codebase and suggest improvements for performance and maintainability"
 }
 ```
 
@@ -69,8 +69,8 @@ This happens seamlessly in the background, requiring no manual intervention.
 
 ```json
 {
-	"prompt": "Create comprehensive unit tests for all components in the src/ directory",
-	"profile": "GPT-4 Turbo"
+  "prompt": "Create comprehensive unit tests for all components in the src/ directory",
+  "profile": "GPT-4 Turbo"
 }
 ```
 
@@ -78,9 +78,9 @@ This happens seamlessly in the background, requiring no manual intervention.
 
 ```json
 {
-	"prompt": "Design a scalable microservices architecture for this e-commerce platform with focus on security and performance",
-	"profile": "🎻 Sonnet 4",
-	"mode": "architect"
+  "prompt": "Design a scalable microservices architecture for this e-commerce platform with focus on security and performance",
+  "profile": "🎻 Sonnet 4",
+  "mode": "architect"
 }
 ```
 
@@ -88,9 +88,9 @@ This happens seamlessly in the background, requiring no manual intervention.
 
 ```json
 {
-	"prompt": "Optimize this algorithm for better time complexity and explain your approach",
-	"profile": "🧠 Qwen",
-	"mode": "code"
+  "prompt": "Optimize this algorithm for better time complexity and explain your approach",
+  "profile": "🧠 Qwen",
+  "mode": "code"
 }
 ```
 

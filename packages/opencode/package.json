@@ -114,6 +114,7 @@
     "opentui-spinner": "0.0.6",
     "partial-json": "0.1.7",
     "remeda": "catalog:",
+    "simple-git": "3.31.1",
     "solid-js": "catalog:",
     "strip-ansi": "7.1.2",
     "tree-sitter-bash": "0.25.0",

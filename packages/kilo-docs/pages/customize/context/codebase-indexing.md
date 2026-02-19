@@ -77,14 +77,14 @@ docker run -p 6333:6333 qdrant/qdrant
 ```yaml
 version: "3.8"
 services:
-    qdrant:
-        image: qdrant/qdrant
-        ports:
-            - "6333:6333"
-        volumes:
-            - qdrant_storage:/qdrant/storage
+  qdrant:
+    image: qdrant/qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
 volumes:
-    qdrant_storage:
+  qdrant_storage:
 ```
 
 ### Production Deployment
@@ -107,9 +107,9 @@ For team or production use:
 
 1. Enable **"Enable Codebase Indexing"** using the toggle switch
 2. Configure your embedding provider:
-    - **OpenAI**: Enter API key and select model
-    - **Gemini**: Enter Google AI API key and select embedding model
-    - **Ollama**: Enter base URL and select model
+   - **OpenAI**: Enter API key and select model
+   - **Gemini**: Enter Google AI API key and select embedding model
+   - **Ollama**: Enter base URL and select model
 3. Set Qdrant URL and optional API key
 4. Configure **Max Search Results** (default: 20, range: 1-100)
 5. Click **Save** to start initial indexing
@@ -142,9 +142,9 @@ The interface shows real-time status with color indicators:
 - **Markdown Support**: Full support for markdown files and documentation
 - **Fallback**: Line-based chunking for unsupported file types
 - **Block Sizing**:
-    - Minimum: 100 characters
-    - Maximum: 1,000 characters
-    - Splits large functions intelligently
+  - Minimum: 100 characters
+  - Maximum: 1,000 characters
+  - Splits large functions intelligently
 
 ### Automatic File Filtering
 

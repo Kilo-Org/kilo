@@ -140,9 +140,9 @@ mkdir -p .kilocode/rules-code
   name: TypeScript
   roleDefinition: You work on TypeScript files
   groups:
-      - read
-      - [edit, { fileRegex: '\\.tsx?$' }]
-      - ask
+    - read
+    - [edit, { fileRegex: '\\.tsx?$' }]
+    - ask
 ```
 
 Then place rules in `.kilocode/rules-typescript/`
@@ -237,9 +237,9 @@ If you had a rule in Windsurf with Glob mode set to `*.test.ts`, create a custom
   name: Testing
   roleDefinition: You write and maintain tests
   groups:
-      - read
-      - [edit, { fileRegex: '\\.(test|spec)\\.(ts|js)$' }]
-      - ask
+    - read
+    - [edit, { fileRegex: '\\.(test|spec)\\.(ts|js)$' }]
+    - ask
 ```
 
 Then place the rule in `.kilocode/rules-test/`
@@ -412,17 +412,17 @@ For complex workflows, define custom modes with their own rules and permissions:
   name: Code Review
   roleDefinition: You review code and suggest improvements
   groups:
-      - read
-      - ask
-      # Note: No edit permission - review mode is read-only
+    - read
+    - ask
+    # Note: No edit permission - review mode is read-only
 
 - slug: docs
   name: Documentation
   roleDefinition: You write and maintain documentation
   groups:
-      - read
-      - [edit, { fileRegex: '\\.md$', description: "Markdown files only" }]
-      - ask
+    - read
+    - [edit, { fileRegex: '\\.md$', description: "Markdown files only" }]
+    - ask
 ```
 
 Then create corresponding rule directories:

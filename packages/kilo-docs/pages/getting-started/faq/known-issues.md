@@ -61,9 +61,9 @@ This error occurs when Windows cannot find the PowerShell executable. Most commo
 3. Select **Environment Variables**
 4. Under **System variables** (or User variables), find **Path** and click **Edit**
 5. Click **New** and add:
-    ```
-    %SYSTEMROOT%\System32\WindowsPowerShell\v1.0\
-    ```
+   ```
+   %SYSTEMROOT%\System32\WindowsPowerShell\v1.0\
+   ```
 6. Click **OK** to save your changes
 7. Restart your computer
 

@@ -154,7 +154,7 @@ AGENTS.md support is **enabled by default** in Kilo Code. To disable it, edit `s
 
 ```json
 {
-	"kilocode.useAgentRules": false
+  "kilocode.useAgentRules": false
 }
 ```
 

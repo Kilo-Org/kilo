@@ -25,13 +25,13 @@ import { streamText } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
 
 const kilo = createOpenAI({
-	baseURL: "https://api.kilo.ai/api/gateway",
-	apiKey: process.env.KILO_API_KEY,
+  baseURL: "https://api.kilo.ai/api/gateway",
+  apiKey: process.env.KILO_API_KEY,
 })
 
 const result = streamText({
-	model: kilo("anthropic/claude-sonnet-4.5"),
-	prompt: "Why is the sky blue?",
+  model: kilo("anthropic/claude-sonnet-4.5"),
+  prompt: "Why is the sky blue?",
 })
 ```
 

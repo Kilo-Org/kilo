@@ -26,27 +26,26 @@ Before you begin, make sure you have the following installed:
 ### Installation
 
 1. **Fork and Clone the Repository**:
-
-    - **Fork the Repository**:
-        - Visit the [Kilo Code GitHub repository](https://github.com/Kilo-Org/kilocode)
-        - Click the "Fork" button in the top-right corner to create your own copy.
-    - **Clone Your Fork**:
-        ```bash
-        git clone https://github.com/[YOUR-USERNAME]/kilocode.git
-        cd kilocode
-        ```
-        Replace `[YOUR-USERNAME]` with your actual GitHub username.
+   - **Fork the Repository**:
+     - Visit the [Kilo Code GitHub repository](https://github.com/Kilo-Org/kilocode)
+     - Click the "Fork" button in the top-right corner to create your own copy.
+   - **Clone Your Fork**:
+     ```bash
+     git clone https://github.com/[YOUR-USERNAME]/kilocode.git
+     cd kilocode
+     ```
+     Replace `[YOUR-USERNAME]` with your actual GitHub username.
 
 1. **Install dependencies**:
 
-    ```bash
-    pnpm install
-    ```
+   ```bash
+   pnpm install
+   ```
 
-    This command will install dependencies for the main extension, webview UI, and e2e tests.
+   This command will install dependencies for the main extension, webview UI, and e2e tests.
 
 1. **Install VSCode Extensions**:
-    - **Required**: [ESBuild Problem Matchers](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) - Helps display build errors correctly.
+   - **Required**: [ESBuild Problem Matchers](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) - Helps display build errors correctly.
 
 While not strictly necessary for running the extension, these extensions are recommended for development:
 
@@ -60,8 +59,8 @@ The full list of recommended extensions is [here](https://github.com/Kilo-Org/ki
 The project is organized into several key directories:
 
 - **`src/`** - Core extension code
-    - **`core/`** - Core functionality and tools
-    - **`services/`** - Service implementations
+  - **`core/`** - Core functionality and tools
+  - **`services/`** - Service implementations
 - **`webview-ui/`** - Frontend UI code
 - **`e2e/`** - End-to-end tests
 - **`scripts/`** - Utility scripts
@@ -143,14 +142,14 @@ E2E tests verify the extension works correctly within VSCode:
 
 1. Create a `.env.local` file in the root with required API keys:
 
-    ```
-    OPENROUTER_API_KEY=sk-or-v1-...
-    ```
+   ```
+   OPENROUTER_API_KEY=sk-or-v1-...
+   ```
 
 2. Run the integration tests:
-    ```bash
-    npm run test:integration
-    ```
+   ```bash
+   npm run test:integration
+   ```
 
 For more details on E2E tests, see [e2e/VSCODE_INTEGRATION_TESTS.md](https://github.com/Kilo-Org/kilocode/blob/main/e2e/VSCODE_INTEGRATION_TESTS.md).
 

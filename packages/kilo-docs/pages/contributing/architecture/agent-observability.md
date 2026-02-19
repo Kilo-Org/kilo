@@ -98,8 +98,8 @@ Paging should **only occur on Recommended Models when using the Kilo Gateway**. 
 - Total turns/steps
 - Total tool calls by tool type
 - Total errors by error type
-    - Agent stuck errors (repetitive tool calls, etc)
-    - Tool call errors
+  - Agent stuck errors (repetitive tool calls, etc)
+  - Tool call errors
 - Total tokens consumed
 - Context condensing frequency
 - Termination reason (user closed, timeout, explicit completion, error)

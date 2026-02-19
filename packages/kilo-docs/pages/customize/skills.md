@@ -168,8 +168,8 @@ name: pdf-processing
 description: Extract text and tables from PDF files, fill forms, merge documents.
 license: Apache-2.0
 metadata:
-    author: example-org
-    version: 1.0.0
+  author: example-org
+  version: 1.0.0
 ---
 
 ## How to extract text
@@ -215,44 +215,44 @@ These additional files can be referenced from your skill's instructions, allowin
 
 1. Create the skill directory:
 
-    ```bash
-    mkdir -p ~/.kilocode/skills/api-design
-    ```
+   ```bash
+   mkdir -p ~/.kilocode/skills/api-design
+   ```
 
 2. Create `SKILL.md`:
 
-    ```markdown
-    ---
-    name: api-design
-    description: REST API design best practices and conventions
-    ---
+   ```markdown
+   ---
+   name: api-design
+   description: REST API design best practices and conventions
+   ---
 
-    # API Design Guidelines
+   # API Design Guidelines
 
-    When designing REST APIs, follow these conventions:
+   When designing REST APIs, follow these conventions:
 
-    ## URL Structure
+   ## URL Structure
 
-    - Use plural nouns for resources: `/users`, `/orders`
-    - Use kebab-case for multi-word resources: `/order-items`
-    - Nest related resources: `/users/{id}/orders`
+   - Use plural nouns for resources: `/users`, `/orders`
+   - Use kebab-case for multi-word resources: `/order-items`
+   - Nest related resources: `/users/{id}/orders`
 
-    ## HTTP Methods
+   ## HTTP Methods
 
-    - GET: Retrieve resources
-    - POST: Create new resources
-    - PUT: Replace entire resource
-    - PATCH: Partial update
-    - DELETE: Remove resource
+   - GET: Retrieve resources
+   - POST: Create new resources
+   - PUT: Replace entire resource
+   - PATCH: Partial update
+   - DELETE: Remove resource
 
-    ## Response Codes
+   ## Response Codes
 
-    - 200: Success
-    - 201: Created
-    - 400: Bad Request
-    - 404: Not Found
-    - 500: Server Error
-    ```
+   - 200: Success
+   - 201: Created
+   - 400: Bad Request
+   - 404: Not Found
+   - 500: Server Error
+   ```
 
 3. Reload VSCode to load the skill
 

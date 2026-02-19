@@ -141,14 +141,14 @@ Manage your Kilo Teams plan and seat allocation.
 
 - Enable/disable models and providers
 - Filter by model Data Policy:
-    - Allows Training
-    - Retains Prompts
-    - Can Publish
+  - Allows Training
+  - Retains Prompts
+  - Can Publish
 - Extensive other filters:
-    - Location
-    - Input/Output Modalities
-    - Context Length
-    - Pricing
+  - Location
+  - Input/Output Modalities
+  - Context Length
+  - Pricing
 
 ## Single Sign-On (SSO) (Enterprise Only)
 

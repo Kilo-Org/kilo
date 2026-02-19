@@ -22,11 +22,11 @@ Four ways to switch modes:
 
 1. **Dropdown menu:** Click the selector to the left of the chat input
 
-    {% image src="/docs/img/modes/modes.png" alt="Using the dropdown menu to switch modes" width="400" /%}
+   {% image src="/docs/img/modes/modes.png" alt="Using the dropdown menu to switch modes" width="400" /%}
 
 2. **Slash command:** Type `/architect`, `/ask`, `/debug`, or `/code` in the chat input to switch modes. Type `/newtask` to create a new task, or `/smol` to condense your context window.
 
-    {% image src="/docs/img/modes/modes-1.png" alt="Using slash commands to switch modes" width="400" /%}
+   {% image src="/docs/img/modes/modes-1.png" alt="Using slash commands to switch modes" width="400" /%}
 
 ### Understanding /newtask vs /smol
 
@@ -39,15 +39,15 @@ Users often confuse `/newtask` and `/smol`. Here's the key difference:
 
 3. **Toggle command/Keyboard shortcut:** Use the keyboard shortcut below, applicable to your operating system. Each press cycles through the available modes in sequence, wrapping back to the first mode after reaching the end.
 
-    | Operating System | Shortcut |
-    | ---------------- | -------- |
-    | macOS            | ⌘ + .    |
-    | Windows          | Ctrl + . |
-    | Linux            | Ctrl + . |
+   | Operating System | Shortcut |
+   | ---------------- | -------- |
+   | macOS            | ⌘ + .    |
+   | Windows          | Ctrl + . |
+   | Linux            | Ctrl + . |
 
 4. **Accept suggestions:** Click on mode switch suggestions that Kilo Code offers when appropriate
 
-    {% image src="/docs/img/modes/modes-2.png" alt="Accepting a mode switch suggestion from Kilo Code" width="400" /%}
+   {% image src="/docs/img/modes/modes-2.png" alt="Accepting a mode switch suggestion from Kilo Code" width="400" /%}
 
 ## Built-in Modes
 

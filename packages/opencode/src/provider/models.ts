@@ -78,6 +78,8 @@ export namespace ModelsDev {
         output: z.array(z.enum(["text", "audio", "image", "video", "pdf"])),
       })
       .optional(),
+    recommended: z.boolean().optional(), // kilocode_change
+    recommendedIndex: z.number().optional(), // kilocode_change
     experimental: z.boolean().optional(),
     status: z.enum(["alpha", "beta", "deprecated"]).optional(),
     options: z.record(z.string(), z.any()),

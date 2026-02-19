@@ -46,8 +46,8 @@ We will piggy-back off of the existing organization.settings jsonb field for adm
 
 ```ts
 const OrganizationSettings_MCPControls = z.object({
-	mcp_controls_enabled: z.boolean().optional(),
-	mcp_controls_allowed_marketplace_servers: z.string().optional(),
+  mcp_controls_enabled: z.boolean().optional(),
+  mcp_controls_allowed_marketplace_servers: z.string().optional(),
 })
 ```
 
@@ -67,8 +67,8 @@ The config payload definition should look something like:
 
 ```ts
 const OrganizationMemberMCPConfig = z
-	.object({ mcp_id: z.string(), parameters: z.record(z.string(), z.string()) })
-	.array()
+  .object({ mcp_id: z.string(), parameters: z.record(z.string(), z.string()) })
+  .array()
 ```
 
 ### Dashboard App
@@ -94,18 +94,18 @@ When organizations.settings.mcp_controls_enabled is true, the MCP marketplace vi
 Rough plan. These action items will become tickets after spec is approved:
 
 - Backend
-    - Schema changes for new organization_member_mcp_configs table
-    - Implement org settings endpoint changes to allow for mcp-control features (enabled, allow list)
-    - Implement TRPC routes for org members to update approved mcp installation settings
-    - Implement mcp-control UI for administrators
-    - Implement mcp server installation UI for end users
+  - Schema changes for new organization_member_mcp_configs table
+  - Implement org settings endpoint changes to allow for mcp-control features (enabled, allow list)
+  - Implement TRPC routes for org members to update approved mcp installation settings
+  - Implement mcp-control UI for administrators
+  - Implement mcp server installation UI for end users
 - Extension
-    - When organizations.settings.mcp_controls_enabled is true, the MCP marketplace view should be replaced with a link to configure MCP on the Kilo Code dashboard
+  - When organizations.settings.mcp_controls_enabled is true, the MCP marketplace view should be replaced with a link to configure MCP on the Kilo Code dashboard
 
 ## Features for the future
 
 - Org-provided custom MCP server configurations (i.e. non-marketplace MCPs)
 - Project-level MCP configurations
 - Tool call audits - who is running what tool and why?
-    - Split out by user, project, MCP server (if applicable)
-    - Why? If you're really concerned about locking down MCP servers then the only way to know if our product is truly doing what it's saying it is is to provide admins with tool call audit logs
+  - Split out by user, project, MCP server (if applicable)
+  - Why? If you're really concerned about locking down MCP servers then the only way to know if our product is truly doing what it's saying it is is to provide admins with tool call audit logs

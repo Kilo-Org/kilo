@@ -48,9 +48,9 @@ Codebase Indexing is rolling out across our users. It will automatically engage 
 
 ```json
 {
-	"project": {
-		"managedIndexingEnabled": false
-	}
+  "project": {
+    "managedIndexingEnabled": false
+  }
 }
 ```
 

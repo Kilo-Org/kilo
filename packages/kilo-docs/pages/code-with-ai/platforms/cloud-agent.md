@@ -24,7 +24,7 @@ Before using Cloud Agents:
 ## Cost
 
 - **Compute is free during limited beta**
-    - Please provide any feedback in our Cloud Agents beta Discord channel: [Kilo Discord](https://kilo.ai/discord)
+  - Please provide any feedback in our Cloud Agents beta Discord channel: [Kilo Discord](https://kilo.ai/discord)
 - **Kilo Code credits are still used** when the agent performs work (model usage, operations, etc.).
 
 ## How to Use
@@ -42,22 +42,20 @@ Your work is always pushed to GitHub, ensuring nothing is lost.
 - Python is not included in the base image, but `apt` is available so you can install it or other packages as needed.
 - All Cloud Agent chats share a **single container instance**, while each session gets its own workspace directory.
 - When a session begins:
-
-    1. Your repo is cloned
-    2. A unique branch is created
-    3. Your startup commands run
-    4. Env vars are injected
+  1. Your repo is cloned
+  2. A unique branch is created
+  3. Your startup commands run
+  4. Env vars are injected
 
 - After every message, the agent:
-
-    - Looks for file changes
-    - Commits them
-    - Pushes to the session’s branch
+  - Looks for file changes
+  - Commits them
+  - Pushes to the session’s branch
 
 - Containers are **ephemeral**:
-    - Spindown occurs after inactivity
-    - Expect slightly longer setup after idle periods
-    - Inactive cloud agent sessions are deleted after **7 days** during the beta, expired sessions are still accessible via the CLI
+  - Spindown occurs after inactivity
+  - Expect slightly longer setup after idle periods
+  - Inactive cloud agent sessions are deleted after **7 days** during the beta, expired sessions are still accessible via the CLI
 
 ## Agent Environment Profiles
 
@@ -83,9 +81,9 @@ You can customize each Cloud Agent session by also defining env vars and startup
 
 - Commands run immediately after cloning the repo and checking out the session branch
 - Great for:
-    - Installing dependencies
-    - Bootstrapping tooling
-    - Running setup scripts
+  - Installing dependencies
+  - Bootstrapping tooling
+  - Running setup scripts
 
 ## Skills
 

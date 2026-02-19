@@ -29,18 +29,15 @@ Before configuring this provider, you must have at least one other API provider 
 <!-- <img src="/docs/img/providers/virtualQuotaSelectDropdown.png" alt="virtuaQuotaFallback dropdown selection in Kilo Code settings" width="600" /> -->
 
 3.  **Add a Provider Profile:**
-
     - In the configuration panel, click the **"Add Profile"** button to create a new entry in the list.
     - Click the dropdown menu on the new entry to select one of your other pre-configured provider profiles (e.g., "OpenAI", "Chutes AI Free Tier").
 
 4.  **Set Usage Limits (Optional):**
-
     - Once a profile is added, you can specify usage limits. If you leave these fields blank, no limit will be enforced for that specific metric.
     - **Tokens per minute/hour/day:** Limits usage based on the total number of tokens processed (input + output).
     - **Requests per minute/hour/day:** Limits the total number of API calls made.
 
 5.  **Order Your Providers:**
-
     - The order of the profiles is crucial, as it defines the fallback priority. The provider at the top is used first.
     - Use the **up and down arrows** next to each profile to change its position in the list.
 

@@ -107,36 +107,36 @@ A new service responsible for managing OAuth flows for MCP servers:
 // src/services/mcp/oauth/McpOAuthService.ts
 
 interface McpOAuthService {
-	/**
-	 * Initiates OAuth flow for an MCP server that returned 401
-	 * @param serverUrl The MCP server URL
-	 * @param wwwAuthenticateHeader The WWW-Authenticate header from 401 response
-	 * @returns Promise resolving to access token
-	 */
-	initiateOAuthFlow(serverUrl: string, wwwAuthenticateHeader: string): Promise<OAuthTokens>
+  /**
+   * Initiates OAuth flow for an MCP server that returned 401
+   * @param serverUrl The MCP server URL
+   * @param wwwAuthenticateHeader The WWW-Authenticate header from 401 response
+   * @returns Promise resolving to access token
+   */
+  initiateOAuthFlow(serverUrl: string, wwwAuthenticateHeader: string): Promise<OAuthTokens>
 
-	/**
-	 * Gets stored tokens for a server, if available and valid
-	 */
-	getStoredTokens(serverUrl: string): Promise<OAuthTokens | null>
+  /**
+   * Gets stored tokens for a server, if available and valid
+   */
+  getStoredTokens(serverUrl: string): Promise<OAuthTokens | null>
 
-	/**
-	 * Clears stored tokens for a server (for logout/re-auth)
-	 */
-	clearTokens(serverUrl: string): Promise<void>
+  /**
+   * Clears stored tokens for a server (for logout/re-auth)
+   */
+  clearTokens(serverUrl: string): Promise<void>
 
-	/**
-	 * Refreshes tokens if refresh token is available
-	 */
-	refreshTokens(serverUrl: string): Promise<OAuthTokens | null>
+  /**
+   * Refreshes tokens if refresh token is available
+   */
+  refreshTokens(serverUrl: string): Promise<OAuthTokens | null>
 }
 
 interface OAuthTokens {
-	accessToken: string
-	tokenType: string
-	expiresAt?: number
-	refreshToken?: string
-	scope?: string
+  accessToken: string
+  tokenType: string
+  expiresAt?: number
+  refreshToken?: string
+  scope?: string
 }
 ```
 
@@ -148,39 +148,39 @@ Handles the discovery of authorization server metadata:
 // src/services/mcp/oauth/McpAuthorizationDiscovery.ts
 
 interface McpAuthorizationDiscovery {
-	/**
-	 * Discovers authorization server from WWW-Authenticate header or well-known URIs
-	 */
-	discoverAuthorizationServer(serverUrl: string, wwwAuthenticateHeader?: string): Promise<AuthorizationServerMetadata>
+  /**
+   * Discovers authorization server from WWW-Authenticate header or well-known URIs
+   */
+  discoverAuthorizationServer(serverUrl: string, wwwAuthenticateHeader?: string): Promise<AuthorizationServerMetadata>
 
-	/**
-	 * Fetches Protected Resource Metadata (RFC 9728)
-	 */
-	fetchResourceMetadata(metadataUrl: string): Promise<ProtectedResourceMetadata>
+  /**
+   * Fetches Protected Resource Metadata (RFC 9728)
+   */
+  fetchResourceMetadata(metadataUrl: string): Promise<ProtectedResourceMetadata>
 
-	/**
-	 * Fetches Authorization Server Metadata (RFC 8414 / OIDC Discovery)
-	 */
-	fetchAuthServerMetadata(issuerUrl: string): Promise<AuthorizationServerMetadata>
+  /**
+   * Fetches Authorization Server Metadata (RFC 8414 / OIDC Discovery)
+   */
+  fetchAuthServerMetadata(issuerUrl: string): Promise<AuthorizationServerMetadata>
 }
 
 interface ProtectedResourceMetadata {
-	resource: string
-	authorization_servers: string[]
-	scopes_supported?: string[]
-	// ... other RFC 9728 fields
+  resource: string
+  authorization_servers: string[]
+  scopes_supported?: string[]
+  // ... other RFC 9728 fields
 }
 
 interface AuthorizationServerMetadata {
-	issuer: string
-	authorization_endpoint: string
-	token_endpoint: string
-	scopes_supported?: string[]
-	response_types_supported: string[]
-	code_challenge_methods_supported?: string[]
-	client_id_metadata_document_supported?: boolean
-	registration_endpoint?: string
-	// ... other RFC 8414 fields
+  issuer: string
+  authorization_endpoint: string
+  token_endpoint: string
+  scopes_supported?: string[]
+  response_types_supported: string[]
+  code_challenge_methods_supported?: string[]
+  client_id_metadata_document_supported?: boolean
+  registration_endpoint?: string
+  // ... other RFC 8414 fields
 }
 ```
 
@@ -192,25 +192,25 @@ Secure storage for OAuth tokens:
 // src/services/mcp/oauth/McpOAuthTokenStorage.ts
 
 interface McpOAuthTokenStorage {
-	/**
-	 * Stores tokens securely using VS Code SecretStorage
-	 */
-	storeTokens(serverUrl: string, tokens: OAuthTokens): Promise<void>
+  /**
+   * Stores tokens securely using VS Code SecretStorage
+   */
+  storeTokens(serverUrl: string, tokens: OAuthTokens): Promise<void>
 
-	/**
-	 * Retrieves stored tokens
-	 */
-	getTokens(serverUrl: string): Promise<OAuthTokens | null>
+  /**
+   * Retrieves stored tokens
+   */
+  getTokens(serverUrl: string): Promise<OAuthTokens | null>
 
-	/**
-	 * Removes stored tokens
-	 */
-	removeTokens(serverUrl: string): Promise<void>
+  /**
+   * Removes stored tokens
+   */
+  removeTokens(serverUrl: string): Promise<void>
 
-	/**
-	 * Lists all servers with stored tokens
-	 */
-	listServers(): Promise<string[]>
+  /**
+   * Lists all servers with stored tokens
+   */
+  listServers(): Promise<string[]>
 }
 ```
 
@@ -227,14 +227,14 @@ Metadata document:
 
 ```json
 {
-	"client_id": "https://kilocode.ai/.well-known/oauth-client/vscode-extension.json",
-	"client_name": "Kilo Code",
-	"client_uri": "https://kilocode.ai",
-	"logo_uri": "https://kilocode.ai/logo.png",
-	"redirect_uris": ["http://127.0.0.1:0/callback", "vscode://kilocode.kilo-code/oauth/callback"],
-	"grant_types": ["authorization_code"],
-	"response_types": ["code"],
-	"token_endpoint_auth_method": "none"
+  "client_id": "https://kilocode.ai/.well-known/oauth-client/vscode-extension.json",
+  "client_name": "Kilo Code",
+  "client_uri": "https://kilocode.ai",
+  "logo_uri": "https://kilocode.ai/logo.png",
+  "redirect_uris": ["http://127.0.0.1:0/callback", "vscode://kilocode.kilo-code/oauth/callback"],
+  "grant_types": ["authorization_code"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none"
 }
 ```
 
@@ -246,32 +246,32 @@ The existing `McpHub` class needs modifications to support OAuth:
 // Modifications to McpHub.ts
 
 class McpHub {
-	private oauthService: McpOAuthService
+  private oauthService: McpOAuthService
 
-	private async connectToServer(name: string, config: ServerConfig, source: "global" | "project"): Promise<void> {
-		// ... existing connection logic ...
+  private async connectToServer(name: string, config: ServerConfig, source: "global" | "project"): Promise<void> {
+    // ... existing connection logic ...
 
-		// For HTTP-based transports, handle OAuth
-		if (config.type === "sse" || config.type === "streamable-http") {
-			try {
-				await this.connectWithOAuth(name, config, source)
-			} catch (error) {
-				if (this.isOAuthRequired(error)) {
-					// Initiate OAuth flow
-					const tokens = await this.oauthService.initiateOAuthFlow(config.url, error.wwwAuthenticateHeader)
-					// Retry connection with token
-					await this.connectWithToken(name, config, source, tokens)
-				} else {
-					throw error
-				}
-			}
-		}
-	}
+    // For HTTP-based transports, handle OAuth
+    if (config.type === "sse" || config.type === "streamable-http") {
+      try {
+        await this.connectWithOAuth(name, config, source)
+      } catch (error) {
+        if (this.isOAuthRequired(error)) {
+          // Initiate OAuth flow
+          const tokens = await this.oauthService.initiateOAuthFlow(config.url, error.wwwAuthenticateHeader)
+          // Retry connection with token
+          await this.connectWithToken(name, config, source, tokens)
+        } else {
+          throw error
+        }
+      }
+    }
+  }
 
-	private isOAuthRequired(error: unknown): boolean {
-		// Check if error is 401 with WWW-Authenticate header
-		return error instanceof HttpError && error.status === 401 && error.headers?.["www-authenticate"]
-	}
+  private isOAuthRequired(error: unknown): boolean {
+    // Check if error is 401 with WWW-Authenticate header
+    return error instanceof HttpError && error.status === 401 && error.headers?.["www-authenticate"]
+  }
 }
 ```
 
@@ -282,24 +282,24 @@ Update the server configuration schema to support OAuth:
 ```typescript
 // Extended server config for OAuth-enabled servers
 const OAuthServerConfigSchema = BaseConfigSchema.extend({
-	type: z.enum(["sse", "streamable-http"]),
-	url: z.string().url(),
-	headers: z.record(z.string()).optional(),
+  type: z.enum(["sse", "streamable-http"]),
+  url: z.string().url(),
+  headers: z.record(z.string()).optional(),
 
-	// OAuth configuration
-	oauth: z
-		.object({
-			// Override client_id if pre-registered
-			clientId: z.string().optional(),
-			clientSecret: z.string().optional(),
+  // OAuth configuration
+  oauth: z
+    .object({
+      // Override client_id if pre-registered
+      clientId: z.string().optional(),
+      clientSecret: z.string().optional(),
 
-			// Override scopes to request
-			scopes: z.array(z.string()).optional(),
+      // Override scopes to request
+      scopes: z.array(z.string()).optional(),
 
-			// Disable OAuth for this server (use static headers instead)
-			disabled: z.boolean().optional(),
-		})
-		.optional(),
+      // Disable OAuth for this server (use static headers instead)
+      disabled: z.boolean().optional(),
+    })
+    .optional(),
 })
 ```
 
@@ -311,26 +311,26 @@ The OAuth flow requires opening a browser for user authentication:
 // src/services/mcp/oauth/McpOAuthBrowserFlow.ts
 
 interface McpOAuthBrowserFlow {
-	/**
-	 * Opens browser for authorization and waits for callback
-	 */
-	authorize(params: AuthorizationParams): Promise<AuthorizationResult>
+  /**
+   * Opens browser for authorization and waits for callback
+   */
+  authorize(params: AuthorizationParams): Promise<AuthorizationResult>
 }
 
 interface AuthorizationParams {
-	authorizationEndpoint: string
-	clientId: string
-	redirectUri: string
-	scope: string
-	state: string
-	codeChallenge: string
-	codeChallengeMethod: "S256"
-	resource: string
+  authorizationEndpoint: string
+  clientId: string
+  redirectUri: string
+  scope: string
+  state: string
+  codeChallenge: string
+  codeChallengeMethod: "S256"
+  resource: string
 }
 
 interface AuthorizationResult {
-	code: string
-	state: string
+  code: string
+  state: string
 }
 ```
 
@@ -339,15 +339,14 @@ interface AuthorizationResult {
 Two approaches for receiving the OAuth callback:
 
 1. **Local HTTP Server** (Primary)
-
-    - Start temporary HTTP server on random port
-    - Use `http://127.0.0.1:{port}/callback` as redirect URI
-    - Server receives callback, extracts code, closes
+   - Start temporary HTTP server on random port
+   - Use `http://127.0.0.1:{port}/callback` as redirect URI
+   - Server receives callback, extracts code, closes
 
 2. **VS Code URI Handler** (Fallback)
-    - Register `vscode://kilocode.kilo-code/oauth/callback` URI handler
-    - Works when local server isn't possible
-    - Requires VS Code to be running
+   - Register `vscode://kilocode.kilo-code/oauth/callback` URI handler
+   - Works when local server isn't possible
+   - Requires VS Code to be running
 
 ### Token Management
 
@@ -361,58 +360,56 @@ const storageKey = `mcp-oauth-${hashServerUrl(serverUrl)}`
 
 // Stored value (encrypted by VS Code)
 interface StoredTokenData {
-	accessToken: string
-	refreshToken?: string
-	expiresAt?: number
-	scope?: string
-	serverUrl: string
-	issuedAt: number
+  accessToken: string
+  refreshToken?: string
+  expiresAt?: number
+  scope?: string
+  serverUrl: string
+  issuedAt: number
 }
 ```
 
 #### Token Lifecycle
 
 1. **Initial Authentication**
-
-    - User triggers connection to OAuth-enabled MCP server
-    - Server returns 401, OAuth flow initiated
-    - User authenticates in browser
-    - Tokens stored securely
+   - User triggers connection to OAuth-enabled MCP server
+   - Server returns 401, OAuth flow initiated
+   - User authenticates in browser
+   - Tokens stored securely
 
 2. **Subsequent Connections**
-
-    - Check for stored tokens
-    - If valid, use directly
-    - If expired and refresh token available, attempt refresh
-    - If refresh fails or no refresh token, re-authenticate
+   - Check for stored tokens
+   - If valid, use directly
+   - If expired and refresh token available, attempt refresh
+   - If refresh fails or no refresh token, re-authenticate
 
 3. **Token Refresh** (Future Enhancement)
-    - Background refresh before expiry
-    - Automatic retry on 401 with new token
+   - Background refresh before expiry
+   - Automatic retry on 401 with new token
 
 ### Error Handling
 
 ```typescript
 // OAuth-specific errors
 class McpOAuthError extends Error {
-	constructor(
-		message: string,
-		public code: OAuthErrorCode,
-		public serverUrl: string,
-		public details?: Record<string, unknown>,
-	) {
-		super(message)
-	}
+  constructor(
+    message: string,
+    public code: OAuthErrorCode,
+    public serverUrl: string,
+    public details?: Record<string, unknown>,
+  ) {
+    super(message)
+  }
 }
 
 enum OAuthErrorCode {
-	DISCOVERY_FAILED = "discovery_failed",
-	AUTHORIZATION_FAILED = "authorization_failed",
-	TOKEN_EXCHANGE_FAILED = "token_exchange_failed",
-	TOKEN_REFRESH_FAILED = "token_refresh_failed",
-	PKCE_NOT_SUPPORTED = "pkce_not_supported",
-	USER_CANCELLED = "user_cancelled",
-	TIMEOUT = "timeout",
+  DISCOVERY_FAILED = "discovery_failed",
+  AUTHORIZATION_FAILED = "authorization_failed",
+  TOKEN_EXCHANGE_FAILED = "token_exchange_failed",
+  TOKEN_REFRESH_FAILED = "token_refresh_failed",
+  PKCE_NOT_SUPPORTED = "pkce_not_supported",
+  USER_CANCELLED = "user_cancelled",
+  TIMEOUT = "timeout",
 }
 ```
 
@@ -462,13 +459,13 @@ All OAuth flows MUST use PKCE with S256 challenge method:
 
 ```typescript
 function generatePKCE(): { verifier: string; challenge: string } {
-	// Generate 32-byte random verifier
-	const verifier = base64UrlEncode(crypto.randomBytes(32))
+  // Generate 32-byte random verifier
+  const verifier = base64UrlEncode(crypto.randomBytes(32))
 
-	// Create S256 challenge
-	const challenge = base64UrlEncode(crypto.createHash("sha256").update(verifier).digest())
+  // Create S256 challenge
+  const challenge = base64UrlEncode(crypto.createHash("sha256").update(verifier).digest())
 
-	return { verifier, challenge }
+  return { verifier, challenge }
 }
 ```
 

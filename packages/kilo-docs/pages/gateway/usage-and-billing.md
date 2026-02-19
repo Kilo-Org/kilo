@@ -40,13 +40,13 @@ When your balance reaches zero, requests to paid models will return HTTP 402 wit
 
 ```json
 {
-	"error": {
-		"message": "Insufficient balance. Please add credits to continue.",
-		"code": 402,
-		"metadata": {
-			"buyCreditsUrl": "https://app.kilo.ai/credits"
-		}
-	}
+  "error": {
+    "message": "Insufficient balance. Please add credits to continue.",
+    "code": 402,
+    "metadata": {
+      "buyCreditsUrl": "https://app.kilo.ai/credits"
+    }
+  }
 }
 ```
 
@@ -102,10 +102,10 @@ When rate-limited, you receive HTTP 429:
 
 ```json
 {
-	"error": {
-		"message": "Rate limit exceeded for free models. Please try again later.",
-		"code": 429
-	}
+  "error": {
+    "message": "Rate limit exceeded for free models. Please try again later.",
+    "code": 429
+  }
 }
 ```
 

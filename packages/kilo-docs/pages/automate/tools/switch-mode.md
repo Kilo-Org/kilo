@@ -46,28 +46,25 @@ This tool requests a mode change when the current task would be better handled b
 When the `switch_mode` tool is invoked, it follows this process:
 
 1. **Request Validation**:
-
-    - Validates that the requested mode exists in the system
-    - Checks that the `mode_slug` parameter is provided and valid
-    - Verifies the user isn't already in the requested mode
-    - Ensures the `reason` parameter (if provided) is properly formatted
+   - Validates that the requested mode exists in the system
+   - Checks that the `mode_slug` parameter is provided and valid
+   - Verifies the user isn't already in the requested mode
+   - Ensures the `reason` parameter (if provided) is properly formatted
 
 2. **Mode Transition Preparation**:
-
-    - Packages the mode change request with the provided reason
-    - Presents the change request to the user for approval
+   - Packages the mode change request with the provided reason
+   - Presents the change request to the user for approval
 
 3. **Mode Activation (Upon User Approval)**:
-
-    - Updates the UI to reflect the new mode
-    - Adjusts available tools based on the mode's tool group configuration
-    - Applies the mode-specific prompt and behavior
-    - Applies a 500ms delay to allow the change to take effect before executing next tool
-    - Enforces any file restrictions specific to the mode
+   - Updates the UI to reflect the new mode
+   - Adjusts available tools based on the mode's tool group configuration
+   - Applies the mode-specific prompt and behavior
+   - Applies a 500ms delay to allow the change to take effect before executing next tool
+   - Enforces any file restrictions specific to the mode
 
 4. **Continuation**:
-    - Proceeds with the task using the capabilities of the new mode
-    - Retains relevant context from the previous interaction
+   - Proceeds with the task using the capabilities of the new mode
+   - Retains relevant context from the previous interaction
 
 ## Tool Group Association
 

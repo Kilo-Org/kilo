@@ -32,8 +32,8 @@ Before enabling Code Reviews:
 ## Cost
 
 - **Compute and review time are free during limited beta**
-    - Feedback is welcome in the Code Reviews beta Discord channel:
-        - [Kilo Discord](https://discord.gg/hZnd57qN)
+  - Feedback is welcome in the Code Reviews beta Discord channel:
+    - [Kilo Discord](https://discord.gg/hZnd57qN)
 - **Kilo Code credits are still used** when the agent performs model reasoning during a review.
 
 ## Getting Started
@@ -77,10 +77,10 @@ When a pull request or merge request is opened or updated:
 2. The selected model analyzes all changes.
 3. The agent applies your chosen review style and focus areas.
 4. It generates a structured review with:
-    - Inline comments
-    - Summary findings
-    - Suggested fixes
-    - Risk and severity tagging
+   - Inline comments
+   - Summary findings
+   - Suggested fixes
+   - Risk and severity tagging
 5. Reviews respect the **maximum time limit** you set.
 6. Only repositories you’ve selected will trigger automatic analysis.
 

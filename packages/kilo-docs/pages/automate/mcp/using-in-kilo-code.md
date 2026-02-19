@@ -26,8 +26,8 @@ You can edit both global and project-level MCP configuration files directly from
 2. Click the `Agent Behaviour` tab on the left side
 3. Select the `MCP Servers` sub-tab
 4. Click the appropriate button:
-    - **`Edit Global MCP`**: Opens the global `mcp_settings.json` file.
-    - **`Edit Project MCP`**: Opens the project-specific `.kilocode/mcp.json` file. If this file doesn't exist, Kilo Code will create it for you.
+   - **`Edit Global MCP`**: Opens the global `mcp_settings.json` file.
+   - **`Edit Project MCP`**: Opens the project-specific `.kilocode/mcp.json` file. If this file doesn't exist, Kilo Code will create it for you.
 
 {% image src="/docs/img/using-mcp-in-kilo-code/mcp-installed-config.png" alt="Edit Global MCP and Edit Project MCP buttons" width="600" caption="Edit Global MCP and Edit Project MCP buttons" /%}
 
@@ -35,17 +35,17 @@ Both files use a JSON format with a `mcpServers` object containing named server 
 
 ```json
 {
-	"mcpServers": {
-		"server1": {
-			"command": "python",
-			"args": ["/path/to/server.py"],
-			"env": {
-				"API_KEY": "your_api_key"
-			},
-			"alwaysAllow": ["tool1", "tool2"],
-			"disabled": false
-		}
-	}
+  "mcpServers": {
+    "server1": {
+      "command": "python",
+      "args": ["/path/to/server.py"],
+      "env": {
+        "API_KEY": "your_api_key"
+      },
+      "alwaysAllow": ["tool1", "tool2"],
+      "disabled": false
+    }
+  }
 }
 ```
 
@@ -71,17 +71,17 @@ STDIO configuration example:
 
 ```json
 {
-	"mcpServers": {
-		"local-server": {
-			"command": "node",
-			"args": ["/path/to/server.js"],
-			"env": {
-				"API_KEY": "your_api_key"
-			},
-			"alwaysAllow": ["tool1", "tool2"],
-			"disabled": false
-		}
-	}
+  "mcpServers": {
+    "local-server": {
+      "command": "node",
+      "args": ["/path/to/server.js"],
+      "env": {
+        "API_KEY": "your_api_key"
+      },
+      "alwaysAllow": ["tool1", "tool2"],
+      "disabled": false
+    }
+  }
 }
 ```
 
@@ -98,17 +98,17 @@ Streamable HTTP transport configuration example:
 
 ```json
 {
-	"mcpServers": {
-		"remote-server": {
-			"type": "streamable-http",
-			"url": "https://your-server-url.com/mcp",
-			"headers": {
-				"Authorization": "Bearer your-token"
-			},
-			"alwaysAllow": ["tool3"],
-			"disabled": false
-		}
-	}
+  "mcpServers": {
+    "remote-server": {
+      "type": "streamable-http",
+      "url": "https://your-server-url.com/mcp",
+      "headers": {
+        "Authorization": "Bearer your-token"
+      },
+      "alwaysAllow": ["tool3"],
+      "disabled": false
+    }
+  }
 }
 ```
 
@@ -130,16 +130,16 @@ SSE configuration example:
 
 ```json
 {
-	"mcpServers": {
-		"remote-server": {
-			"url": "https://your-server-url.com/mcp",
-			"headers": {
-				"Authorization": "Bearer your-token"
-			},
-			"alwaysAllow": ["tool3"],
-			"disabled": false
-		}
-	}
+  "mcpServers": {
+    "remote-server": {
+      "url": "https://your-server-url.com/mcp",
+      "headers": {
+        "Authorization": "Bearer your-token"
+      },
+      "alwaysAllow": ["tool3"],
+      "disabled": false
+    }
+  }
 }
 ```
 
@@ -219,12 +219,12 @@ When setting up MCP servers on Windows, you'll need to use the Windows Command P
 
 ```json
 {
-	"mcpServers": {
-		"puppeteer": {
-			"command": "cmd",
-			"args": ["/c", "npx", "-y", "@modelcontextprotocol/server-puppeteer"]
-		}
-	}
+  "mcpServers": {
+    "puppeteer": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-puppeteer"]
+    }
+  }
 }
 ```
 
@@ -241,12 +241,12 @@ For macOS or Linux, you would use a different configuration:
 
 ```json
 {
-	"mcpServers": {
-		"puppeteer": {
-			"command": "npx",
-			"args": ["-y", "@modelcontextprotocol/server-puppeteer"]
-		}
-	}
+  "mcpServers": {
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+    }
+  }
 }
 ```
 

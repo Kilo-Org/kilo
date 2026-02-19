@@ -48,45 +48,41 @@ This tool connects to MCP servers and fetches data from their exposed resources.
 When the `access_mcp_resource` tool is invoked, it follows this process:
 
 1. **Connection Validation**:
-
-    - Verifies that an MCP hub is available and initialized
-    - Confirms the specified server exists in the connection list
-    - Checks if the server is disabled (returns an error if it is)
+   - Verifies that an MCP hub is available and initialized
+   - Confirms the specified server exists in the connection list
+   - Checks if the server is disabled (returns an error if it is)
 
 2. **User Approval**:
-
-    - Presents the resource access request to the user for approval
-    - Provides server name and resource URI for user verification
-    - Proceeds only if the user approves the resource access
+   - Presents the resource access request to the user for approval
+   - Provides server name and resource URI for user verification
+   - Proceeds only if the user approves the resource access
 
 3. **Resource Request**:
-
-    - Uses the Model Context Protocol SDK to communicate with servers
-    - Makes a `resources/read` request to the server through the MCP hub
-    - Applies configured timeouts to prevent hanging on unresponsive servers
+   - Uses the Model Context Protocol SDK to communicate with servers
+   - Makes a `resources/read` request to the server through the MCP hub
+   - Applies configured timeouts to prevent hanging on unresponsive servers
 
 4. **Response Processing**:
-    - Receives a structured response with metadata and content arrays
-    - Processes text content for display to the user
-    - Handles image data specially for appropriate display
-    - Returns the processed resource data to Kilo Code for use in the current task
+   - Receives a structured response with metadata and content arrays
+   - Processes text content for display to the user
+   - Handles image data specially for appropriate display
+   - Returns the processed resource data to Kilo Code for use in the current task
 
 ## Resource Types
 
 MCP servers can provide two main types of resources:
 
 1. **Standard Resources**:
-
-    - Fixed resources with specific URIs
-    - Defined name, description, and MIME type
-    - Direct access without parameters
-    - Typically represent static data or real-time information
+   - Fixed resources with specific URIs
+   - Defined name, description, and MIME type
+   - Direct access without parameters
+   - Typically represent static data or real-time information
 
 2. **Resource Templates**:
-    - Parameterized resources with placeholder values in URIs
-    - Allow dynamic resource generation based on provided parameters
-    - Can represent queries or filtered views of data
-    - More flexible but require additional URI formatting
+   - Parameterized resources with placeholder values in URIs
+   - Allow dynamic resource generation based on provided parameters
+   - Can represent queries or filtered views of data
+   - More flexible but require additional URI formatting
 
 ## Examples When Used
 

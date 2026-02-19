@@ -27,12 +27,12 @@ You'll find these settings in the Kilo Code settings panel (click the {% codicon
 - **API Key:** Enter your API key.
 - **Model:** Choose a model.
 - **Model Configuration:** This lets you customize advanced configuration for the model
-    - Max Output Tokens
-    - Context Window
-    - Image Support
-    - Computer Use
-    - Input Price
-    - Output Price
+  - Max Output Tokens
+  - Context Window
+  - Image Support
+  - Computer Use
+  - Input Price
+  - Output Price
 
 ### Full Endpoint URL Support
 

@@ -14,9 +14,9 @@ Kilo Code supports accessing models through Amazon Bedrock, a fully managed serv
 - **Bedrock Access:** You must request and be granted access to Amazon Bedrock. See the [AWS Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/getting-started.html) for details on requesting access.
 - **Model Access:** Within Bedrock, you need to request access to the specific models you want to use (e.g., Anthropic Claude).
 - **Install AWS CLI:** Use AWS CLI to configure your account for authentication
-    ```bash
-     aws configure
-    ```
+  ```bash
+   aws configure
+  ```
 
 ## Getting Credentials
 
@@ -38,12 +38,12 @@ You have three options for configuring AWS credentials:
 2.  **Select Provider:** Choose "Bedrock" from the "API Provider" dropdown.
 3.  **Select Authentication Method:**
     - **Bedrock API Key:**
-        - Enter your Bedrock API key directly. This is the simplest setup option.
+      - Enter your Bedrock API key directly. This is the simplest setup option.
     - **AWS Credentials:**
-        - Enter your "AWS Access Key" and "AWS Secret Key."
-        - (Optional) Enter your "AWS Session Token" if you're using temporary credentials.
+      - Enter your "AWS Access Key" and "AWS Secret Key."
+      - (Optional) Enter your "AWS Session Token" if you're using temporary credentials.
     - **AWS Profile:**
-        - Enter your "AWS Profile" name (e.g., "default").
+      - Enter your "AWS Profile" name (e.g., "default").
 4.  **Select Region:** Choose the AWS region where your Bedrock service is available (e.g., "us-east-1").
 5.  **(Optional) Cross-Region Inference:** Check "Use cross-region inference" if you want to access models in a region different from your configured AWS region.
 6.  **Select Model:** Choose your desired model from the "Model" dropdown.

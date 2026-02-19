@@ -36,8 +36,8 @@ To unlink your GitHub account, follow these steps:
 2. Find **Kilo Connect** in the list of installed applications
 3. Click **Configure** next to Kilo Connect
 4. From the configuration page, you can either:
-    - **Uninstall** the integration completely, or
-    - **Edit** which repositories are connected
+   - **Uninstall** the integration completely, or
+   - **Edit** which repositories are connected
 
 {% callout type="tip" %}
 If you'd like to reconnect GitHub later, simply open your Kilo Code profile, go to **Integrations**, and connect GitHub again.

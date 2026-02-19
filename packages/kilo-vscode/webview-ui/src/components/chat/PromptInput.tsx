@@ -201,7 +201,14 @@ export const PromptInput: Component = () => {
     }
     if (e.key === "Escape" && ghostText()) {
       e.preventDefault()
+      e.stopPropagation()
       dismissSuggestion()
+      return
+    }
+    if (e.key === "Escape" && isBusy()) {
+      e.preventDefault()
+      e.stopPropagation()
+      session.abort()
       return
     }
     if (e.key === "Enter" && !e.shiftKey) {

@@ -10,14 +10,14 @@ import { GettingStartedNav } from "./getting-started"
 import { ToolsNav } from "./tools"
 
 export const Nav = {
-	GettingStartedNav,
-	CodeWithAiNav,
-	CustomizeNav,
-	CollaborateNav,
-	AutomateNav,
-	DeploySecureNav,
-	ContributingNav,
-	AiProvidersNav,
-	GatewayNav,
-	ToolsNav,
+  GettingStartedNav,
+  CodeWithAiNav,
+  CustomizeNav,
+  CollaborateNav,
+  AutomateNav,
+  DeploySecureNav,
+  ContributingNav,
+  AiProvidersNav,
+  GatewayNav,
+  ToolsNav,
 }

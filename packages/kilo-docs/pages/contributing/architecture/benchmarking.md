@@ -204,9 +204,9 @@ Configure the Opik-Harbor integration for Kilo Code benchmark runs:
 
 - Set up `opik harbor run` with the Kilo Code adapter
 - Define standard LLM judge criteria for step-level evaluation:
-    - **Tool choice correctness**: Did the agent use the right tool at each step?
-    - **Reasoning quality**: Was the agent's reasoning at each step sound?
-    - **Efficiency**: Were there unnecessary or redundant steps?
+  - **Tool choice correctness**: Did the agent use the right tool at each step?
+  - **Reasoning quality**: Was the agent's reasoning at each step sound?
+  - **Efficiency**: Were there unnecessary or redundant steps?
 - Create saved views for common comparison scenarios (model-vs-model, version-vs-version)
 
 ### 4. CI Regression Detection

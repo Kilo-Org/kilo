@@ -813,6 +813,11 @@ export interface RequestRepoInfoMessage {
   type: "agentManager.requestRepoInfo"
 }
 
+// Configure worktree setup script
+export interface ConfigureSetupScriptRequest {
+  type: "agentManager.configureSetupScript"
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -856,6 +861,7 @@ export type WebviewMessage =
   | CloseSessionRequest
   | TelemetryRequest
   | RequestRepoInfoMessage
+  | ConfigureSetupScriptRequest
 
 // ============================================
 // VS Code API type

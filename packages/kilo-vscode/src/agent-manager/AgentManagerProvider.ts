@@ -4,6 +4,8 @@ import { KiloProvider } from "../KiloProvider"
 import { buildWebviewHtml } from "../utils"
 import { WorktreeManager, type CreateWorktreeResult } from "./WorktreeManager"
 import { WorktreeStateManager } from "./WorktreeStateManager"
+import { SetupScriptService } from "./SetupScriptService"
+import { SetupScriptRunner } from "./SetupScriptRunner"
 
 /**
  * AgentManagerProvider opens the Agent Manager panel.
@@ -21,6 +23,7 @@ export class AgentManagerProvider implements vscode.Disposable {
   private outputChannel: vscode.OutputChannel
   private worktrees: WorktreeManager | undefined
   private state: WorktreeStateManager | undefined
+  private setupScript: SetupScriptService | undefined
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -124,6 +127,10 @@ export class AgentManagerProvider implements vscode.Disposable {
       return this.onAddSessionToWorktree(msg.worktreeId)
     if (type === "agentManager.closeSession" && typeof msg.sessionId === "string")
       return this.onCloseSession(msg.sessionId)
+    if (type === "agentManager.configureSetupScript") {
+      void this.configureSetupScript()
+      return null
+    }
     if (type === "agentManager.requestRepoInfo") {
       void this.sendRepoInfo()
       return null
@@ -240,6 +247,9 @@ export class AgentManagerProvider implements vscode.Disposable {
     const created = await this.createWorktreeOnDisk()
     if (!created) return null
 
+    // Run setup script for new worktree (non-blocking, shows in overlay)
+    await this.runSetupScriptForWorktree(created.result.path, created.result.branch)
+
     const session = await this.createSessionInWorktree(created.result.path, created.result.branch)
     if (!session) {
       const state = this.getStateManager()
@@ -288,6 +298,9 @@ export class AgentManagerProvider implements vscode.Disposable {
   private async onPromoteSession(sessionId: string): Promise<null> {
     const created = await this.createWorktreeOnDisk()
     if (!created) return null
+
+    // Run setup script for new worktree (non-blocking, shows in overlay)
+    await this.runSetupScriptForWorktree(created.result.path, created.result.branch)
 
     const state = this.getStateManager()!
     if (!state.getSession(sessionId)) {
@@ -365,6 +378,42 @@ export class AgentManagerProvider implements vscode.Disposable {
   }
 
   // ---------------------------------------------------------------------------
+  // Setup script
+  // ---------------------------------------------------------------------------
+
+  /** Open the worktree setup script in the editor for user configuration. */
+  private async configureSetupScript(): Promise<void> {
+    const service = this.getSetupScriptService()
+    if (!service) return
+    try {
+      await service.openInEditor()
+    } catch (error) {
+      this.log(`Failed to open setup script: ${error}`)
+    }
+  }
+
+  /** Run the worktree setup script if configured. Non-blocking. Shows progress in overlay. */
+  private async runSetupScriptForWorktree(worktreePath: string, branch?: string): Promise<void> {
+    const root = this.getWorkspaceRoot()
+    if (!root) return
+    try {
+      const service = this.getSetupScriptService()
+      if (!service || !service.hasScript()) return
+      this.postToWebview({
+        type: "agentManager.worktreeSetup",
+        status: "creating",
+        message: "Running setup script...",
+        branch,
+      })
+      const runner = new SetupScriptRunner(this.outputChannel, service)
+      await runner.runIfConfigured({ worktreePath, repoPath: root })
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      this.outputChannel.appendLine(`[AgentManager] Setup script error (non-blocking): ${msg}`)
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Repo info
   // ---------------------------------------------------------------------------
 
@@ -429,6 +478,17 @@ export class AgentManagerProvider implements vscode.Disposable {
     }
     this.state = new WorktreeStateManager(root, (msg) => this.outputChannel.appendLine(`[StateManager] ${msg}`))
     return this.state
+  }
+
+  private getSetupScriptService(): SetupScriptService | undefined {
+    if (this.setupScript) return this.setupScript
+    const root = this.getWorkspaceRoot()
+    if (!root) {
+      this.log("getSetupScriptService: no workspace folder available")
+      return undefined
+    }
+    this.setupScript = new SetupScriptService(root)
+    return this.setupScript
   }
 
   // ---------------------------------------------------------------------------

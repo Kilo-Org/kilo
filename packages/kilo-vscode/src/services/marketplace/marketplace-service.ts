@@ -395,8 +395,12 @@ export class MarketplaceService {
         return parsed as Record<string, unknown>
       }
       return null
-    } catch {
-      return null
+    } catch (error) {
+      // Missing config file is expected on fresh installs.
+      if (this.isMissingFileError(error)) {
+        return null
+      }
+      throw error
     }
   }
 
@@ -408,8 +412,12 @@ export class MarketplaceService {
         return parsed as Record<string, unknown>
       }
       return null
-    } catch {
-      return null
+    } catch (error) {
+      // Missing config file is expected on fresh installs.
+      if (this.isMissingFileError(error)) {
+        return null
+      }
+      throw error
     }
   }
 
@@ -575,9 +583,23 @@ export class MarketplaceService {
   private async removeMcp(item: Extract<MarketplaceItem, { type: "mcp" }>, target: "project" | "global"): Promise<void> {
     const mcpId = this.sanitizeMarketplaceItemId(item.id, "MCP server")
     const filePath = this.mcpFilePath(target)
-    const existing = await this.readJsonObject(filePath)
-    if (!existing) {
-      return
+    let existing: Record<string, unknown>
+    try {
+      existing = await this.readJsonObjectStrict(filePath)
+    } catch (error) {
+      // Remove is intentionally idempotent: if file does not exist, nothing to do.
+      if (this.isMissingFileError(error)) {
+        return
+      }
+      const invalidJson = error instanceof SyntaxError || (error instanceof Error && error.message.startsWith("Invalid JSON structure in "))
+      if (invalidJson) {
+        throw new Error(
+          `Cannot remove MCP server: ${path.basename(filePath)} contains invalid JSON. Fix the file before removing servers.`,
+        )
+      }
+      throw new Error(
+        `Cannot remove MCP server from ${path.basename(filePath)}: ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
     const existingServers =
       existing.mcpServers && typeof existing.mcpServers === "object" ? (existing.mcpServers as Record<string, unknown>) : {}
@@ -642,6 +664,8 @@ export class MarketplaceService {
     const tmpFile = path.join(os.tmpdir(), `kilo-skill-${skillId}-${Date.now()}.tar.gz`)
 
     await fs.mkdir(path.dirname(destination), { recursive: true })
+    // Ensure reinstall is deterministic: remove previous skill contents first.
+    await fs.rm(destination, { recursive: true, force: true })
     await fs.mkdir(destination, { recursive: true })
 
     try {
@@ -673,9 +697,14 @@ export class MarketplaceService {
   private async removeSkill(item: MarketplaceSkillItem, target: "project" | "global"): Promise<void> {
     const skillId = this.sanitizeMarketplaceItemId(item.id, "skill")
     const destination = path.join(this.skillsDirPath(target), skillId)
-    await fs.rm(destination, { recursive: true, force: true }).catch((error) => {
-      console.debug("[Kilo New] Marketplace: removeSkill ignored rm error", { item: item.id, error })
-    })
+    try {
+      await fs.rm(destination, { recursive: true, force: false })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return
+      }
+      throw error
+    }
   }
 
   private replaceTemplateToken(content: string, key: string, value: string): string {
@@ -794,6 +823,10 @@ export class MarketplaceService {
 
   private isObjectRecord(value: unknown): value is Record<string, unknown> {
     return !!value && typeof value === "object" && !Array.isArray(value)
+  }
+
+  private isMissingFileError(error: unknown): boolean {
+    return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "ENOENT"
   }
 }
 

@@ -918,7 +918,6 @@ export const dict = {
   "settings.language.current": "Current:",
 
   "common.add": "Add",
-  "common.default": "Default",
   "common.choose": "Choose…",
 
   "settings.notImplemented": "This section is not implemented yet.",

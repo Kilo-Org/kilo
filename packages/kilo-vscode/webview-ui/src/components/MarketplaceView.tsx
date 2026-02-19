@@ -22,8 +22,10 @@ type SortBy = "name" | "installed"
 type ItemActionState = "installing" | "removing"
 
 const actionKey = (itemID: string, target: "project" | "global") => `${itemID}::${target}`
-const MARKETPLACE_ACTION_TIMEOUT_MS = 20_000
-const MARKETPLACE_CATALOG_TIMEOUT_MS = 20_000
+// Allow for slower skill downloads/extraction before marking an action as timed out.
+const MARKETPLACE_ACTION_TIMEOUT_MS = 90_000
+// Backend catalog fetch may retry multiple times and fall back to default API.
+const MARKETPLACE_CATALOG_TIMEOUT_MS = 65_000
 
 const toItemLabel = (item: MarketplaceItem): string => {
   if (item.type === "skill") {

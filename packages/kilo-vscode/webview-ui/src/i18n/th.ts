@@ -829,7 +829,6 @@ export const dict = {
   "settings.language.current": "ปัจจุบัน:",
 
   "common.add": "เพิ่ม",
-  "common.default": "ค่าเริ่มต้น",
   "common.choose": "เลือก…",
   "settings.notImplemented": "ส่วนนี้ยังไม่ได้ใช้งาน",
   "settings.notImplemented.description": "จะมีตัวเลือกการกำหนดค่าและข้อความอธิบาย",
@@ -941,10 +940,6 @@ export const dict = {
 
   // Marketplace & custom provider translations
   "command.workspace.toggle.description": "เปิดหรือปิดใช้งานพื้นที่ทำงานหลายรายการในแถบด้านข้าง",
-  "provider.connect.apiKey.description": "ป้อนคีย์ API ของ {{provider}} เพื่อเชื่อมต่อบัญชีและใช้โมเดล {{provider}} ใน Kilo",
-  "provider.connect.opencodeZen.line1": "OpenCode Zen ให้คุณเข้าถึงชุดโมเดลที่เชื่อถือได้และปรับแต่งแล้วสำหรับเอเจนต์การเขียนโค้ด",
-  "provider.connect.opencodeZen.line2": "ด้วยคีย์ API เดียวคุณจะได้รับการเข้าถึงโมเดล เช่น Claude, GPT, Gemini, GLM และอื่น ๆ",
-  "provider.connect.oauth.code.visit.suffix": " เพื่อรวบรวมรหัสการอนุญาตของคุณเพื่อเชื่อมต่อบัญชีและใช้โมเดล {{provider}} ใน Kilo",
   "provider.custom.title": "ผู้ให้บริการที่กำหนดเอง",
   "provider.custom.description.prefix": "กำหนดค่าผู้ให้บริการที่เข้ากันได้กับ OpenAI ดู ",
   "provider.custom.description.link": "เอกสารการกำหนดค่าผู้ให้บริการ",
@@ -982,7 +977,6 @@ export const dict = {
   "provider.custom.error.required": "จำเป็น",
   "provider.custom.error.duplicate": "ซ้ำ",
   "common.goForward": "นำทางไปข้างหน้า",
-  "dialog.server.default.description": "เชื่อมต่อกับเซิร์ฟเวอร์นี้เมื่อเปิดแอปแทนการเริ่มเซิร์ฟเวอร์ในเครื่อง ต้องรีสตาร์ท",
   "language.en": "English",
   "language.zh": "简体中文",
   "language.zht": "繁體中文",
@@ -1000,7 +994,6 @@ export const dict = {
   "language.bs": "Bosanski",
   "language.th": "ไทย",
   "directory.error.invalidUrl": "ไดเรกทอรีใน URL ไม่ถูกต้อง",
-  "error.chain.configDirectoryTypo": 'ไดเรกทอรี "{{dir}}" ใน {{path}} ไม่ถูกต้อง เปลี่ยนชื่อไดเรกทอรีเป็น "{{suggestion}}" หรือเอาออก นี่เป็นการสะกดผิดทั่วไป',
   "session.header.openIn": "เปิดใน",
   "session.header.open.action": "เปิด {{app}}",
   "session.header.open.ariaLabel": "เปิดใน {{app}}",

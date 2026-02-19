@@ -14,6 +14,9 @@ type ParsedMarketplaceMode = {
   rulesFiles: RuleFile[]
 }
 
+const SAFE_MODE_SLUG_PATTERN = /^[A-Za-z0-9._-]+$/
+const UNSAFE_OBJECT_KEYS = new Set(["__proto__", "prototype", "constructor"])
+
 class WriteQueue {
   private tail: Promise<void> = Promise.resolve()
 
@@ -116,7 +119,8 @@ export class CustomModeStore {
       candidate = { ...parsed }
     }
 
-    const slug = typeof candidate.slug === "string" && candidate.slug.trim().length > 0 ? candidate.slug.trim() : item.id
+    const rawSlug = typeof candidate.slug === "string" && candidate.slug.trim().length > 0 ? candidate.slug : item.id
+    const slug = this.sanitizeModeSlug(rawSlug)
     const rulesFiles = this.extractRuleFiles(candidate.rulesFiles)
     delete candidate.rulesFiles
     candidate.slug = slug
@@ -150,6 +154,14 @@ export class CustomModeStore {
       })
     }
     return output
+  }
+
+  private sanitizeModeSlug(rawSlug: string): string {
+    const slug = rawSlug.trim()
+    if (!SAFE_MODE_SLUG_PATTERN.test(slug) || UNSAFE_OBJECT_KEYS.has(slug)) {
+      throw new Error(`Invalid mode slug: ${rawSlug}`)
+    }
+    return slug
   }
 
   private normalizeRelativeRulePath(rawPath: string): string {

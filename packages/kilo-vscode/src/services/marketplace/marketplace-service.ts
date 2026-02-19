@@ -28,6 +28,7 @@ const CACHE_TTL_MS = 5 * 60_000
 const MARKETPLACE_FETCH_RETRIES = 3
 const MARKETPLACE_FETCH_TIMEOUT_MS = 12_000
 const MARKETPLACE_RETRY_BASE_DELAY_MS = 500
+const MAX_SKILL_TARBALL_BYTES = 50 * 1024 * 1024
 const DEFAULT_BACKEND_BASE_URL = "https://kilo.ai"
 const DEFAULT_API_BASE_URL = "https://api.kilo.ai"
 const SAFE_MARKETPLACE_ID_PATTERN = /^[A-Za-z0-9._-]+$/
@@ -549,7 +550,7 @@ export class MarketplaceService {
       throw new Error(`MCP item "${item.id}" has empty server configuration content`)
     }
 
-    const parsedServer = this.parseStructured(contentToUse) as Record<string, unknown>
+    const parsedServer = this.validateMcpServerConfig(this.parseStructured(contentToUse))
 
     let existing: Record<string, unknown> = {}
     try {
@@ -607,10 +608,21 @@ export class MarketplaceService {
       throw new Error("Skill item missing tarball URL")
     }
     const tarballUrl = item.content.trim()
+    const parsedTarballUrl = new URL(tarballUrl)
+    if (parsedTarballUrl.protocol !== "https:" && parsedTarballUrl.protocol !== "http:") {
+      throw new Error(`Unsupported URL scheme for skill tarball: ${parsedTarballUrl.protocol}`)
+    }
 
     const response = await fetch(tarballUrl)
     if (!response.ok) {
       throw new Error(`Failed to download skill tarball: ${response.statusText || response.status}`)
+    }
+    const contentLength = response.headers.get("content-length")
+    if (contentLength) {
+      const parsedLength = Number.parseInt(contentLength, 10)
+      if (Number.isFinite(parsedLength) && parsedLength > MAX_SKILL_TARBALL_BYTES) {
+        throw new Error(`Skill tarball is too large: ${parsedLength} bytes (max ${MAX_SKILL_TARBALL_BYTES})`)
+      }
     }
 
     const destination = path.join(this.skillsDirPath(target), skillId)
@@ -621,11 +633,20 @@ export class MarketplaceService {
 
     try {
       const bytes = Buffer.from(await response.arrayBuffer())
+      if (bytes.byteLength > MAX_SKILL_TARBALL_BYTES) {
+        throw new Error(`Skill tarball is too large: ${bytes.byteLength} bytes (max ${MAX_SKILL_TARBALL_BYTES})`)
+      }
       await fs.writeFile(tmpFile, bytes)
       await pipeline(
         createReadStream(tmpFile),
         zlib.createGunzip(),
-        tarFs.extract(destination, { strip: 1 }),
+        tarFs.extract(destination, {
+          strip: 1,
+          map: (header) => {
+            this.assertSafeTarHeader(header as { name?: string; linkname?: string })
+            return header
+          },
+        }),
       )
       await fs.access(path.join(destination, "SKILL.md"))
     } catch (error) {
@@ -658,6 +679,96 @@ export class MarketplaceService {
       throw new Error(`Marketplace ${kind} id "${rawId}" is invalid`)
     }
     return id
+  }
+
+  private validateMcpServerConfig(input: unknown): Record<string, unknown> {
+    if (!this.isObjectRecord(input)) {
+      throw new Error("MCP server configuration must be a JSON object")
+    }
+    this.assertNoUnsafeObjectKeys(input, "MCP server configuration")
+
+    const command = input.command
+    if (command !== undefined && typeof command !== "string") {
+      throw new Error("MCP server configuration field \"command\" must be a string")
+    }
+
+    const args = input.args
+    if (args !== undefined && (!Array.isArray(args) || args.some((arg) => typeof arg !== "string"))) {
+      throw new Error("MCP server configuration field \"args\" must be an array of strings")
+    }
+
+    const env = input.env
+    if (env !== undefined) {
+      if (!this.isObjectRecord(env)) {
+        throw new Error("MCP server configuration field \"env\" must be an object")
+      }
+      for (const [key, value] of Object.entries(env)) {
+        if (UNSAFE_OBJECT_KEYS.has(key)) {
+          throw new Error(`MCP server configuration contains unsafe env key: ${key}`)
+        }
+        if (typeof value !== "string") {
+          throw new Error(`MCP server configuration env value for \"${key}\" must be a string`)
+        }
+      }
+    }
+
+    return input
+  }
+
+  private assertNoUnsafeObjectKeys(value: unknown, context: string): void {
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        this.assertNoUnsafeObjectKeys(entry, context)
+      }
+      return
+    }
+    if (!this.isObjectRecord(value)) {
+      return
+    }
+
+    for (const [key, entry] of Object.entries(value)) {
+      if (UNSAFE_OBJECT_KEYS.has(key)) {
+        throw new Error(`${context} contains unsafe key: ${key}`)
+      }
+      this.assertNoUnsafeObjectKeys(entry, context)
+    }
+  }
+
+  private assertSafeTarHeader(header: { name?: string; linkname?: string }): void {
+    if (typeof header.name !== "string" || header.name.length === 0) {
+      throw new Error("Tar entry is missing a valid name")
+    }
+    this.assertSafeTarPath(header.name, "tar entry path")
+    if (typeof header.linkname === "string" && header.linkname.length > 0) {
+      this.assertSafeTarPath(header.linkname, "tar link path")
+    }
+  }
+
+  private assertSafeTarPath(rawPath: string, label: string): void {
+    const normalized = rawPath.replace(/\\/g, "/")
+    if (normalized.includes("\0")) {
+      throw new Error(`Unsafe ${label}: ${rawPath}`)
+    }
+    this.assertSafeTarPathAfterStrip(normalized, rawPath, label)
+
+    const stripped = normalized.split("/").slice(1).join("/")
+    if (stripped.length > 0) {
+      this.assertSafeTarPathAfterStrip(stripped, rawPath, label)
+    }
+  }
+
+  private assertSafeTarPathAfterStrip(candidatePath: string, rawPath: string, label: string): void {
+    if (candidatePath.startsWith("/") || /^[A-Za-z]:\//.test(candidatePath)) {
+      throw new Error(`Unsafe ${label}: ${rawPath}`)
+    }
+    const normalized = path.posix.normalize(candidatePath)
+    if (normalized === ".." || normalized.startsWith("../") || normalized.includes("/../")) {
+      throw new Error(`Unsafe ${label}: ${rawPath}`)
+    }
+  }
+
+  private isObjectRecord(value: unknown): value is Record<string, unknown> {
+    return !!value && typeof value === "object" && !Array.isArray(value)
   }
 }
 

@@ -200,6 +200,46 @@ export namespace WarmSession {
     return warm
   }
 
+  /**
+   * Create a default task from a CLI message with reasonable blast-radius defaults.
+   * Used when --warm is passed to `run` command.
+   */
+  export async function createDefaultTask(
+    ctx: WarmContext,
+    input: {
+      message: string
+      workingDirectory: string
+    },
+  ): Promise<TaskState.Info> {
+    const taskID = `warm_task_${Date.now()}`
+
+    const task = TaskState.create({
+      id: taskID,
+      sessionID: ctx.sessionID,
+      intent: {
+        description: input.message.slice(0, 200),
+        agentName: ctx.activeAgent?.agentName,
+      },
+      blastRadius: {
+        paths: [`${input.workingDirectory}/**`],
+        operations: ["read", "write"],
+        reversible: true,
+      },
+    })
+
+    await StateStore.putTask(task)
+    await emitTransition("task", task.id, ctx.sessionID, "none", "pending", "created")
+
+    // Claim and execute
+    const claimed = TaskState.transition(task, "claimed")
+    const executing = TaskState.transition(claimed, "executing")
+    await StateStore.putTask(executing)
+    await emitTransition("task", task.id, ctx.sessionID, "pending", "executing", "auto_dispatch")
+
+    ctx.activeTask = executing
+    return executing
+  }
+
   async function emitTransition(
     entityType: "agent" | "task",
     entityID: string,

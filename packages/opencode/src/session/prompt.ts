@@ -810,6 +810,20 @@ export namespace SessionPrompt {
         inputSchema: jsonSchema(schema as any),
         async execute(args, options) {
           const ctx = context(args, options)
+          // kilocode_change start - warm agent blast-radius enforcement
+          const warmCheck = await (async () => {
+            const warmCtx = (globalThis as any).__warmContext
+            if (!warmCtx?.enabled || !warmCtx.activeTask) return undefined
+            const { WarmIntegration } = await import("../warm")
+            return WarmIntegration.checkTool(item.id, args, ctx.sessionID)
+          })()
+          if (warmCheck && !warmCheck.allowed) {
+            return {
+              output: `[warm] Tool "${item.id}" blocked by blast-radius enforcement: ${warmCheck.reason}`,
+              title: `[warm] blocked`,
+            }
+          }
+          // kilocode_change end
           await Plugin.trigger(
             "tool.execute.before",
             {
@@ -832,6 +846,12 @@ export namespace SessionPrompt {
             },
             result,
           )
+          // kilocode_change start - warm agent audit logging
+          if (warmCheck?.logged) {
+            const { WarmIntegration } = await import("../warm")
+            await WarmIntegration.logToolExecution(ctx.sessionID, item.id, args, 0).catch(() => {})
+          }
+          // kilocode_change end
           return result
         },
       })
@@ -846,6 +866,20 @@ export namespace SessionPrompt {
       // Wrap execute to add plugin hooks and format output
       item.execute = async (args, opts) => {
         const ctx = context(args, opts)
+
+        // kilocode_change start - warm agent blast-radius enforcement for MCP tools
+        const warmCheck = await (async () => {
+          const warmCtx = (globalThis as any).__warmContext
+          if (!warmCtx?.enabled || !warmCtx.activeTask) return undefined
+          const { WarmIntegration } = await import("../warm")
+          return WarmIntegration.checkTool(key, args, ctx.sessionID)
+        })()
+        if (warmCheck && !warmCheck.allowed) {
+          return {
+            content: [{ type: "text" as const, text: `[warm] MCP tool "${key}" blocked by blast-radius enforcement: ${warmCheck.reason}` }],
+          }
+        }
+        // kilocode_change end
 
         await Plugin.trigger(
           "tool.execute.before",

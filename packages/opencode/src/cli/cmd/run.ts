@@ -456,6 +456,19 @@ export const RunCommand = cmd({
             if (part.type === "tool" && part.state.status === "completed") {
               if (emit("tool_use", { part })) continue
               tool(part)
+              // kilocode_change start - warm agent status after tool completion
+              if (args.warm && args.format !== "json") {
+                const warmCtx = (globalThis as any).__warmContext
+                if (warmCtx?.enabled && warmCtx.activeTask) {
+                  const output = part.state.output ?? ""
+                  if (output.startsWith("[warm]") && output.includes("blocked")) {
+                    UI.println(UI.Style.TEXT_DANGER_BOLD + "  " + output)
+                  } else {
+                    UI.println(UI.Style.TEXT_DIM + "  [warm] \u2713 " + part.tool + " within blast radius")
+                  }
+                }
+              }
+              // kilocode_change end
             }
 
             if (
@@ -522,6 +535,28 @@ export const RunCommand = cmd({
             event.properties.sessionID === sessionID &&
             event.properties.status.type === "idle"
           ) {
+            // kilocode_change start - warm agent task completion
+            if (args.warm) {
+              const warmCtx = (globalThis as any).__warmContext
+              if (warmCtx?.enabled && warmCtx.activeTask) {
+                const { WarmSession, WarmIntegration } = await import("../../warm")
+                const result = await WarmSession.completeTask(warmCtx).catch(() => ({ passed: true, failures: [] }))
+                if (args.format !== "json") {
+                  UI.empty()
+                  if (result.passed) {
+                    UI.println(UI.Style.TEXT_SUCCESS_BOLD + "~", UI.Style.TEXT_NORMAL + "[warm] Task completed successfully")
+                  } else {
+                    UI.println(UI.Style.TEXT_DANGER_BOLD + "~", UI.Style.TEXT_NORMAL + "[warm] Task completed with failures:")
+                    for (const f of result.failures) {
+                      UI.println(UI.Style.TEXT_DIM + "  - " + f)
+                    }
+                  }
+                  const status = WarmIntegration.formatStatus()
+                  if (status) UI.println(UI.Style.TEXT_DIM + "  " + status)
+                }
+              }
+            }
+            // kilocode_change end
             break
           }
 
@@ -585,16 +620,40 @@ export const RunCommand = cmd({
 
       // kilocode_change start - warm agents orchestration
       if (args.warm) {
-        const { WarmSession } = await import("../../warm")
+        const { WarmSession, WarmIntegration } = await import("../../warm")
         const warmCtx = WarmSession.createContext(sessionID, {
           autoApproveDispatch: args.auto ?? false,
         })
+        WarmIntegration.setContext(warmCtx)
+
+        // Register primary agent
+        await WarmSession.registerAgent(warmCtx, {
+          id: `agent_${sessionID.slice(0, 16)}`,
+          agentName: agent ?? "code",
+          capabilities: ["read", "edit", "bash", "write", "glob", "grep", "webfetch", "websearch", "task"],
+        })
+
+        // Create default task from message
+        await WarmSession.createDefaultTask(warmCtx, {
+          message: message || "interactive session",
+          workingDirectory: process.cwd().replace(/\\/g, "/"),
+        })
+
+        UI.empty()
         UI.println(
           UI.Style.TEXT_INFO_BOLD + "~",
-          UI.Style.TEXT_NORMAL + "[warm] Warm Agents orchestration enabled for session " + sessionID,
+          UI.Style.TEXT_NORMAL + "[warm] Warm Agents orchestration enabled",
         )
-        // Store warm context for potential future integration points
-        ;(globalThis as any).__warmContext = warmCtx
+        UI.println(
+          UI.Style.TEXT_DIM + "  agent: " + warmCtx.activeAgent?.id + " (" + warmCtx.activeAgent?.lifecycle + ")",
+        )
+        UI.println(
+          UI.Style.TEXT_DIM + "  task:  " + warmCtx.activeTask?.id + " (" + warmCtx.activeTask?.lifecycle + ")",
+        )
+        UI.println(
+          UI.Style.TEXT_DIM + "  scope: " + warmCtx.activeTask?.blastRadius.paths.join(", "),
+        )
+        UI.empty()
       }
       // kilocode_change end
 

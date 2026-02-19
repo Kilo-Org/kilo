@@ -220,7 +220,7 @@ For most permissions, you can use an object to apply different actions based on 
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://app.kilo.ai/config.json",
   "permission": {
     "bash": {
       "*": "ask",
@@ -305,7 +305,7 @@ Project-level configuration takes precedence over global settings.
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://app.kilo.ai/config.json",
   "model": "anthropic/claude-sonnet-4-20250514",
   "provider": {
     "anthropic": {

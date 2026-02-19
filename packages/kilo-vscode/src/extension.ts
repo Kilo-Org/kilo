@@ -6,6 +6,8 @@ import { KiloConnectionService } from "./services/cli-backend"
 import { registerAutocompleteProvider } from "./services/autocomplete"
 import { BrowserAutomationService } from "./services/browser-automation"
 import { TelemetryProxy } from "./services/telemetry"
+import { registerCommitMessageService } from "./services/commit-message"
+import { registerCodeActions, registerTerminalActions, KiloCodeActionProvider } from "./services/code-actions"
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Kilo Code extension is now active")
@@ -80,10 +82,44 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("kilo-code.new.agentManager.nextTab", () => {
       agentManagerProvider.postMessage({ type: "action", action: "tabNext" })
     }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.showTerminal", () => {
+      agentManagerProvider.showTerminalForCurrentSession()
+    }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.focusPanel", () => {
+      agentManagerProvider.focusPanel()
+    }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.newTab", () => {
+      agentManagerProvider.postMessage({ type: "action", action: "newTab" })
+    }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.closeTab", () => {
+      agentManagerProvider.postMessage({ type: "action", action: "closeTab" })
+    }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.newWorktree", () => {
+      agentManagerProvider.postMessage({ type: "action", action: "newWorktree" })
+    }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.closeWorktree", () => {
+      agentManagerProvider.postMessage({ type: "action", action: "closeWorktree" })
+    }),
   )
 
   // Register autocomplete provider
   registerAutocompleteProvider(context, connectionService)
+
+  // Register commit message generation
+  registerCommitMessageService(context, connectionService)
+
+  // Register code actions (editor context menus, terminal context menus, keyboard shortcuts)
+  registerCodeActions(context, provider)
+  registerTerminalActions(context, provider)
+
+  // Register CodeActionProvider (lightbulb quick fixes)
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      { scheme: "file" },
+      new KiloCodeActionProvider(),
+      KiloCodeActionProvider.metadata,
+    ),
+  )
 
   // Dispose services when extension deactivates (kills the server)
   context.subscriptions.push({

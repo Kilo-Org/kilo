@@ -14,6 +14,8 @@ import type {
   AuthSetErrors,
   AuthSetResponses,
   CommandListResponses,
+  CommitMessageGenerateErrors,
+  CommitMessageGenerateResponses,
   Config as Config3,
   ConfigGetResponses,
   ConfigProvidersResponses,
@@ -2217,6 +2219,51 @@ export class Telemetry extends HeyApiClient {
   }
 }
 
+export class CommitMessage extends HeyApiClient {
+  /**
+   * Generate commit message
+   *
+   * Generate a commit message using AI based on the current git diff.
+   */
+  public generate<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      path?: string
+      selectedFiles?: Array<string>
+      previousMessage?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "body", key: "path" },
+            { in: "body", key: "selectedFiles" },
+            { in: "body", key: "previousMessage" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      CommitMessageGenerateResponses,
+      CommitMessageGenerateErrors,
+      ThrowOnError
+    >({
+      url: "/commit-message",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Organization extends HeyApiClient {
   /**
    * Update Kilo Gateway organization
@@ -3437,6 +3484,11 @@ export class OpencodeClient extends HeyApiClient {
   private _telemetry?: Telemetry
   get telemetry(): Telemetry {
     return (this._telemetry ??= new Telemetry({ client: this.client }))
+  }
+
+  private _commitMessage?: CommitMessage
+  get commitMessage(): CommitMessage {
+    return (this._commitMessage ??= new CommitMessage({ client: this.client }))
   }
 
   private _kilo?: Kilo

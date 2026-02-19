@@ -387,6 +387,16 @@ export interface ActionMessage {
   action: string
 }
 
+export interface SetChatBoxMessage {
+  type: "setChatBoxMessage"
+  text: string
+}
+
+export interface TriggerTaskMessage {
+  type: "triggerTask"
+  text: string
+}
+
 export interface ProfileDataMessage {
   type: "profileData"
   data: ProfileData | null
@@ -541,6 +551,13 @@ export interface ManagedSessionState {
   createdAt: string
 }
 
+// Agent Manager session added to an existing worktree (no setup overlay needed)
+export interface AgentManagerSessionAddedMessage {
+  type: "agentManager.sessionAdded"
+  sessionId: string
+  worktreeId: string
+}
+
 // Full state push from extension to webview
 export interface AgentManagerStateMessage {
   type: "agentManager.state"
@@ -584,7 +601,10 @@ export type ExtensionMessage =
   | AgentManagerSessionMetaMessage
   | AgentManagerRepoInfoMessage
   | AgentManagerWorktreeSetupMessage
+  | AgentManagerSessionAddedMessage
   | AgentManagerStateMessage
+  | SetChatBoxMessage
+  | TriggerTaskMessage
 
 // ============================================
 // Messages FROM webview TO extension
@@ -813,6 +833,12 @@ export interface RequestRepoInfoMessage {
   type: "agentManager.requestRepoInfo"
 }
 
+// Show terminal for a session
+export interface ShowTerminalRequest {
+  type: "agentManager.showTerminal"
+  sessionId: string
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -856,6 +882,7 @@ export type WebviewMessage =
   | CloseSessionRequest
   | TelemetryRequest
   | RequestRepoInfoMessage
+  | ShowTerminalRequest
 
 // ============================================
 // VS Code API type

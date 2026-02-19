@@ -621,6 +621,8 @@ export namespace Provider {
       headers: z.record(z.string(), z.string()),
       release_date: z.string(),
       variants: z.record(z.string(), z.record(z.string(), z.any())).optional(),
+      recommended: z.boolean().optional(), // kilocode_change
+      recommendedIndex: z.number().optional(), // kilocode_change
     })
     .meta({
       ref: "Model",
@@ -702,6 +704,8 @@ export namespace Provider {
       },
       release_date: model.release_date,
       variants: {},
+      recommended: model.recommended, // kilocode_change
+      recommendedIndex: model.recommendedIndex, // kilocode_change
     }
 
     m.variants = mapValues(ProviderTransform.variants(m), (v) => v)
@@ -845,6 +849,8 @@ export namespace Provider {
           family: model.family ?? existingModel?.family ?? "",
           release_date: model.release_date ?? existingModel?.release_date ?? "",
           variants: {},
+          recommended: model.recommended ?? existingModel?.recommended, // kilocode_change
+          recommendedIndex: model.recommendedIndex ?? existingModel?.recommendedIndex, // kilocode_change
         }
         const merged = mergeDeep(ProviderTransform.variants(parsedModel), model.variants ?? {})
         parsedModel.variants = mapValues(

@@ -100,32 +100,97 @@
         "command": "kilo-code.new.agentManager.nextTab",
         "title": "Agent Manager: Next Tab",
         "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.agentManager.showTerminal",
+        "title": "Agent Manager: Focus Terminal",
+        "category": "Kilo Code",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "kilo-code.new.agentManager.focusPanel",
+        "title": "Agent Manager: Focus Panel",
+        "category": "Kilo Code",
+        "icon": "$(circuit-board)"
+      },
+      {
+        "command": "kilo-code.new.agentManager.newTab",
+        "title": "Agent Manager: New Tab",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.agentManager.closeTab",
+        "title": "Agent Manager: Close Tab",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.agentManager.newWorktree",
+        "title": "Agent Manager: New Worktree",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.agentManager.closeWorktree",
+        "title": "Agent Manager: Close Worktree",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.generateCommitMessage",
+        "title": "Generate Commit Message",
+        "category": "Kilo Code (NEW)",
+        "icon": {
+          "light": "assets/icons/kilo-light.svg",
+          "dark": "assets/icons/kilo-dark.svg"
+        }
+      },
+      {
+        "command": "kilo-code.new.explainCode",
+        "title": "Explain Code",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.fixCode",
+        "title": "Fix Code",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.improveCode",
+        "title": "Improve Code",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.addToContext",
+        "title": "Add to Context",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.terminalAddToContext",
+        "title": "Add Terminal Content to Context",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.terminalFixCommand",
+        "title": "Fix This Command",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.terminalExplainCommand",
+        "title": "Explain This Command",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.focusChatInput",
+        "title": "Focus Chat Input",
+        "category": "Kilo Code"
       }
     ],
-    "keybindings": [
+    "submenus": [
       {
-        "command": "kilo-code.new.agentManager.previousSession",
-        "key": "ctrl+up",
-        "mac": "cmd+up",
-        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+        "id": "kilo-code.new.editorContextMenu",
+        "label": "Kilo Code"
       },
       {
-        "command": "kilo-code.new.agentManager.nextSession",
-        "key": "ctrl+down",
-        "mac": "cmd+down",
-        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
-      },
-      {
-        "command": "kilo-code.new.agentManager.previousTab",
-        "key": "ctrl+left",
-        "mac": "cmd+left",
-        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
-      },
-      {
-        "command": "kilo-code.new.agentManager.nextTab",
-        "key": "ctrl+right",
-        "mac": "cmd+right",
-        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+        "id": "kilo-code.new.terminalContextMenu",
+        "label": "Kilo Code"
       }
     ],
     "menus": {
@@ -161,14 +226,138 @@
           "when": "view == kilo-code.new.sidebarView"
         }
       ],
+      "scm/title": [
+        {
+          "command": "kilo-code.new.generateCommitMessage",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        }
+      ],
       "editor/title": [
         {
           "command": "kilo-code.new.openInTab",
           "group": "navigation",
           "when": "true"
         }
+      ],
+      "editor/context": [
+        {
+          "submenu": "kilo-code.new.editorContextMenu",
+          "group": "1_kilocode"
+        }
+      ],
+      "kilo-code.new.editorContextMenu": [
+        {
+          "command": "kilo-code.new.explainCode",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "kilo-code.new.fixCode",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "kilo-code.new.improveCode",
+          "group": "1_actions@3"
+        },
+        {
+          "command": "kilo-code.new.addToContext",
+          "group": "1_actions@4"
+        }
+      ],
+      "terminal/context": [
+        {
+          "submenu": "kilo-code.new.terminalContextMenu",
+          "group": "2_kilocode"
+        }
+      ],
+      "kilo-code.new.terminalContextMenu": [
+        {
+          "command": "kilo-code.new.terminalAddToContext",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "kilo-code.new.terminalFixCommand",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "kilo-code.new.terminalExplainCommand",
+          "group": "1_actions@3"
+        }
       ]
     },
+    "keybindings": [
+      {
+        "command": "kilo-code.new.focusChatInput",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a"
+      },
+      {
+        "command": "kilo-code.new.addToContext",
+        "key": "ctrl+k ctrl+a",
+        "mac": "cmd+k cmd+a",
+        "when": "editorTextFocus && editorHasSelection"
+      },
+      {
+        "command": "kilo-code.new.agentManager.previousSession",
+        "key": "ctrl+up",
+        "mac": "cmd+up",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.nextSession",
+        "key": "ctrl+down",
+        "mac": "cmd+down",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.previousTab",
+        "key": "ctrl+left",
+        "mac": "cmd+left",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.nextTab",
+        "key": "ctrl+right",
+        "mac": "cmd+right",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.showTerminal",
+        "key": "ctrl+/",
+        "mac": "cmd+/",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.focusPanel",
+        "key": "ctrl+.",
+        "mac": "cmd+.",
+        "when": "terminalFocus && kilo-code.agentTerminalFocus"
+      },
+      {
+        "command": "kilo-code.new.agentManager.newTab",
+        "key": "ctrl+t",
+        "mac": "cmd+t",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.closeTab",
+        "key": "ctrl+w",
+        "mac": "cmd+w",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.newWorktree",
+        "key": "ctrl+n",
+        "mac": "cmd+n",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.closeWorktree",
+        "key": "ctrl+shift+w",
+        "mac": "cmd+shift+w",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      }
+    ],
     "configuration": {
       "title": "Kilo Code",
       "properties": {
@@ -331,6 +520,7 @@
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.8.1",
     "qrcode": "^1.5.4",
+    "ts-morph": "27.0.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.54.0"
   },

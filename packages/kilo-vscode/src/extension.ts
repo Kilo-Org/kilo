@@ -42,11 +42,7 @@ export function activate(context: vscode.ExtensionContext) {
   )
 
   // Create Agent Manager provider for editor panel
-  const agentManagerProvider = new AgentManagerProvider(
-    context.extensionUri,
-    connectionService,
-    context.globalStorageUri.fsPath,
-  )
+  const agentManagerProvider = new AgentManagerProvider(context.extensionUri, connectionService)
   context.subscriptions.push(agentManagerProvider)
 
   // Register toolbar button command handlers

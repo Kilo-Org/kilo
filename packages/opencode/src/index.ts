@@ -41,8 +41,6 @@ if (!process.env[ENV_FEATURE]) {
 import { Global } from "./global"
 import { Config } from "./config/config"
 import { Auth } from "./auth"
-
-process.on("SIGHUP", () => process.exit(0))
 // kilocode_change end
 
 process.on("unhandledRejection", (e) => {

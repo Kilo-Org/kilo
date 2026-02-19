@@ -58,9 +58,11 @@ export namespace CodebaseSearchEmbeddings {
     const data = await response.json()
     const [firstResult] = data?.data || []
     const { embedding } = firstResult || {}
+
     if (!embedding) {
       throw new Error("OpenAI returned no embedding data")
     }
+
     return embedding
   }
 
@@ -90,7 +92,14 @@ export namespace CodebaseSearchEmbeddings {
     }
 
     const data = await response.json()
-    return data.data[0].embedding
+    const [firstResult] = data?.data || []
+    const { embedding } = firstResult || {}
+
+    if (!embedding) {
+      throw new Error("Mistral returned no embedding data")
+    }
+
+    return embedding
   }
 
   /**
@@ -114,7 +123,13 @@ export namespace CodebaseSearchEmbeddings {
     }
 
     const data = await response.json()
-    return data.embedding
+    const { embedding } = data
+
+    if (!embedding) {
+      throw new Error("Ollama returned no embedding data")
+    }
+
+    return embedding
   }
 
   /**

@@ -143,6 +143,87 @@ export namespace WarmIntegration {
     }).catch((e) => log.warn("audit write failed", { error: e }))
   }
 
+  // ---- Sub-Task / Hierarchical Scope ----
+
+  export interface SubTaskResult {
+    taskID: string
+    parentTaskID: string
+    narrowed: boolean
+    scope: string[]
+    previousTask?: TaskState.Info
+  }
+
+  /**
+   * Called when the Task tool spawns a sub-agent.
+   * Creates a sub-task with inferred or explicit narrower scope.
+   * Swaps the active task to the sub-task, restores parent on completion.
+   */
+  export async function createSubTask(
+    sessionID: string,
+    message: string,
+    blastRadius?: Partial<{
+      paths: string[]
+      operations: string[]
+      mcpTools: string[]
+      reversible: boolean
+    }>,
+  ): Promise<SubTaskResult | undefined> {
+    const ctx = await ensureContext(sessionID)
+    if (!ctx?.enabled || !ctx.activeTask) return undefined
+
+    const { WarmSession } = await import("./warm-session")
+    const parentTask = ctx.activeTask
+
+    const { task, narrowed } = await WarmSession.createSubTask(ctx, {
+      message,
+      parentTask,
+      blastRadius: blastRadius as any,
+    })
+
+    // Swap active task to the sub-task
+    ctx.activeTask = task
+
+    log.info("sub-task activated", {
+      taskID: task.id,
+      parentTaskID: parentTask.id,
+      narrowed,
+      scope: task.blastRadius.paths,
+    })
+
+    return {
+      taskID: task.id,
+      parentTaskID: parentTask.id,
+      narrowed,
+      scope: task.blastRadius.paths,
+      previousTask: parentTask,
+    }
+  }
+
+  /**
+   * Called when a sub-agent completes. Restores the parent task as active.
+   */
+  export async function completeSubTask(
+    sessionID: string,
+    parentTask: TaskState.Info,
+  ): Promise<void> {
+    const ctx = getContext()
+    if (!ctx?.enabled) return
+
+    const { WarmSession } = await import("./warm-session")
+
+    // Complete the current sub-task
+    await WarmSession.completeTask(ctx).catch((e) =>
+      log.warn("sub-task completion failed", { error: e }),
+    )
+
+    // Restore parent task
+    ctx.activeTask = parentTask
+
+    log.info("parent task restored", {
+      taskID: parentTask.id,
+    })
+  }
+
   // ---- Status Formatting ----
 
   export function formatStatus(): string | undefined {

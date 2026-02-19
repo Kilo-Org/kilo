@@ -115,6 +115,124 @@ export namespace Invariant {
     return toolName.includes("_") && !Object.keys(TOOL_OPERATION_MAP).includes(toolName)
   }
 
+  // ---- Hierarchical Blast-Radius ----
+
+  /**
+   * Validate that a child task's blast-radius is contained within the parent's.
+   * Returns the effective (narrowed) blast-radius or an error.
+   */
+  export function validateChildScope(
+    parentBlastRadius: TaskState.BlastRadius,
+    childBlastRadius: Partial<TaskState.BlastRadius>,
+  ): CheckResult & { effectiveScope?: TaskState.BlastRadius } {
+    const childPaths = childBlastRadius.paths ?? parentBlastRadius.paths
+    const childOps = childBlastRadius.operations ?? parentBlastRadius.operations
+
+    // Every child path must be within at least one parent path
+    for (const cp of childPaths) {
+      if (!matchesGlob(cp.replace("/**", "").replace("/*", ""), parentBlastRadius.paths)) {
+        return {
+          allowed: false,
+          reason: `Child path "${cp}" escapes parent blast radius [${parentBlastRadius.paths.join(", ")}]`,
+        }
+      }
+    }
+
+    // Every child operation must be in the parent's allowed operations
+    for (const op of childOps) {
+      if (!parentBlastRadius.operations.includes(op)) {
+        return {
+          allowed: false,
+          reason: `Child operation "${op}" not allowed by parent [${parentBlastRadius.operations.join(", ")}]`,
+        }
+      }
+    }
+
+    // Child MCP tools must be subset of parent's (or parent allows all with empty array)
+    const childMcp = childBlastRadius.mcpTools ?? []
+    if (parentBlastRadius.mcpTools.length > 0) {
+      for (const tool of childMcp) {
+        if (!parentBlastRadius.mcpTools.includes(tool)) {
+          return {
+            allowed: false,
+            reason: `Child MCP tool "${tool}" not in parent's allowed tools`,
+          }
+        }
+      }
+    }
+
+    return {
+      allowed: true,
+      effectiveScope: {
+        paths: childPaths,
+        operations: childOps,
+        mcpTools: childMcp,
+        reversible: childBlastRadius.reversible ?? parentBlastRadius.reversible,
+      },
+    }
+  }
+
+  /**
+   * Infer a narrower blast-radius from a task description.
+   * Extracts file paths and directories mentioned in the message.
+   */
+  export function inferScopeFromMessage(
+    message: string,
+    parentPaths: string[],
+  ): string[] {
+    const inferred: string[] = []
+
+    // Match file paths like src/auth/login.js, ./config/settings.json, etc.
+    const pathPattern = /(?:^|\s|["'`])([./]*(?:[\w.-]+\/)+[\w.-]+(?:\.\w+)?)/g
+    let match: RegExpExecArray | null
+    while ((match = pathPattern.exec(message)) !== null) {
+      const filePath = match[1].replace(/^\.\//, "")
+      // Extract the directory containing the file
+      const dir = filePath.includes("/") ? filePath.split("/").slice(0, -1).join("/") : filePath
+      const scopePath = `${dir}/**`
+      if (!inferred.includes(scopePath)) {
+        inferred.push(scopePath)
+      }
+    }
+
+    // Match directory references like "the auth module", "in src/auth"
+    const dirPattern = /(?:in |the |update |fix |read |edit |modify )(?:the )?([./]*(?:[\w.-]+\/)*[\w.-]+)/gi
+    while ((match = dirPattern.exec(message)) !== null) {
+      const dir = match[1].replace(/^\.\//, "")
+      // Skip if it looks like a full sentence, not a path
+      if (dir.includes(" ") || dir.length > 100) continue
+      const scopePath = dir.includes(".") ? `${dir.split("/").slice(0, -1).join("/")}/**` : `${dir}/**`
+      if (scopePath !== "/**" && !inferred.includes(scopePath)) {
+        inferred.push(scopePath)
+      }
+    }
+
+    if (inferred.length === 0) return parentPaths
+
+    // Extract the root directory from parent paths for anchoring relative paths
+    const parentRoot = parentPaths.length > 0
+      ? parentPaths[0].replace("/**", "").replace("/*", "")
+      : ""
+
+    // Try both raw inferred paths and anchored versions (relative → absolute)
+    const anchored: string[] = []
+    for (const p of inferred) {
+      const raw = p.replace("/**", "").replace("/*", "")
+      if (matchesGlob(raw, parentPaths)) {
+        // Already within parent scope as-is
+        anchored.push(p)
+      } else if (parentRoot) {
+        // Anchor the relative path within the parent root
+        const joined = `${parentRoot}/${raw}`
+        if (matchesGlob(joined, parentPaths)) {
+          anchored.push(`${parentRoot}/${raw}/**`)
+        }
+      }
+    }
+
+    return anchored.length > 0 ? anchored : parentPaths
+  }
+
   export function toAuditEntry(
     id: string,
     taskID: string,

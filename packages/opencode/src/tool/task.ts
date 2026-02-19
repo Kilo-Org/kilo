@@ -125,6 +125,17 @@ export const TaskTool = Tool.define("task", async (ctx) => {
       using _ = defer(() => ctx.abort.removeEventListener("abort", cancel))
       const promptParts = await SessionPrompt.resolvePromptParts(params.prompt)
 
+      // kilocode_change start - warm agents: create scoped sub-task for sub-agent
+      let warmSubTask: { taskID: string; parentTaskID: string; narrowed: boolean; scope: string[]; previousTask?: any } | undefined
+      if ((globalThis as any).__warmContext?.enabled || process.env.KILO_WARM === "1") {
+        const { WarmIntegration } = await import("../warm/integration")
+        warmSubTask = await WarmIntegration.createSubTask(
+          ctx.sessionID,
+          params.prompt,
+        )
+      }
+      // kilocode_change end
+
       const result = await SessionPrompt.prompt({
         messageID,
         sessionID: session.id,
@@ -142,10 +153,26 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         parts: promptParts,
       })
 
+      // kilocode_change start - warm agents: restore parent task after sub-agent completes
+      if (warmSubTask?.previousTask) {
+        const { WarmIntegration } = await import("../warm/integration")
+        await WarmIntegration.completeSubTask(ctx.sessionID, warmSubTask.previousTask)
+      }
+      // kilocode_change end
+
       const text = result.parts.findLast((x) => x.type === "text")?.text ?? ""
+
+      // kilocode_change start - warm agents: include scope info in output
+      const scopeInfo = warmSubTask?.narrowed
+        ? `\n[warm] Sub-task scope: ${warmSubTask.scope.join(", ")} (narrowed from parent)`
+        : warmSubTask
+          ? `\n[warm] Sub-task scope: ${warmSubTask.scope.join(", ")} (inherited from parent)`
+          : ""
+      // kilocode_change end
 
       const output = [
         `task_id: ${session.id} (for resuming to continue this task if needed)`,
+        scopeInfo,
         "",
         "<task_result>",
         text,

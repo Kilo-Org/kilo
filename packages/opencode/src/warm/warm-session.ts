@@ -240,6 +240,94 @@ export namespace WarmSession {
     return executing
   }
 
+  /**
+   * Create a sub-task with a narrower blast-radius, scoped within the parent task.
+   * Used when an orchestrator spawns a sub-agent via the Task tool.
+   *
+   * If no explicit scope is provided, attempts to infer scope from the message.
+   * The child scope is validated to be within the parent's blast-radius.
+   */
+  export async function createSubTask(
+    ctx: WarmContext,
+    input: {
+      message: string
+      parentTask: TaskState.Info
+      blastRadius?: Partial<TaskState.BlastRadius>
+    },
+  ): Promise<{ task: TaskState.Info; narrowed: boolean }> {
+    const taskID = `warm_subtask_${Date.now()}`
+
+    // Infer scope from message if no explicit blast-radius given
+    const inferredPaths = input.blastRadius?.paths
+      ?? Invariant.inferScopeFromMessage(input.message, input.parentTask.blastRadius.paths)
+
+    const childScope: Partial<TaskState.BlastRadius> = {
+      paths: inferredPaths,
+      operations: input.blastRadius?.operations ?? input.parentTask.blastRadius.operations,
+      mcpTools: input.blastRadius?.mcpTools ?? input.parentTask.blastRadius.mcpTools,
+      reversible: input.blastRadius?.reversible ?? input.parentTask.blastRadius.reversible,
+    }
+
+    // Validate child scope is within parent
+    const validation = Invariant.validateChildScope(input.parentTask.blastRadius, childScope)
+    if (!validation.allowed) {
+      log.warn("sub-task scope exceeds parent", {
+        reason: validation.reason,
+        parentPaths: input.parentTask.blastRadius.paths,
+        childPaths: childScope.paths,
+      })
+      // Fall back to parent scope
+      childScope.paths = input.parentTask.blastRadius.paths
+      childScope.operations = input.parentTask.blastRadius.operations
+    }
+
+    const narrowed = validation.allowed
+      && JSON.stringify(childScope.paths) !== JSON.stringify(input.parentTask.blastRadius.paths)
+
+    const task = TaskState.create({
+      id: taskID,
+      sessionID: ctx.sessionID,
+      parentTaskID: input.parentTask.id,
+      intent: {
+        description: input.message.slice(0, 200),
+        agentName: ctx.activeAgent?.agentName,
+      },
+      blastRadius: childScope,
+    })
+
+    await StateStore.putTask(task)
+    await emitTransition("task", task.id, ctx.sessionID, "none", "pending", "sub_task_created")
+
+    // Audit the scope narrowing
+    await Audit.append(ctx.sessionID, {
+      type: "invariant_check",
+      id: `audit_scope_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      taskID: task.id,
+      phase: "precondition",
+      check: "scope_narrowing",
+      passed: true,
+      error: narrowed
+        ? `Narrowed: ${input.parentTask.blastRadius.paths.join(",")} → ${childScope.paths!.join(",")}`
+        : `Inherited parent scope: ${childScope.paths!.join(",")}`,
+      timestamp: Date.now(),
+    }).catch((e) => log.warn("audit write failed", { error: e }))
+
+    // Claim and execute
+    const claimed = TaskState.transition(task, "claimed")
+    const executing = TaskState.transition(claimed, "executing")
+    await StateStore.putTask(executing)
+    await emitTransition("task", task.id, ctx.sessionID, "pending", "executing", "sub_task_dispatch")
+
+    log.info("sub-task created", {
+      taskID: task.id,
+      parentTaskID: input.parentTask.id,
+      narrowed,
+      scope: childScope.paths,
+    })
+
+    return { task: executing, narrowed }
+  }
+
   async function emitTransition(
     entityType: "agent" | "task",
     entityID: string,

@@ -4,7 +4,6 @@ const childProcess = require("child_process")
 const fs = require("fs")
 const path = require("path")
 const os = require("os")
-const { createRequire } = require("module")
 
 function run(target) {
   const result = childProcess.spawnSync(target, process.argv.slice(2), {
@@ -150,10 +149,18 @@ function findBinary(startDir) {
         if (fs.existsSync(candidate)) return candidate
       }
     }
-  } catch {}
+    const parent = path.dirname(current)
+    if (parent === current) {
+      return
+    }
+    current = parent
+  }
 }
 
-const resolved = findBinary()
+const scriptPath = fs.realpathSync(__filename)
+const scriptDir = path.dirname(scriptPath)
+
+const resolved = findBinary(scriptDir)
 if (!resolved) {
   console.error(
     "It seems that your package manager failed to install the right version of the Kilo CLI for your platform. You can try manually installing " +

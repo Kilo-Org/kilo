@@ -87,21 +87,19 @@ These tools help manage the conversation and task flow:
 Tools are invoked under specific conditions:
 
 1. **Direct Task Requirements**
-
-    - When specific actions are needed to complete a task as decided by the LLM
-    - In response to user requests
-    - During automated workflows
+   - When specific actions are needed to complete a task as decided by the LLM
+   - In response to user requests
+   - During automated workflows
 
 2. **Mode-Based Availability**
-
-    - Different modes enable different tool sets
-    - Mode switches can trigger tool availability changes
-    - Some tools are restricted to specific modes
+   - Different modes enable different tool sets
+   - Mode switches can trigger tool availability changes
+   - Some tools are restricted to specific modes
 
 3. **Context-Dependent Calls**
-    - Based on the current state of the workspace
-    - In response to system events
-    - During error handling and recovery
+   - Based on the current state of the workspace
+   - In response to system events
+   - During error handling and recovery
 
 ### Decision Process
 
@@ -109,65 +107,62 @@ The system uses a multi-step process to determine tool availability:
 
 1. **Mode Validation**
 
-    ```typescript
-    isToolAllowedForMode(
-        tool: string,
-        modeSlug: string,
-        customModes: ModeConfig[],
-        toolRequirements?: Record<string, boolean>,
-        toolParams?: Record<string, any>
-    )
-    ```
+   ```typescript
+   isToolAllowedForMode(
+       tool: string,
+       modeSlug: string,
+       customModes: ModeConfig[],
+       toolRequirements?: Record<string, boolean>,
+       toolParams?: Record<string, any>
+   )
+   ```
 
 2. **Requirement Checking**
-
-    - System capability verification
-    - Resource availability
-    - Permission validation
+   - System capability verification
+   - Resource availability
+   - Permission validation
 
 3. **Parameter Validation**
-    - Required parameter presence
-    - Parameter type checking
-    - Value validation
+   - Required parameter presence
+   - Parameter type checking
+   - Value validation
 
 ## Technical Implementation
 
 ### Tool Call Processing
 
 1. **Initialization**
-
-    - Tool name and parameters are validated
-    - Mode compatibility is checked
-    - Requirements are verified
+   - Tool name and parameters are validated
+   - Mode compatibility is checked
+   - Requirements are verified
 
 2. **Execution**
 
-    ```typescript
-    const toolCall = {
-    	type: "tool_call",
-    	name: chunk.name,
-    	arguments: chunk.input,
-    	callId: chunk.callId,
-    }
-    ```
+   ```typescript
+   const toolCall = {
+     type: "tool_call",
+     name: chunk.name,
+     arguments: chunk.input,
+     callId: chunk.callId,
+   }
+   ```
 
 3. **Result Handling**
-    - Success/failure determination
-    - Result formatting
-    - Error handling
+   - Success/failure determination
+   - Result formatting
+   - Error handling
 
 ### Security and Permissions
 
 1. **Access Control**
-
-    - File system restrictions
-    - Command execution limitations
-    - Network access controls
+   - File system restrictions
+   - Command execution limitations
+   - Network access controls
 
 2. **Validation Layers**
-    - Tool-specific validation
-    - Mode-based restrictions
-    - System-level checks
+   - Tool-specific validation
+   - Mode-based restrictions
+   - System-level checks
 
 ## Mode Integration
 
@@ -183,92 +178,86 @@ Tools are made available based on the current mode:
 ### Mode Switching
 
 1. **Process**
-
-    - Current mode state preservation
-    - Tool availability updates
-    - Context switching
+   - Current mode state preservation
+   - Tool availability updates
+   - Context switching
 
 2. **Impact on Tools**
-    - Tool set changes
-    - Permission adjustments
-    - Context preservation
+   - Tool set changes
+   - Permission adjustments
+   - Context preservation
 
 ## Best Practices
 
 ### Tool Usage Guidelines
 
 1. **Efficiency**
-
-    - Use the most specific tool for the task
-    - Avoid redundant tool calls
-    - Batch operations when possible
+   - Use the most specific tool for the task
+   - Avoid redundant tool calls
+   - Batch operations when possible
 
 2. **Security**
-
-    - Validate inputs before tool calls
-    - Use minimum required permissions
-    - Follow security best practices
+   - Validate inputs before tool calls
+   - Use minimum required permissions
+   - Follow security best practices
 
 3. **Error Handling**
-    - Implement proper error checking
-    - Provide meaningful error messages
-    - Handle failures gracefully
+   - Implement proper error checking
+   - Provide meaningful error messages
+   - Handle failures gracefully
 
 ### Common Patterns
 
 1. **Information Gathering**
 
-    ```
-    [ask_followup_question](/docs/features/tools/ask-followup-question) → [read_file](/docs/features/tools/read-file) → [search_files](/docs/features/tools/search-files)
-    ```
+   ```
+   [ask_followup_question](/docs/features/tools/ask-followup-question) → [read_file](/docs/features/tools/read-file) → [search_files](/docs/features/tools/search-files)
+   ```
 
 2. **Code Modification**
 
-    ```
-    [read_file](/docs/features/tools/read-file) → [apply_diff](/docs/features/tools/apply-diff) → [attempt_completion](/docs/features/tools/attempt-completion)
-    ```
+   ```
+   [read_file](/docs/features/tools/read-file) → [apply_diff](/docs/features/tools/apply-diff) → [attempt_completion](/docs/features/tools/attempt-completion)
+   ```
 
 3. **Task Management**
 
-    ```
-    [new_task](/docs/features/tools/new-task) → [switch_mode](/docs/features/tools/switch-mode) → [execute_command](/docs/features/tools/execute-command)
-    ```
+   ```
+   [new_task](/docs/features/tools/new-task) → [switch_mode](/docs/features/tools/switch-mode) → [execute_command](/docs/features/tools/execute-command)
+   ```
 
 4. **Progress Tracking**
-    ```
-    [update_todo_list](/docs/features/tools/update-todo-list) → [execute_command](/docs/features/tools/execute-command) → [update_todo_list](/docs/features/tools/update-todo-list)
-    ```
+   ```
+   [update_todo_list](/docs/features/tools/update-todo-list) → [execute_command](/docs/features/tools/execute-command) → [update_todo_list](/docs/features/tools/update-todo-list)
+   ```
 
 ## Error Handling and Recovery
 
 ### Error Types
 
 1. **Tool-Specific Errors**
-
-    - Parameter validation failures
-    - Execution errors
-    - Resource access issues
+   - Parameter validation failures
+   - Execution errors
+   - Resource access issues
 
 2. **System Errors**
-
-    - Permission denied
-    - Resource unavailable
-    - Network failures
+   - Permission denied
+   - Resource unavailable
+   - Network failures
 
 3. **Context Errors**
-    - Invalid mode for tool
-    - Missing requirements
-    - State inconsistencies
+   - Invalid mode for tool
+   - Missing requirements
+   - State inconsistencies
 
 ### Recovery Strategies
 
 1. **Automatic Recovery**
-
-    - Retry mechanisms
-    - Fallback options
-    - State restoration
+   - Retry mechanisms
+   - Fallback options
+   - State restoration
 
 2. **User Intervention**
-    - Error notifications
-    - Recovery suggestions
-    - Manual intervention options
+   - Error notifications
+   - Recovery suggestions
+   - Manual intervention options

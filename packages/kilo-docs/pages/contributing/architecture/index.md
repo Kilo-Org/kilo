@@ -101,14 +101,14 @@ Services are typically singletons with clear interfaces:
 
 ```typescript
 class CodeIndexService {
-	private static instance: CodeIndexService
+  private static instance: CodeIndexService
 
-	static getInstance(): CodeIndexService {
-		if (!this.instance) {
-			this.instance = new CodeIndexService()
-		}
-		return this.instance
-	}
+  static getInstance(): CodeIndexService {
+    if (!this.instance) {
+      this.instance = new CodeIndexService()
+    }
+    return this.instance
+  }
 }
 ```
 
@@ -118,10 +118,10 @@ Tools follow a consistent pattern:
 
 ```typescript
 interface Tool {
-	name: string
-	description: string
-	parameters: z.ZodSchema
-	execute(params: unknown): Promise<ToolResult>
+  name: string
+  description: string
+  parameters: z.ZodSchema
+  execute(params: unknown): Promise<ToolResult>
 }
 ```
 

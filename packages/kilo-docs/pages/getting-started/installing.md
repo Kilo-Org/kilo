@@ -106,16 +106,15 @@ If your editor isn't automatically configured for Open VSX Registry, you may nee
 If you prefer to download and install the VSIX file directly:
 
 1. **Download the VSIX file:**
-
-    - Find official releases on the [Kilo Code GitHub Releases page](https://github.com/Kilo-Org/kilocode/releases)
-    - Download the `.vsix` file from the [latest release](https://github.com/Kilo-Org/kilocode/releases/latest)
+   - Find official releases on the [Kilo Code GitHub Releases page](https://github.com/Kilo-Org/kilocode/releases)
+   - Download the `.vsix` file from the [latest release](https://github.com/Kilo-Org/kilocode/releases/latest)
 
 2. **Install in VS Code:**
-    - Open VS Code
-    - Access Extensions view
-    - Click the "..." menu in the Extensions view
-    - Select "Install from VSIX..."
-    - Browse to and select your downloaded `.vsix` file
+   - Open VS Code
+   - Access Extensions view
+   - Click the "..." menu in the Extensions view
+   - Select "Install from VSIX..."
+   - Browse to and select your downloaded `.vsix` file
 
 {% image src="/docs/img/installing-vsix.png" alt="Installing Kilo Code using VS Code's Install from VSIX dialog" width="600px" caption="Installing Kilo Code using VS Code's \"Install from VSIX\" dialog" /%}
 
@@ -137,10 +136,10 @@ If you prefer to download and install the VSIX file directly:
 **Windows Users**
 
 - Ensure that **`PowerShell` is added to your `PATH`**:
-    1. Open **Edit system environment variables** → **Environment Variables**
-    2. Under **System variables**, select **Path** → **Edit** → **New**
-    3. Add: `C:\Windows\System32\WindowsPowerShell\v1.0\`
-    4. Click **OK** and restart VS Code
+  1. Open **Edit system environment variables** → **Environment Variables**
+  2. Under **System variables**, select **Path** → **Edit** → **New**
+  3. Add: `C:\Windows\System32\WindowsPowerShell\v1.0\`
+  4. Click **OK** and restart VS Code
 
 ## Next Steps
 

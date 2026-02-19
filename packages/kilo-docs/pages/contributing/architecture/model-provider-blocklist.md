@@ -67,10 +67,10 @@ Replace the current dual-tab (Models / Providers) layout with a **single unified
 
 **Interaction examples:**
 
-| Action                                   | Result                                                                                                                                                |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Block provider "Chutes"                  | All Chutes models become unavailable. Future models from Chutes are also blocked.                                                                     |
-| Search "K2.5", block it under Fireworks  | Only K2.5 via Fireworks is blocked. K2.5 via other providers is unaffected.                                                                           |
+| Action                                  | Result                                                                            |
+| --------------------------------------- | --------------------------------------------------------------------------------- |
+| Block provider "Chutes"                 | All Chutes models become unavailable. Future models from Chutes are also blocked. |
+| Search "K2.5", block it under Fireworks | Only K2.5 via Fireworks is blocked. K2.5 via other providers is unaffected.       |
 
 ## Features for the Future
 

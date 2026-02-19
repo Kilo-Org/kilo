@@ -47,23 +47,23 @@ import { createOpenAI } from "@ai-sdk/openai"
 import "dotenv/config"
 
 const kilo = createOpenAI({
-	baseURL: "https://api.kilo.ai/api/gateway",
-	apiKey: process.env.KILO_API_KEY,
+  baseURL: "https://api.kilo.ai/api/gateway",
+  apiKey: process.env.KILO_API_KEY,
 })
 
 async function main() {
-	const result = streamText({
-		model: kilo("anthropic/claude-sonnet-4.5"),
-		prompt: "Invent a new holiday and describe its traditions.",
-	})
+  const result = streamText({
+    model: kilo("anthropic/claude-sonnet-4.5"),
+    prompt: "Invent a new holiday and describe its traditions.",
+  })
 
-	for await (const textPart of result.textStream) {
-		process.stdout.write(textPart)
-	}
+  for await (const textPart of result.textStream) {
+    process.stdout.write(textPart)
+  }
 
-	console.log()
-	console.log("Token usage:", await result.usage)
-	console.log("Finish reason:", await result.finishReason)
+  console.log()
+  console.log("Token usage:", await result.usage)
+  console.log("Finish reason:", await result.finishReason)
 }
 
 main().catch(console.error)
@@ -88,13 +88,13 @@ The Kilo AI Gateway is fully OpenAI-compatible, so you can use the OpenAI SDK by
 import OpenAI from "openai"
 
 const client = new OpenAI({
-	apiKey: process.env.KILO_API_KEY,
-	baseURL: "https://api.kilo.ai/api/gateway",
+  apiKey: process.env.KILO_API_KEY,
+  baseURL: "https://api.kilo.ai/api/gateway",
 })
 
 const response = await client.chat.completions.create({
-	model: "anthropic/claude-sonnet-4.5",
-	messages: [{ role: "user", content: "Why is the sky blue?" }],
+  model: "anthropic/claude-sonnet-4.5",
+  messages: [{ role: "user", content: "Why is the sky blue?" }],
 })
 
 console.log(response.choices[0].message.content)

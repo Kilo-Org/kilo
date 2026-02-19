@@ -18,13 +18,13 @@ Kilo's Code Reviews integrate with GitHub via a **GitHub App** to automatically 
 ### Step 1: Install the GitHub App
 
 1. Go to the **Integrations** page:
-    - **Personal**: [app.kilo.ai/integrations/github](https://app.kilo.ai/integrations/github)
-    - **Organization**: Your organization → Integrations → GitHub
+   - **Personal**: [app.kilo.ai/integrations/github](https://app.kilo.ai/integrations/github)
+   - **Organization**: Your organization → Integrations → GitHub
 2. Click **Install GitHub App**
 3. Choose which GitHub account or organization to install the app on
 4. Select repository access:
-    - **All repositories** — the app can access all current and future repos
-    - **Only select repositories** — choose specific repos
+   - **All repositories** — the app can access all current and future repos
+   - **Only select repositories** — choose specific repos
 5. Click **Install**
 
 The GitHub App requests the following permissions:
@@ -39,16 +39,16 @@ The GitHub App requests the following permissions:
 ### Step 2: Configure the Review Agent
 
 1. Go to **Code Reviews**:
-    - **Personal**: [app.kilo.ai/code-reviews](https://app.kilo.ai/code-reviews)
-    - **Organization**: Your organization → Code Reviews
+   - **Personal**: [app.kilo.ai/code-reviews](https://app.kilo.ai/code-reviews)
+   - **Organization**: Your organization → Code Reviews
 2. Toggle **Enable AI Code Review** to on
 3. Configure your preferences:
-    - **AI Model** — Select from available models (default: Claude Sonnet 4.5)
-    - **Review Style** — Strict, Balanced, or Lenient
-    - **Repository Selection** — All repositories or select specific ones
-    - **Focus Areas** — Security, performance, bugs, style, testing, documentation
-    - **Max Review Time** — 5 to 30 minutes
-    - **Custom Instructions** — Add team-specific review guidelines
+   - **AI Model** — Select from available models (default: Claude Sonnet 4.5)
+   - **Review Style** — Strict, Balanced, or Lenient
+   - **Repository Selection** — All repositories or select specific ones
+   - **Focus Areas** — Security, performance, bugs, style, testing, documentation
+   - **Max Review Time** — 5 to 30 minutes
+   - **Custom Instructions** — Add team-specific review guidelines
 4. Click **Save Configuration**
 
 ### Step 3: Open a Pull Request
@@ -71,9 +71,9 @@ When a review triggers:
 1. A 👀 reaction appears on the PR — this means Kilo is reviewing
 2. The AI model analyzes the diff and changed files
 3. The agent posts:
-    - A **summary comment** with overall findings
-    - **Inline comments** on specific lines with issues and suggestions
-    - Severity tags (critical, warning, info)
+   - A **summary comment** with overall findings
+   - **Inline comments** on specific lines with issues and suggestions
+   - Severity tags (critical, warning, info)
 
 ### When You Push New Commits
 

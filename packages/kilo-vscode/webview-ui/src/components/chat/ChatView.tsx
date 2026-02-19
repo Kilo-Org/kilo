@@ -3,7 +3,7 @@
  * Main chat container that combines all chat components
  */
 
-import { Component, For, Show, createSignal } from "solid-js"
+import { Component, For, Show, createSignal, onCleanup, onMount } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
 import { BasicTool } from "@kilocode/kilo-ui/basic-tool"
 import { TaskHeader } from "./TaskHeader"
@@ -31,6 +31,17 @@ export const ChatView: Component<ChatViewProps> = (props) => {
   const blocked = () => sessionPermissions().length > 0 || sessionQuestions().length > 0
 
   const [responding, setResponding] = createSignal(false)
+
+  onMount(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && session.status() === "busy") {
+        e.preventDefault()
+        session.abort()
+      }
+    }
+    document.addEventListener("keydown", handler)
+    onCleanup(() => document.removeEventListener("keydown", handler))
+  })
 
   const decide = (response: "once" | "always" | "reject") => {
     const perm = permissionRequest()

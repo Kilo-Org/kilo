@@ -305,11 +305,11 @@ In-line ghost-text completions with tab to complete. Works alongside the agent m
 
 1. Install Kilo in your primary IDE
 2. Try each mode with a small task:
-    - **Code:** "Add a hello world endpoint"
-    - **Ask:** "Explain what this file does"
-    - **Debug:** "Why is this function returning undefined?"
-    - **Architect:** "Design a logging system"
-    - **Orchestrator:** "Build an app, end-to-end, that…"
+   - **Code:** "Add a hello world endpoint"
+   - **Ask:** "Explain what this file does"
+   - **Debug:** "Why is this function returning undefined?"
+   - **Architect:** "Design a logging system"
+   - **Orchestrator:** "Build an app, end-to-end, that…"
 3. Try Cloud Agents at [app.kilo.ai](https://app.kilo.ai/)
 4. Install the Kilo CLI with `npm install -g @kilocode/cli`
 5. Enable Autocomplete for inline suggestions

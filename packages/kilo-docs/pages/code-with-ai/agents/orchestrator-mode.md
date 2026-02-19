@@ -27,8 +27,8 @@ Orchestrator Mode (formerly known as Boomerang Tasks) allows you to break down c
 
 - **Approval Required:** By default, you must approve the creation and completion of each subtask. This can be automated via the [Auto-Approving Actions](/docs/features/auto-approving-actions#subtasks) settings if desired.
 - **Context Isolation and Transfer:** Each subtask operates in complete isolation with its own conversation history. It does not automatically inherit the parent's context. Information must be explicitly passed:
-    - **Down:** Via the initial instructions provided when the subtask is created.
-    - **Up:** Via the final summary provided when the subtask finishes. Be mindful that only this summary returns to the parent.
+  - **Down:** Via the initial instructions provided when the subtask is created.
+  - **Up:** Via the final summary provided when the subtask finishes. Be mindful that only this summary returns to the parent.
 - **Navigation:** Kilo's interface helps you see the hierarchy of tasks (which task is the parent, which are children). You can typically navigate between active and paused tasks.
 
 Orchestrator Mode provides a powerful way to manage complex development workflows directly within Kilo Code, leveraging specialized modes for maximum efficiency.

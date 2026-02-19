@@ -31,10 +31,10 @@ The panel opens as a webview and stays active across focus changes.
 
 - Continue the conversation: Send a follow-up message to the running agent
 - Approvals: If the agent asks to use a tool, run a command, launch the browser, or connect to an MCP server, the UI shows an approval prompt
-    - Approve or reject, optionally adding a short note
+  - Approve or reject, optionally adding a short note
 - Cancel vs Stop
-    - Cancel sends a structured cancel message to the running process (clean cooperative stop)
-    - Stop force-terminates the underlying CLI process, updating status to “stopped”
+  - Cancel sends a structured cancel message to the running process (clean cooperative stop)
+  - Stop force-terminates the underlying CLI process, updating status to “stopped”
 
 ## Resuming an existing session
 
@@ -50,7 +50,7 @@ Parallel Mode runs the agent in an isolated Git worktree branch, keeping your ma
 
 - Enable the "Parallel Mode" toggle before starting
 - The extension prevents using Parallel Mode inside an existing worktree
-    - Open the main repository (where .git is a directory) to use this feature
+  - Open the main repository (where .git is a directory) to use this feature
 
 ### Worktree Location
 
@@ -95,15 +95,14 @@ The Agent Manager requires proper authentication for full functionality, includi
 ### Supported Authentication Methods
 
 1. **Kilo Code Extension (Recommended)**
-
-    - Sign in through the extension settings
-    - Provides seamless authentication for the Agent Manager
-    - Enables session syncing and cloud features
+   - Sign in through the extension settings
+   - Provides seamless authentication for the Agent Manager
+   - Enables session syncing and cloud features
 
 2. **CLI with Kilo Code Provider**
-    - Use the CLI configured with `kilocode` as the provider
-    - Run `kilocode config` to set up authentication
-    - See [CLI setup](/docs/cli) for details
+   - Use the CLI configured with `kilocode` as the provider
+   - Run `kilocode config` to set up authentication
+   - See [CLI setup](/docs/cli) for details
 
 ### BYOK Limitations
 
@@ -123,7 +122,7 @@ When signed in (Kilo Cloud), the Agent Manager lists your recent cloud-synced se
 
 - Up to 50 sessions are fetched
 - Sessions are filtered to the current repository via normalized Git remote URL
-    - If the current workspace has no remote, only sessions without a git_url are shown
+  - If the current workspace has no remote, only sessions without a git_url are shown
 - Selecting a remote session loads its message transcript
 - To continue the work locally, send a message — the Agent Manager will spawn a local process bound to that session
 
@@ -132,18 +131,18 @@ Message transcripts are fetched from a signed blob and exclude internal checkpoi
 ## Troubleshooting
 
 - CLI not found or outdated
-    - Install/update the CLI: [CLI setup](/docs/cli)
-    - If you see an "unknown option --json-io" error, update to the latest CLI
+  - Install/update the CLI: [CLI setup](/docs/cli)
+  - If you see an "unknown option --json-io" error, update to the latest CLI
 - "Please open a folder…" error
-    - The Agent Manager requires a VS Code workspace folder
+  - The Agent Manager requires a VS Code workspace folder
 - "Cannot use parallel mode from within a git worktree"
-    - Open the main repository (where .git is a directory), not a worktree checkout
+  - Open the main repository (where .git is a directory), not a worktree checkout
 - Remote sessions not visible
-    - Ensure you're signed in and the repo's remote URL matches the sessions you expect to see
-    - If using BYOK, session syncing is not available — switch to Kilo Code provider or sign in through the extension
+  - Ensure you're signed in and the repo's remote URL matches the sessions you expect to see
+  - If using BYOK, session syncing is not available — switch to Kilo Code provider or sign in through the extension
 - Authentication errors
-    - Verify you're logged in via extension settings or using CLI with kilocode provider
-    - BYOK configurations do not support Agent Manager authentication
+  - Verify you're logged in via extension settings or using CLI with kilocode provider
+  - BYOK configurations do not support Agent Manager authentication
 
 ## Related features
 

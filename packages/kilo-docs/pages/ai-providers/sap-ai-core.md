@@ -20,19 +20,18 @@ Kilo Code supports accessing models through SAP AI Core, a service in the SAP Bu
 To use SAP AI Core with Kilo Code, you'll need to create a service key for your SAP AI Core service instance:
 
 1. **In SAP BTP Cockpit:**
-
-    - Navigate to your subaccount
-    - Go to "Services" → "Instances and Subscriptions"
-    - Find your SAP AI Core service instance
-    - Create a new service key
+   - Navigate to your subaccount
+   - Go to "Services" → "Instances and Subscriptions"
+   - Find your SAP AI Core service instance
+   - Create a new service key
 
 2. **Service Key Information:**
    The service key will contain the following information you'll need:
-    - **Client ID:** OAuth2 client identifier
-    - **Client Secret:** OAuth2 client secret
-    - **Auth URL:** OAuth2 authentication endpoint
-    - **Base URL:** SAP AI Core API base URL
-    - **Resource Group:** (Optional) Specify a resource group, defaults to "default"
+   - **Client ID:** OAuth2 client identifier
+   - **Client Secret:** OAuth2 client secret
+   - **Auth URL:** OAuth2 authentication endpoint
+   - **Base URL:** SAP AI Core API base URL
+   - **Resource Group:** (Optional) Specify a resource group, defaults to "default"
 
 ## Operating Modes
 
@@ -81,14 +80,14 @@ The exact list of available models depends on your SAP AI Core configuration and
 1. **Open Kilo Code Settings:** Click the gear icon ({% codicon name="gear" /%}) in the Kilo Code panel.
 2. **Select Provider:** Choose "SAP AI Core" from the "API Provider" dropdown.
 3. **Enter Credentials:**
-    - **Client ID:** Enter your SAP AI Core OAuth2 client ID
-    - **Client Secret:** Enter your SAP AI Core OAuth2 client secret
-    - **Base URL:** Enter your SAP AI Core API base URL (e.g., `https://api.ai.ml.hana.ondemand.com`)
-    - **Auth URL:** Enter your SAP AI Core OAuth2 auth URL (e.g., `https://your-subdomain.authentication.sap.hana.ondemand.com`)
-    - **Resource Group:** (Optional) Enter your resource group name, defaults to "default"
+   - **Client ID:** Enter your SAP AI Core OAuth2 client ID
+   - **Client Secret:** Enter your SAP AI Core OAuth2 client secret
+   - **Base URL:** Enter your SAP AI Core API base URL (e.g., `https://api.ai.ml.hana.ondemand.com`)
+   - **Auth URL:** Enter your SAP AI Core OAuth2 auth URL (e.g., `https://your-subdomain.authentication.sap.hana.ondemand.com`)
+   - **Resource Group:** (Optional) Enter your resource group name, defaults to "default"
 4. **Choose Operating Mode:**
-    - **Orchestration Mode:** Check the "Use Orchestration" checkbox for broader model access
-    - **Foundation Models Mode:** Leave unchecked to use foundation models with deployments
+   - **Orchestration Mode:** Check the "Use Orchestration" checkbox for broader model access
+   - **Foundation Models Mode:** Leave unchecked to use foundation models with deployments
 5. **Select Model:** Choose your desired model from the dropdown
 6. **Select Deployment:** (Foundation Models Mode only) Choose an active deployment for your selected model
 
@@ -115,27 +114,24 @@ When using Foundation Models mode:
 ### Common Issues
 
 1. **Authentication Failures:**
-
-    - Verify your Client ID and Client Secret are correct
-    - Check that your Auth URL is properly formatted
-    - Ensure your service key hasn't expired
+   - Verify your Client ID and Client Secret are correct
+   - Check that your Auth URL is properly formatted
+   - Ensure your service key hasn't expired
 
 2. **No Models Available:**
-
-    - Check that you have the necessary permissions in your resource group
-    - Verify your Base URL is correct
-    - In Foundation Models mode, ensure you have running deployments
+   - Check that you have the necessary permissions in your resource group
+   - Verify your Base URL is correct
+   - In Foundation Models mode, ensure you have running deployments
 
 3. **Deployment Issues:**
-
-    - Check that your deployments are in "RUNNING" status
-    - Verify you're using the correct resource group
-    - Review your SAP AI Core service configuration
+   - Check that your deployments are in "RUNNING" status
+   - Verify you're using the correct resource group
+   - Review your SAP AI Core service configuration
 
 4. **Model Access:**
-    - In Foundation Models mode, **only OpenAI models** are currently supported
-    - Switch to Orchestration mode for access to other providers
-    - Ensure models meet the minimum requirements (32k context window, streaming support)
+   - In Foundation Models mode, **only OpenAI models** are currently supported
+   - Switch to Orchestration mode for access to other providers
+   - Ensure models meet the minimum requirements (32k context window, streaming support)
 
 ## Getting Started
 

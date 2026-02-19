@@ -11,7 +11,6 @@ Kilo Code provides browser automation capabilities that let you interact with we
 Browser Use requires an advanced agentic model. It is typically most reliable with recent high-capability models (for example Claude Sonnet 4 class models).
 {% /callout %}
 
-
 ## How Browser Use Works
 
 By default, Kilo Code uses a built-in browser that:
@@ -96,10 +95,10 @@ To change this setting:
 
 1. Click the dropdown menu under "Viewport size" within your Browser / Computer Use settings
 2. Select one of the available options:
-    - Large Desktop (1280x800)
-    - Small Desktop (900x600) - Default
-    - Tablet (768x1024)
-    - Mobile (360x640)
+   - Large Desktop (1280x800)
+   - Small Desktop (900x600) - Default
+   - Tablet (768x1024)
+   - Mobile (360x640)
 3. Select your desired resolution.
 
 ### Screenshot Quality
@@ -113,10 +112,9 @@ To change this setting:
 1. Adjust the slider under "Screenshot quality" within your Browser / Computer Use settings
 2. Set a value between 1-100% (default is 75%)
 3. Higher values provide clearer screenshots but increase token usage:
-
-    - 40-50%: Good for basic text-based websites
-    - 60-70%: Balanced for most general browsing
-    - 80%+: Use when fine visual details are critical
+   - 40-50%: Good for basic text-based websites
+   - 60-70%: Balanced for most general browsing
+   - 80%+: Use when fine visual details are critical
 
 ### Remote Browser Connection
 

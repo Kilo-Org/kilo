@@ -54,13 +54,13 @@ Adds a small pause after running commands to help Kilo Code capture all output c
 
 - **Default**: 0ms
 - **Common Values**:
-    - 0ms: Works best for some users with newer VSCode versions
-    - 50ms: Historical default, still effective for many users
-    - 150ms: Recommended for PowerShell users
+  - 0ms: Works best for some users with newer VSCode versions
+  - 50ms: Historical default, still effective for many users
+  - 150ms: Recommended for PowerShell users
 - **Note**: Different values may work better depending on your:
-    - VSCode version
-    - Shell customizations (oh-my-zsh, powerlevel10k, etc.)
-    - Operating system and environment
+  - VSCode version
+  - Shell customizations (oh-my-zsh, powerlevel10k, etc.)
+  - Operating system and environment
 
 ### Advanced Settings
 
@@ -246,6 +246,8 @@ If you use Fish in Cygwin, a minimal setup is usually enough:
    ```fish
    string match -q "$TERM_PROGRAM" "vscode"; and . (code --locate-shell-integration-path fish)
 
+   ```
+
 2. Configure a terminal profile in VS Code that launches Fish (directly or via Cygwin bash).
 3. Restart VS Code and open a new terminal to verify integration.
 
@@ -258,24 +260,21 @@ If you use Fish in Cygwin, a minimal setup is usually enough:
 **Solutions**:
 
 1. **Set Terminal Command Delay**:
-
-    - Set the Terminal Command Delay to 50ms in Kilo Code settings
-    - Restart all terminals after changing this setting
-    - This matches older default behavior and may resolve the issue; some users report 0ms works better depending on shell and environment. This is a workaround for upstream VS Code behavior.
+   - Set the Terminal Command Delay to 50ms in Kilo Code settings
+   - Restart all terminals after changing this setting
+   - This matches older default behavior and may resolve the issue; some users report 0ms works better depending on shell and environment. This is a workaround for upstream VS Code behavior.
 
 2. **Roll Back VS Code Version**:
-
-    - Download VS Code v1.98 from [VS Code Updates](https://code.visualstudio.com/updates/v1_98)
-    - Replace your current VS Code installation
-    - No backup of Kilo settings needed
+   - Download VS Code v1.98 from [VS Code Updates](https://code.visualstudio.com/updates/v1_98)
+   - Replace your current VS Code installation
+   - No backup of Kilo settings needed
 
 3. **WSL-Specific Workaround**:
-
-    - If using WSL, ensure you launch VSCode from within WSL using `code .`
+   - If using WSL, ensure you launch VSCode from within WSL using `code .`
 
 4. **ZSH Users**:
-    - Try enabling some or all ZSH-related workarounds in Kilo Code settings
-    - These settings can help regardless of your operating system
+   - Try enabling some or all ZSH-related workarounds in Kilo Code settings
+   - These settings can help regardless of your operating system
 
 ## Additional Known Issues
 
@@ -314,34 +313,32 @@ When shell integration issues occur, check the debug logs:
 2. Set "Show All Levels" to see all log messages
 3. Look for messages containing `[Terminal Process]`
 4. Check `preOutput` content in error messages:
-    - Empty preOutput (`''`) means VS Code sent no data
-    - This indicates a potential VS Code shell integration issue, or an upstream bug that is out of our control
-    - The absence of shell integration markers may require adjusting settings to work around possible upstream bugs or local workstation configuration issues related to shell initialization and VS Code loading shell hooks
+   - Empty preOutput (`''`) means VS Code sent no data
+   - This indicates a potential VS Code shell integration issue, or an upstream bug that is out of our control
+   - The absence of shell integration markers may require adjusting settings to work around possible upstream bugs or local workstation configuration issues related to shell initialization and VS Code loading shell hooks
 
 ### Using the VS Code Terminal Integration Test Extension
 
 The [VS Code Terminal Integration Test Extension](https://github.com/KJ7LNW/vsce-test-terminal-integration) helps diagnose shell integration issues by testing different settings combinations:
 
 1. **When Commands Stall**:
-
-    - If you see "command already running" warnings, click "Reset Stats" to reset the terminal state
-    - These warnings indicate shell integration is not working
-    - Try different settings combinations until you find one that works
-    - If it really gets stuck, restart the extension by closing the window and pressing F5
+   - If you see "command already running" warnings, click "Reset Stats" to reset the terminal state
+   - These warnings indicate shell integration is not working
+   - Try different settings combinations until you find one that works
+   - If it really gets stuck, restart the extension by closing the window and pressing F5
 
 2. **Testing Settings**:
-
-    - Systematically try different combinations of:
-        - Terminal Command Delay
-        - Shell Integration settings
-    - Document which combinations succeed or fail
-    - This helps identify patterns in shell integration issues
+   - Systematically try different combinations of:
+     - Terminal Command Delay
+     - Shell Integration settings
+   - Document which combinations succeed or fail
+   - This helps identify patterns in shell integration issues
 
 3. **Reporting Issues**:
-    - Once you find a problematic configuration
-    - Document the exact settings combination
-    - Note your environment (OS, VS Code version, shell, and any shell prompt customization)
-    - Open an issue with these details to help improve shell integration
+   - Once you find a problematic configuration
+   - Document the exact settings combination
+   - Note your environment (OS, VS Code version, shell, and any shell prompt customization)
+   - Open an issue with these details to help improve shell integration
 
 ## Support
 

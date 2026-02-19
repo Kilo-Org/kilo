@@ -20,7 +20,7 @@ seats for Kilo in the Teams or Enterprise subscription brings transparent AI cod
 
 1. Visit [app.kilo.ai](https://app.kilo.ai)
 2. Sign up using your company Google Workspaces or GitHub account
-    - Note: We recommend starting with your GitHub account rather than a personal Google account, but we can change it later.
+   - Note: We recommend starting with your GitHub account rather than a personal Google account, but we can change it later.
 3. Click **Organizations** in the left sidebar and then **Create New Organization**
 
 {% image src="/docs/img/teams/create-team.png" alt="Create new organization button" width="600" /%}
@@ -39,9 +39,9 @@ seats for Kilo in the Teams or Enterprise subscription brings transparent AI cod
 2. Click **Invite Member**
 3. Enter team member email
 4. Assign roles:
-    - **Owner** - Full administrative access
-    - **Admin** - Team management without billing
-    - **Member** - Standard usage access
+   - **Owner** - Full administrative access
+   - **Admin** - Team management without billing
+   - **Member** - Standard usage access
 
 {% image src="/docs/img/teams/invite-member.png" alt="Invite your team members" width="600" /%}
 

@@ -23,31 +23,31 @@ POST /chat/completions
 
 ```typescript
 type ChatCompletionRequest = {
-	// Required
-	model: string // Model ID (e.g., "anthropic/claude-sonnet-4.5")
-	messages: Message[] // Array of conversation messages
+  // Required
+  model: string // Model ID (e.g., "anthropic/claude-sonnet-4.5")
+  messages: Message[] // Array of conversation messages
 
-	// Streaming
-	stream?: boolean // Enable SSE streaming (default: false)
+  // Streaming
+  stream?: boolean // Enable SSE streaming (default: false)
 
-	// Generation parameters
-	max_tokens?: number // Maximum tokens to generate
-	temperature?: number // Sampling temperature (0-2)
-	top_p?: number // Nucleus sampling (0-1)
-	stop?: string | string[] // Stop sequences
-	frequency_penalty?: number // Frequency penalty (-2 to 2)
-	presence_penalty?: number // Presence penalty (-2 to 2)
+  // Generation parameters
+  max_tokens?: number // Maximum tokens to generate
+  temperature?: number // Sampling temperature (0-2)
+  top_p?: number // Nucleus sampling (0-1)
+  stop?: string | string[] // Stop sequences
+  frequency_penalty?: number // Frequency penalty (-2 to 2)
+  presence_penalty?: number // Presence penalty (-2 to 2)
 
-	// Tool calling
-	tools?: Tool[] // Available tools/functions
-	tool_choice?: ToolChoice // Tool selection strategy
+  // Tool calling
+  tools?: Tool[] // Available tools/functions
+  tool_choice?: ToolChoice // Tool selection strategy
 
-	// Structured output
-	response_format?: ResponseFormat
+  // Structured output
+  response_format?: ResponseFormat
 
-	// Other
-	user?: string // End-user identifier for safety
-	seed?: number // Deterministic sampling seed
+  // Other
+  user?: string // End-user identifier for safety
+  seed?: number // Deterministic sampling seed
 }
 ```
 
@@ -55,20 +55,20 @@ type ChatCompletionRequest = {
 
 ```typescript
 type Message =
-	| { role: "system"; content: string }
-	| { role: "user"; content: string | ContentPart[] }
-	| { role: "assistant"; content: string | null; tool_calls?: ToolCall[] }
-	| { role: "tool"; content: string; tool_call_id: string }
+  | { role: "system"; content: string }
+  | { role: "user"; content: string | ContentPart[] }
+  | { role: "assistant"; content: string | null; tool_calls?: ToolCall[] }
+  | { role: "tool"; content: string; tool_call_id: string }
 
 type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail?: string } }
 
 type Tool = {
-	type: "function"
-	function: {
-		name: string
-		description?: string
-		parameters: object // JSON Schema
-	}
+  type: "function"
+  function: {
+    name: string
+    description?: string
+    parameters: object // JSON Schema
+  }
 }
 
 type ToolChoice = "none" | "auto" | "required" | { type: "function"; function: { name: string } }
@@ -78,24 +78,24 @@ type ToolChoice = "none" | "auto" | "required" | { type: "function"; function: {
 
 ```typescript
 type ChatCompletionResponse = {
-	id: string
-	object: "chat.completion"
-	created: number
-	model: string
-	choices: Array<{
-		index: number
-		message: {
-			role: "assistant"
-			content: string | null
-			tool_calls?: ToolCall[]
-		}
-		finish_reason: "stop" | "length" | "tool_calls" | "content_filter"
-	}>
-	usage: {
-		prompt_tokens: number
-		completion_tokens: number
-		total_tokens: number
-	}
+  id: string
+  object: "chat.completion"
+  created: number
+  model: string
+  choices: Array<{
+    index: number
+    message: {
+      role: "assistant"
+      content: string | null
+      tool_calls?: ToolCall[]
+    }
+    finish_reason: "stop" | "length" | "tool_calls" | "content_filter"
+  }>
+  usage: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
 }
 ```
 
@@ -105,25 +105,25 @@ When `stream: true`, the response is a series of SSE events:
 
 ```typescript
 type ChatCompletionChunk = {
-	id: string
-	object: "chat.completion.chunk"
-	created: number
-	model: string
-	choices: Array<{
-		index: number
-		delta: {
-			role?: "assistant"
-			content?: string
-			tool_calls?: ToolCall[]
-		}
-		finish_reason: string | null
-	}>
-	// Only in the final chunk
-	usage?: {
-		prompt_tokens: number
-		completion_tokens: number
-		total_tokens: number
-	}
+  id: string
+  object: "chat.completion.chunk"
+  created: number
+  model: string
+  choices: Array<{
+    index: number
+    delta: {
+      role?: "assistant"
+      content?: string
+      tool_calls?: ToolCall[]
+    }
+    finish_reason: string | null
+  }>
+  // Only in the final chunk
+  usage?: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
 }
 ```
 
@@ -148,25 +148,25 @@ curl -X POST "https://api.kilo.ai/api/gateway/chat/completions" \
 
 ```json
 {
-	"id": "gen-abc123",
-	"object": "chat.completion",
-	"created": 1739000000,
-	"model": "anthropic/claude-sonnet-4.5",
-	"choices": [
-		{
-			"index": 0,
-			"message": {
-				"role": "assistant",
-				"content": "Quantum computing is a type of computation that uses quantum mechanics..."
-			},
-			"finish_reason": "stop"
-		}
-	],
-	"usage": {
-		"prompt_tokens": 25,
-		"completion_tokens": 150,
-		"total_tokens": 175
-	}
+  "id": "gen-abc123",
+  "object": "chat.completion",
+  "created": 1739000000,
+  "model": "anthropic/claude-sonnet-4.5",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Quantum computing is a type of computation that uses quantum mechanics..."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 25,
+    "completion_tokens": 150,
+    "total_tokens": 175
+  }
 }
 ```
 
@@ -178,28 +178,28 @@ The gateway supports function/tool calling with automatic repair for common issu
 
 ```json
 {
-	"model": "anthropic/claude-sonnet-4.5",
-	"messages": [{ "role": "user", "content": "What's the weather in San Francisco?" }],
-	"tools": [
-		{
-			"type": "function",
-			"function": {
-				"name": "get_weather",
-				"description": "Get the current weather for a location",
-				"parameters": {
-					"type": "object",
-					"properties": {
-						"location": {
-							"type": "string",
-							"description": "City name"
-						}
-					},
-					"required": ["location"]
-				}
-			}
-		}
-	],
-	"tool_choice": "auto"
+  "model": "anthropic/claude-sonnet-4.5",
+  "messages": [{ "role": "user", "content": "What's the weather in San Francisco?" }],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get the current weather for a location",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string",
+              "description": "City name"
+            }
+          },
+          "required": ["location"]
+        }
+      }
+    }
+  ],
+  "tool_choice": "auto"
 }
 ```
 
@@ -207,25 +207,25 @@ The gateway supports function/tool calling with automatic repair for common issu
 
 ```json
 {
-	"choices": [
-		{
-			"message": {
-				"role": "assistant",
-				"content": null,
-				"tool_calls": [
-					{
-						"id": "call_abc123",
-						"type": "function",
-						"function": {
-							"name": "get_weather",
-							"arguments": "{\"location\":\"San Francisco\"}"
-						}
-					}
-				]
-			},
-			"finish_reason": "tool_calls"
-		}
-	]
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_abc123",
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": "{\"location\":\"San Francisco\"}"
+            }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ]
 }
 ```
 
@@ -250,13 +250,13 @@ POST /api/fim/completions
 
 ```typescript
 type FIMRequest = {
-	model: string // Must be a Mistral model (e.g., "mistralai/codestral-2508")
-	prompt: string // Code before the cursor
-	suffix?: string // Code after the cursor
-	max_tokens?: number // Maximum tokens (capped at 1000)
-	temperature?: number
-	stop?: string[]
-	stream?: boolean
+  model: string // Must be a Mistral model (e.g., "mistralai/codestral-2508")
+  prompt: string // Code before the cursor
+  suffix?: string // Code after the cursor
+  max_tokens?: number // Maximum tokens (capped at 1000)
+  temperature?: number
+  stop?: string[]
+  stream?: boolean
 }
 ```
 
@@ -295,20 +295,20 @@ Returns an OpenAI-compatible model list:
 
 ```json
 {
-	"data": [
-		{
-			"id": "anthropic/claude-sonnet-4.5",
-			"object": "model",
-			"created": 1739000000,
-			"owned_by": "anthropic",
-			"name": "Claude Sonnet 4.5",
-			"context_length": 200000,
-			"pricing": {
-				"prompt": "0.000003",
-				"completion": "0.000015"
-			}
-		}
-	]
+  "data": [
+    {
+      "id": "anthropic/claude-sonnet-4.5",
+      "object": "model",
+      "created": 1739000000,
+      "owned_by": "anthropic",
+      "name": "Claude Sonnet 4.5",
+      "context_length": 200000,
+      "pricing": {
+        "prompt": "0.000003",
+        "completion": "0.000015"
+      }
+    }
+  ]
 }
 ```
 
@@ -339,10 +339,10 @@ No authentication required.
 
 ```json
 {
-	"error": {
-		"message": "Human-readable error description",
-		"code": 400
-	}
+  "error": {
+    "message": "Human-readable error description",
+    "code": 400
+  }
 }
 ```
 
@@ -356,9 +356,9 @@ If your request exceeds the model's context window, you'll receive a descriptive
 
 ```json
 {
-	"error": {
-		"message": "This request exceeds the model's context window of 200000 tokens. Your request contains approximately 250000 tokens.",
-		"code": 400
-	}
+  "error": {
+    "message": "This request exceeds the model's context window of 200000 tokens. Your request contains approximately 250000 tokens.",
+    "code": 400
+  }
 }
 ```

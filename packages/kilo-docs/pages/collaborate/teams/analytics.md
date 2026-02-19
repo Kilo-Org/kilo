@@ -94,9 +94,9 @@ To set the project identifier to `my-project`, create a `.kilocode/config.json` 
 
 ```json
 {
-	"project": {
-		"id": "my-project"
-	}
+  "project": {
+    "id": "my-project"
+  }
 }
 ```
 

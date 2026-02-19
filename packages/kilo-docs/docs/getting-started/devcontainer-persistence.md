@@ -21,20 +21,20 @@ The Kilo Code dev container is pre-configured with named volumes to preserve you
 
 ```json
 {
-	"name": "Your Project",
-	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
-	"mounts": [
-		{
-			"source": "kilocode-global-storage",
-			"target": "/root/.vscode-remote/data/User/globalStorage/kilocode.kilo-code",
-			"type": "volume"
-		},
-		{
-			"source": "kilocode-settings",
-			"target": "/root/.vscode-remote/data/User/settings",
-			"type": "volume"
-		}
-	]
+  "name": "Your Project",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "mounts": [
+    {
+      "source": "kilocode-global-storage",
+      "target": "/root/.vscode-remote/data/User/globalStorage/kilocode.kilo-code",
+      "type": "volume"
+    },
+    {
+      "source": "kilocode-settings",
+      "target": "/root/.vscode-remote/data/User/settings",
+      "type": "volume"
+    }
+  ]
 }
 ```
 
@@ -89,9 +89,9 @@ For advanced configurations, you can specify a custom storage path:
 ```
 
 2. Set the custom storage path in VS Code settings:
-    - Open Settings (`Ctrl+,` or `Cmd+,`)
-    - Search for "Kilo Code: Custom Storage Path"
-    - Enter: `/home/vscode/kilocode-data`
+   - Open Settings (`Ctrl+,` or `Cmd+,`)
+   - Search for "Kilo Code: Custom Storage Path"
+   - Enter: `/home/vscode/kilocode-data`
 
 ## Best Practices
 

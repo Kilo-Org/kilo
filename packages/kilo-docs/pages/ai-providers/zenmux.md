@@ -44,22 +44,22 @@ Use the standard OpenAI SDK with ZenMux's base URL:
 import OpenAI from "openai"
 
 const openai = new OpenAI({
-	baseURL: "https://zenmux.ai/api/v1",
-	apiKey: "<ZENMUX_API_KEY>",
+  baseURL: "https://zenmux.ai/api/v1",
+  apiKey: "<ZENMUX_API_KEY>",
 })
 
 async function main() {
-	const completion = await openai.chat.completions.create({
-		model: "openai/gpt-5",
-		messages: [
-			{
-				role: "user",
-				content: "What is the meaning of life?",
-			},
-		],
-	})
+  const completion = await openai.chat.completions.create({
+    model: "openai/gpt-5",
+    messages: [
+      {
+        role: "user",
+        content: "What is the meaning of life?",
+      },
+    ],
+  })
 
-	console.log(completion.choices[0].message)
+  console.log(completion.choices[0].message)
 }
 
 main()
@@ -74,19 +74,19 @@ import Anthropic from "@anthropic-ai/sdk"
 
 // 1. Initialize the Anthropic client
 const anthropic = new Anthropic({
-	// 2. Replace with the API key from your ZenMux console
-	apiKey: "<YOUR ZENMUX_API_KEY>",
-	// 3. Point the base URL to the ZenMux endpoint
-	baseURL: "https://zenmux.ai/api/anthropic",
+  // 2. Replace with the API key from your ZenMux console
+  apiKey: "<YOUR ZENMUX_API_KEY>",
+  // 3. Point the base URL to the ZenMux endpoint
+  baseURL: "https://zenmux.ai/api/anthropic",
 })
 
 async function main() {
-	const msg = await anthropic.messages.create({
-		model: "anthropic/claude-sonnet-4.5",
-		max_tokens: 1024,
-		messages: [{ role: "user", content: "Hello, Claude" }],
-	})
-	console.log(msg)
+  const msg = await anthropic.messages.create({
+    model: "anthropic/claude-sonnet-4.5",
+    max_tokens: 1024,
+    messages: [{ role: "user", content: "Hello, Claude" }],
+  })
+  console.log(msg)
 }
 
 main()
@@ -109,17 +109,17 @@ For Google models:
 const genai = require("@google/genai")
 
 const client = new genai.GoogleGenAI({
-	apiKey: "$ZENMUX_API_KEY",
-	vertexai: true,
-	httpOptions: {
-		baseUrl: "https://zenmux.ai/api/vertex-ai",
-		apiVersion: "v1",
-	},
+  apiKey: "$ZENMUX_API_KEY",
+  vertexai: true,
+  httpOptions: {
+    baseUrl: "https://zenmux.ai/api/vertex-ai",
+    apiVersion: "v1",
+  },
 })
 
 const response = await client.models.generateContent({
-	model: "google/gemini-2.5-pro",
-	contents: "How does AI work?",
+  model: "google/gemini-2.5-pro",
+  contents: "How does AI work?",
 })
 console.log(response)
 ```

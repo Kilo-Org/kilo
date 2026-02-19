@@ -42,8 +42,8 @@ Note: Sharing creates a read‑only copy for the public link so your private ses
 If someone shares a session with you, you can fork it to create your own copy:
 
 - From the share page, choose “Open in Editor” (recommended), or run one of these commands:
-    - CLI: kilocode --fork SHARE_ID
-    - In‑app command: /session fork SHARE_ID
+  - CLI: kilocode --fork SHARE_ID
+  - In‑app command: /session fork SHARE_ID
 
 Forking creates a new session in your account, with its own ID, and copies over the relevant context so you can continue independently.
 

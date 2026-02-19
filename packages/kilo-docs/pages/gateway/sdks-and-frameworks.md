@@ -24,17 +24,17 @@ import { streamText } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
 
 const kilo = createOpenAI({
-	baseURL: "https://api.kilo.ai/api/gateway",
-	apiKey: process.env.KILO_API_KEY,
+  baseURL: "https://api.kilo.ai/api/gateway",
+  apiKey: process.env.KILO_API_KEY,
 })
 
 const result = streamText({
-	model: kilo("anthropic/claude-sonnet-4.5"),
-	prompt: "Write a haiku about programming.",
+  model: kilo("anthropic/claude-sonnet-4.5"),
+  prompt: "Write a haiku about programming.",
 })
 
 for await (const textPart of result.textStream) {
-	process.stdout.write(textPart)
+  process.stdout.write(textPart)
 }
 ```
 
@@ -46,28 +46,28 @@ import { createOpenAI } from "@ai-sdk/openai"
 import { z } from "zod"
 
 const kilo = createOpenAI({
-	baseURL: "https://api.kilo.ai/api/gateway",
-	apiKey: process.env.KILO_API_KEY,
+  baseURL: "https://api.kilo.ai/api/gateway",
+  apiKey: process.env.KILO_API_KEY,
 })
 
 const result = streamText({
-	model: kilo("anthropic/claude-sonnet-4.5"),
-	prompt: "What is the weather in San Francisco?",
-	tools: {
-		getWeather: tool({
-			description: "Get the current weather for a location",
-			parameters: z.object({
-				location: z.string().describe("City name"),
-			}),
-			execute: async ({ location }) => {
-				return { temperature: 72, condition: "sunny" }
-			},
-		}),
-	},
+  model: kilo("anthropic/claude-sonnet-4.5"),
+  prompt: "What is the weather in San Francisco?",
+  tools: {
+    getWeather: tool({
+      description: "Get the current weather for a location",
+      parameters: z.object({
+        location: z.string().describe("City name"),
+      }),
+      execute: async ({ location }) => {
+        return { temperature: 72, condition: "sunny" }
+      },
+    }),
+  },
 })
 
 for await (const textPart of result.textStream) {
-	process.stdout.write(textPart)
+  process.stdout.write(textPart)
 }
 ```
 
@@ -78,19 +78,19 @@ import { streamText } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
 
 const kilo = createOpenAI({
-	baseURL: "https://api.kilo.ai/api/gateway",
-	apiKey: process.env.KILO_API_KEY,
+  baseURL: "https://api.kilo.ai/api/gateway",
+  apiKey: process.env.KILO_API_KEY,
 })
 
 export async function POST(request: Request) {
-	const { messages } = await request.json()
+  const { messages } = await request.json()
 
-	const result = streamText({
-		model: kilo("anthropic/claude-sonnet-4.5"),
-		messages,
-	})
+  const result = streamText({
+    model: kilo("anthropic/claude-sonnet-4.5"),
+    messages,
+  })
 
-	return result.toDataStreamResponse()
+  return result.toDataStreamResponse()
 }
 ```
 
@@ -108,31 +108,31 @@ npm install openai
 import OpenAI from "openai"
 
 const client = new OpenAI({
-	apiKey: process.env.KILO_API_KEY,
-	baseURL: "https://api.kilo.ai/api/gateway",
+  apiKey: process.env.KILO_API_KEY,
+  baseURL: "https://api.kilo.ai/api/gateway",
 })
 
 // Non-streaming
 const response = await client.chat.completions.create({
-	model: "anthropic/claude-sonnet-4.5",
-	messages: [
-		{ role: "system", content: "You are a helpful assistant." },
-		{ role: "user", content: "Explain quantum entanglement simply." },
-	],
+  model: "anthropic/claude-sonnet-4.5",
+  messages: [
+    { role: "system", content: "You are a helpful assistant." },
+    { role: "user", content: "Explain quantum entanglement simply." },
+  ],
 })
 
 console.log(response.choices[0].message.content)
 
 // Streaming
 const stream = await client.chat.completions.create({
-	model: "anthropic/claude-sonnet-4.5",
-	messages: [{ role: "user", content: "Write a poem about the ocean." }],
-	stream: true,
+  model: "anthropic/claude-sonnet-4.5",
+  messages: [{ role: "user", content: "Write a poem about the ocean." }],
+  stream: true,
 })
 
 for await (const chunk of stream) {
-	const content = chunk.choices[0]?.delta?.content
-	if (content) process.stdout.write(content)
+  const content = chunk.choices[0]?.delta?.content
+  if (content) process.stdout.write(content)
 }
 ```
 
@@ -314,11 +314,11 @@ print(response.content)
 import { ChatOpenAI } from "@langchain/openai"
 
 const model = new ChatOpenAI({
-	modelName: "anthropic/claude-sonnet-4.5",
-	openAIApiKey: process.env.KILO_API_KEY,
-	configuration: {
-		baseURL: "https://api.kilo.ai/api/gateway",
-	},
+  modelName: "anthropic/claude-sonnet-4.5",
+  openAIApiKey: process.env.KILO_API_KEY,
+  configuration: {
+    baseURL: "https://api.kilo.ai/api/gateway",
+  },
 })
 
 const response = await model.invoke("Explain photosynthesis in simple terms.")

@@ -55,9 +55,9 @@ When the `list_code_definition_names` tool is invoked, it follows this process:
 4. **File Filtering**: Limits processing to a maximum of 50 files
 5. **Language Detection**: Identifies file types based on extensions (.js, .jsx, .ts, .tsx, .py, .rs, .go, .cpp, .hpp, .c, .h, .cs, .rb, .java, .php, .swift, .kt, .kts)
 6. **Code Parsing**: Uses Tree-sitter to parse code and extract definitions through these steps:
-    - Parsing file content into an Abstract Syntax Tree (AST)
-    - Creating a query using a language-specific query string
-    - Sorting the captures by their position in the file
+   - Parsing file content into an Abstract Syntax Tree (AST)
+   - Creating a query using a language-specific query string
+   - Sorting the captures by their position in the file
 7. **Result Formatting**: Outputs definitions with line numbers and actual source code
 
 ## Output Format

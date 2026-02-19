@@ -7,12 +7,12 @@ The `browser_action` tool enables web automation and interaction via a Puppeteer
 The tool accepts these parameters:
 
 - `action` (required): The action to perform:
-    - `launch`: Start a new browser session at a URL
-    - `click`: Click at specific x,y coordinates
-    - `type`: Type text via the keyboard
-    - `scroll_down`: Scroll down one page height
-    - `scroll_up`: Scroll up one page height
-    - `close`: End the browser session
+  - `launch`: Start a new browser session at a URL
+  - `click`: Click at specific x,y coordinates
+  - `type`: Type text via the keyboard
+  - `scroll_down`: Scroll down one page height
+  - `scroll_up`: Scroll up one page height
+  - `close`: End the browser session
 - `url` (optional): The URL to navigate to when using the `launch` action
 - `coordinate` (optional): The x,y coordinates for the `click` action (e.g., "450,300")
 - `text` (optional): The text to type when using the `type` action
@@ -77,28 +77,25 @@ The tool operates in two distinct modes:
 When the `browser_action` tool is invoked, it follows this process:
 
 1. **Action Validation and Browser Management**:
-
-    - Validates the required parameters for the requested action
-    - For `launch`: Initializes a browser session (either local Puppeteer instance or remote Chrome)
-    - For interaction actions: Uses the existing browser session
-    - For `close`: Terminates or disconnects from the browser appropriately
+   - Validates the required parameters for the requested action
+   - For `launch`: Initializes a browser session (either local Puppeteer instance or remote Chrome)
+   - For interaction actions: Uses the existing browser session
+   - For `close`: Terminates or disconnects from the browser appropriately
 
 2. **Page Interaction and Stability**:
-
-    - Ensures pages are fully loaded using DOM stability detection via `waitTillHTMLStable` algorithm
-    - Executes requested actions (navigation, clicking, typing, scrolling) with proper timing
-    - Monitors network activity after clicks and waits for navigation when necessary
+   - Ensures pages are fully loaded using DOM stability detection via `waitTillHTMLStable` algorithm
+   - Executes requested actions (navigation, clicking, typing, scrolling) with proper timing
+   - Monitors network activity after clicks and waits for navigation when necessary
 
 3. **Visual Feedback**:
-
-    - Captures optimized screenshots using WebP format (with PNG fallback)
-    - Records browser console logs for debugging purposes
-    - Tracks mouse position and maintains paginated history of actions
+   - Captures optimized screenshots using WebP format (with PNG fallback)
+   - Records browser console logs for debugging purposes
+   - Tracks mouse position and maintains paginated history of actions
 
 4. **Session Management**:
-    - Maintains browser state across multiple actions
-    - Handles errors and automatically cleans up resources
-    - Enforces proper workflow sequence (launch → interactions → close)
+   - Maintains browser state across multiple actions
+   - Handles errors and automatically cleans up resources
+   - Enforces proper workflow sequence (launch → interactions → close)
 
 ## Workflow Sequence
 

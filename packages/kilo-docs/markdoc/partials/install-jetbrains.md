@@ -5,14 +5,13 @@ Kilo Code supports all JetBrains IDEs including IntelliJ IDEA, WebStorm, PyCharm
 Before installing the Kilo Code plugin, ensure you have:
 
 1. **JetBrains Toolbox (Recommended):**
-
-    - Download from [https://www.jetbrains.com/toolbox-app/](https://www.jetbrains.com/toolbox-app/)
-    - Toolbox is required for authentication callbacks to work properly
-    - Without Toolbox, you'll need to manually configure API keys
+   - Download from [https://www.jetbrains.com/toolbox-app/](https://www.jetbrains.com/toolbox-app/)
+   - Toolbox is required for authentication callbacks to work properly
+   - Without Toolbox, you'll need to manually configure API keys
 
 2. **Node.js:**
-    - Download LTS version from [https://nodejs.org/](https://nodejs.org/)
-    - Required for the extension's backend services
+   - Download LTS version from [https://nodejs.org/](https://nodejs.org/)
+   - Required for the extension's backend services
 
 ### Install directly
 

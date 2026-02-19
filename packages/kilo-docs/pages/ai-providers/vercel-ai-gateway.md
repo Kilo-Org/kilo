@@ -1,15 +1,15 @@
 ---
 description: Configure the Vercel AI Gateway in Kilo Code to robustly access 100+ language models from various providers through a centralized interface.
 keywords:
-    - kilo code
-    - vercel ai gateway
-    - ai provider
-    - language models
-    - api configuration
-    - model selection
-    - prompt caching
-    - usage tracking
-    - byok
+  - kilo code
+  - vercel ai gateway
+  - ai provider
+  - language models
+  - api configuration
+  - model selection
+  - prompt caching
+  - usage tracking
+  - byok
 sidebar_label: Vercel AI Gateway
 ---
 

@@ -169,7 +169,7 @@ Configuration is managed through:
 - `/connect` command for provider setup (interactive)
 - Config files in **`~/.config/kilo/`**: the CLI (Kilo CLI 1.0 from [Kilo-Org/kilo](https://github.com/Kilo-Org/kilo)) merges `config.json`, `opencode.json`, and `opencode.jsonc`. Use **`opencode.json`** (or `opencode.jsonc`) for provider, model, permission, and **MCP** settings. Restart the CLI after editing. See [Using MCP in the CLI](/automate/mcp/using-in-cli) for MCP config format.
 - `kilo auth` for credential management
- 
+
 ## Slash Commands
 
 The CLI's interactive mode supports slash commands for common operations. The main commands are documented above in the [Interactive Slash Commands](#interactive-slash-commands) section.
@@ -196,12 +196,12 @@ You can set permissions globally (with `*`), and override specific tools.
 
 ```json
 {
-	"$schema": "https://kilo.ai/config.json",
-	"permission": {
-		"*": "ask",
-		"bash": "allow",
-		"edit": "deny"
-	}
+  "$schema": "https://kilo.ai/config.json",
+  "permission": {
+    "*": "ask",
+    "bash": "allow",
+    "edit": "deny"
+  }
 }
 ```
 
@@ -209,8 +209,8 @@ You can also set all permissions at once:
 
 ```json
 {
-	"$schema": "https://kilo.ai/config.json",
-	"permission": "allow"
+  "$schema": "https://kilo.ai/config.json",
+  "permission": "allow"
 }
 ```
 
@@ -220,20 +220,20 @@ For most permissions, you can use an object to apply different actions based on 
 
 ```json
 {
-	"$schema": "https://opencode.ai/config.json",
-	"permission": {
-		"bash": {
-			"*": "ask",
-			"git *": "allow",
-			"npm *": "allow",
-			"rm *": "deny",
-			"grep *": "allow"
-		},
-		"edit": {
-			"*": "deny",
-			"packages/web/src/content/docs/*.mdx": "allow"
-		}
-	}
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "bash": {
+      "*": "ask",
+      "git *": "allow",
+      "npm *": "allow",
+      "rm *": "deny",
+      "grep *": "allow"
+    },
+    "edit": {
+      "*": "deny",
+      "packages/web/src/content/docs/*.mdx": "allow"
+    }
+  }
 }
 ```
 
@@ -261,12 +261,12 @@ Use `external_directory` to allow tool calls that touch paths outside the workin
 
 ```json
 {
-	"$schema": "https://kilo.ai/config.json",
-	"permission": {
-		"external_directory": {
-			"~/projects/personal/**": "allow"
-		}
-	}
+  "$schema": "https://kilo.ai/config.json",
+  "permission": {
+    "external_directory": {
+      "~/projects/personal/**": "allow"
+    }
+  }
 }
 ```
 
@@ -274,15 +274,15 @@ Any directory allowed here inherits the same defaults as the current workspace. 
 
 ```json
 {
-	"$schema": "https://kilo.ai/config.json",
-	"permission": {
-		"external_directory": {
-			"~/projects/personal/**": "allow"
-		},
-		"edit": {
-			"~/projects/personal/**": "deny"
-		}
-	}
+  "$schema": "https://kilo.ai/config.json",
+  "permission": {
+    "external_directory": {
+      "~/projects/personal/**": "allow"
+    },
+    "edit": {
+      "~/projects/personal/**": "deny"
+    }
+  }
 }
 ```
 
@@ -294,10 +294,10 @@ The Kilo CLI is a fork of [OpenCode](https://opencode.ai) and supports the same 
 
 ### Config File Location (Kilo CLI 1.0)
 
-| Scope      | Path                                                                 |
-| ---------- | -------------------------------------------------------------------- |
-| **Global** | `~/.config/kilo/opencode.json` or `opencode.jsonc` (Windows: config dir may vary; same filenames) |
-| **Project**| `./opencode.json` or `./.opencode/` in project root                  |
+| Scope       | Path                                                                                              |
+| ----------- | ------------------------------------------------------------------------------------------------- |
+| **Global**  | `~/.config/kilo/opencode.json` or `opencode.jsonc` (Windows: config dir may vary; same filenames) |
+| **Project** | `./opencode.json` or `./.opencode/` in project root                                               |
 
 Project-level configuration takes precedence over global settings.
 
@@ -428,7 +428,7 @@ This instructs the AI to proceed without user input.
 # GitHub Actions example
 - name: Run Kilo Code
   run: |
-      kilo run "Implement the new feature" --auto
+    kilo run "Implement the new feature" --auto
 ```
 
 ## Session Continuation

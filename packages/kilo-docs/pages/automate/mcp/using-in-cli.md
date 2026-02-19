@@ -22,17 +22,17 @@ Edit `~/.kilocode/cli/global/settings/mcp_settings.json`:
 
 ```json
 {
-	"mcpServers": {
-		"server-name": {
-			"command": "node",
-			"args": ["/path/to/server.js"],
-			"env": {
-				"API_KEY": "your_api_key"
-			},
-			"alwaysAllow": ["tool1", "tool2"],
-			"disabled": false
-		}
-	}
+  "mcpServers": {
+    "server-name": {
+      "command": "node",
+      "args": ["/path/to/server.js"],
+      "env": {
+        "API_KEY": "your_api_key"
+      },
+      "alwaysAllow": ["tool1", "tool2"],
+      "disabled": false
+    }
+  }
 }
 ```
 
@@ -42,13 +42,13 @@ Edit `~/.kilocode/cli/global/settings/mcp_settings.json`:
 
 ```json
 {
-	"mcpServers": {
-		"local-server": {
-			"command": "node",
-			"args": ["/path/to/server.js"],
-			"env": {}
-		}
-	}
+  "mcpServers": {
+    "local-server": {
+      "command": "node",
+      "args": ["/path/to/server.js"],
+      "env": {}
+    }
+  }
 }
 ```
 
@@ -56,15 +56,15 @@ Edit `~/.kilocode/cli/global/settings/mcp_settings.json`:
 
 ```json
 {
-	"mcpServers": {
-		"remote-server": {
-			"type": "streamable-http",
-			"url": "https://your-server.com/mcp",
-			"headers": {
-				"Authorization": "Bearer token"
-			}
-		}
-	}
+  "mcpServers": {
+    "remote-server": {
+      "type": "streamable-http",
+      "url": "https://your-server.com/mcp",
+      "headers": {
+        "Authorization": "Bearer token"
+      }
+    }
+  }
 }
 ```
 
@@ -92,11 +92,11 @@ MCP auto-approval is controlled via CLI config (`kilocode config`):
 
 ```json
 {
-	"autoApproval": {
-		"mcp": {
-			"enabled": true
-		}
-	}
+  "autoApproval": {
+    "mcp": {
+      "enabled": true
+    }
+  }
 }
 ```
 

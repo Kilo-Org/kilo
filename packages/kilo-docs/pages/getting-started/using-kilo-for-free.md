@@ -90,7 +90,7 @@ Configure the `small_model` parameter in `~/.config/kilo/config.json` to use a f
 
 ```json
 {
-	"small_model": "your-preferred-free-model"
+  "small_model": "your-preferred-free-model"
 }
 ```
 

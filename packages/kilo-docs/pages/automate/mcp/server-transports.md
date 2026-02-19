@@ -69,8 +69,8 @@ Server-Sent Events (SSE) transport runs on a remote server and communicates over
 2. This establishes a persistent connection where the server can push events to the client
 3. For client-to-server communication, the client makes HTTP POST requests to a separate endpoint
 4. Communication happens over two channels:
-    - Event Stream (GET): Server-to-client updates
-    - Message Endpoint (POST): Client-to-server requests
+   - Event Stream (GET): Server-to-client updates
+   - Message Endpoint (POST): Client-to-server requests
 
 ```
 Client                             Server
@@ -116,7 +116,7 @@ const server = new Server({ name: "remote-server", version: "1.0.0" })
 const transport = new SSEServerTransport(server)
 app.use("/mcp", transport.requestHandler())
 app.listen(3000, () => {
-	console.log("MCP server listening on port 3000")
+  console.log("MCP server listening on port 3000")
 })
 ```
 

@@ -13,9 +13,9 @@ Set `stream: true` in your request body to enable streaming:
 
 ```json
 {
-	"model": "anthropic/claude-sonnet-4.5",
-	"messages": [{ "role": "user", "content": "Write a short story" }],
-	"stream": true
+  "model": "anthropic/claude-sonnet-4.5",
+  "messages": [{ "role": "user", "content": "Write a short story" }],
+  "stream": true
 }
 ```
 
@@ -32,17 +32,17 @@ import { streamText } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
 
 const kilo = createOpenAI({
-	baseURL: "https://api.kilo.ai/api/gateway",
-	apiKey: process.env.KILO_API_KEY,
+  baseURL: "https://api.kilo.ai/api/gateway",
+  apiKey: process.env.KILO_API_KEY,
 })
 
 const result = streamText({
-	model: kilo("anthropic/claude-sonnet-4.5"),
-	prompt: "Write a short story about a robot.",
+  model: kilo("anthropic/claude-sonnet-4.5"),
+  prompt: "Write a short story about a robot.",
 })
 
 for await (const textPart of result.textStream) {
-	process.stdout.write(textPart)
+  process.stdout.write(textPart)
 }
 
 // Access usage data after streaming completes
@@ -59,21 +59,21 @@ console.log("Tokens used:", usage)
 import OpenAI from "openai"
 
 const client = new OpenAI({
-	apiKey: process.env.KILO_API_KEY,
-	baseURL: "https://api.kilo.ai/api/gateway",
+  apiKey: process.env.KILO_API_KEY,
+  baseURL: "https://api.kilo.ai/api/gateway",
 })
 
 const stream = await client.chat.completions.create({
-	model: "anthropic/claude-sonnet-4.5",
-	messages: [{ role: "user", content: "Write a short story" }],
-	stream: true,
+  model: "anthropic/claude-sonnet-4.5",
+  messages: [{ role: "user", content: "Write a short story" }],
+  stream: true,
 })
 
 for await (const chunk of stream) {
-	const content = chunk.choices[0]?.delta?.content
-	if (content) {
-		process.stdout.write(content)
-	}
+  const content = chunk.choices[0]?.delta?.content
+  if (content) {
+    process.stdout.write(content)
+  }
 }
 ```
 
@@ -123,14 +123,14 @@ Token usage data is included in the final chunk before `[DONE]`, with an empty `
 
 ```json
 {
-	"id": "chatcmpl-abc123",
-	"object": "chat.completion.chunk",
-	"usage": {
-		"prompt_tokens": 12,
-		"completion_tokens": 150,
-		"total_tokens": 162
-	},
-	"choices": []
+  "id": "chatcmpl-abc123",
+  "object": "chat.completion.chunk",
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 150,
+    "total_tokens": 162
+  },
+  "choices": []
 }
 ```
 
@@ -142,17 +142,17 @@ You can cancel a streaming request by aborting the connection. This stops token 
 const controller = new AbortController()
 
 const response = await fetch("https://api.kilo.ai/api/gateway/chat/completions", {
-	method: "POST",
-	headers: {
-		Authorization: `Bearer ${process.env.KILO_API_KEY}`,
-		"Content-Type": "application/json",
-	},
-	body: JSON.stringify({
-		model: "anthropic/claude-sonnet-4.5",
-		messages: [{ role: "user", content: "Write a long essay" }],
-		stream: true,
-	}),
-	signal: controller.signal,
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.KILO_API_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    model: "anthropic/claude-sonnet-4.5",
+    messages: [{ role: "user", content: "Write a long essay" }],
+    stream: true,
+  }),
+  signal: controller.signal,
 })
 
 // Cancel after 5 seconds
@@ -171,10 +171,10 @@ If an error occurs before any tokens are sent, the gateway returns a standard JS
 
 ```json
 {
-	"error": {
-		"message": "Insufficient balance",
-		"code": 402
-	}
+  "error": {
+    "message": "Insufficient balance",
+    "code": 402
+  }
 }
 ```
 

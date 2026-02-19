@@ -49,9 +49,9 @@ The system follows a straightforward streaming architecture where user voice inp
 
 - Spawn FFmpeg as child process from extension host
 - Platform-specific audio input configuration:
-    - **macOS**: `avfoundation`
-    - **Windows**: `dshow` (DirectShow)
-    - **Linux**: `alsa` or `pulse`
+  - **macOS**: `avfoundation`
+  - **Windows**: `dshow` (DirectShow)
+  - **Linux**: `alsa` or `pulse`
 - Stream PCM16 format at 24kHz mono (required by OpenAI)
 - Handle permissions errors and FFmpeg availability checks
 
@@ -89,10 +89,10 @@ The system follows a straightforward streaming architecture where user voice inp
 **Documentation Structure**:
 
 - `docs/user-guide/voice-transcription-setup.md`
-    - Prerequisites section
-    - Platform-specific installation
-    - Troubleshooting common issues
-    - Permissions setup (especially macOS)
+  - Prerequisites section
+  - Platform-specific installation
+  - Troubleshooting common issues
+  - Permissions setup (especially macOS)
 
 ## Scope/Implementation
 

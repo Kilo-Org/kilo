@@ -72,9 +72,9 @@ Use the Markdoc codicon tag format:
 
 1. Create your page in the appropriate directory under `pages/`
 2. **Always update navigation**: Add the page to the corresponding navigation file in `lib/nav/`
-    - Each section has its own nav file (e.g., `getting-started.ts`, `code-with-ai.ts`, `ai-providers.ts`)
-    - Navigation structure is exported from `lib/nav/index.ts`
-    - See `lib/types.ts` for the `NavSection` and `NavLink` interfaces
+   - Each section has its own nav file (e.g., `getting-started.ts`, `code-with-ai.ts`, `ai-providers.ts`)
+   - Navigation structure is exported from `lib/nav/index.ts`
+   - See `lib/types.ts` for the `NavSection` and `NavLink` interfaces
 
 ### Removing or Moving Pages
 
@@ -82,13 +82,13 @@ Use the Markdoc codicon tag format:
 
 1. Add a redirect entry to `previous-docs-redirects.js`
 2. Redirect format:
-    ```javascript
-    {
-      source: "/docs/old-path",
-      destination: "/docs/new-path",
-      basePath: false,
-      permanent: true,
-    }
-    ```
+   ```javascript
+   {
+     source: "/docs/old-path",
+     destination: "/docs/new-path",
+     basePath: false,
+     permanent: true,
+   }
+   ```
 3. Update the navigation file to remove or update the link
 4. Redirects are loaded in `next.config.js`

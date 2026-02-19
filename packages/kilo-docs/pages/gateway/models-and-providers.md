@@ -13,8 +13,8 @@ Models are identified using the format `provider/model-name`. Pass this as the `
 
 ```typescript
 const result = streamText({
-	model: kilo("anthropic/claude-sonnet-4.5"),
-	prompt: "Hello!",
+  model: kilo("anthropic/claude-sonnet-4.5"),
+  prompt: "Hello!",
 })
 ```
 
@@ -22,8 +22,8 @@ Or in a raw API request:
 
 ```json
 {
-	"model": "anthropic/claude-sonnet-4.5",
-	"messages": [{ "role": "user", "content": "Hello!" }]
+  "model": "anthropic/claude-sonnet-4.5",
+  "messages": [{ "role": "user", "content": "Hello!" }]
 }
 ```
 
@@ -76,8 +76,8 @@ The `kilo/auto` virtual model automatically selects the best model based on the 
 
 ```json
 {
-	"model": "kilo/auto",
-	"messages": [{ "role": "user", "content": "Help me design a database schema" }]
+  "model": "kilo/auto",
+  "messages": [{ "role": "user", "content": "Help me design a database schema" }]
 }
 ```
 

@@ -112,6 +112,15 @@
         "title": "Agent Manager: Focus Panel",
         "category": "Kilo Code",
         "icon": "$(circuit-board)"
+      },
+      {
+        "command": "kilo-code.new.generateCommitMessage",
+        "title": "Generate Commit Message",
+        "category": "Kilo Code (NEW)",
+        "icon": {
+          "light": "assets/icons/kilo-light.svg",
+          "dark": "assets/icons/kilo-dark.svg"
+        }
       }
     ],
     "keybindings": [
@@ -183,6 +192,13 @@
           "command": "kilo-code.new.settingsButtonClicked",
           "group": "navigation@5",
           "when": "view == kilo-code.new.sidebarView"
+        }
+      ],
+      "scm/title": [
+        {
+          "command": "kilo-code.new.generateCommitMessage",
+          "group": "navigation",
+          "when": "scmProvider == git"
         }
       ],
       "editor/title": [

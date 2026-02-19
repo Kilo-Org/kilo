@@ -23,8 +23,8 @@ Providing console logs helps us pinpoint exactly what's going wrong with your in
 1. Open your JetBrains IDE and go to **Help → Find Action** (or press `Cmd+Shift+A` / `Ctrl+Shift+A`)
 2. Type `Registry` and open it
 3. Search for `jcef` and configure these settings:
-    - `ide.browser.jcef.debug.port` → set to `9222`
-    - `ide.browser.jcef.contextMenu.devTools.enabled` → check the box
+   - `ide.browser.jcef.debug.port` → set to `9222`
+   - `ide.browser.jcef.contextMenu.devTools.enabled` → check the box
 4. Restart your IDE after making these changes
 
 ### Connect Chrome DevTools

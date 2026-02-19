@@ -32,7 +32,7 @@ Access checkpoint settings in Kilo Code settings under the "Checkpoints" section
 1. Open Settings by clicking the gear icon {% codicon name="gear" /%} → Checkpoints
 2. Check or uncheck the "Enable automatic checkpoints" checkbox
 
-    {% image src="/docs/img/checkpoints/checkpoints.png" alt="Checkpoint settings in Kilo Code configuration" width="500" /%}
+   {% image src="/docs/img/checkpoints/checkpoints.png" alt="Checkpoint settings in Kilo Code configuration" width="500" /%}
 
 ## How Checkpoints Work
 
@@ -67,14 +67,14 @@ To compare your current workspace with a previous checkpoint:
 1. Locate the checkpoint in your chat history
 2. Click the checkpoint's `View Differences` button
 
-    {% image src="/docs/img/checkpoints/checkpoints-6.png" alt="View Differences button interface" width="100" /%}
+   {% image src="/docs/img/checkpoints/checkpoints-6.png" alt="View Differences button interface" width="100" /%}
 
 3. Review the differences in the comparison view:
-    - Added lines are highlighted in green
-    - Removed lines are highlighted in red
-    - Modified files are listed with detailed changes
-    - Renamed and moved files are tracked with their path changes
-    - New or deleted files are clearly marked
+   - Added lines are highlighted in green
+   - Removed lines are highlighted in red
+   - Modified files are listed with detailed changes
+   - Renamed and moved files are tracked with their path changes
+   - New or deleted files are clearly marked
 
 {% image src="/docs/img/checkpoints/checkpoints-3.png" alt="View differences option for checkpoints" width="800" /%}
 
@@ -87,12 +87,11 @@ To restore a project to a previous checkpoint state:
    {% image src="/docs/img/checkpoints/checkpoints-7.png" alt="Restore checkpoint button interface" width="100" /%}
 3. Choose one of these restoration options:
 
-    {% image src="/docs/img/checkpoints/checkpoints-4.png" alt="Restore checkpoint option" width="300" /%}
+   {% image src="/docs/img/checkpoints/checkpoints-4.png" alt="Restore checkpoint option" width="300" /%}
+   - **Restore Files Only** - Reverts only workspace files to checkpoint state without modifying conversation history. Ideal for comparing alternative implementations while maintaining chat context, allowing you to seamlessly switch between different project states. This option does not require confirmation and lets you quickly switch between different implementations.
+   - **Restore Files & Task** - Reverts both workspace files AND removes all subsequent conversation messages. Use when you want to completely reset both your code and conversation back to the checkpoint's point in time. This option requires confirmation in a dialog as it cannot be undone.
 
-    - **Restore Files Only** - Reverts only workspace files to checkpoint state without modifying conversation history. Ideal for comparing alternative implementations while maintaining chat context, allowing you to seamlessly switch between different project states. This option does not require confirmation and lets you quickly switch between different implementations.
-    - **Restore Files & Task** - Reverts both workspace files AND removes all subsequent conversation messages. Use when you want to completely reset both your code and conversation back to the checkpoint's point in time. This option requires confirmation in a dialog as it cannot be undone.
-
-        {% image src="/docs/img/checkpoints/checkpoints-9.png" alt="Confirmation dialog for restoring checkpoint with files & task" width="300" /%}
+     {% image src="/docs/img/checkpoints/checkpoints-9.png" alt="Confirmation dialog for restoring checkpoint with files & task" width="300" /%}
 
 ### Limitations and Considerations
 
@@ -110,11 +109,10 @@ The checkpoint system consists of:
 1. **Shadow Git Repository**: A separate Git repository created specifically for checkpoint tracking that functions as the persistent storage mechanism for checkpoint state.
 
 2. **Checkpoint Service**: Handles Git operations and state management through:
-
-    - Repository initialization
-    - Checkpoint creation and storage
-    - Diff computation
-    - State restoration
+   - Repository initialization
+   - Checkpoint creation and storage
+   - Diff computation
+   - State restoration
 
 3. **UI Components**: Interface elements displayed in the chat that enable interaction with checkpoints.
 
@@ -193,42 +191,40 @@ Checkpoints require Git to be installed on your system. The implementation uses 
 
 1. **Install with Homebrew (recommended)**:
 
-    ```
-    brew install git
-    ```
+   ```
+   brew install git
+   ```
 
 2. **Alternative: Install with Xcode Command Line Tools**:
 
-    ```
-    xcode-select --install
-    ```
+   ```
+   xcode-select --install
+   ```
 
 3. **Verify installation**:
-    - Open Terminal
-    - Type `git --version`
-    - You should see a version number like `git version 2.40.0`
+   - Open Terminal
+   - Type `git --version`
+   - You should see a version number like `git version 2.40.0`
 
 ### Windows
 
 1. **Download Git for Windows**:
-
-    - Visit https://git-scm.com/download/win
-    - The download should start automatically
+   - Visit https://git-scm.com/download/win
+   - The download should start automatically
 
 2. **Run the installer**:
-
-    - Accept the license agreement
-    - Choose installation location (default is recommended)
-    - Select components (default options are typically sufficient)
-    - Choose the default editor
-    - Choose how to use Git from the command line (recommended: Git from the command line and also from 3rd-party software)
-    - Configure line ending conversions (recommended: Checkout Windows-style, commit Unix-style)
-    - Complete the installation
+   - Accept the license agreement
+   - Choose installation location (default is recommended)
+   - Select components (default options are typically sufficient)
+   - Choose the default editor
+   - Choose how to use Git from the command line (recommended: Git from the command line and also from 3rd-party software)
+   - Configure line ending conversions (recommended: Checkout Windows-style, commit Unix-style)
+   - Complete the installation
 
 3. **Verify installation**:
-    - Open Command Prompt or PowerShell
-    - Type `git --version`
-    - You should see a version number like `git version 2.40.0.windows.1`
+   - Open Command Prompt or PowerShell
+   - Type `git --version`
+   - You should see a version number like `git version 2.40.0.windows.1`
 
 ### Linux
 

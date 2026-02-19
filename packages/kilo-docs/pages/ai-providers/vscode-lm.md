@@ -15,8 +15,8 @@ Kilo Code includes _experimental_ support for the [VS Code Language Model API](h
 
 - **VS Code:** The Language Model API is available through VS Code (and is not currently supported by Cursor).
 - **A Language Model Provider Extension:** You need an extension that provides a language model. Examples include:
-    - **GitHub Copilot:** If you have a Copilot subscription, the GitHub Copilot and GitHub Copilot Chat extensions can provide models.
-    - **Other Extensions:** Search the VS Code Marketplace for extensions that mention "Language Model API" or "lm". There may be other experimental extensions available.
+  - **GitHub Copilot:** If you have a Copilot subscription, the GitHub Copilot and GitHub Copilot Chat extensions can provide models.
+  - **Other Extensions:** Search the VS Code Marketplace for extensions that mention "Language Model API" or "lm". There may be other experimental extensions available.
 
 ## Configuration
 
@@ -39,7 +39,7 @@ Kilo Code includes _experimental_ support for the [VS Code Language Model API](h
 ## Troubleshooting
 
 - **No Models Appear:**
-    - Ensure you have VS Code installed.
-    - Ensure you have a language model provider extension installed and enabled (e.g., GitHub Copilot, GitHub Copilot Chat).
-    - If using Copilot, make sure that you have sent a Copilot Chat message using the model you would like to use.
+  - Ensure you have VS Code installed.
+  - Ensure you have a language model provider extension installed and enabled (e.g., GitHub Copilot, GitHub Copilot Chat).
+  - If using Copilot, make sure that you have sent a Copilot Chat message using the model you would like to use.
 - **Unexpected Behavior:** If you encounter unexpected behavior, it's likely an issue with the underlying Language Model API or the provider extension. Consider reporting the issue to the provider extension's developers.

@@ -48,16 +48,16 @@ When the `search_files` tool is invoked, it follows this process:
 1. **Parameter Validation**: Validates the required `path` and `regex` parameters
 2. **Path Resolution**: Resolves the relative path to an absolute path
 3. **Search Execution**:
-    - Uses Ripgrep (rg) for high-performance text searching
-    - Applies file pattern filtering if specified
-    - Collects matches with surrounding context
+   - Uses Ripgrep (rg) for high-performance text searching
+   - Applies file pattern filtering if specified
+   - Collects matches with surrounding context
 4. **Result Formatting**:
-    - Formats results with file paths, line numbers, and context
-    - Displays 1 line of context before and after each match
-    - Structures output for easy readability
-    - Limits results to a maximum of 300 matches with notification
-    - Truncates lines longer than 500 characters
-    - Merges nearby matches into contiguous blocks
+   - Formats results with file paths, line numbers, and context
+   - Displays 1 line of context before and after each match
+   - Structures output for easy readability
+   - Limits results to a maximum of 300 matches with notification
+   - Truncates lines longer than 500 characters
+   - Merges nearby matches into contiguous blocks
 
 ## Search Results Format
 

@@ -49,6 +49,3 @@ New to customization? Here's where to start:
 - Check out [**Code with AI**](/docs/code-with-ai) to learn how to use Kilo effectively
 - Explore [**Automate**](/docs/automate) for CI/CD integration and advanced automation
 - Learn about [**Collaboration**](/docs/collaborate) features for teams
-
-
-

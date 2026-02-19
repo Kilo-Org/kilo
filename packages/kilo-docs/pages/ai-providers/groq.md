@@ -69,10 +69,10 @@ The `moonshotai/kimi-k2-instruct` model includes optimized configuration:
 - **Cost-Effective:** Competitive pricing for high-performance inference
 - **Rate Limits:** Be aware of API rate limits based on your Groq plan
 - **Model Selection:** Choose models based on your specific use case:
-    - **Kimi K2**: Best for complex reasoning and multilingual tasks
-    - **Llama 3.3 70B**: Excellent general-purpose performance
-    - **Llama 3.1 8B Instant**: Fastest responses for simple tasks
-    - **Mixtral**: Good balance of performance and efficiency
+  - **Kimi K2**: Best for complex reasoning and multilingual tasks
+  - **Llama 3.3 70B**: Excellent general-purpose performance
+  - **Llama 3.1 8B Instant**: Fastest responses for simple tasks
+  - **Mixtral**: Good balance of performance and efficiency
 
 ## Troubleshooting
 

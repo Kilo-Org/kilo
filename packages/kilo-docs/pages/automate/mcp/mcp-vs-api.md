@@ -43,23 +43,23 @@ MCP enables an AI to discover and use tools at runtime:
 ```json
 // AI discovers available tools
 {
-	"tools": [
-		{
-			"name": "readFile",
-			"description": "Reads content from a file",
-			"parameters": {
-				"path": { "type": "string", "description": "File path" }
-			}
-		},
-		{
-			"name": "createTicket",
-			"description": "Creates a ticket in issue tracker",
-			"parameters": {
-				"title": { "type": "string" },
-				"description": { "type": "string" }
-			}
-		}
-	]
+  "tools": [
+    {
+      "name": "readFile",
+      "description": "Reads content from a file",
+      "parameters": {
+        "path": { "type": "string", "description": "File path" }
+      }
+    },
+    {
+      "name": "createTicket",
+      "description": "Creates a ticket in issue tracker",
+      "parameters": {
+        "title": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    }
+  ]
 }
 ```
 

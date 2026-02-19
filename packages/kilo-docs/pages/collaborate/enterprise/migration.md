@@ -355,8 +355,8 @@ Kilo Code also supports mode-specific rules (`.kilocode/rules-{mode}/`), which C
 - **Discord:** Join our migration support channel
 - **Consultation:** Schedule free migration planning call
 - **Documentation:**
-    - [Business migration guide](/docs/plans/migration) (this page)
-    - [Technical migration guide](/docs/getting-started/migrating) (rules and configurations)
+  - [Business migration guide](/docs/plans/migration) (this page)
+  - [Technical migration guide](/docs/getting-started/migrating) (rules and configurations)
 
 ## Success Stories
 

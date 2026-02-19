@@ -286,7 +286,7 @@ export const dict = {
 
   "dialog.project.edit.worktree.startup": "Skrypt uruchamiania przestrzeni roboczej",
   "dialog.project.edit.worktree.startup.description":
-    "Runs after creating a new workspace (worktree).",
+    "Uruchamiany po utworzeniu nowej przestrzeni roboczej (drzewa roboczego).",
   "dialog.project.edit.worktree.startup.placeholder": "np. bun install",
   "context.breakdown.title": "Podział kontekstu",
   "context.breakdown.note": 'Przybliżony podział tokenów wejściowych. "Inne" obejmuje definicje narzędzi i narzut.',

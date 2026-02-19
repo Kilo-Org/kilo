@@ -177,48 +177,6 @@
         "label": "Kilo Code"
       },
       {
-        "command": "kilo-code.new.agentManager.nextSession",
-        "key": "ctrl+down",
-        "mac": "cmd+down",
-        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
-      },
-      {
-        "command": "kilo-code.new.agentManager.previousTab",
-        "key": "ctrl+left",
-        "mac": "cmd+left",
-        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
-      },
-      {
-        "command": "kilo-code.new.agentManager.nextTab",
-        "key": "ctrl+right",
-        "mac": "cmd+right",
-        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
-      },
-      {
-        "command": "kilo-code.new.agentManager.newTab",
-        "key": "ctrl+t",
-        "mac": "cmd+t",
-        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
-      },
-      {
-        "command": "kilo-code.new.agentManager.closeTab",
-        "key": "ctrl+w",
-        "mac": "cmd+w",
-        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
-      },
-      {
-        "command": "kilo-code.new.agentManager.newWorktree",
-        "key": "ctrl+n",
-        "mac": "cmd+n",
-        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
-      },
-      {
-        "command": "kilo-code.new.agentManager.closeWorktree",
-        "key": "ctrl+shift+w",
-        "mac": "cmd+shift+w",
-        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
-      },
-      {
         "id": "kilo-code.new.terminalContextMenu",
         "label": "Kilo Code"
       }
@@ -349,6 +307,30 @@
         "command": "kilo-code.new.agentManager.nextTab",
         "key": "ctrl+right",
         "mac": "cmd+right",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.newTab",
+        "key": "ctrl+t",
+        "mac": "cmd+t",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.closeTab",
+        "key": "ctrl+w",
+        "mac": "cmd+w",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.newWorktree",
+        "key": "ctrl+n",
+        "mac": "cmd+n",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.closeWorktree",
+        "key": "ctrl+shift+w",
+        "mac": "cmd+shift+w",
         "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
       }
     ],

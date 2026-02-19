@@ -11,7 +11,8 @@ import type {
   SessionInfo,
 } from "../src/types/messages"
 import { ThemeProvider } from "@kilocode/kilo-ui/theme"
-import { DialogProvider } from "@kilocode/kilo-ui/context/dialog"
+import { DialogProvider, useDialog } from "@kilocode/kilo-ui/context/dialog"
+import { Dialog } from "@kilocode/kilo-ui/dialog"
 import { MarkedProvider } from "@kilocode/kilo-ui/context/marked"
 import { CodeComponentProvider } from "@kilocode/kilo-ui/context/code"
 import { DiffComponentProvider } from "@kilocode/kilo-ui/context/diff"
@@ -48,6 +49,7 @@ type SidebarSelection = "local" | string | null
 const AgentManagerContent: Component = () => {
   const session = useSession()
   const vscode = useVSCode()
+  const dialog = useDialog()
 
   const [setup, setSetup] = createSignal<SetupState>({ active: false, message: "" })
   const [worktrees, setWorktrees] = createSignal<WorktreeState[]>([])
@@ -253,17 +255,29 @@ const AgentManagerContent: Component = () => {
       else if (msg.action === "sessionNext") navigate("down")
       else if (msg.action === "tabPrevious") navigateTab("left")
       else if (msg.action === "tabNext") navigateTab("right")
+      else if (msg.action === "newTab") handleAddSession()
+      else if (msg.action === "closeTab") closeActiveTab()
+      else if (msg.action === "newWorktree") handleNewWorktreeOrPromote()
+      else if (msg.action === "closeWorktree") closeSelectedWorktree()
     }
     window.addEventListener("message", handler)
 
-    // Prevent Cmd+Up/Down/Left/Right from triggering native scroll
-    const preventScroll = (e: KeyboardEvent) => {
+    // Prevent Cmd+Arrow/T/W/N/P from triggering native browser actions
+    const preventDefaults = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
         e.preventDefault()
       }
+      // Prevent browser defaults for our shortcuts (new tab, close tab, new window)
+      if (["t", "w", "n"].includes(e.key.toLowerCase()) && !e.shiftKey) {
+        e.preventDefault()
+      }
+      // Prevent defaults for shift variants (close worktree)
+      if (e.key.toLowerCase() === "w" && e.shiftKey) {
+        e.preventDefault()
+      }
     }
-    window.addEventListener("keydown", preventScroll)
+    window.addEventListener("keydown", preventDefaults)
 
     // When the panel regains focus (e.g. returning from terminal), focus the prompt
     const onWindowFocus = () => window.dispatchEvent(new Event("focusPrompt"))
@@ -319,7 +333,7 @@ const AgentManagerContent: Component = () => {
 
     onCleanup(() => {
       window.removeEventListener("message", handler)
-      window.removeEventListener("keydown", preventScroll)
+      window.removeEventListener("keydown", preventDefaults)
       window.removeEventListener("focus", onWindowFocus)
       unsubCreate()
       unsub()
@@ -392,6 +406,68 @@ const AgentManagerContent: Component = () => {
       e.preventDefault()
       handleCloseTab(sessionId, e)
     }
+  }
+
+  // Close the currently active tab via keyboard shortcut
+  const closeActiveTab = () => {
+    const tabs = activeTabs()
+    if (tabs.length === 0) return
+    const current = session.currentSessionID()
+    const pending = activePendingId()
+    const target = current
+      ? tabs.find((s) => s.id === current)
+      : pending
+        ? tabs.find((s) => s.id === pending)
+        : undefined
+    if (!target) return
+    // Reuse existing close logic with a synthetic event
+    const synthetic = new MouseEvent("click")
+    handleCloseTab(target.id, synthetic)
+  }
+
+  // Cmd+N: if an unassigned session is selected, promote it; otherwise create a new worktree
+  const handleNewWorktreeOrPromote = () => {
+    const sel = selection()
+    const sid = session.currentSessionID()
+    if (sel === null && sid && !worktreeSessionIds().has(sid)) {
+      vscode.postMessage({ type: "agentManager.promoteSession", sessionId: sid })
+      return
+    }
+    handleCreateWorktree()
+  }
+
+  // Close the currently selected worktree with a confirmation dialog
+  const closeSelectedWorktree = () => {
+    const sel = selection()
+    if (!sel || sel === "local") return
+    const wt = worktrees().find((w) => w.id === sel)
+    if (!wt) return
+    dialog.show(() => (
+      <Dialog title="Close Worktree" fit>
+        <div class="dialog-confirm-body">
+          <span>
+            Delete worktree <strong>{wt.branch}</strong>? This removes the worktree from disk and dissociates all
+            sessions.
+          </span>
+          <div class="dialog-confirm-actions">
+            <Button variant="ghost" size="large" onClick={() => dialog.close()}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="large"
+              onClick={() => {
+                vscode.postMessage({ type: "agentManager.deleteWorktree", worktreeId: wt.id })
+                if (selection() === wt.id) selectLocal()
+                dialog.close()
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    ))
   }
 
   return (

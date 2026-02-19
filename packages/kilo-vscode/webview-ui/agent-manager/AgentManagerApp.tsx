@@ -253,6 +253,10 @@ const AgentManagerContent: Component = () => {
       else if (msg.action === "sessionNext") navigate("down")
       else if (msg.action === "tabPrevious") navigateTab("left")
       else if (msg.action === "tabNext") navigateTab("right")
+      else if (msg.action === "showTerminal") {
+        const id = session.currentSessionID()
+        if (id) vscode.postMessage({ type: "agentManager.showTerminal", sessionId: id })
+      }
     }
     window.addEventListener("message", handler)
 
@@ -536,6 +540,20 @@ const AgentManagerContent: Component = () => {
               class="am-tab-add"
               onClick={handleAddSession}
             />
+            <div class="am-tab-terminal">
+              <Tooltip value="Open Terminal" placement="bottom">
+                <IconButton
+                  icon="console"
+                  size="small"
+                  variant="ghost"
+                  label="Open Terminal"
+                  onClick={() => {
+                    const id = session.currentSessionID()
+                    if (id) vscode.postMessage({ type: "agentManager.showTerminal", sessionId: id })
+                  }}
+                />
+              </Tooltip>
+            </div>
           </div>
         </Show>
 

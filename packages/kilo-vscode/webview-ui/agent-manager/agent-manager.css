@@ -343,6 +343,13 @@
   align-self: center;
 }
 
+.am-tab-terminal {
+  flex-shrink: 0;
+  align-self: center;
+  margin-left: auto;
+  padding-right: 4px;
+}
+
 /* Empty worktree state */
 
 .am-empty-state {

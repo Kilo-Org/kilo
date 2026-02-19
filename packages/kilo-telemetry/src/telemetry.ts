@@ -142,6 +142,8 @@ export namespace Telemetry {
     outputTokens?: number
     cacheReadTokens?: number
     cacheWriteTokens?: number
+    cost?: number
+    completionTime?: number
     duration?: number
   }) {
     track(TelemetryEvent.LLM_COMPLETION, properties)

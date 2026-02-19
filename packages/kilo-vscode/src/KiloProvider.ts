@@ -194,6 +194,10 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     this.sessionDirectories.set(sessionId, directory)
   }
 
+  public clearSessionDirectory(sessionId: string): void {
+    this.sessionDirectories.delete(sessionId)
+  }
+
   /**
    * Re-fetch and send the full session list to the webview.
    * Called by AgentManagerProvider after worktree recovery completes.
@@ -365,7 +369,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         case "requestFileSearch": {
           const client = this.httpClient
           if (client) {
-            const dir = this.getWorkspaceDirectory()
+            const dir = this.getWorkspaceDirectory(this.currentSession?.id)
             void client
               .findFiles(message.query, dir)
               .then((paths) => {
@@ -575,6 +579,23 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
           }
         })
         .catch((err) => console.error("[Kilo New] KiloProvider: Failed to fetch session for tracking:", err))
+
+      // Fetch current session status so the webview has the correct busy/idle
+      // state after switching tabs (SSE events may have been missed).
+      this.httpClient
+        .getSessionStatuses(workspaceDir)
+        .then((statuses) => {
+          for (const [sid, info] of Object.entries(statuses)) {
+            if (!this.trackedSessionIds.has(sid)) continue
+            this.postMessage({
+              type: "sessionStatus",
+              sessionID: sid,
+              status: info.type,
+              ...(info.type === "retry" ? { attempt: info.attempt, message: info.message, next: info.next } : {}),
+            })
+          }
+        })
+        .catch((err) => console.error("[Kilo New] KiloProvider: Failed to fetch session statuses:", err))
 
       // Convert to webview format, including cost/tokens for assistant messages
       const messages = messagesData.map((m) => ({
@@ -1356,13 +1377,16 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         })
         break
 
-      case "session.status":
+      case "session.status": {
+        const info = event.properties.status
         this.postMessage({
           type: "sessionStatus",
           sessionID: event.properties.sessionID,
-          status: event.properties.status.type,
+          status: info.type,
+          ...(info.type === "retry" ? { attempt: info.attempt, message: info.message, next: info.next } : {}),
         })
         break
+      }
 
       case "permission.asked":
         this.postMessage({

@@ -9,7 +9,7 @@ export namespace Flag {
   export const KILO_GIT_BASH_PATH = process.env["KILO_GIT_BASH_PATH"]
   export const KILO_CONFIG = process.env["KILO_CONFIG"]
   export declare const KILO_CONFIG_DIR: string | undefined
-  export declare const KILO_CONFIG_CONTENT: string | undefined
+  export const KILO_CONFIG_CONTENT = process.env["KILO_CONFIG_CONTENT"]
   export const KILO_DISABLE_AUTOUPDATE = truthy("KILO_DISABLE_AUTOUPDATE")
   export const KILO_DISABLE_PRUNE = truthy("KILO_DISABLE_PRUNE")
   export const KILO_DISABLE_TERMINAL_TITLE = truthy("KILO_DISABLE_TERMINAL_TITLE")
@@ -86,17 +86,6 @@ Object.defineProperty(Flag, "KILO_CONFIG_DIR", {
 Object.defineProperty(Flag, "KILO_CLIENT", {
   get() {
     return process.env["KILO_CLIENT"] ?? "cli"
-  },
-  enumerable: true,
-  configurable: false,
-})
-
-// Dynamic getter for KILO_CONFIG_CONTENT
-// This must be evaluated at access time, not module load time,
-// because external tooling may set this env var at runtime
-Object.defineProperty(Flag, "KILO_CONFIG_CONTENT", {
-  get() {
-    return process.env["KILO_CONFIG_CONTENT"]
   },
   enumerable: true,
   configurable: false,

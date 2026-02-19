@@ -57,7 +57,7 @@ function UiI18nBridge(props: ParentProps) {
 
 declare global {
   interface Window {
-    __KILO__?: { updaterEnabled?: boolean; serverPassword?: string; deepLinks?: string[] }
+    __KILO__?: { updaterEnabled?: boolean; serverPassword?: string; deepLinks?: string[]; wsl?: boolean }
   }
 }
 

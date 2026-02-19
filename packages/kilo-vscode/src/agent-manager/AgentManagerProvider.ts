@@ -322,11 +322,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     try {
       client = this.connectionService.getHttpClient()
     } catch {
-      this.postToWebview({
-        type: "agentManager.worktreeSetup",
-        status: "error",
-        message: "Not connected to CLI backend",
-      })
+      this.postToWebview({ type: "error", message: "Not connected to CLI backend" })
       return null
     }
 
@@ -352,11 +348,9 @@ export class AgentManagerProvider implements vscode.Disposable {
     this.registerWorktreeSession(session.id, worktree.path)
     this.pushState()
     this.postToWebview({
-      type: "agentManager.worktreeSetup",
-      status: "ready",
-      message: "Session created",
+      type: "agentManager.sessionAdded",
       sessionId: session.id,
-      branch: worktree.branch,
+      worktreeId,
     })
 
     if (this.provider) {

@@ -813,7 +813,7 @@ export namespace SessionPrompt {
           // kilocode_change start - warm agent blast-radius enforcement
           const warmCheck = await (async () => {
             if (!(globalThis as any).__warmContext?.enabled && process.env.KILO_WARM !== "1") return undefined
-            const { WarmIntegration } = await import("../warm")
+            const { WarmIntegration } = await import("../warm/integration")
             return WarmIntegration.checkTool(item.id, args, ctx.sessionID)
           })()
           if (warmCheck && !warmCheck.allowed) {
@@ -847,7 +847,7 @@ export namespace SessionPrompt {
           )
           // kilocode_change start - warm agent audit logging
           if (warmCheck?.logged) {
-            const { WarmIntegration } = await import("../warm")
+            const { WarmIntegration } = await import("../warm/integration")
             await WarmIntegration.logToolExecution(ctx.sessionID, item.id, args, 0).catch(() => {})
           }
           // kilocode_change end
@@ -869,7 +869,7 @@ export namespace SessionPrompt {
         // kilocode_change start - warm agent blast-radius enforcement for MCP tools
         const warmCheck = await (async () => {
           if (!(globalThis as any).__warmContext?.enabled && process.env.KILO_WARM !== "1") return undefined
-          const { WarmIntegration } = await import("../warm")
+          const { WarmIntegration } = await import("../warm/integration")
           return WarmIntegration.checkTool(key, args, ctx.sessionID)
         })()
         if (warmCheck && !warmCheck.allowed) {

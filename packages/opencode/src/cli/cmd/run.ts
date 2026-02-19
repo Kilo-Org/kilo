@@ -539,7 +539,8 @@ export const RunCommand = cmd({
             if (args.warm) {
               const warmCtx = (globalThis as any).__warmContext
               if (warmCtx?.enabled && warmCtx.activeTask) {
-                const { WarmSession, WarmIntegration } = await import("../../warm")
+                const { WarmSession } = await import("../../warm/warm-session")
+                const { WarmIntegration } = await import("../../warm/integration")
                 const result = await WarmSession.completeTask(warmCtx).catch(() => ({ passed: true, failures: [] }))
                 if (args.format !== "json") {
                   UI.empty()
@@ -620,7 +621,8 @@ export const RunCommand = cmd({
 
       // kilocode_change start - warm agents orchestration
       if (args.warm) {
-        const { WarmSession, WarmIntegration } = await import("../../warm")
+        const { WarmSession } = await import("../../warm/warm-session")
+        const { WarmIntegration } = await import("../../warm/integration")
         const warmCtx = WarmSession.createContext(sessionID, {
           autoApproveDispatch: args.auto ?? false,
         })

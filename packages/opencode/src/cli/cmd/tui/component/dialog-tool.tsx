@@ -23,21 +23,6 @@ const TOOLS = [
   },
 ]
 
-function getExistingConfig(sync: ReturnType<typeof useSync>): Partial<CodebaseSearchConfig> | null {
-  const raw = (sync.data.config.provider as any)?.kilo?.options?.codebase_search
-  if (!raw) return null
-
-  const vectorDb = raw.vectorDb || {}
-  return {
-    embedModel: raw.embedModel,
-    vectorDbType: vectorDb.type ?? "qdrant",
-    qdrantUrl: vectorDb.type === "qdrant" ? (vectorDb.url ?? "") : "",
-    lancedbPath: vectorDb.type === "lancedb" ? (vectorDb.path ?? "") : "",
-    similarityThreshold: raw.similarityThreshold,
-    maxResults: raw.maxResults,
-  }
-}
-
 async function findConfigPath(sync: ReturnType<typeof useSync>): Promise<string> {
   const projectDir = sync.data.path.directory
   const globalConfigDir = sync.data.path.config
@@ -54,10 +39,9 @@ async function findConfigPath(sync: ReturnType<typeof useSync>): Promise<string>
 
   // Find first existing config
   for (const candidate of candidates) {
-    try {
-      await fs.access(candidate)
+    if (await Bun.file(candidate).exists()) {
       return candidate
-    } catch {}
+    }
   }
 
   // No existing config - default to project's .opencode directory
@@ -75,8 +59,9 @@ async function findConfigPath(sync: ReturnType<typeof useSync>): Promise<string>
 }
 
 async function readConfigFromFile(sync: ReturnType<typeof useSync>): Promise<Partial<CodebaseSearchConfig> | null> {
+  let configPath: string | undefined
   try {
-    const configPath = await findConfigPath(sync)
+    configPath = await findConfigPath(sync)
     const file = Bun.file(configPath)
     if (!(await file.exists())) {
       return null
@@ -96,7 +81,8 @@ async function readConfigFromFile(sync: ReturnType<typeof useSync>): Promise<Par
       similarityThreshold: raw.similarityThreshold,
       maxResults: raw.maxResults,
     }
-  } catch {
+  } catch (err: any) {
+    console.error("Failed to read config file", { configPath, err })
     return null
   }
 }

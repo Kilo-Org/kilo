@@ -154,18 +154,17 @@ describe("formatResults", () => {
       { filePath: "/src/a.ts", score: 0.8, startLine: 1, endLine: 10, codeChunk: "code a" },
       { filePath: "/src/b.ts", score: 0.2, startLine: 5, endLine: 15, codeChunk: "code b" },
     ]
-    const output = formatResults("test", results, 0.5)
+    const filtered = results.filter((r) => r.score >= 0.5)
+    const output = formatResults("test", filtered)
     expect(output).toContain("/src/a.ts")
     expect(output).not.toContain("/src/b.ts")
   })
 
   test("returns message when all results below threshold", () => {
-    const results = [
-      { filePath: "/src/a.ts", score: 0.1, startLine: 1, endLine: 10, codeChunk: "code a" },
-    ]
-    const output = formatResults("test", results, 0.5)
+    const results = [{ filePath: "/src/a.ts", score: 0.1, startLine: 1, endLine: 10, codeChunk: "code a" }]
+    const filtered = results.filter((r) => r.score >= 0.5)
+    const output = formatResults("test", filtered)
     expect(output).toContain("No relevant code snippets found")
-    expect(output).toContain("below similarity threshold of 0.5")
   })
 
   test("limits results to maxResults", () => {
@@ -174,7 +173,8 @@ describe("formatResults", () => {
       { filePath: "/src/b.ts", score: 0.8, startLine: 5, endLine: 15, codeChunk: "code b" },
       { filePath: "/src/c.ts", score: 0.7, startLine: 20, endLine: 30, codeChunk: "code c" },
     ]
-    const output = formatResults("test", results, 0.5, 2)
+    const filtered = results.filter((r) => r.score >= 0.5).slice(0, 2)
+    const output = formatResults("test", filtered)
     expect(output).toContain("/src/a.ts")
     expect(output).toContain("/src/b.ts")
     expect(output).not.toContain("/src/c.ts")
@@ -184,7 +184,7 @@ describe("formatResults", () => {
     const results = [
       { filePath: "/src/test.ts", score: 0.856, startLine: 10, endLine: 25, codeChunk: "  function hello() {}  " },
     ]
-    const output = formatResults("my query", results, 0.5)
+    const output = formatResults("my query", results)
     expect(output).toContain("Query: my query")
     expect(output).toContain("File path: /src/test.ts")
     expect(output).toContain("Score: 0.856")
@@ -194,10 +194,8 @@ describe("formatResults", () => {
   })
 
   test("handles results without codeChunk", () => {
-    const results = [
-      { filePath: "/src/test.ts", score: 0.8, startLine: 1, endLine: 5, codeChunk: "" },
-    ]
-    const output = formatResults("test", results, 0.5)
+    const results = [{ filePath: "/src/test.ts", score: 0.8, startLine: 1, endLine: 5, codeChunk: "" }]
+    const output = formatResults("test", results)
     expect(output).toContain("File path: /src/test.ts")
     expect(output).not.toContain("Code Chunk:")
   })

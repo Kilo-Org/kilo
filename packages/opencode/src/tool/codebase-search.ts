@@ -85,24 +85,14 @@ async function searchQdrant(
 export function formatResults(
   query: string,
   results: Array<{ filePath: string; score: number; startLine: number; endLine: number; codeChunk: string }>,
-  similarityThreshold = 0.4,
-  maxResults = 50,
 ): string {
   if (!results || results.length === 0) {
     return `No relevant code snippets found for query: "${query}"`
   }
 
-  const filteredResults = results.filter((result) => result.score >= similarityThreshold)
-
-  if (filteredResults.length === 0) {
-    return `No relevant code snippets found for query: "${query}" (results below similarity threshold of ${similarityThreshold})`
-  }
-
-  const limitedResults = filteredResults.slice(0, maxResults)
-
   let output = `Query: ${query}\nResults:\n\n`
 
-  for (const result of limitedResults) {
+  for (const result of results) {
     output += `File path: ${result.filePath}\n`
     output += `Score: ${result.score.toFixed(3)}\n`
     output += `Lines: ${result.startLine}-${result.endLine}\n`
@@ -212,7 +202,7 @@ export const CodebaseSearchTool = Tool.define("codebase_search", {
 
       const filteredResults = results.filter((result) => result.score >= similarityThreshold)
       const limitedResults = filteredResults.slice(0, maxResults)
-      const output = formatResults(params.query, results, similarityThreshold, maxResults)
+      const output = formatResults(params.query, limitedResults)
 
       return {
         title: `Codebase search: ${params.query}`,

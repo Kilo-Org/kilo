@@ -295,6 +295,13 @@ export const RunCommand = cmd({
           default: false,
         })
       // kilocode_change end
+        // kilocode_change start - warm agents orchestration
+        .option("warm", {
+          type: "boolean",
+          describe: "enable warm agents orchestration with warmness scoring and blast-radius enforcement",
+          default: false,
+        })
+      // kilocode_change end
     )
   },
   handler: async (args) => {
@@ -575,6 +582,21 @@ export const RunCommand = cmd({
         process.exit(1)
       }
       await share(sdk, sessionID)
+
+      // kilocode_change start - warm agents orchestration
+      if (args.warm) {
+        const { WarmSession } = await import("../../warm")
+        const warmCtx = WarmSession.createContext(sessionID, {
+          autoApproveDispatch: args.auto ?? false,
+        })
+        UI.println(
+          UI.Style.TEXT_INFO_BOLD + "~",
+          UI.Style.TEXT_NORMAL + "[warm] Warm Agents orchestration enabled for session " + sessionID,
+        )
+        // Store warm context for potential future integration points
+        ;(globalThis as any).__warmContext = warmCtx
+      }
+      // kilocode_change end
 
       loop().catch((e) => {
         console.error(e)

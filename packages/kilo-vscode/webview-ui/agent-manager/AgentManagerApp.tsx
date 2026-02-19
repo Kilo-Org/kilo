@@ -54,6 +54,7 @@ const AgentManagerContent: Component = () => {
   const [managedSessions, setManagedSessions] = createSignal<ManagedSessionState[]>([])
   const [selection, setSelection] = createSignal<SidebarSelection>("local")
   const [repoBranch, setRepoBranch] = createSignal<string | undefined>()
+  const [deletingWorktrees, setDeletingWorktrees] = createSignal<Set<string>>(new Set())
 
   // Recover persisted local session IDs from webview state
   const persisted = vscode.getState<{ localSessionIDs?: string[] }>()
@@ -319,6 +320,12 @@ const AgentManagerContent: Component = () => {
           const ms = state.sessions.find((s) => s.id === current)
           if (ms?.worktreeId) setSelection(ms.worktreeId)
         }
+        // Clear deleting state for worktrees that have been removed
+        const ids = new Set(state.worktrees.map((wt) => wt.id))
+        setDeletingWorktrees((prev) => {
+          const next = new Set([...prev].filter((id) => ids.has(id)))
+          return next.size === prev.size ? prev : next
+        })
       }
     })
 
@@ -346,6 +353,7 @@ const AgentManagerContent: Component = () => {
 
   const handleDeleteWorktree = (worktreeId: string, e: MouseEvent) => {
     e.stopPropagation()
+    setDeletingWorktrees((prev) => new Set([...prev, worktreeId]))
     vscode.postMessage({ type: "agentManager.deleteWorktree", worktreeId })
     if (selection() === worktreeId) selectLocal()
   }
@@ -439,14 +447,16 @@ const AgentManagerContent: Component = () => {
                   <span class="am-worktree-branch" title={wt.branch}>
                     {worktreeLabel(wt)}
                   </span>
-                  <IconButton
-                    icon="close-small"
-                    size="small"
-                    variant="ghost"
-                    label="Close worktree"
-                    class="am-worktree-close"
-                    onClick={(e: MouseEvent) => handleDeleteWorktree(wt.id, e)}
-                  />
+                  <Show when={!deletingWorktrees().has(wt.id)} fallback={<Spinner class="am-worktree-spinner" />}>
+                    <IconButton
+                      icon="close-small"
+                      size="small"
+                      variant="ghost"
+                      label="Close worktree"
+                      class="am-worktree-close"
+                      onClick={(e: MouseEvent) => handleDeleteWorktree(wt.id, e)}
+                    />
+                  </Show>
                 </div>
               )}
             </For>

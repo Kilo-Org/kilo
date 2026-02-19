@@ -210,12 +210,14 @@ export const CodebaseSearchTool = Tool.define("codebase_search", {
         params.path || undefined,
       )
 
+      const filteredResults = results.filter((result) => result.score >= similarityThreshold)
+      const limitedResults = filteredResults.slice(0, maxResults)
       const output = formatResults(params.query, results, similarityThreshold, maxResults)
 
       return {
         title: `Codebase search: ${params.query}`,
         output,
-        metadata: {},
+        metadata: { results: limitedResults.length },
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)

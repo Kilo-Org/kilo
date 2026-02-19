@@ -401,46 +401,6 @@
   color: var(--text-weak);
 }
 
-/* Options menu */
-
-.am-options-container {
-  position: relative;
-}
-
-.am-options-dropdown {
-  position: absolute;
-  right: 0;
-  top: 100%;
-  z-index: 20;
-  min-width: 200px;
-  padding: 4px;
-  border-radius: 6px;
-  background: var(--surface-inset-base, var(--vscode-menu-background, #252526));
-  border: 1px solid var(--border-weak-base, var(--vscode-menu-border, #454545));
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.am-options-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 10px;
-  border: none;
-  border-radius: 4px;
-  background: none;
-  color: var(--text-base, var(--vscode-menu-foreground, #ccc));
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-
-.am-options-item:hover {
-  background: var(--surface-inset-base-hover, var(--vscode-menu-selectionBackground, #04395e));
-  color: var(--text-base, var(--vscode-menu-selectionForeground, #fff));
-}
-
 /* Setup overlay */
 
 .am-setup-overlay {

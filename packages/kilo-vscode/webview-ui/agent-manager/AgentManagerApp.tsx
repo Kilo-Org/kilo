@@ -23,6 +23,7 @@ import { Button } from "@kilocode/kilo-ui/button"
 import { IconButton } from "@kilocode/kilo-ui/icon-button"
 import { Spinner } from "@kilocode/kilo-ui/spinner"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
+import { DropdownMenu } from "@kilocode/kilo-ui/dropdown-menu"
 import { VSCodeProvider, useVSCode } from "../src/context/vscode"
 import { ServerProvider } from "../src/context/server"
 import { ProviderProvider } from "../src/context/provider"
@@ -54,7 +55,6 @@ const AgentManagerContent: Component = () => {
   const [managedSessions, setManagedSessions] = createSignal<ManagedSessionState[]>([])
   const [selection, setSelection] = createSignal<SidebarSelection>("local")
   const [repoBranch, setRepoBranch] = createSignal<string | undefined>()
-  const [showOptions, setShowOptions] = createSignal(false)
 
   // Recover persisted local session IDs from webview state
   const persisted = vscode.getState<{ localSessionIDs?: string[] }>()
@@ -266,14 +266,6 @@ const AgentManagerContent: Component = () => {
     }
     window.addEventListener("keydown", preventScroll)
 
-    // Close options dropdown when clicking outside
-    const closeOptions = (e: MouseEvent) => {
-      if (showOptions() && !(e.target as HTMLElement)?.closest?.(".am-options-container")) {
-        setShowOptions(false)
-      }
-    }
-    document.addEventListener("click", closeOptions)
-
     // When the panel regains focus (e.g. returning from terminal), focus the prompt
     const onWindowFocus = () => window.dispatchEvent(new Event("focusPrompt"))
     window.addEventListener("focus", onWindowFocus)
@@ -330,7 +322,6 @@ const AgentManagerContent: Component = () => {
       window.removeEventListener("message", handler)
       window.removeEventListener("keydown", preventScroll)
       window.removeEventListener("focus", onWindowFocus)
-      document.removeEventListener("click", closeOptions)
       unsubCreate()
       unsub()
     })
@@ -346,7 +337,6 @@ const AgentManagerContent: Component = () => {
   })
 
   const handleConfigureSetupScript = () => {
-    setShowOptions(false)
     vscode.postMessage({ type: "agentManager.configureSetupScript" })
   }
 
@@ -436,23 +426,22 @@ const AgentManagerContent: Component = () => {
           <div class="am-section-header">
             <span class="am-section-label">WORKTREES</span>
             <div class="am-section-actions">
-              <div class="am-options-container">
-                <IconButton
+              <DropdownMenu>
+                <DropdownMenu.Trigger
+                  as={IconButton}
                   icon="settings-gear"
                   size="small"
                   variant="ghost"
                   label="Worktree settings"
-                  onClick={() => setShowOptions(!showOptions())}
                 />
-                <Show when={showOptions()}>
-                  <div class="am-options-dropdown">
-                    <button class="am-options-item" onClick={handleConfigureSetupScript}>
-                      <Icon name="console" size="small" />
-                      <span>Worktree Setup Script</span>
-                    </button>
-                  </div>
-                </Show>
-              </div>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content>
+                    <DropdownMenu.Item onSelect={handleConfigureSetupScript}>
+                      <DropdownMenu.ItemLabel>Worktree Setup Script</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu>
               <IconButton
                 icon="plus"
                 size="small"

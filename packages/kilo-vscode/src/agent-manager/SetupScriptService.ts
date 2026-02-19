@@ -11,50 +11,7 @@ import * as path from "node:path"
 
 const SETUP_SCRIPT_FILENAME = "setup-script"
 const KILOCODE_DIR = ".kilocode"
-
-/**
- * Default template for the setup script with helpful comments
- */
-const DEFAULT_SCRIPT_TEMPLATE = `#!/bin/bash
-# Kilo Code Worktree Setup Script
-# This script runs before the agent starts in a worktree (new sessions only).
-#
-# Available environment variables:
-#   WORKTREE_PATH  - Absolute path to the worktree directory
-#   REPO_PATH      - Absolute path to the main repository
-#
-# Example tasks:
-#   - Copy .env files from main repo
-#   - Install dependencies
-#   - Run database migrations
-#   - Set up local configuration
-
-set -e  # Exit on error
-
-echo "Setting up worktree: $WORKTREE_PATH"
-
-# Uncomment and modify as needed:
-
-# Copy environment files
-# if [ -f "$REPO_PATH/.env" ]; then
-#     cp "$REPO_PATH/.env" "$WORKTREE_PATH/.env"
-#     echo "Copied .env"
-# fi
-
-# Install dependencies (Node.js)
-# if [ -f "$WORKTREE_PATH/package.json" ]; then
-#     cd "$WORKTREE_PATH"
-#     npm install
-# fi
-
-# Install dependencies (Python)
-# if [ -f "$WORKTREE_PATH/requirements.txt" ]; then
-#     cd "$WORKTREE_PATH"
-#     pip install -r requirements.txt
-# fi
-
-echo "Setup complete!"
-`
+const TEMPLATE_PATH = path.join(__dirname, "setup-script-template.sh")
 
 export class SetupScriptService {
   private readonly root: string
@@ -91,10 +48,8 @@ export class SetupScriptService {
     if (!fs.existsSync(dir)) {
       await fs.promises.mkdir(dir, { recursive: true })
     }
-    await fs.promises.writeFile(this.script, DEFAULT_SCRIPT_TEMPLATE, "utf-8")
-    if (process.platform !== "win32") {
-      await fs.promises.chmod(this.script, 0o755)
-    }
+    const template = await fs.promises.readFile(TEMPLATE_PATH, "utf-8")
+    await fs.promises.writeFile(this.script, template, "utf-8")
   }
 
   /** Open the setup script in VS Code editor. Creates the default script if it doesn't exist. */

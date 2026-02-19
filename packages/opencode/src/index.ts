@@ -30,6 +30,8 @@ import { SessionCommand } from "./cli/cmd/session"
 import { Telemetry } from "@kilocode/kilo-telemetry"
 import { migrateLegacyKiloAuth, ENV_FEATURE } from "@kilocode/kilo-gateway"
 
+process.on("SIGHUP", () => process.exit(0))
+
 // kilocode_change - set feature for tracking. 'serve' is spawned by other services
 // (extension, cloud) which set their own KILOCODE_FEATURE env var. Direct CLI use
 // (any command other than 'serve') is tagged as 'cli'. If 'serve' is spawned without

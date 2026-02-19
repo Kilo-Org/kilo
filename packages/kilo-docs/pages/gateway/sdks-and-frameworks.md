@@ -29,7 +29,7 @@ const kilo = createOpenAI({
 })
 
 const result = streamText({
-  model: kilo("anthropic/claude-sonnet-4.5"),
+  model: kilo.chat("anthropic/claude-sonnet-4.5"),
   prompt: "Write a haiku about programming.",
 })
 
@@ -51,7 +51,7 @@ const kilo = createOpenAI({
 })
 
 const result = streamText({
-  model: kilo("anthropic/claude-sonnet-4.5"),
+  model: kilo.chat("anthropic/claude-sonnet-4.5"),
   prompt: "What is the weather in San Francisco?",
   tools: {
     getWeather: tool({
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json()
 
   const result = streamText({
-    model: kilo("anthropic/claude-sonnet-4.5"),
+    model: kilo.chat("anthropic/claude-sonnet-4.5"),
     messages,
   })
 

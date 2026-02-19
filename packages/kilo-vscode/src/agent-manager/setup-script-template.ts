@@ -1,4 +1,5 @@
-#!/bin/bash
+/** Default template for worktree setup scripts. */
+export const SETUP_SCRIPT_TEMPLATE = `#!/bin/bash
 # Kilo Code Worktree Setup Script
 # This script runs before the agent starts in a worktree (new sessions only).
 #
@@ -37,3 +38,4 @@ echo "Setting up worktree: $WORKTREE_PATH"
 # fi
 
 echo "Setup complete!"
+`

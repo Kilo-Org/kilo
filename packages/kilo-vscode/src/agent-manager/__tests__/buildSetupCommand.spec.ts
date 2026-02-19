@@ -43,7 +43,7 @@ describe("buildSetupCommand", () => {
   })
 
   it("handles paths with spaces", () => {
-    const spaced: SetupScriptEnvironment = {
+    const spaced = {
       worktreePath: "/Users/dev/my project/.kilocode/worktrees/wt-1",
       repoPath: "/Users/dev/my project",
     }
@@ -54,5 +54,32 @@ describe("buildSetupCommand", () => {
 
     const win = buildSetupCommand(spacedScript, spaced, "win32")
     expect(win).toContain(`call "/Users/dev/my project/.kilocode/setup-script"`)
+  })
+
+  it("escapes double quotes in unix paths", () => {
+    const dangerous = {
+      worktreePath: '/repos/proj"ect',
+      repoPath: "/repos/safe",
+    }
+    const result = buildSetupCommand(script, dangerous, "darwin")
+    expect(result).toContain(`WORKTREE_PATH="/repos/proj\\"ect"`)
+  })
+
+  it("escapes dollar signs in unix paths", () => {
+    const dangerous = {
+      worktreePath: "/repos/$HOME/project",
+      repoPath: "/repos/safe",
+    }
+    const result = buildSetupCommand(script, dangerous, "darwin")
+    expect(result).toContain(`WORKTREE_PATH="/repos/\\$HOME/project"`)
+  })
+
+  it("escapes backticks in unix paths", () => {
+    const dangerous = {
+      worktreePath: "/repos/`whoami`/project",
+      repoPath: "/repos/safe",
+    }
+    const result = buildSetupCommand(script, dangerous, "darwin")
+    expect(result).toContain('WORKTREE_PATH="/repos/\\`whoami\\`/project"')
   })
 })

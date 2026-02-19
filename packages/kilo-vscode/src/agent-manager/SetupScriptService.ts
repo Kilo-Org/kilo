@@ -8,10 +8,10 @@
 import * as vscode from "vscode"
 import * as fs from "node:fs"
 import * as path from "node:path"
+import { SETUP_SCRIPT_TEMPLATE } from "./setup-script-template"
 
 const SETUP_SCRIPT_FILENAME = "setup-script"
 const KILOCODE_DIR = ".kilocode"
-const TEMPLATE_PATH = path.join(__dirname, "setup-script-template.sh")
 
 export class SetupScriptService {
   private readonly root: string
@@ -37,7 +37,8 @@ export class SetupScriptService {
     if (!this.hasScript()) return null
     try {
       return await fs.promises.readFile(this.script, "utf-8")
-    } catch {
+    } catch (error) {
+      this.log(`Failed to read setup script: ${error}`)
       return null
     }
   }
@@ -48,8 +49,7 @@ export class SetupScriptService {
     if (!fs.existsSync(dir)) {
       await fs.promises.mkdir(dir, { recursive: true })
     }
-    const template = await fs.promises.readFile(TEMPLATE_PATH, "utf-8")
-    await fs.promises.writeFile(this.script, template, "utf-8")
+    await fs.promises.writeFile(this.script, SETUP_SCRIPT_TEMPLATE, "utf-8")
   }
 
   /** Open the setup script in VS Code editor. Creates the default script if it doesn't exist. */
@@ -59,5 +59,10 @@ export class SetupScriptService {
     }
     const document = await vscode.workspace.openTextDocument(this.script)
     await vscode.window.showTextDocument(document)
+  }
+
+  private log(message: string): void {
+    // Log to console since we don't have an OutputChannel here
+    console.log(`[SetupScriptService] ${message}`)
   }
 }

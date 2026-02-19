@@ -68,7 +68,7 @@ export class SetupScriptRunner {
     const integration = await this.waitForShellIntegration(terminal, 5000)
     if (integration) {
       this.log("Using shell integration for setup script execution")
-      await this.runViaShellIntegration(integration, script, env)
+      await this.runViaShellIntegration(terminal, integration, script, env)
     } else {
       this.log("Shell integration unavailable, falling back to sendText")
       await this.runViaSendText(terminal, script, env)
@@ -99,6 +99,7 @@ export class SetupScriptRunner {
 
   /** Run script via shell integration — tracks execution and exit code properly. */
   private runViaShellIntegration(
+    terminal: vscode.Terminal,
     integration: vscode.TerminalShellIntegration,
     script: string,
     env: SetupScriptEnvironment,
@@ -107,10 +108,24 @@ export class SetupScriptRunner {
       const command = buildSetupCommand(script, env)
       const execution = integration.executeCommand(command)
 
-      const listener = vscode.window.onDidEndTerminalShellExecution((e) => {
+      const cleanup = () => {
+        execListener.dispose()
+        closeListener.dispose()
+      }
+
+      // Primary: shell integration reports execution finished with exit code
+      const execListener = vscode.window.onDidEndTerminalShellExecution((e) => {
         if (e.execution !== execution) return
-        listener.dispose()
+        cleanup()
         this.log(`Setup script exited with code ${e.exitCode ?? "unknown"}`)
+        resolve()
+      })
+
+      // Fallback: terminal was closed externally (user, VS Code restart, etc.)
+      const closeListener = vscode.window.onDidCloseTerminal((closed) => {
+        if (closed !== terminal) return
+        cleanup()
+        this.log("Setup script terminal closed before execution event fired")
         resolve()
       })
     })

@@ -247,7 +247,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     const created = await this.createWorktreeOnDisk()
     if (!created) return null
 
-    // Run setup script for new worktree (non-blocking, shows in overlay)
+    // Run setup script for new worktree (blocks until complete, shows in overlay)
     await this.runSetupScriptForWorktree(created.result.path, created.result.branch)
 
     const session = await this.createSessionInWorktree(created.result.path, created.result.branch)
@@ -299,7 +299,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     const created = await this.createWorktreeOnDisk()
     if (!created) return null
 
-    // Run setup script for new worktree (non-blocking, shows in overlay)
+    // Run setup script for new worktree (blocks until complete, shows in overlay)
     await this.runSetupScriptForWorktree(created.result.path, created.result.branch)
 
     const state = this.getStateManager()!
@@ -392,7 +392,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     }
   }
 
-  /** Run the worktree setup script if configured. Non-blocking. Shows progress in overlay. */
+  /** Run the worktree setup script if configured. Blocks until complete. Shows progress in overlay. */
   private async runSetupScriptForWorktree(worktreePath: string, branch?: string): Promise<void> {
     const root = this.getWorkspaceRoot()
     if (!root) return

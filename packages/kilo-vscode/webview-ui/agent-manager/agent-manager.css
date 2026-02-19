@@ -459,3 +459,52 @@
   height: 16px;
   flex-shrink: 0;
 }
+
+/* Confirmation dialog */
+
+.am-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 0 24px 20px 24px;
+  outline: none;
+}
+
+.am-confirm-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: var(--font-size-base);
+  color: var(--text-base);
+  line-height: 1.5;
+}
+
+.am-confirm-message > [data-component="icon"] {
+  flex-shrink: 0;
+  color: var(--text-danger, #dc2626);
+  margin-top: 2px;
+}
+
+.am-confirm-branch {
+  font-family: var(--font-family-mono, monospace);
+  font-size: var(--font-size-small);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset-base);
+  white-space: nowrap;
+}
+
+.am-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.am-confirm-delete {
+  background: var(--surface-danger, #dc2626) !important;
+  color: #fff !important;
+}
+
+.am-confirm-delete:hover {
+  opacity: 0.9;
+}

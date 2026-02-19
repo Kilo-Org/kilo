@@ -255,7 +255,7 @@ const AgentManagerContent: Component = () => {
       else if (msg.action === "sessionNext") navigate("down")
       else if (msg.action === "tabPrevious") navigateTab("left")
       else if (msg.action === "tabNext") navigateTab("right")
-      else if (msg.action === "newTab") handleAddSession()
+      else if (msg.action === "newTab") handleNewTabForCurrentSelection()
       else if (msg.action === "closeTab") closeActiveTab()
       else if (msg.action === "newWorktree") handleNewWorktreeOrPromote()
       else if (msg.action === "closeWorktree") closeSelectedWorktree()
@@ -353,10 +353,48 @@ const AgentManagerContent: Component = () => {
     vscode.postMessage({ type: "agentManager.createWorktree" })
   }
 
+  const confirmDeleteWorktree = (worktreeId: string) => {
+    const wt = worktrees().find((w) => w.id === worktreeId)
+    if (!wt) return
+    const doDelete = () => {
+      vscode.postMessage({ type: "agentManager.deleteWorktree", worktreeId: wt.id })
+      if (selection() === wt.id) selectLocal()
+      dialog.close()
+    }
+    dialog.show(() => {
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "Enter") {
+          e.preventDefault()
+          doDelete()
+        }
+      }
+      return (
+        <Dialog title="Delete Worktree" fit>
+          <div class="am-confirm" onKeyDown={onKeyDown} tabIndex={-1} ref={(el) => el.focus()}>
+            <div class="am-confirm-message">
+              <Icon name="trash" size="small" />
+              <span>
+                Delete worktree <code class="am-confirm-branch">{wt.branch}</code>? This removes the worktree from disk
+                and dissociates all sessions.
+              </span>
+            </div>
+            <div class="am-confirm-actions">
+              <Button variant="ghost" size="large" onClick={() => dialog.close()}>
+                Cancel
+              </Button>
+              <Button variant="primary" size="large" class="am-confirm-delete" onClick={doDelete}>
+                Delete
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )
+    })
+  }
+
   const handleDeleteWorktree = (worktreeId: string, e: MouseEvent) => {
     e.stopPropagation()
-    vscode.postMessage({ type: "agentManager.deleteWorktree", worktreeId })
-    if (selection() === worktreeId) selectLocal()
+    confirmDeleteWorktree(worktreeId)
   }
 
   const handlePromote = (sessionId: string, e: MouseEvent) => {
@@ -408,10 +446,14 @@ const AgentManagerContent: Component = () => {
     }
   }
 
-  // Close the currently active tab via keyboard shortcut
+  // Close the currently active tab via keyboard shortcut.
+  // If no tabs remain, fall through to close the selected worktree.
   const closeActiveTab = () => {
     const tabs = activeTabs()
-    if (tabs.length === 0) return
+    if (tabs.length === 0) {
+      closeSelectedWorktree()
+      return
+    }
     const current = session.currentSessionID()
     const pending = activePendingId()
     const target = current
@@ -420,9 +462,19 @@ const AgentManagerContent: Component = () => {
         ? tabs.find((s) => s.id === pending)
         : undefined
     if (!target) return
-    // Reuse existing close logic with a synthetic event
     const synthetic = new MouseEvent("click")
     handleCloseTab(target.id, synthetic)
+  }
+
+  // Cmd+T: add a new tab strictly to the current selection (no side effects)
+  const handleNewTabForCurrentSelection = () => {
+    const sel = selection()
+    if (sel === "local") {
+      addPendingTab()
+    } else if (sel) {
+      // Pass the captured worktree ID directly to avoid race conditions
+      vscode.postMessage({ type: "agentManager.addSessionToWorktree", worktreeId: sel })
+    }
   }
 
   // Cmd+N: if an unassigned session is selected, promote it; otherwise create a new worktree
@@ -440,34 +492,7 @@ const AgentManagerContent: Component = () => {
   const closeSelectedWorktree = () => {
     const sel = selection()
     if (!sel || sel === "local") return
-    const wt = worktrees().find((w) => w.id === sel)
-    if (!wt) return
-    dialog.show(() => (
-      <Dialog title="Close Worktree" fit>
-        <div class="dialog-confirm-body">
-          <span>
-            Delete worktree <strong>{wt.branch}</strong>? This removes the worktree from disk and dissociates all
-            sessions.
-          </span>
-          <div class="dialog-confirm-actions">
-            <Button variant="ghost" size="large" onClick={() => dialog.close()}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="large"
-              onClick={() => {
-                vscode.postMessage({ type: "agentManager.deleteWorktree", worktreeId: wt.id })
-                if (selection() === wt.id) selectLocal()
-                dialog.close()
-              }}
-            >
-              Delete
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-    ))
+    confirmDeleteWorktree(sel)
   }
 
   return (

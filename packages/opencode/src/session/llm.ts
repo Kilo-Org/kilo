@@ -26,7 +26,7 @@ import { DEFAULT_HEADERS } from "@/kilocode/const" // kilocode_change
 import { Telemetry } from "@kilocode/kilo-telemetry" // kilocode_change
 // kilocode_change start
 import { getKiloProjectId } from "@/kilocode/project-id"
-import { HEADER_PROJECTID, HEADER_MACHINEID } from "@kilocode/kilo-gateway"
+import { HEADER_PROJECTID, HEADER_MACHINEID, HEADER_TASKID } from "@kilocode/kilo-gateway"
 import { Identity } from "@kilocode/kilo-telemetry"
 // kilocode_change end
 
@@ -239,9 +239,10 @@ export namespace LLM {
             ? DEFAULT_HEADERS // kilocode_change
             : undefined),
         ...(isKilo && input.agent.name ? { "x-kilocode-mode": input.agent.name.toLowerCase() } : {}),
-        // kilocode_change start - add project ID and machine ID headers for kilo provider
+        // kilocode_change start - add project ID, machine ID, and task ID headers for kilo provider
         ...(isKilo && kiloProjectId ? { [HEADER_PROJECTID]: kiloProjectId } : {}),
         ...(isKilo && machineId ? { [HEADER_MACHINEID]: machineId } : {}),
+        ...(isKilo ? { [HEADER_TASKID]: input.sessionID } : {}),
         // kilocode_change end
         ...input.model.headers,
         ...headers,

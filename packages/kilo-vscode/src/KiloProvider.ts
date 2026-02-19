@@ -913,7 +913,6 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         itemName: item.name,
         target,
       })
-      void vscode.window.showInformationMessage(`Installed "${item.name}" (${target})`)
       // Keep UI responsive: refresh catalog/backend in the background.
       void this.handleRequestMarketplaceData()
       void this.refreshBackendAfterMarketplaceMutation()
@@ -936,7 +935,6 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         target,
         error: errorMessage,
       })
-      void vscode.window.showErrorMessage(`Failed to install "${item.name}": ${errorMessage}`)
     }
   }
 
@@ -986,7 +984,6 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         itemName: item.name,
         target,
       })
-      void vscode.window.showInformationMessage(`Removed "${item.name}" (${target})`)
       // Keep UI responsive: refresh catalog/backend in the background.
       void this.handleRequestMarketplaceData()
       void this.refreshBackendAfterMarketplaceMutation()
@@ -1009,7 +1006,6 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         target,
         error: errorMessage,
       })
-      void vscode.window.showErrorMessage(`Failed to remove "${item.name}": ${errorMessage}`)
     }
   }
 

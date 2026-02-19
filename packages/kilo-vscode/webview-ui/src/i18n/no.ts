@@ -953,7 +953,7 @@ export const dict = {
   "profile.personalAccount": "Personlig konto",
 
   // Marketplace & custom provider translations
-  "command.workspace.toggle.description": "Enable or disable multiple workspaces in the sidebar",
+  "command.workspace.toggle.description": "Aktiver eller deaktiver flere arbeidsområder i sidepanelet",
   "dialog.provider.opencode.note": "Utvalgte modeller inkludert Claude, GPT, Gemini og mer",
   "dialog.provider.google.note": "Gemini-modeller for raske, strukturerte svar",
   "dialog.provider.openrouter.note": "Tilgang til alle støttede modeller fra én leverandør",

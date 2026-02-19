@@ -390,7 +390,7 @@ export const dict = {
   "error.chain.modelNotFound": "Model nie znaleziony: {{provider}}/{{model}}",
   "error.chain.checkConfig": "Sprawdź swoją konfigurację (opencode.json) nazwy dostawców/modeli",
   "error.chain.mcpFailed":
-    'MCP server "{{name}}" failed. Note, Kilo does not support MCP authentication yet.',
+    'Serwer MCP "{{name}}" nie powiódł się. Uwaga, Kilo nie obsługuje jeszcze uwierzytelniania MCP.',
   "error.chain.providerAuthFailed": "Uwierzytelnianie dostawcy nie powiodło się ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'Nie udało się zainicjować dostawcy "{{provider}}". Sprawdź poświadczenia i konfigurację.',

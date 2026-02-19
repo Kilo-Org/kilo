@@ -45,6 +45,7 @@ export namespace LLM {
     small?: boolean
     tools: Record<string, Tool>
     retries?: number
+    toolChoice?: "auto" | "required" | "none"
   }
 
   export type StreamOutput = StreamTextResult<ToolSet, unknown>
@@ -223,6 +224,7 @@ export namespace LLM {
       providerOptions: ProviderTransform.providerOptions(input.model, params.options),
       activeTools: Object.keys(tools).filter((x) => x !== "invalid"),
       tools,
+      toolChoice: input.toolChoice,
       maxOutputTokens,
       abortSignal: input.abort,
       headers: {
@@ -236,9 +238,7 @@ export namespace LLM {
           : input.model.providerID !== "anthropic"
             ? DEFAULT_HEADERS // kilocode_change
             : undefined),
-        ...(input.model.api.npm === "@kilocode/kilo-gateway" && input.agent.name
-          ? { "x-kilocode-mode": input.agent.name.toLowerCase() }
-          : {}),
+        ...(isKilo && input.agent.name ? { "x-kilocode-mode": input.agent.name.toLowerCase() } : {}),
         // kilocode_change start - add project ID and machine ID headers for kilo provider
         ...(isKilo && kiloProjectId ? { [HEADER_PROJECTID]: kiloProjectId } : {}),
         ...(isKilo && machineId ? { [HEADER_MACHINEID]: machineId } : {}),

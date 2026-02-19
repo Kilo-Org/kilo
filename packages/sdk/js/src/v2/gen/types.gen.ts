@@ -90,6 +90,22 @@ export type EventFileEdited = {
   }
 }
 
+export type OutputFormatText = {
+  type: "text"
+}
+
+export type JsonSchema = {
+  [key: string]: unknown
+}
+
+export type OutputFormatJsonSchema = {
+  type: "json_schema"
+  schema: JsonSchema
+  retryCount?: number
+}
+
+export type OutputFormat = OutputFormatText | OutputFormatJsonSchema
+
 export type FileDiff = {
   file: string
   before: string
@@ -106,6 +122,7 @@ export type UserMessage = {
   time: {
     created: number
   }
+  format?: OutputFormat
   summary?: {
     title?: string
     body?: string
@@ -152,6 +169,14 @@ export type MessageAbortedError = {
   }
 }
 
+export type StructuredOutputError = {
+  name: "StructuredOutputError"
+  data: {
+    message: string
+    retries: number
+  }
+}
+
 export type ContextOverflowError = {
   name: "ContextOverflowError"
   data: {
@@ -189,6 +214,7 @@ export type AssistantMessage = {
     | UnknownError
     | MessageOutputLengthError
     | MessageAbortedError
+    | StructuredOutputError
     | ContextOverflowError
     | ApiError
   parentID: string
@@ -212,6 +238,7 @@ export type AssistantMessage = {
       write: number
     }
   }
+  structured?: unknown
   variant?: string
   finish?: string
 }
@@ -578,6 +605,10 @@ export type QuestionOption = {
    * Explanation of choice
    */
   description: string
+  /**
+   * Optional agent/mode to switch to when selected (e.g. code, debug, orchestrator)
+   */
+  mode?: string
 }
 
 export type QuestionInfo = {
@@ -841,6 +872,7 @@ export type EventSessionError = {
       | UnknownError
       | MessageOutputLengthError
       | MessageAbortedError
+      | StructuredOutputError
       | ContextOverflowError
       | ApiError
   }
@@ -1541,7 +1573,8 @@ export type ProviderConfig = {
         [key: string]: string
       }
       provider?: {
-        npm: string
+        npm?: string
+        api?: string
       }
       /**
        * Variant-specific configuration
@@ -3446,6 +3479,7 @@ export type SessionPromptData = {
     tools?: {
       [key: string]: boolean
     }
+    format?: OutputFormat
     system?: string
     variant?: string
     parts: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
@@ -3633,6 +3667,7 @@ export type SessionPromptAsyncData = {
     tools?: {
       [key: string]: boolean
     }
+    format?: OutputFormat
     system?: string
     variant?: string
     parts: Array<TextPartInput | FilePartInput | AgentPartInput | SubtaskPartInput>
@@ -4081,7 +4116,8 @@ export type ProviderListResponses = {
             [key: string]: string
           }
           provider?: {
-            npm: string
+            npm?: string
+            api?: string
           }
           variants?: {
             [key: string]: {
@@ -4197,6 +4233,44 @@ export type ProviderOauthCallbackResponses = {
 }
 
 export type ProviderOauthCallbackResponse = ProviderOauthCallbackResponses[keyof ProviderOauthCallbackResponses]
+
+export type TelemetryCaptureData = {
+  body?: {
+    /**
+     * Event name
+     */
+    event: string
+    /**
+     * Event properties
+     */
+    properties?: {
+      [key: string]: unknown
+    }
+  }
+  path?: never
+  query?: {
+    directory?: string
+  }
+  url: "/telemetry/capture"
+}
+
+export type TelemetryCaptureErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type TelemetryCaptureError = TelemetryCaptureErrors[keyof TelemetryCaptureErrors]
+
+export type TelemetryCaptureResponses = {
+  /**
+   * Event captured
+   */
+  200: boolean
+}
+
+export type TelemetryCaptureResponse = TelemetryCaptureResponses[keyof TelemetryCaptureResponses]
 
 export type KiloProfileData = {
   body?: never

@@ -80,6 +80,52 @@
         "command": "kilo-code.new.autocomplete.generateSuggestions",
         "title": "Generate Suggested Edits",
         "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.agentManager.previousSession",
+        "title": "Agent Manager: Previous Session",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.agentManager.nextSession",
+        "title": "Agent Manager: Next Session",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.agentManager.previousTab",
+        "title": "Agent Manager: Previous Tab",
+        "category": "Kilo Code"
+      },
+      {
+        "command": "kilo-code.new.agentManager.nextTab",
+        "title": "Agent Manager: Next Tab",
+        "category": "Kilo Code"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "kilo-code.new.agentManager.previousSession",
+        "key": "ctrl+up",
+        "mac": "cmd+up",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.nextSession",
+        "key": "ctrl+down",
+        "mac": "cmd+down",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.previousTab",
+        "key": "ctrl+left",
+        "mac": "cmd+left",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.nextTab",
+        "key": "ctrl+right",
+        "mac": "cmd+right",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
       }
     ],
     "menus": {
@@ -301,8 +347,9 @@
     "ignore": "^7.0.3",
     "js-tiktoken": "^1.0.18",
     "lru-cache": "^11.0.2",
-    "quick-lru": "^7.0.0",
     "openai": "^4.85.4",
+    "quick-lru": "^7.0.0",
+    "simple-git": "3.31.1",
     "solid-js": "^1.9.11",
     "uri-js": "^4.4.1",
     "web-tree-sitter": "^0.24.7",

@@ -461,34 +461,43 @@ export class HttpClient {
   }
 
   // ============================================
+  // File Search Methods
+  // ============================================
+
+  async findFiles(query: string, directory: string): Promise<string[]> {
+    const params = new URLSearchParams({ query, dirs: "false", limit: "10" })
+    return this.request<string[]>("GET", `/find/file?${params.toString()}`, undefined, { directory })
+  }
+
+  // ============================================
   // MCP Methods
   // ============================================
 
   /**
    * Get the status of all MCP servers.
    */
-  async getMcpStatus(): Promise<Record<string, McpStatus>> {
-    return this.request<Record<string, McpStatus>>("GET", "/mcp")
+  async getMcpStatus(directory: string): Promise<Record<string, McpStatus>> {
+    return this.request<Record<string, McpStatus>>("GET", "/mcp", undefined, { directory })
   }
 
   /**
    * Add or update an MCP server configuration.
    */
-  async addMcpServer(name: string, config: McpConfig): Promise<Record<string, McpStatus>> {
-    return this.request<Record<string, McpStatus>>("POST", "/mcp", { name, config })
+  async addMcpServer(name: string, config: McpConfig, directory: string): Promise<Record<string, McpStatus>> {
+    return this.request<Record<string, McpStatus>>("POST", "/mcp", { name, config }, { directory })
   }
 
   /**
    * Connect an MCP server by name.
    */
-  async connectMcpServer(name: string): Promise<boolean> {
-    return this.request<boolean>("POST", `/mcp/${encodeURIComponent(name)}/connect`)
+  async connectMcpServer(name: string, directory: string): Promise<boolean> {
+    return this.request<boolean>("POST", `/mcp/${encodeURIComponent(name)}/connect`, undefined, { directory })
   }
 
   /**
    * Disconnect an MCP server by name.
    */
-  async disconnectMcpServer(name: string): Promise<boolean> {
-    return this.request<boolean>("POST", `/mcp/${encodeURIComponent(name)}/disconnect`)
+  async disconnectMcpServer(name: string, directory: string): Promise<boolean> {
+    return this.request<boolean>("POST", `/mcp/${encodeURIComponent(name)}/disconnect`, undefined, { directory })
   }
 }

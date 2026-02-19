@@ -80,6 +80,7 @@ interface SessionStore {
   parts: Record<string, Part[]> // messageID -> parts
   todos: Record<string, TodoItem[]> // sessionID -> todos
   modelSelections: Record<string, ModelSelection> // sessionID -> model
+  agentSelections: Record<string, string> // sessionID -> agent name
 }
 
 interface SessionContextValue {
@@ -100,6 +101,12 @@ interface SessionContextValue {
 
   // Messages for current session
   messages: Accessor<Message[]>
+
+  // All messages keyed by sessionID (includes child sessions)
+  allMessages: () => Record<string, Message[]>
+
+  // All parts keyed by messageID (includes child sessions)
+  allParts: () => Record<string, Part[]>
 
   // Parts for a specific message
   getParts: (messageID: string) => Part[]
@@ -122,10 +129,12 @@ interface SessionContextValue {
   totalCost: Accessor<number>
   contextUsage: Accessor<ContextUsage | undefined>
 
-  // Agent/mode selection
+  // Agent/mode selection (per-session)
   agents: Accessor<AgentInfo[]>
   selectedAgent: Accessor<string>
   selectAgent: (name: string) => void
+  getSessionAgent: (sessionID: string) => string
+  getSessionModel: (sessionID: string) => ModelSelection | null
 
   // Actions
   sendMessage: (text: string, providerID?: string, modelID?: string, files?: FileAttachment[]) => void
@@ -140,6 +149,7 @@ interface SessionContextValue {
   selectSession: (id: string) => void
   deleteSession: (id: string) => void
   renameSession: (id: string, title: string) => void
+  syncSession: (sessionID: string) => void
 }
 
 const SessionContext = createContext<SessionContextValue>()
@@ -177,15 +187,18 @@ export const SessionProvider: ParentComponent = (props) => {
   // Agents (modes) loaded from the CLI backend
   const [agents, setAgents] = createSignal<AgentInfo[]>([])
   const [defaultAgent, setDefaultAgent] = createSignal("code")
-  const [selectedAgentName, setSelectedAgentName] = createSignal("code")
 
-  // Store for sessions, messages, parts, todos, modelSelections
+  // Pending agent selection for before a session exists (mirrors pendingModelSelection)
+  const [pendingAgentSelection, setPendingAgentSelection] = createSignal<string | null>(null)
+
+  // Store for sessions, messages, parts, todos, modelSelections, agentSelections
   const [store, setStore] = createStore<SessionStore>({
     sessions: {},
     messages: {},
     parts: {},
     todos: {},
     modelSelections: {},
+    agentSelections: {},
   })
 
   // Keep pending selection in sync with provider default until the user
@@ -219,6 +232,15 @@ export const SessionProvider: ParentComponent = (props) => {
     return pendingModelSelection()
   })
 
+  // Per-session agent selection
+  const selectedAgentName = createMemo<string>(() => {
+    const sessionID = currentSessionID()
+    if (sessionID) {
+      return store.agentSelections[sessionID] ?? defaultAgent()
+    }
+    return pendingAgentSelection() ?? defaultAgent()
+  })
+
   function selectModel(providerID: string, modelID: string) {
     const selection: ModelSelection = { providerID, modelID }
     const id = currentSessionID()
@@ -239,9 +261,9 @@ export const SessionProvider: ParentComponent = (props) => {
     }
     setAgents(message.agents)
     setDefaultAgent(message.defaultAgent)
-    // Only override if the user hasn't explicitly selected an agent
-    if (selectedAgentName() === "code" || !message.agents.some((a) => a.name === selectedAgentName())) {
-      setSelectedAgentName(message.defaultAgent)
+    // Initialize pending agent if not yet set by the user
+    if (!pendingAgentSelection()) {
+      setPendingAgentSelection(message.defaultAgent)
     }
   })
 
@@ -347,6 +369,13 @@ export const SessionProvider: ParentComponent = (props) => {
         setStore("modelSelections", session.id, pending)
         setPendingModelSelection(null)
         setPendingWasUserSet(false)
+      }
+
+      // Transfer pending agent selection to the new session
+      const pendingAgent = pendingAgentSelection()
+      if (pendingAgent && !store.agentSelections[session.id]) {
+        setStore("agentSelections", session.id, pendingAgent)
+        setPendingAgentSelection(null)
       }
 
       setCurrentSessionID(session.id)
@@ -543,6 +572,12 @@ export const SessionProvider: ParentComponent = (props) => {
           delete selections[sessionID]
         }),
       )
+      setStore(
+        "agentSelections",
+        produce((selections) => {
+          delete selections[sessionID]
+        }),
+      )
       // Clean up pending questions/errors for the deleted session
       const deleted = questions()
         .filter((q) => q.sessionID === sessionID)
@@ -567,7 +602,12 @@ export const SessionProvider: ParentComponent = (props) => {
 
   // Actions
   function selectAgent(name: string) {
-    setSelectedAgentName(name)
+    const id = currentSessionID()
+    if (id) {
+      setStore("agentSelections", id, name)
+    } else {
+      setPendingAgentSelection(name)
+    }
   }
 
   function sendMessage(text: string, providerID?: string, modelID?: string, files?: FileAttachment[]) {
@@ -688,6 +728,7 @@ export const SessionProvider: ParentComponent = (props) => {
     // Reset pending selection to default for the new session
     setPendingModelSelection(provider.defaultSelection())
     setPendingWasUserSet(false)
+    setPendingAgentSelection(defaultAgent())
     vscode.postMessage({ type: "createSession" })
   }
 
@@ -701,6 +742,7 @@ export const SessionProvider: ParentComponent = (props) => {
     setQuestionErrors(new Set<string>())
     setPendingModelSelection(provider.defaultSelection())
     setPendingWasUserSet(false)
+    setPendingAgentSelection(defaultAgent())
     vscode.postMessage({ type: "clearSession" })
   }
 
@@ -753,6 +795,14 @@ export const SessionProvider: ParentComponent = (props) => {
 
   const getParts = (messageID: string) => {
     return store.parts[messageID] || []
+  }
+
+  const allMessages = () => store.messages
+
+  const allParts = () => store.parts
+
+  function syncSession(sessionID: string) {
+    vscode.postMessage({ type: "syncSession", sessionID })
   }
 
   const todos = () => {
@@ -828,6 +878,10 @@ export const SessionProvider: ParentComponent = (props) => {
     agents,
     selectedAgent: selectedAgentName,
     selectAgent,
+    getSessionAgent: (sessionID: string) => store.agentSelections[sessionID] ?? defaultAgent(),
+    getSessionModel: (sessionID: string) => store.modelSelections[sessionID] ?? provider.defaultSelection(),
+    allMessages,
+    allParts,
     sendMessage,
     abort,
     compact,
@@ -840,6 +894,7 @@ export const SessionProvider: ParentComponent = (props) => {
     selectSession,
     deleteSession,
     renameSession,
+    syncSession,
   }
 
   return <SessionContext.Provider value={value}>{props.children}</SessionContext.Provider>

@@ -446,6 +446,13 @@ export interface ChatCompletionResultMessage {
   requestId: string
 }
 
+export interface FileSearchResultMessage {
+  type: "fileSearchResult"
+  paths: string[]
+  dir: string
+  requestId: string
+}
+
 export interface QuestionRequestMessage {
   type: "questionRequest"
   question: QuestionRequest
@@ -494,6 +501,53 @@ export interface NotificationSettingsLoadedMessage {
   }
 }
 
+// Agent Manager worktree session metadata
+export interface AgentManagerSessionMetaMessage {
+  type: "agentManager.sessionMeta"
+  sessionId: string
+  mode: import("../context/worktree-mode").SessionMode
+  branch?: string
+  path?: string
+  parentBranch?: string
+}
+
+// Agent Manager repo info (current branch of the main workspace)
+export interface AgentManagerRepoInfoMessage {
+  type: "agentManager.repoInfo"
+  branch: string
+}
+
+// Agent Manager worktree setup progress
+export interface AgentManagerWorktreeSetupMessage {
+  type: "agentManager.worktreeSetup"
+  status: "creating" | "starting" | "ready" | "error"
+  message: string
+  sessionId?: string
+  branch?: string
+}
+
+// Agent Manager worktree state types (mirrored from WorktreeStateManager)
+export interface WorktreeState {
+  id: string
+  branch: string
+  path: string
+  parentBranch: string
+  createdAt: string
+}
+
+export interface ManagedSessionState {
+  id: string
+  worktreeId: string | null
+  createdAt: string
+}
+
+// Full state push from extension to webview
+export interface AgentManagerStateMessage {
+  type: "agentManager.state"
+  worktrees: WorktreeState[]
+  sessions: ManagedSessionState[]
+}
+
 export type ExtensionMessage =
   | ReadyMessage
   | ConnectionStateMessage
@@ -519,6 +573,7 @@ export type ExtensionMessage =
   | AgentsLoadedMessage
   | AutocompleteSettingsLoadedMessage
   | ChatCompletionResultMessage
+  | FileSearchResultMessage
   | QuestionRequestMessage
   | QuestionResolvedMessage
   | QuestionErrorMessage
@@ -526,6 +581,10 @@ export type ExtensionMessage =
   | ConfigLoadedMessage
   | ConfigUpdatedMessage
   | NotificationSettingsLoadedMessage
+  | AgentManagerSessionMetaMessage
+  | AgentManagerRepoInfoMessage
+  | AgentManagerWorktreeSetupMessage
+  | AgentManagerStateMessage
 
 // ============================================
 // Messages FROM webview TO extension
@@ -663,6 +722,12 @@ export interface RequestChatCompletionMessage {
   requestId: string
 }
 
+export interface RequestFileSearchMessage {
+  type: "requestFileSearch"
+  query: string
+  requestId: string
+}
+
 export interface ChatCompletionAcceptedMessage {
   type: "chatCompletionAccepted"
   suggestionLength?: number
@@ -694,6 +759,60 @@ export interface ResetAllSettingsRequest {
   type: "resetAllSettings"
 }
 
+export interface SyncSessionRequest {
+  type: "syncSession"
+  sessionID: string
+}
+
+// Agent Manager worktree messages
+export interface CreateWorktreeSessionRequest {
+  type: "agentManager.createWorktreeSession"
+  text: string
+  providerID?: string
+  modelID?: string
+  agent?: string
+  files?: FileAttachment[]
+}
+
+export interface TelemetryRequest {
+  type: "telemetry"
+  event: string
+  properties?: Record<string, unknown>
+}
+
+// Create a new worktree (with auto-created first session)
+export interface CreateWorktreeRequest {
+  type: "agentManager.createWorktree"
+}
+
+// Delete a worktree and dissociate its sessions
+export interface DeleteWorktreeRequest {
+  type: "agentManager.deleteWorktree"
+  worktreeId: string
+}
+
+// Promote a session: create a worktree and move the session into it
+export interface PromoteSessionRequest {
+  type: "agentManager.promoteSession"
+  sessionId: string
+}
+
+// Add a new session to an existing worktree
+export interface AddSessionToWorktreeRequest {
+  type: "agentManager.addSessionToWorktree"
+  worktreeId: string
+}
+
+// Close (remove) a session from its worktree
+export interface CloseSessionRequest {
+  type: "agentManager.closeSession"
+  sessionId: string
+}
+
+export interface RequestRepoInfoMessage {
+  type: "agentManager.requestRepoInfo"
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -720,6 +839,7 @@ export type WebviewMessage =
   | RequestAutocompleteSettingsMessage
   | UpdateAutocompleteSettingMessage
   | RequestChatCompletionMessage
+  | RequestFileSearchMessage
   | ChatCompletionAcceptedMessage
   | UpdateSettingRequest
   | RequestBrowserSettingsMessage
@@ -727,6 +847,15 @@ export type WebviewMessage =
   | UpdateConfigMessage
   | RequestNotificationSettingsMessage
   | ResetAllSettingsRequest
+  | SyncSessionRequest
+  | CreateWorktreeSessionRequest
+  | CreateWorktreeRequest
+  | DeleteWorktreeRequest
+  | PromoteSessionRequest
+  | AddSessionToWorktreeRequest
+  | CloseSessionRequest
+  | TelemetryRequest
+  | RequestRepoInfoMessage
 
 // ============================================
 // VS Code API type

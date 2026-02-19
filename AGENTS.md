@@ -85,6 +85,32 @@ function foo() {
 }
 ```
 
+### No empty catch blocks
+
+Never leave a `catch` block empty. An empty `catch` silently swallows errors and hides bugs. If you're tempted to write one, ask yourself:
+
+1. Is the `try`/`catch` even needed? (prefer removing it)
+2. Should the error be handled explicitly? (recover, retry, rethrow)
+3. At minimum, log it so failures are visible
+
+Good:
+
+```ts
+try {
+  await save(data)
+} catch (err) {
+  log.error("save failed", { err })
+}
+```
+
+Bad:
+
+```ts
+try {
+  await save(data)
+} catch {}
+```
+
 ### Prefer single word naming
 
 Try your best to find a single word name for your variables, functions, etc.
@@ -127,6 +153,7 @@ We regularly merge upstream changes from opencode. To minimize merge conflicts a
 2. **Minimize changes to shared files** - When you must modify files that exist in upstream opencode, keep changes as small and isolated as possible.
 
 3. **Use `kilocode_change` markers** - When modifying shared code, mark your changes with `kilocode_change` comments so they can be easily identified during merges.
+   Do not use these markers in files within directories with kilo in the name
 
 4. **Avoid restructuring upstream code** - Don't refactor or reorganize code that comes from opencode unless absolutely necessary.
 

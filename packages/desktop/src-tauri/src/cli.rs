@@ -1,32 +1,46 @@
+use futures::{FutureExt, Stream, StreamExt, future};
 use tauri::{AppHandle, Manager, path::BaseDirectory};
 use tauri_plugin_shell::{
     ShellExt,
-    process::{Command, CommandChild, CommandEvent, TerminatedPayload},
+    process::{CommandChild, CommandEvent, TerminatedPayload},
 };
+use tauri_plugin_store::StoreExt;
+use tauri_specta::Event;
 use tokio::sync::oneshot;
+use tracing::Instrument;
+
+use crate::constants::{SETTINGS_STORE, WSL_ENABLED_KEY};
 
 const CLI_INSTALL_DIR: &str = ".kilo/bin";
-const CLI_BINARY_NAME: &str = "kilo"; // kilocode_change
+const CLI_BINARY_NAME: &str = "opencode";
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
 pub struct ServerConfig {
     pub hostname: Option<String>,
     pub port: Option<u32>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
 pub struct Config {
     pub server: Option<ServerConfig>,
 }
 
 pub async fn get_config(app: &AppHandle) -> Option<Config> {
-    create_command(app, "debug config")
-        .output()
+    let (events, _) = spawn_command(app, "debug config", &[]).ok()?;
+
+    events
+        .fold(String::new(), async |mut config_str, event| {
+            if let CommandEvent::Stdout(stdout) = event
+                && let Ok(s) = str::from_utf8(&stdout)
+            {
+                config_str += s
+            }
+
+            config_str
+        })
+        .map(|v| serde_json::from_str::<Config>(&v))
         .await
-        .inspect_err(|e| tracing::warn!("Failed to read OC config: {e}"))
         .ok()
-        .and_then(|out| String::from_utf8(out.stdout.to_vec()).ok())
-        .and_then(|s| serde_json::from_str::<Config>(&s).ok())
 }
 
 fn get_cli_install_path() -> Option<std::path::PathBuf> {
@@ -66,7 +80,7 @@ pub fn install_cli(app: tauri::AppHandle) -> Result<String, String> {
         return Err("Sidecar binary not found".to_string());
     }
 
-    let temp_script = std::env::temp_dir().join("kilo-install.sh"); // kilocode_change
+    let temp_script = std::env::temp_dir().join("opencode-install.sh");
     std::fs::write(&temp_script, INSTALL_SCRIPT)
         .map_err(|e| format!("Failed to write install script: {}", e))?;
 
@@ -149,25 +163,109 @@ fn get_user_shell() -> String {
     std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
 }
 
-pub fn create_command(app: &tauri::AppHandle, args: &str) -> Command {
+fn is_wsl_enabled(app: &tauri::AppHandle) -> bool {
+    let Ok(store) = app.store(SETTINGS_STORE) else {
+        return false;
+    };
+
+    store
+        .get(WSL_ENABLED_KEY)
+        .as_ref()
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+}
+
+fn shell_escape(input: &str) -> String {
+    if input.is_empty() {
+        return "''".to_string();
+    }
+
+    let mut escaped = String::from("'");
+    escaped.push_str(&input.replace("'", "'\"'\"'"));
+    escaped.push('\'');
+    escaped
+}
+
+pub fn spawn_command(
+    app: &tauri::AppHandle,
+    args: &str,
+    extra_env: &[(&str, String)],
+) -> Result<(impl Stream<Item = CommandEvent> + 'static, CommandChild), tauri_plugin_shell::Error> {
     let state_dir = app
         .path()
         .resolve("", BaseDirectory::AppLocalData)
         .expect("Failed to resolve app local data dir");
 
-    #[cfg(target_os = "windows")]
-    return app
-        .shell()
-        .sidecar("kilo-cli")
-        .unwrap()
-        .args(args.split_whitespace())
-        .env("KILO_EXPERIMENTAL_ICON_DISCOVERY", "true")
-        .env("KILO_EXPERIMENTAL_FILEWATCHER", "true")
-        .env("KILO_CLIENT", "desktop")
-        .env("XDG_STATE_HOME", &state_dir);
+    let mut envs = vec![
+        (
+            "KILO_EXPERIMENTAL_ICON_DISCOVERY".to_string(),
+            "true".to_string(),
+        ),
+        (
+            "KILO_EXPERIMENTAL_FILEWATCHER".to_string(),
+            "true".to_string(),
+        ),
+        ("KILO_CLIENT".to_string(), "desktop".to_string()),
+        (
+            "XDG_STATE_HOME".to_string(),
+            state_dir.to_string_lossy().to_string(),
+        ),
+    ];
+    envs.extend(
+        extra_env
+            .iter()
+            .map(|(key, value)| (key.to_string(), value.clone())),
+    );
 
-    #[cfg(not(target_os = "windows"))]
-    return {
+    let cmd = if cfg!(windows) {
+        if is_wsl_enabled(app) {
+            tracing::info!("WSL is enabled, spawning CLI server in WSL");
+            let version = app.package_info().version.to_string();
+            let mut script = vec![
+                "set -e".to_string(),
+                "BIN=\"$HOME/.opencode/bin/opencode\"".to_string(),
+                "if [ ! -x \"$BIN\" ]; then".to_string(),
+                format!(
+                    "  curl -fsSL https://kilo.ai/install | bash -s -- --version {} --no-modify-path",
+                    shell_escape(&version)
+                ),
+                "fi".to_string(),
+            ];
+
+            let mut env_prefix = vec![
+                "KILO_EXPERIMENTAL_ICON_DISCOVERY=true".to_string(),
+                "KILO_EXPERIMENTAL_FILEWATCHER=true".to_string(),
+                "KILO_CLIENT=desktop".to_string(),
+                "XDG_STATE_HOME=\"$HOME/.local/state\"".to_string(),
+            ];
+            env_prefix.extend(
+                envs.iter()
+                    .filter(|(key, _)| key != "KILO_EXPERIMENTAL_ICON_DISCOVERY")
+                    .filter(|(key, _)| key != "KILO_EXPERIMENTAL_FILEWATCHER")
+                    .filter(|(key, _)| key != "KILO_CLIENT")
+                    .filter(|(key, _)| key != "XDG_STATE_HOME")
+                    .map(|(key, value)| format!("{}={}", key, shell_escape(value))),
+            );
+
+            script.push(format!("{} exec \"$BIN\" {}", env_prefix.join(" "), args));
+
+            app.shell()
+                .command("wsl")
+                .args(["-e", "bash", "-lc", &script.join("\n")])
+        } else {
+            let mut cmd = app
+                .shell()
+                .sidecar("kilo-cli")
+                .unwrap()
+                .args(args.split_whitespace());
+
+            for (key, value) in envs {
+                cmd = cmd.env(key, value);
+            }
+
+            cmd
+        }
+    } else {
         let sidecar = get_sidecar_path(app);
         let shell = get_user_shell();
 
@@ -177,14 +275,20 @@ pub fn create_command(app: &tauri::AppHandle, args: &str) -> Command {
             format!("\"{}\" {}", sidecar.display(), args)
         };
 
-        app.shell()
-            .command(&shell)
-            .env("KILO_EXPERIMENTAL_ICON_DISCOVERY", "true")
-            .env("KILO_EXPERIMENTAL_FILEWATCHER", "true")
-            .env("KILO_CLIENT", "desktop")
-            .env("XDG_STATE_HOME", &state_dir)
-            .args(["-il", "-c", &cmd])
+        let mut cmd = app.shell().command(&shell).args(["-il", "-c", &cmd]);
+
+        for (key, value) in envs {
+            cmd = cmd.env(key, value);
+        }
+
+        cmd
     };
+
+    let (rx, child) = cmd.spawn()?;
+    let event_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+    let event_stream = sqlite_migration::logs_middleware(app.clone(), event_stream);
+
+    Ok((event_stream, child))
 }
 
 pub fn serve(
@@ -197,46 +301,101 @@ pub fn serve(
 
     tracing::info!(port, "Spawning sidecar");
 
-    let (mut rx, child) = create_command(
+    let envs = [
+        ("KILO_SERVER_USERNAME", "opencode".to_string()),
+        ("KILO_SERVER_PASSWORD", password.to_string()),
+    ];
+
+    let (events, child) = spawn_command(
         app,
         format!("--print-logs --log-level WARN serve --hostname {hostname} --port {port}").as_str(),
+        &envs,
     )
-    .env("KILO_SERVER_USERNAME", "kilo") // kilocode_change
-    .env("KILO_SERVER_PASSWORD", password) // kilocode_change
-    .spawn()
-    .expect("Failed to spawn kilo"); // kilocode_change
+    .expect("Failed to spawn opencode");
 
-    tokio::spawn(async move {
-        let mut exit_tx = Some(exit_tx);
-        while let Some(event) = rx.recv().await {
-            match event {
-                CommandEvent::Stdout(line_bytes) => {
-                    let line = String::from_utf8_lossy(&line_bytes);
-                    tracing::info!(target: "sidecar", "{line}");
-                }
-                CommandEvent::Stderr(line_bytes) => {
-                    let line = String::from_utf8_lossy(&line_bytes);
-                    tracing::info!(target: "sidecar", "{line}");
-                }
-                CommandEvent::Error(err) => {
-                    tracing::error!(target: "sidecar", "{err}");
-                }
-                CommandEvent::Terminated(payload) => {
-                    tracing::info!(
-                        target: "sidecar",
-                        code = ?payload.code,
-                        signal = ?payload.signal,
-                        "Sidecar terminated"
-                    );
-
-                    if let Some(tx) = exit_tx.take() {
-                        let _ = tx.send(payload);
+    let mut exit_tx = Some(exit_tx);
+    tokio::spawn(
+        events
+            .for_each(move |event| {
+                match event {
+                    CommandEvent::Stdout(line_bytes) => {
+                        let line = String::from_utf8_lossy(&line_bytes);
+                        tracing::info!("{line}");
                     }
+                    CommandEvent::Stderr(line_bytes) => {
+                        let line = String::from_utf8_lossy(&line_bytes);
+                        tracing::info!("{line}");
+                    }
+                    CommandEvent::Error(err) => {
+                        tracing::error!("{err}");
+                    }
+                    CommandEvent::Terminated(payload) => {
+                        tracing::info!(
+                            code = ?payload.code,
+                            signal = ?payload.signal,
+                            "Sidecar terminated"
+                        );
+
+                        if let Some(tx) = exit_tx.take() {
+                            let _ = tx.send(payload);
+                        }
+                    }
+                    _ => {}
                 }
-                _ => {}
-            }
-        }
-    });
+
+                future::ready(())
+            })
+            .instrument(tracing::info_span!("sidecar")),
+    );
 
     (child, exit_rx)
+}
+
+pub mod sqlite_migration {
+    use super::*;
+
+    #[derive(
+        tauri_specta::Event, serde::Serialize, serde::Deserialize, Clone, Copy, Debug, specta::Type,
+    )]
+    #[serde(tag = "type", content = "value")]
+    pub enum SqliteMigrationProgress {
+        InProgress(u8),
+        Done,
+    }
+
+    pub(super) fn logs_middleware(
+        app: AppHandle,
+        stream: impl Stream<Item = CommandEvent>,
+    ) -> impl Stream<Item = CommandEvent> {
+        let app = app.clone();
+        let mut done = false;
+
+        stream.filter_map(move |event| {
+            if done {
+                return future::ready(Some(event));
+            }
+
+            future::ready(match &event {
+                CommandEvent::Stdout(stdout) => {
+                    let Ok(s) = str::from_utf8(stdout) else {
+                        return future::ready(None);
+                    };
+
+                    if let Some(s) = s.strip_prefix("sqlite-migration:").map(|s| s.trim()) {
+                        if let Ok(progress) = s.parse::<u8>() {
+                            let _ = SqliteMigrationProgress::InProgress(progress).emit(&app);
+                        } else if s == "done" {
+                            done = true;
+                            let _ = SqliteMigrationProgress::Done.emit(&app);
+                        }
+
+                        None
+                    } else {
+                        Some(event)
+                    }
+                }
+                _ => Some(event),
+            })
+        })
+    }
 }

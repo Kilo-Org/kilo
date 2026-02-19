@@ -481,7 +481,7 @@
 
 .am-confirm-message > [data-component="icon"] {
   flex-shrink: 0;
-  color: var(--text-danger, #dc2626);
+  color: var(--icon-critical-base);
   margin-top: 2px;
 }
 
@@ -501,10 +501,18 @@
 }
 
 .am-confirm-delete {
-  background: var(--surface-danger, #dc2626) !important;
-  color: #fff !important;
+  background: var(--surface-critical-strong) !important;
+  color: var(--text-on-brand-base) !important;
 }
 
 .am-confirm-delete:hover {
   opacity: 0.9;
+}
+
+/* Keyboard shortcut hint inside buttons */
+
+.am-shortcut-hint {
+  font-size: var(--font-size-small);
+  opacity: 0.6;
+  margin-left: 6px;
 }

@@ -42,3 +42,16 @@ export function validateLocalSession(persisted: string | undefined, ids: string[
   if (ids.indexOf(persisted) === -1) return undefined
   return persisted
 }
+
+/**
+ * After removing a worktree, pick the nearest remaining sidebar neighbor.
+ * Order: the worktree just below → the one above → "local".
+ */
+export function nextSelectionAfterDelete(deletedId: string, worktreeIds: string[]): "local" | string {
+  const idx = worktreeIds.indexOf(deletedId)
+  if (idx === -1) return "local"
+  const remaining = worktreeIds.filter((id) => id !== deletedId)
+  if (remaining.length === 0) return "local"
+  // Prefer the item that was below (same index in the shortened list), else the one above
+  return remaining[Math.min(idx, remaining.length - 1)]!
+}

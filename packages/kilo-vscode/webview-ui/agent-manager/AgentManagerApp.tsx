@@ -33,7 +33,7 @@ import { WorktreeModeProvider } from "../src/context/worktree-mode"
 import { ChatView } from "../src/components/chat"
 import { LanguageBridge, DataBridge } from "../src/App"
 import { formatRelativeDate } from "../src/utils/date"
-import { validateLocalSession } from "./navigate"
+import { validateLocalSession, nextSelectionAfterDelete } from "./navigate"
 import "./agent-manager.css"
 
 interface SetupState {
@@ -45,6 +45,9 @@ interface SetupState {
 
 /** Sidebar selection: "local" for workspace, worktree ID for a worktree, or null for an unassigned session. */
 type SidebarSelection = "local" | string | null
+
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent)
+const modKey = isMac ? "\u2318" : "Ctrl+"
 
 const AgentManagerContent: Component = () => {
   const session = useSession()
@@ -313,6 +316,9 @@ const AgentManagerContent: Component = () => {
           globalThis.setTimeout(() => setSetup({ active: false, message: "" }), error ? 3000 : 500)
           if (!error && ev.sessionId) {
             session.selectSession(ev.sessionId)
+            // Auto-switch sidebar to the worktree containing this session
+            const ms = managedSessions().find((s) => s.id === ev.sessionId)
+            if (ms?.worktreeId) setSelection(ms.worktreeId)
           }
         } else {
           setSetup({ active: true, message: ev.message, branch: ev.branch })
@@ -358,38 +364,37 @@ const AgentManagerContent: Component = () => {
     if (!wt) return
     const doDelete = () => {
       vscode.postMessage({ type: "agentManager.deleteWorktree", worktreeId: wt.id })
-      if (selection() === wt.id) selectLocal()
+      if (selection() === wt.id) {
+        const next = nextSelectionAfterDelete(
+          wt.id,
+          worktrees().map((w) => w.id),
+        )
+        if (next === "local") selectLocal()
+        else selectWorktree(next)
+      }
       dialog.close()
     }
-    dialog.show(() => {
-      const onKeyDown = (e: KeyboardEvent) => {
-        if (e.key === "Enter") {
-          e.preventDefault()
-          doDelete()
-        }
-      }
-      return (
-        <Dialog title="Delete Worktree" fit>
-          <div class="am-confirm" onKeyDown={onKeyDown} tabIndex={-1} ref={(el) => el.focus()}>
-            <div class="am-confirm-message">
-              <Icon name="trash" size="small" />
-              <span>
-                Delete worktree <code class="am-confirm-branch">{wt.branch}</code>? This removes the worktree from disk
-                and dissociates all sessions.
-              </span>
-            </div>
-            <div class="am-confirm-actions">
-              <Button variant="ghost" size="large" onClick={() => dialog.close()}>
-                Cancel
-              </Button>
-              <Button variant="primary" size="large" class="am-confirm-delete" onClick={doDelete}>
-                Delete
-              </Button>
-            </div>
+    dialog.show(() => (
+      <Dialog title="Delete Worktree" fit>
+        <div class="am-confirm">
+          <div class="am-confirm-message">
+            <Icon name="trash" size="small" />
+            <span>
+              Delete worktree <code class="am-confirm-branch">{wt.branch}</code>? This removes the worktree from disk
+              and dissociates all sessions.
+            </span>
           </div>
-        </Dialog>
-      )
-    })
+          <div class="am-confirm-actions">
+            <Button variant="ghost" size="large" onClick={() => dialog.close()}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="large" class="am-confirm-delete" onClick={doDelete} autofocus>
+              Delete
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    ))
   }
 
   const handleDeleteWorktree = (worktreeId: string, e: MouseEvent) => {
@@ -634,7 +639,7 @@ const AgentManagerContent: Component = () => {
               icon="plus"
               size="small"
               variant="ghost"
-              label="New session"
+              label={`New session (${modKey}T)`}
               class="am-tab-add"
               onClick={handleAddSession}
             />
@@ -650,6 +655,7 @@ const AgentManagerContent: Component = () => {
             <div class="am-empty-state-text">No sessions open</div>
             <Button variant="primary" size="small" onClick={handleAddSession}>
               New session
+              <span class="am-shortcut-hint">{modKey}T</span>
             </Button>
           </div>
         </Show>

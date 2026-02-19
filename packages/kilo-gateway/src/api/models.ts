@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { getKiloUrlFromToken } from "../auth/token.js"
 import { DEFAULT_HEADERS } from "../headers.js"
-import { KILO_API_BASE, KILO_OPENROUTER_BASE, MODELS_FETCH_TIMEOUT_MS } from "./constants.js"
+import { DEFAULT_KILO_API_URL, KILO_API_BASE, KILO_OPENROUTER_BASE, MODELS_FETCH_TIMEOUT_MS } from "./constants.js"
 
 /**
  * OpenRouter model schema
@@ -60,18 +60,19 @@ export async function fetchKiloModels(options?: {
   const token = options?.kilocodeToken
   const organizationId = options?.kilocodeOrganizationId
 
-  // Construct base URL
-  const defaultBaseURL = organizationId ? `${KILO_API_BASE}/api/organizations/${organizationId}` : KILO_OPENROUTER_BASE
+  const requestedBaseURL = options?.baseURL ?? (organizationId ? `${KILO_API_BASE}/api/organizations/${organizationId}` : KILO_OPENROUTER_BASE)
+  const fallbackBaseURL = organizationId
+    ? `${DEFAULT_KILO_API_URL}/api/organizations/${organizationId}`
+    : `${DEFAULT_KILO_API_URL}/api/openrouter`
+  const baseUrls = [requestedBaseURL]
+  if (requestedBaseURL !== fallbackBaseURL) {
+    baseUrls.push(fallbackBaseURL)
+  }
 
-  const baseURL = options?.baseURL ?? defaultBaseURL
+  const fetchModelsFromBase = async (baseURL: string): Promise<Record<string, any>> => {
+    const finalBaseURL = token ? getKiloUrlFromToken(baseURL, token) : baseURL
+    const modelsURL = `${finalBaseURL}/models`
 
-  // Transform URL with token if available
-  const finalBaseURL = token ? getKiloUrlFromToken(baseURL, token) : baseURL
-
-  // Construct models endpoint
-  const modelsURL = `${finalBaseURL}/models`
-
-  try {
     // Fetch models with timeout
     const response = await fetch(modelsURL, {
       headers: {
@@ -109,10 +110,19 @@ export async function fetchKiloModels(options?: {
     }
 
     return models
-  } catch (error) {
-    console.error("Error fetching Kilo models:", error)
-    return {}
   }
+
+  const errors: string[] = []
+  for (const baseURL of baseUrls) {
+    try {
+      return await fetchModelsFromBase(baseURL)
+    } catch (error) {
+      errors.push(`${baseURL}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  console.error("Error fetching Kilo models:", errors.join(" | "))
+  return {}
 }
 
 /**

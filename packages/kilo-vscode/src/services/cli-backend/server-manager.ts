@@ -65,6 +65,9 @@ export class ServerManager {
         env: {
           ...process.env,
           KILO_SERVER_PASSWORD: password,
+          // Keep backend kilocode migrators aligned with the extension's actual
+          // global storage location (important in dev hosts and non-standard builds).
+          KILO_VSCODE_GLOBAL_STORAGE: this.context.globalStorageUri.fsPath,
           KILO_CLIENT: "vscode",
           KILOCODE_FEATURE: "vscode-extension", // kilocode_change - feature tracking
           KILO_TELEMETRY_LEVEL: vscode.env.isTelemetryEnabled ? "all" : "off",

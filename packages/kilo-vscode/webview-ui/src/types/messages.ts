@@ -846,6 +846,7 @@ export interface RemoveMarketplaceItemMessage {
 export type TelemetryEventName =
   | "Marketplace Tab Viewed"
   | "Marketplace Install Button Clicked"
+  | "Marketplace Install Validation Failed"
   | "Marketplace Item Installed"
   | "Marketplace Item Removed"
 

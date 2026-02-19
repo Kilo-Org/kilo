@@ -22,6 +22,8 @@ type SortBy = "name" | "installed"
 type ItemActionState = "installing" | "removing"
 
 const actionKey = (itemID: string, target: "project" | "global") => `${itemID}::${target}`
+const MARKETPLACE_ACTION_TIMEOUT_MS = 20_000
+const MARKETPLACE_CATALOG_TIMEOUT_MS = 20_000
 
 const toItemLabel = (item: MarketplaceItem): string => {
   if (item.type === "skill") {
@@ -63,6 +65,52 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
   const [selectedMethodByItem, setSelectedMethodByItem] = createStore<Record<string, number>>({})
   const [parameterValuesByItem, setParameterValuesByItem] = createStore<Record<string, Record<string, string>>>({})
   const [pendingActionsByItem, setPendingActionsByItem] = createStore<Record<string, ItemActionState>>({})
+  const [actionErrorsByItem, setActionErrorsByItem] = createStore<Record<string, string>>({})
+  let catalogRequestTimeout: ReturnType<typeof setTimeout> | undefined
+  const actionTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+
+  const clearCatalogRequestTimeout = () => {
+    if (!catalogRequestTimeout) {
+      return
+    }
+    clearTimeout(catalogRequestTimeout)
+    catalogRequestTimeout = undefined
+  }
+
+  const clearActionTimeout = (key: string) => {
+    const existing = actionTimeouts.get(key)
+    if (!existing) {
+      return
+    }
+    clearTimeout(existing)
+    actionTimeouts.delete(key)
+  }
+
+  const clearItemActionErrors = (itemID: string) => {
+    setActionErrorsByItem(
+      produce((state) => {
+        delete state[actionKey(itemID, "project")]
+        delete state[actionKey(itemID, "global")]
+      }),
+    )
+  }
+
+  const scheduleActionTimeout = (itemID: string, target: "project" | "global", action: "install" | "remove") => {
+    const key = actionKey(itemID, target)
+    clearActionTimeout(key)
+    const timeout = setTimeout(() => {
+      actionTimeouts.delete(key)
+      setPendingActionsByItem(
+        produce((state) => {
+          delete state[key]
+        }),
+      )
+      const timeoutMessage = `Marketplace ${action} timed out. Please try again.`
+      setActionErrorsByItem(key, timeoutMessage)
+      setStatusMessage(timeoutMessage)
+    }, MARKETPLACE_ACTION_TIMEOUT_MS)
+    actionTimeouts.set(key, timeout)
+  }
 
   let initialized = false
   createEffect(() => {
@@ -84,12 +132,19 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
   const requestData = () => {
     setLoading(true)
     setStatusMessage(null)
+    clearCatalogRequestTimeout()
+    catalogRequestTimeout = setTimeout(() => {
+      catalogRequestTimeout = undefined
+      setLoading(false)
+      setStatusMessage("Marketplace request timed out. Please try again.")
+    }, MARKETPLACE_CATALOG_TIMEOUT_MS)
     vscode.postMessage({ type: "requestMarketplaceData" })
   }
 
   onMount(() => {
     const unsubscribe = vscode.onMessage((message: ExtensionMessage) => {
       if (message.type === "marketplaceData") {
+        clearCatalogRequestTimeout()
         setItems(Array.isArray(message.items) ? message.items : [])
         setInstalled(message.installedMetadata ?? emptyInstalled)
         setHasWorkspace(message.hasWorkspace !== false)
@@ -106,6 +161,12 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
         const itemID = typeof message.itemID === "string" ? message.itemID : undefined
         const target = message.target === "project" || message.target === "global" ? message.target : undefined
         if (itemID) {
+          if (target) {
+            clearActionTimeout(actionKey(itemID, target))
+          } else {
+            clearActionTimeout(actionKey(itemID, "project"))
+            clearActionTimeout(actionKey(itemID, "global"))
+          }
           setPendingActionsByItem(
             produce((state) => {
               if (target) {
@@ -119,14 +180,19 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
         }
 
         if (!message.success) {
-          setStatusMessage(
+          const actionMessage =
             message.error ||
-              language.t("marketplace.status.actionFailed", {
-                action: message.action,
-              }),
-          )
+            language.t("marketplace.status.actionFailed", {
+              action: message.action,
+            })
+          if (itemID && target) {
+            setActionErrorsByItem(actionKey(itemID, target), actionMessage)
+          } else {
+            setStatusMessage(actionMessage)
+          }
         } else {
           if (itemID && target) {
+            clearItemActionErrors(itemID)
             setInstalled((current) => {
               const nextProject = { ...current.project }
               const nextGlobal = { ...current.global }
@@ -146,17 +212,20 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
               return { project: nextProject, global: nextGlobal }
             })
           }
-          setStatusMessage(
-            language.t("marketplace.status.actionSucceeded", {
-              action: message.action,
-            }),
-          )
+          setStatusMessage(null)
         }
       }
     })
 
     requestData()
-    onCleanup(() => unsubscribe())
+    onCleanup(() => {
+      clearCatalogRequestTimeout()
+      for (const timeout of actionTimeouts.values()) {
+        clearTimeout(timeout)
+      }
+      actionTimeouts.clear()
+      unsubscribe()
+    })
   })
 
   const isInstalledInTarget = (item: MarketplaceItem, target: "project" | "global"): boolean => {
@@ -287,6 +356,11 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
   }
 
   const handleInstall = (item: MarketplaceItem, target: "project" | "global") => {
+    if (isActionPending(item, "project") || isActionPending(item, "global")) {
+      return
+    }
+
+    clearItemActionErrors(item.id)
     vscode.postMessage({
       type: "telemetryEvent",
       event: "Marketplace Install Button Clicked",
@@ -301,13 +375,41 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
     setStatusMessage(null)
 
     if (target === "project" && !hasWorkspace()) {
-      setStatusMessage("Open a workspace folder to install project-scoped marketplace items.")
+      vscode.postMessage({
+        type: "telemetryEvent",
+        event: "Marketplace Install Validation Failed",
+        properties: {
+          itemId: item.id,
+          itemType: item.type,
+          itemName: item.name,
+          target,
+          reason: "no_workspace",
+        },
+      })
+      setActionErrorsByItem(
+        actionKey(item.id, target),
+        "Open a workspace folder to install project-scoped marketplace items.",
+      )
       return
     }
 
     const missingRequired = validateParameters(item)
     if (missingRequired.length > 0) {
-      setStatusMessage(
+      vscode.postMessage({
+        type: "telemetryEvent",
+        event: "Marketplace Install Validation Failed",
+        properties: {
+          itemId: item.id,
+          itemType: item.type,
+          itemName: item.name,
+          target,
+          reason: "missing_required_fields",
+          missingRequiredCount: missingRequired.length,
+          missingRequiredFields: missingRequired,
+        },
+      })
+      setActionErrorsByItem(
+        actionKey(item.id, target),
         language.t("marketplace.status.missingRequired", {
           fields: missingRequired.join(", "),
         }),
@@ -316,6 +418,8 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
     }
 
     setPendingActionsByItem(actionKey(item.id, target), "installing")
+    scheduleActionTimeout(item.id, target, "install")
+    setStatusMessage(null)
 
     const selectedIndex = item.type === "mcp" && Array.isArray(item.content) ? (selectedMethodByItem[item.id] ?? 0) : undefined
     const parameters = buildInstallParameters(item)
@@ -329,8 +433,14 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
   }
 
   const handleRemove = (item: MarketplaceItem, target: "project" | "global") => {
+    if (isActionPending(item, "project") || isActionPending(item, "global")) {
+      return
+    }
+
+    clearItemActionErrors(item.id)
     setStatusMessage(null)
     setPendingActionsByItem(actionKey(item.id, target), "removing")
+    scheduleActionTimeout(item.id, target, "remove")
     vscode.postMessage({
       type: "removeMarketplaceItem",
       item,
@@ -412,6 +522,9 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
     const projectInstallDisabled = !projectInstalled && !canUseProjectScope
     const projectActionState = () => pendingActionsByItem[actionKey(item.id, "project")]
     const globalActionState = () => pendingActionsByItem[actionKey(item.id, "global")]
+    const projectActionError = () => actionErrorsByItem[actionKey(item.id, "project")]
+    const globalActionError = () => actionErrorsByItem[actionKey(item.id, "global")]
+    const actionError = () => projectActionError() || globalActionError()
     const prerequisites = getMcpPrerequisites(item)
 
     return (
@@ -663,6 +776,11 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
                   : language.t("marketplace.action.installGlobal")}
           </Button>
         </div>
+        <Show when={actionError()}>
+          <div style={{ "font-size": "12px", color: "var(--vscode-errorForeground)", "word-break": "break-word" }}>
+            {actionError()}
+          </div>
+        </Show>
       </Card>
     )
   }

@@ -10,6 +10,7 @@ import { MarketplaceService, marketplaceItemSchema, type MarketplaceItem } from 
 const MARKETPLACE_TELEMETRY_EVENTS = new Set<TelemetryEventName>([
   TelemetryEventName.MARKETPLACE_TAB_VIEWED,
   TelemetryEventName.MARKETPLACE_INSTALL_BUTTON_CLICKED,
+  TelemetryEventName.MARKETPLACE_INSTALL_VALIDATION_FAILED,
   TelemetryEventName.MARKETPLACE_ITEM_INSTALLED,
   TelemetryEventName.MARKETPLACE_ITEM_REMOVED,
 ])
@@ -82,18 +83,10 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
    * This is primarily used after a webview refresh where early postMessage calls
    * may have been dropped before the webview registered its message listeners.
    */
-  private async syncWebviewState(reason: string): Promise<void> {
+  private async syncWebviewState(_reason: string): Promise<void> {
     const serverInfo = this.connectionService.getServerInfo()
-    console.log("[Kilo New] KiloProvider: 🔄 syncWebviewState()", {
-      reason,
-      isWebviewReady: this.isWebviewReady,
-      connectionState: this.connectionState,
-      hasHttpClient: !!this.httpClient,
-      hasServerInfo: !!serverInfo,
-    })
 
     if (!this.isWebviewReady) {
-      console.log("[Kilo New] KiloProvider: ⏭️ syncWebviewState skipped (webview not ready)")
       return
     }
 
@@ -117,10 +110,8 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
 
     // Always attempt to fetch+push profile when connected.
     if (this.connectionState === "connected" && this.httpClient) {
-      console.log("[Kilo New] KiloProvider: 👤 syncWebviewState fetching profile...")
       try {
         const profileData = await this.httpClient.getProfile()
-        console.log("[Kilo New] KiloProvider: 👤 syncWebviewState profile:", profileData ? "received" : "null")
         this.postMessage({
           type: "profileData",
           data: profileData,
@@ -252,7 +243,8 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         }
       }
 
-      switch (message.type) {
+      try {
+        switch (message.type) {
         case "webviewReady":
           console.log("[Kilo New] KiloProvider: ✅ webviewReady received")
           this.isWebviewReady = true
@@ -428,6 +420,32 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         case "telemetry":
           TelemetryProxy.capture(message.event, message.properties)
           break
+      }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        console.error("[Kilo New] KiloProvider: Failed to handle webview message:", {
+          type: message?.type,
+          error,
+        })
+
+        if (message?.type === "installMarketplaceItem" || message?.type === "removeMarketplaceItem") {
+          const action = message.type === "installMarketplaceItem" ? "install" : "remove"
+          const target = this.parseMarketplaceTarget(message.target)
+          const itemID = this.parseMarketplaceItemId(message.item)
+          this.postMessage({
+            type: "marketplaceActionResult",
+            action,
+            success: false,
+            itemID,
+            target,
+            error: errorMessage,
+          })
+        }
+
+        this.postMessage({
+          type: "error",
+          message: errorMessage,
+        })
       }
     })
   }
@@ -845,6 +863,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     const item = this.parseMarketplaceItem(rawItem)
     if (!item) {
       const itemID = this.parseMarketplaceItemId(rawItem)
+      console.warn("[Kilo New] Marketplace install failed: invalid payload", { itemID, target })
       this.postMessage({
         type: "marketplaceActionResult",
         action: "install",
@@ -859,6 +878,12 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     try {
       const selectedIndex = this.parseMarketplaceSelectedIndex(rawSelectedIndex)
       const parameters = this.parseMarketplaceParameters(rawParameters)
+      console.log("[Kilo New] Marketplace install started", {
+        itemID: item.id,
+        itemType: item.type,
+        itemName: item.name,
+        target,
+      })
 
       await this.marketplaceService.installItem(item, { target, selectedIndex, parameters })
       const installationMethodName =
@@ -882,6 +907,12 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         itemType: item.type,
         target,
       })
+      console.log("[Kilo New] Marketplace install succeeded", {
+        itemID: item.id,
+        itemType: item.type,
+        itemName: item.name,
+        target,
+      })
       void vscode.window.showInformationMessage(`Installed "${item.name}" (${target})`)
       // Keep UI responsive: refresh catalog/backend in the background.
       void this.handleRequestMarketplaceData()
@@ -889,6 +920,13 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to install marketplace item:", error)
       const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error("[Kilo New] Marketplace install failed", {
+        itemID: item.id,
+        itemType: item.type,
+        itemName: item.name,
+        target,
+        error: errorMessage,
+      })
       this.postMessage({
         type: "marketplaceActionResult",
         action: "install",
@@ -907,6 +945,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     const item = this.parseMarketplaceItem(rawItem)
     if (!item) {
       const itemID = this.parseMarketplaceItemId(rawItem)
+      console.warn("[Kilo New] Marketplace remove failed: invalid payload", { itemID, target })
       this.postMessage({
         type: "marketplaceActionResult",
         action: "remove",
@@ -919,6 +958,12 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     }
 
     try {
+      console.log("[Kilo New] Marketplace remove started", {
+        itemID: item.id,
+        itemType: item.type,
+        itemName: item.name,
+        target,
+      })
       await this.marketplaceService.removeItem(item, target)
       this.handleTelemetryEvent("Marketplace Item Removed", {
         itemId: item.id,
@@ -935,6 +980,12 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         itemType: item.type,
         target,
       })
+      console.log("[Kilo New] Marketplace remove succeeded", {
+        itemID: item.id,
+        itemType: item.type,
+        itemName: item.name,
+        target,
+      })
       void vscode.window.showInformationMessage(`Removed "${item.name}" (${target})`)
       // Keep UI responsive: refresh catalog/backend in the background.
       void this.handleRequestMarketplaceData()
@@ -942,6 +993,13 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to remove marketplace item:", error)
       const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error("[Kilo New] Marketplace remove failed", {
+        itemID: item.id,
+        itemType: item.type,
+        itemName: item.name,
+        target,
+        error: errorMessage,
+      })
       this.postMessage({
         type: "marketplaceActionResult",
         action: "remove",
@@ -1049,6 +1107,13 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       this.postMessage(message)
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to fetch providers:", error)
+      if (this.cachedProvidersMessage) {
+        this.postMessage(this.cachedProvidersMessage)
+      }
+      this.postMessage({
+        type: "error",
+        message: `Failed to load providers: ${error instanceof Error ? error.message : String(error)}`,
+      })
     }
   }
 
@@ -1088,6 +1153,13 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       this.postMessage(message)
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to fetch agents:", error)
+      if (this.cachedAgentsMessage) {
+        this.postMessage(this.cachedAgentsMessage)
+      }
+      this.postMessage({
+        type: "error",
+        message: `Failed to load agents: ${error instanceof Error ? error.message : String(error)}`,
+      })
     }
   }
 
@@ -1114,6 +1186,13 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       this.postMessage(message)
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to fetch config:", error)
+      if (this.cachedConfigMessage) {
+        this.postMessage(this.cachedConfigMessage)
+      }
+      this.postMessage({
+        type: "error",
+        message: `Failed to load config: ${error instanceof Error ? error.message : String(error)}`,
+      })
     }
   }
 

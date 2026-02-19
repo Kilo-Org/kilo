@@ -29,6 +29,7 @@ const MARKETPLACE_FETCH_RETRIES = 3
 const MARKETPLACE_FETCH_TIMEOUT_MS = 12_000
 const MARKETPLACE_RETRY_BASE_DELAY_MS = 500
 const MAX_SKILL_TARBALL_BYTES = 50 * 1024 * 1024
+const SKILL_DOWNLOAD_TIMEOUT_MS = 30_000
 const DEFAULT_BACKEND_BASE_URL = "https://kilo.ai"
 const DEFAULT_API_BASE_URL = "https://api.kilo.ai"
 const SAFE_MARKETPLACE_ID_PATTERN = /^[A-Za-z0-9._-]+$/
@@ -613,7 +614,19 @@ export class MarketplaceService {
       throw new Error(`Unsupported URL scheme for skill tarball: ${parsedTarballUrl.protocol}`)
     }
 
-    const response = await fetch(tarballUrl)
+    let response: Response
+    try {
+      response = await fetch(tarballUrl, {
+        headers: {
+          Accept: "application/octet-stream, application/x-gzip, */*",
+          "User-Agent": "kilo-code-vscode-marketplace",
+        },
+        signal: AbortSignal.timeout(SKILL_DOWNLOAD_TIMEOUT_MS),
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`Failed to download skill tarball: ${message}`)
+    }
     if (!response.ok) {
       throw new Error(`Failed to download skill tarball: ${response.statusText || response.status}`)
     }
@@ -685,34 +698,46 @@ export class MarketplaceService {
     if (!this.isObjectRecord(input)) {
       throw new Error("MCP server configuration must be a JSON object")
     }
-    this.assertNoUnsafeObjectKeys(input, "MCP server configuration")
+    const normalized: Record<string, unknown> = { ...input }
 
-    const command = input.command
-    if (command !== undefined && typeof command !== "string") {
-      throw new Error("MCP server configuration field \"command\" must be a string")
-    }
-
-    const args = input.args
-    if (args !== undefined && (!Array.isArray(args) || args.some((arg) => typeof arg !== "string"))) {
-      throw new Error("MCP server configuration field \"args\" must be an array of strings")
-    }
-
-    const env = input.env
-    if (env !== undefined) {
-      if (!this.isObjectRecord(env)) {
-        throw new Error("MCP server configuration field \"env\" must be an object")
+    const command = normalized.command
+    const args = normalized.args
+    if (Array.isArray(command)) {
+      if (command.length === 0 || command.some((part) => typeof part !== "string")) {
+        throw new Error("MCP server configuration field \"command\" array must contain strings")
       }
-      for (const [key, value] of Object.entries(env)) {
-        if (UNSAFE_OBJECT_KEYS.has(key)) {
-          throw new Error(`MCP server configuration contains unsafe env key: ${key}`)
+      const [commandName, ...commandArgs] = command
+      if (!commandName || commandName.trim().length === 0) {
+        throw new Error("MCP server configuration field \"command\" cannot be empty")
+      }
+
+      if (args !== undefined) {
+        if (!Array.isArray(args) || args.some((arg) => typeof arg !== "string")) {
+          throw new Error("MCP server configuration field \"args\" must be an array of strings")
         }
-        if (typeof value !== "string") {
-          throw new Error(`MCP server configuration env value for \"${key}\" must be a string`)
-        }
+        normalized.args = [...commandArgs, ...args]
+      } else {
+        normalized.args = commandArgs
+      }
+      normalized.command = commandName
+    } else if (command !== undefined && typeof command !== "string") {
+      throw new Error("MCP server configuration field \"command\" must be a string or string array")
+    }
+
+    if (normalized.args !== undefined) {
+      const normalizedArgs = normalized.args
+      if (!Array.isArray(normalizedArgs) || normalizedArgs.some((arg) => typeof arg !== "string")) {
+        throw new Error("MCP server configuration field \"args\" must be an array of strings")
       }
     }
 
-    return input
+    const env = normalized.env
+    if (env !== undefined && (!this.isObjectRecord(env) || Object.values(env).some((value) => typeof value !== "string"))) {
+      throw new Error("MCP server configuration field \"env\" must be an object with string values")
+    }
+
+    this.assertNoUnsafeObjectKeys(normalized, "MCP server configuration")
+    return normalized
   }
 
   private assertNoUnsafeObjectKeys(value: unknown, context: string): void {

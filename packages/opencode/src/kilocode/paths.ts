@@ -10,6 +10,11 @@ export namespace KilocodePaths {
    * - Linux: ~/.config/Code/User/globalStorage/kilocode.kilo-code
    */
   export function vscodeGlobalStorage(): string {
+    const override = process.env.KILO_VSCODE_GLOBAL_STORAGE?.trim()
+    if (override) {
+      return override
+    }
+
     const home = os.homedir()
     switch (process.platform) {
       case "darwin":

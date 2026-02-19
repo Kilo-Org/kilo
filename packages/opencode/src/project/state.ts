@@ -67,4 +67,14 @@ export namespace State {
     disposalFinished = true
     log.info("state disposal completed", { key })
   }
+
+  export function clearEntry(key: string, init: () => any) {
+    const entries = recordsByKey.get(key)
+    if (!entries) return
+    entries.delete(init)
+  }
+
+  export function clearAll(key: string) {
+    recordsByKey.delete(key)
+  }
 }

@@ -43,6 +43,18 @@ export namespace Config {
 
   const log = Log.create({ service: "config" })
 
+  // kilocode_change - Clear just the config cache without disposing of the entire instance
+  export async function clearCache() {
+    const { State } = await import("../project/state")
+    const initFn = (state as any)._init
+    if (!initFn) {
+      log.warn("unable to clear config cache: init function not found on state")
+      return
+    }
+    State.clearEntry(Instance.directory, initFn)
+    log.debug("config cache cleared", { directory: Instance.directory })
+  }
+
   // Managed settings directory for enterprise deployments (highest priority, admin-controlled)
   // These settings override all user and project settings
   function getManagedConfigDir(): string {
@@ -1460,7 +1472,7 @@ export namespace Config {
     const filepath = path.join(Instance.directory, "config.json")
     const existing = await loadFile(filepath)
     await Bun.write(filepath, JSON.stringify(mergeDeep(existing, config), null, 2))
-    await Instance.dispose()
+    await clearCache()
   }
 
   function globalConfigFile() {

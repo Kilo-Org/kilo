@@ -14,7 +14,8 @@ export namespace CodebaseSearchConfig {
     if (!raw) return null
 
     // Validate and return
-    return CodebaseSearchTypes.Config.parse(raw)
+    const result = CodebaseSearchTypes.Config.safeParse(raw)
+    return result.success ? result.data : null
   }
 
   /**

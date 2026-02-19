@@ -67,7 +67,7 @@ export const ConfigRoutes = lazy(() =>
       "/reload",
       describeRoute({
         summary: "Reload configuration",
-        description: "Invalidate config cache and reload from files.",
+        description: "Invalidate config cache and reload from files on next access.",
         operationId: "config.reload",
         responses: {
           200: {
@@ -81,8 +81,8 @@ export const ConfigRoutes = lazy(() =>
         },
       }),
       async (c) => {
-        const { Instance } = await import("../../project/instance")
-        await Instance.dispose()
+        const { Config } = await import("../../config/config")
+        await Config.clearCache()
         return c.json({ success: true })
       },
     )

@@ -1477,7 +1477,7 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
         <Match when={props.part.tool === "codesearch"}>
           <CodeSearch {...toolprops} />
         </Match>
-        <Match when={props.part.tool === "codebase-search"}>
+        <Match when={props.part.tool === "codebase_search"}>
           <CodebaseSearch {...toolprops} />
         </Match>
         <Match when={props.part.tool === "websearch"}>

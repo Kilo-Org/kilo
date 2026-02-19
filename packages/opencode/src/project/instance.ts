@@ -64,7 +64,8 @@ export const Instance = {
     return Filesystem.contains(Instance.worktree, filepath)
   },
   state<S>(init: () => S, dispose?: (state: Awaited<S>) => Promise<void>): () => S {
-    return State.create(() => Instance.directory, init, dispose)
+    const fn = State.create(() => Instance.directory, init, dispose)
+    return Object.assign(fn, { _init: init })
   },
   async dispose() {
     Log.Default.info("disposing instance", { directory: Instance.directory })

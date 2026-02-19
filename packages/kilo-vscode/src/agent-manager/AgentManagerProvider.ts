@@ -6,6 +6,7 @@ import { WorktreeManager, type CreateWorktreeResult } from "./WorktreeManager"
 import { WorktreeStateManager } from "./WorktreeStateManager"
 import { SetupScriptService } from "./SetupScriptService"
 import { SetupScriptRunner } from "./SetupScriptRunner"
+import { SessionTerminalManager } from "./SessionTerminalManager"
 
 /**
  * AgentManagerProvider opens the Agent Manager panel.
@@ -24,12 +25,16 @@ export class AgentManagerProvider implements vscode.Disposable {
   private worktrees: WorktreeManager | undefined
   private state: WorktreeStateManager | undefined
   private setupScript: SetupScriptService | undefined
+  private terminalManager: SessionTerminalManager
 
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly connectionService: KiloConnectionService,
   ) {
     this.outputChannel = vscode.window.createOutputChannel("Kilo Agent Manager")
+    this.terminalManager = new SessionTerminalManager((msg) =>
+      this.outputChannel.appendLine(`[SessionTerminal] ${msg}`),
+    )
   }
 
   private log(...args: unknown[]) {
@@ -131,9 +136,18 @@ export class AgentManagerProvider implements vscode.Disposable {
       void this.configureSetupScript()
       return null
     }
+    if (type === "agentManager.showTerminal" && typeof msg.sessionId === "string") {
+      this.terminalManager.showTerminal(msg.sessionId, this.state)
+      return null
+    }
     if (type === "agentManager.requestRepoInfo") {
       void this.sendRepoInfo()
       return null
+    }
+
+    // When switching sessions, show existing terminal if one is open
+    if (type === "loadMessages" && typeof msg.sessionID === "string") {
+      this.terminalManager.showExisting(msg.sessionID)
     }
 
     // After clearSession, re-register worktree sessions so SSE events keep flowing
@@ -503,11 +517,29 @@ export class AgentManagerProvider implements vscode.Disposable {
     })
   }
 
+  /**
+   * Show terminal for the currently active session (triggered by keyboard shortcut).
+   * Posts an action to the webview which will respond with the session ID.
+   */
+  public showTerminalForCurrentSession(): void {
+    this.postToWebview({ type: "action", action: "showTerminal" })
+  }
+
+  /**
+   * Reveal the Agent Manager panel and focus the prompt input.
+   * Used for the keyboard shortcut to switch back from terminal.
+   */
+  public focusPanel(): void {
+    if (!this.panel) return
+    this.panel.reveal(vscode.ViewColumn.One, false)
+  }
+
   public postMessage(message: unknown): void {
     this.panel?.webview.postMessage(message)
   }
 
   public dispose(): void {
+    this.terminalManager.dispose()
     this.provider?.dispose()
     this.panel?.dispose()
     this.outputChannel.dispose()

@@ -838,6 +838,12 @@ export interface ConfigureSetupScriptRequest {
   type: "agentManager.configureSetupScript"
 }
 
+// Show terminal for a session
+export interface ShowTerminalRequest {
+  type: "agentManager.showTerminal"
+  sessionId: string
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -882,6 +888,7 @@ export type WebviewMessage =
   | TelemetryRequest
   | RequestRepoInfoMessage
   | ConfigureSetupScriptRequest
+  | ShowTerminalRequest
 
 // ============================================
 // VS Code API type

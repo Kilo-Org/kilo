@@ -82,6 +82,12 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("kilo-code.new.agentManager.nextTab", () => {
       agentManagerProvider.postMessage({ type: "action", action: "tabNext" })
     }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.showTerminal", () => {
+      agentManagerProvider.showTerminalForCurrentSession()
+    }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.focusPanel", () => {
+      agentManagerProvider.focusPanel()
+    }),
     vscode.commands.registerCommand("kilo-code.new.agentManager.newTab", () => {
       agentManagerProvider.postMessage({ type: "action", action: "newTab" })
     }),

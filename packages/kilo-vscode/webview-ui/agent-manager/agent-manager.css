@@ -173,6 +173,12 @@
   opacity: 1;
 }
 
+.am-worktree-spinner {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
 /* Session list */
 
 .am-list {
@@ -365,6 +371,13 @@
 .am-tab-add {
   flex-shrink: 0;
   align-self: center;
+}
+
+.am-tab-terminal {
+  flex-shrink: 0;
+  align-self: center;
+  margin-left: auto;
+  padding-right: 4px;
 }
 
 /* Empty worktree state */

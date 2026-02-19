@@ -102,6 +102,18 @@
         "category": "Kilo Code"
       },
       {
+        "command": "kilo-code.new.agentManager.showTerminal",
+        "title": "Agent Manager: Focus Terminal",
+        "category": "Kilo Code",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "kilo-code.new.agentManager.focusPanel",
+        "title": "Agent Manager: Focus Panel",
+        "category": "Kilo Code",
+        "icon": "$(circuit-board)"
+      },
+      {
         "command": "kilo-code.new.agentManager.newTab",
         "title": "Agent Manager: New Tab",
         "category": "Kilo Code"
@@ -308,6 +320,18 @@
         "key": "ctrl+right",
         "mac": "cmd+right",
         "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.showTerminal",
+        "key": "ctrl+/",
+        "mac": "cmd+/",
+        "when": "activeWebviewPanelId == 'kilo-code.new.AgentManagerPanel'"
+      },
+      {
+        "command": "kilo-code.new.agentManager.focusPanel",
+        "key": "ctrl+.",
+        "mac": "cmd+.",
+        "when": "terminalFocus && kilo-code.agentTerminalFocus"
       },
       {
         "command": "kilo-code.new.agentManager.newTab",

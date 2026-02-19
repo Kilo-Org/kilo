@@ -316,6 +316,11 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
             vscode.env.openExternal(vscode.Uri.parse(message.url))
           }
           break
+        case "openFile":
+          if (message.path) {
+            await vscode.window.showTextDocument(vscode.Uri.file(message.path))
+          }
+          break
         case "requestProviders":
           await this.fetchAndSendProviders()
           break

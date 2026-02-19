@@ -167,6 +167,12 @@
   opacity: 1;
 }
 
+.am-worktree-spinner {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
 /* Session list */
 
 .am-list {

@@ -500,4 +500,12 @@ export class HttpClient {
   async disconnectMcpServer(name: string): Promise<boolean> {
     return this.request<boolean>("POST", `/mcp/${encodeURIComponent(name)}/disconnect`)
   }
+
+  /**
+   * Dispose the current instance so backend state is rebuilt on next config/agent/mcp read.
+   * This is used after marketplace installs/removals that mutate legacy kilocode config files.
+   */
+  async disposeInstance(directory: string): Promise<boolean> {
+    return this.request<boolean>("POST", "/instance/dispose", {}, { directory })
+  }
 }

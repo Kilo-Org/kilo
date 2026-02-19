@@ -7,6 +7,7 @@ import zlib from "node:zlib"
 import * as YAML from "yaml"
 import * as vscode from "vscode"
 import * as tarFs from "tar-fs"
+import { CustomModeStore } from "./custom-mode-store"
 import type {
   MarketplaceCatalogResult,
   MarketplaceInstallOptions,
@@ -32,18 +33,17 @@ const DEFAULT_API_BASE_URL = "https://api.kilo.ai"
 const SAFE_MARKETPLACE_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 const UNSAFE_OBJECT_KEYS = new Set(["__proto__", "prototype", "constructor"])
 
-function resolveApiBaseUrl(): string {
-  const explicitApi = process.env.KILO_API_URL?.trim()
-  if (explicitApi) {
-    return explicitApi
-  }
-
+function getApiUrl(pathname = ""): string {
   const backendBase = process.env.KILOCODE_BACKEND_BASE_URL?.trim()
-  if (!backendBase || backendBase === DEFAULT_BACKEND_BASE_URL) {
-    return DEFAULT_API_BASE_URL
+  if (backendBase && backendBase !== DEFAULT_BACKEND_BASE_URL) {
+    return new URL(pathname, backendBase).toString()
   }
 
-  return backendBase
+  return new URL(pathname, DEFAULT_API_BASE_URL).toString()
+}
+
+function isLikelyHtmlDocument(body: string): boolean {
+  return /^\s*<!doctype html/i.test(body) || /^\s*<html\b/i.test(body)
 }
 
 type CacheEntry = {
@@ -52,7 +52,10 @@ type CacheEntry = {
 }
 
 export class MarketplaceService {
+  constructor(private readonly globalStorageFsPath?: string) {}
+
   private cache: CacheEntry | null = null
+  private readonly customModeStore = new CustomModeStore()
 
   async getCatalog(): Promise<MarketplaceCatalogResult> {
     const errors: string[] = []
@@ -69,6 +72,7 @@ export class MarketplaceService {
       errors.push(error instanceof Error ? error.message : String(error))
       return { project: {}, global: {} } satisfies MarketplaceInstalledMetadata
     })
+    this.aliasInstalledModesToCatalogIds(items, installedMetadata)
 
     return {
       items,
@@ -169,17 +173,61 @@ export class MarketplaceService {
   }
 
   private async fetchCatalogText(route: string): Promise<string> {
-    const baseUrl = resolveApiBaseUrl()
-    const url = `${baseUrl}${route}`
+    const requestUrl = getApiUrl(route)
+    const requestOrigin = new URL(requestUrl).origin
+    const defaultApiOrigin = new URL(DEFAULT_API_BASE_URL).origin
+    const isCustomApiBase = requestOrigin !== defaultApiOrigin
     const errors: string[] = []
+    let attemptedDefaultFallback = false
+
+    const tryDefaultFallback = async (): Promise<string | null> => {
+      if (!isCustomApiBase || attemptedDefaultFallback) {
+        return null
+      }
+      attemptedDefaultFallback = true
+
+      const fallbackUrl = getApiUrlFromBase(DEFAULT_API_BASE_URL, route)
+      try {
+        const fallbackResponse = await this.fetchWithTimeout(fallbackUrl, MARKETPLACE_FETCH_TIMEOUT_MS)
+        const fallbackText = await fallbackResponse.text()
+        if (fallbackResponse.ok) {
+          return fallbackText
+        }
+        const fallbackSnippet = fallbackText.trim().slice(0, 140)
+        errors.push(
+          `Marketplace request fallback failed (${fallbackResponse.status}) ${fallbackUrl}${fallbackSnippet ? `: ${fallbackSnippet}` : ""}`,
+        )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        errors.push(`Marketplace request fallback failed (${fallbackUrl}): ${message}`)
+      }
+
+      return null
+    }
 
     for (let attempt = 1; attempt <= MARKETPLACE_FETCH_RETRIES; attempt++) {
       try {
-        const response = await this.fetchWithTimeout(url, MARKETPLACE_FETCH_TIMEOUT_MS)
+        const response = await this.fetchWithTimeout(requestUrl, MARKETPLACE_FETCH_TIMEOUT_MS)
         const text = await response.text()
         if (!response.ok) {
           const snippet = text.trim().slice(0, 140)
-          const failure = `(${response.status}) ${url}${snippet ? `: ${snippet}` : ""}`
+          const failure = `(${response.status}) ${requestUrl}${snippet ? `: ${snippet}` : ""}`
+
+          // Local custom backends often do not expose marketplace routes. Fall back
+          // to the default API immediately instead of waiting through retries.
+          if (isCustomApiBase && (response.status === 404 && isLikelyHtmlDocument(text))) {
+            const fallbackText = await tryDefaultFallback()
+            if (fallbackText !== null) {
+              return fallbackText
+            }
+          }
+          if (isCustomApiBase && response.status < 500 && response.status !== 429) {
+            const fallbackText = await tryDefaultFallback()
+            if (fallbackText !== null) {
+              return fallbackText
+            }
+          }
+
           if (response.status >= 500 || response.status === 429) {
             errors.push(`Marketplace request failed ${failure}`)
             await this.delayBeforeRetry(attempt)
@@ -189,20 +237,48 @@ export class MarketplaceService {
         }
         return text
       } catch (error) {
-        if (error instanceof Error && error.message.startsWith("Marketplace request failed")) {
-          throw error
+        const message = error instanceof Error ? error.message : String(error)
+        const hint = this.getLocalhostHint(requestOrigin, message)
+        errors.push(`Marketplace request failed (${requestUrl}): ${message}${hint}`)
+        const fallbackText = await tryDefaultFallback()
+        if (fallbackText !== null) {
+          return fallbackText
         }
-        errors.push(`Marketplace request failed (${url}): ${error instanceof Error ? error.message : String(error)}`)
         await this.delayBeforeRetry(attempt)
       }
+    }
+
+    const fallbackText = await tryDefaultFallback()
+    if (fallbackText !== null) {
+      return fallbackText
     }
 
     const detail = errors.length > 0 ? ` ${errors.slice(0, 6).join(" | ")}` : ""
     throw new Error(`Marketplace request failed for ${route}.${detail}`)
   }
 
+  private getLocalhostHint(requestOrigin: string, message: string): string {
+    const localhostOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin)
+    if (!localhostOrigin) {
+      return ""
+    }
+    if (!/fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT/i.test(message)) {
+      return ""
+    }
+    return " (local backend is unreachable or not serving /api/marketplace/*)"
+  }
+
   private parseStructured(text: string): unknown {
-    return JSON.parse(text.trim())
+    const trimmed = text.trim()
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      try {
+        return YAML.parse(trimmed)
+      } catch {
+        throw new Error("Marketplace response is not valid JSON or YAML")
+      }
+    }
   }
 
   private async fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
@@ -236,6 +312,10 @@ export class MarketplaceService {
       .join(" ")
   }
 
+  private hasWorkspaceDir(): boolean {
+    return !!vscode.workspace.workspaceFolders?.[0]
+  }
+
   private getWorkspaceDir(): string {
     const folder = vscode.workspace.workspaceFolders?.[0]
     if (!folder) {
@@ -244,7 +324,7 @@ export class MarketplaceService {
     return folder.uri.fsPath
   }
 
-  private getLegacyGlobalStoragePath(): string {
+  private getDefaultGlobalStoragePath(): string {
     const home = os.homedir()
     switch (process.platform) {
       case "darwin":
@@ -262,11 +342,18 @@ export class MarketplaceService {
     }
   }
 
+  private getGlobalStoragePath(): string {
+    if (this.globalStorageFsPath && this.globalStorageFsPath.trim().length > 0) {
+      return this.globalStorageFsPath
+    }
+    return this.getDefaultGlobalStoragePath()
+  }
+
   private modeFilePath(target: "project" | "global"): string {
     if (target === "project") {
       return path.join(this.getWorkspaceDir(), ".kilocodemodes")
     }
-    return path.join(this.getLegacyGlobalStoragePath(), "settings", "custom_modes.yaml")
+    return path.join(this.getGlobalStoragePath(), "settings", "custom_modes.yaml")
   }
 
   private getProjectKiloDirectoryPath(): string {
@@ -281,7 +368,14 @@ export class MarketplaceService {
     if (target === "project") {
       return path.join(this.getProjectKiloDirectoryPath(), "mcp.json")
     }
-    return path.join(this.getLegacyGlobalStoragePath(), "settings", "mcp_settings.json")
+    return path.join(this.getGlobalStoragePath(), "settings", "mcp_settings.json")
+  }
+
+  private modeRulesRootPath(target: "project" | "global"): string {
+    if (target === "project") {
+      return this.getProjectKiloDirectoryPath()
+    }
+    return this.getGlobalKiloDirectoryPath()
   }
 
   private skillsDirPath(target: "project" | "global"): string {
@@ -302,15 +396,6 @@ export class MarketplaceService {
     } catch {
       return null
     }
-  }
-
-  private async readYamlObjectStrict(filePath: string): Promise<Record<string, unknown>> {
-    const raw = await fs.readFile(filePath, "utf-8")
-    const parsed = YAML.parse(raw)
-    if (!parsed || typeof parsed !== "object") {
-      throw new Error(`Invalid YAML structure in ${path.basename(filePath)}`)
-    }
-    return parsed as Record<string, unknown>
   }
 
   private async readJsonObject(filePath: string): Promise<Record<string, unknown> | null> {
@@ -338,11 +423,14 @@ export class MarketplaceService {
   private async getInstalledMetadata(): Promise<MarketplaceInstalledMetadata> {
     const metadata: MarketplaceInstalledMetadata = { project: {}, global: {} }
 
-    await this.collectModeMetadata("project", metadata.project)
+    if (this.hasWorkspaceDir()) {
+      await this.collectModeMetadata("project", metadata.project)
+      await this.collectMcpMetadata("project", metadata.project)
+      await this.collectSkillsMetadata("project", metadata.project)
+    }
+
     await this.collectModeMetadata("global", metadata.global)
-    await this.collectMcpMetadata("project", metadata.project)
     await this.collectMcpMetadata("global", metadata.global)
-    await this.collectSkillsMetadata("project", metadata.project)
     await this.collectSkillsMetadata("global", metadata.global)
 
     return metadata
@@ -365,6 +453,24 @@ export class MarketplaceService {
       const slug = (mode as Record<string, unknown>).slug
       if (typeof slug === "string" && slug.length > 0) {
         output[slug] = { type: "mode" }
+      }
+    }
+  }
+
+  private aliasInstalledModesToCatalogIds(items: MarketplaceItem[], metadata: MarketplaceInstalledMetadata): void {
+    const modeItems = items.filter((item): item is Extract<MarketplaceItem, { type: "mode" }> => item.type === "mode")
+    for (const item of modeItems) {
+      const slug = this.customModeStore.tryExtractSlug(item)
+      if (!slug || slug === item.id) {
+        continue
+      }
+      const projectEntry = metadata.project[slug]
+      if (projectEntry && !metadata.project[item.id]) {
+        metadata.project[item.id] = projectEntry
+      }
+      const globalEntry = metadata.global[slug]
+      if (globalEntry && !metadata.global[item.id]) {
+        metadata.global[item.id] = globalEntry
       }
     }
   }
@@ -408,70 +514,23 @@ export class MarketplaceService {
   }
 
   private async installMode(item: Extract<MarketplaceItem, { type: "mode" }>, target: "project" | "global"): Promise<void> {
-    const filePath = this.modeFilePath(target)
-    const modeData = YAML.parse(item.content)
-    if (!modeData || typeof modeData !== "object") {
-      throw new Error("Invalid mode content")
-    }
-
-    const modeRecord = modeData as Record<string, unknown>
-    const slug = typeof modeRecord.slug === "string" && modeRecord.slug.length > 0 ? modeRecord.slug : item.id
-    modeRecord.slug = slug
-
-    let parsed: Record<string, unknown> = {}
-    try {
-      parsed = await this.readYamlObjectStrict(filePath)
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
-      if (code !== "ENOENT") {
-        throw new Error(
-          `Cannot install mode: ${path.basename(filePath)} contains invalid YAML. Fix the file before installing.`,
-        )
-      }
-    }
-    const existingModes = Array.isArray(parsed.customModes) ? parsed.customModes : []
-    const nextModes = existingModes.filter((mode) => {
-      if (!mode || typeof mode !== "object") {
-        return true
-      }
-      return (mode as Record<string, unknown>).slug !== slug
+    await this.customModeStore.upsertFromMarketplace(item, {
+      modeFilePath: this.modeFilePath(target),
+      rulesRootPath: this.modeRulesRootPath(target),
     })
-    nextModes.push(modeRecord)
-
-    const output = { ...parsed, customModes: nextModes }
-    await fs.mkdir(path.dirname(filePath), { recursive: true })
-    await fs.writeFile(filePath, YAML.stringify(output), "utf-8")
   }
 
   private async removeMode(item: Extract<MarketplaceItem, { type: "mode" }>, target: "project" | "global"): Promise<void> {
-    const filePath = this.modeFilePath(target)
-    const parsed = await this.readYamlObject(filePath)
-    if (!parsed) {
-      return
-    }
-    const modeData = YAML.parse(item.content)
-    const slug = modeData?.slug && typeof modeData.slug === "string" ? modeData.slug : item.id
-    const existingModes = Array.isArray(parsed.customModes) ? parsed.customModes : []
-    const nextModes = existingModes.filter((mode) => {
-      if (!mode || typeof mode !== "object") {
-        return true
-      }
-      return (mode as Record<string, unknown>).slug !== slug
+    await this.customModeStore.removeFromMarketplace(item, {
+      modeFilePath: this.modeFilePath(target),
+      rulesRootPath: this.modeRulesRootPath(target),
     })
-    await fs.mkdir(path.dirname(filePath), { recursive: true })
-    await fs.writeFile(filePath, YAML.stringify({ ...parsed, customModes: nextModes }), "utf-8")
   }
 
   private async installMcp(item: Extract<MarketplaceItem, { type: "mcp" }>, options: MarketplaceInstallOptions): Promise<void> {
     const filePath = this.mcpFilePath(options.target)
     const mcpId = this.sanitizeMarketplaceItemId(item.id, "MCP server")
-    const selectedFromParameters = options.parameters?._selectedIndex
-    const selectedIndex =
-      typeof options.selectedIndex === "number"
-        ? options.selectedIndex
-        : typeof selectedFromParameters === "number"
-          ? selectedFromParameters
-          : undefined
+    const selectedIndex = typeof options.selectedIndex === "number" ? options.selectedIndex : undefined
     let contentToUse = this.resolveMcpInstallContent(item.content, selectedIndex)
 
     const parameters = { ...(options.parameters ?? {}) }
@@ -482,7 +541,7 @@ export class MarketplaceService {
     for (const param of allParameters) {
       const value = parameters[param.key]
       if (value !== undefined) {
-        contentToUse = this.replaceTemplateToken(contentToUse, param.key, String(value))
+        contentToUse = this.replaceTemplateToken(contentToUse, param.key, this.escapeForJsonTemplate(String(value)))
       }
     }
 
@@ -544,14 +603,14 @@ export class MarketplaceService {
 
   private async installSkill(item: MarketplaceSkillItem, target: "project" | "global"): Promise<void> {
     const skillId = this.sanitizeMarketplaceItemId(item.id, "skill")
-    const tarballUrl = item.content
-    if (typeof tarballUrl !== "string" || tarballUrl.trim().length === 0) {
+    if (typeof item.content !== "string" || item.content.trim().length === 0) {
       throw new Error("Skill item missing tarball URL")
     }
+    const tarballUrl = item.content.trim()
 
     const response = await fetch(tarballUrl)
     if (!response.ok) {
-      throw new Error(`Failed to download skill tarball (${response.status})`)
+      throw new Error(`Failed to download skill tarball: ${response.statusText || response.status}`)
     }
 
     const destination = path.join(this.skillsDirPath(target), skillId)
@@ -566,16 +625,7 @@ export class MarketplaceService {
       await pipeline(
         createReadStream(tmpFile),
         zlib.createGunzip(),
-        tarFs.extract(destination, {
-          strip: 1,
-          map: (header) => {
-            this.assertSafeTarPath(header.name, skillId, "name")
-            if (typeof header.linkname === "string") {
-              this.assertSafeTarPath(header.linkname, skillId, "linkname")
-            }
-            return header
-          },
-        }),
+        tarFs.extract(destination, { strip: 1 }),
       )
       await fs.access(path.join(destination, "SKILL.md"))
     } catch (error) {
@@ -598,6 +648,10 @@ export class MarketplaceService {
     return content.split(`{{${key}}}`).join(value)
   }
 
+  private escapeForJsonTemplate(value: string): string {
+    return JSON.stringify(value).slice(1, -1)
+  }
+
   private sanitizeMarketplaceItemId(rawId: string, kind: string): string {
     const id = rawId.trim()
     if (!SAFE_MARKETPLACE_ID_PATTERN.test(id) || UNSAFE_OBJECT_KEYS.has(id)) {
@@ -605,18 +659,8 @@ export class MarketplaceService {
     }
     return id
   }
+}
 
-  private assertSafeTarPath(rawPath: string, itemId: string, field: "name" | "linkname"): void {
-    const normalized = rawPath.replace(/\\/g, "/")
-    const segments = normalized.split("/")
-    if (
-      normalized.length === 0 ||
-      normalized.startsWith("/") ||
-      normalized.includes("\u0000") ||
-      /^[A-Za-z]:\//.test(normalized) ||
-      segments.some((segment) => segment === "..")
-    ) {
-      throw new Error(`Unsafe tar ${field} in skill "${itemId}"`)
-    }
-  }
+function getApiUrlFromBase(baseUrl: string, pathname: string): string {
+  return new URL(pathname, baseUrl).toString()
 }

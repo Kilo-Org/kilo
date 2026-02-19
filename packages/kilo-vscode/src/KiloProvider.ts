@@ -4,14 +4,14 @@ import { type HttpClient, type SessionInfo, type SSEEvent, type KiloConnectionSe
 import { handleChatCompletionRequest } from "./services/autocomplete/chat-autocomplete/handleChatCompletionRequest"
 import { handleChatCompletionAccepted } from "./services/autocomplete/chat-autocomplete/handleChatCompletionAccepted"
 import { buildWebviewHtml } from "./utils"
-import { TelemetryProxy, type TelemetryPropertiesProvider } from "./services/telemetry"
+import { TelemetryEventName, TelemetryProxy, type TelemetryPropertiesProvider } from "./services/telemetry"
 import { MarketplaceService, marketplaceItemSchema, type MarketplaceItem } from "./services/marketplace"
 
-const MARKETPLACE_TELEMETRY_EVENTS = new Set([
-  "Marketplace Tab Viewed",
-  "Marketplace Install Button Clicked",
-  "Marketplace Item Installed",
-  "Marketplace Item Removed",
+const MARKETPLACE_TELEMETRY_EVENTS = new Set<TelemetryEventName>([
+  TelemetryEventName.MARKETPLACE_TAB_VIEWED,
+  TelemetryEventName.MARKETPLACE_INSTALL_BUTTON_CLICKED,
+  TelemetryEventName.MARKETPLACE_ITEM_INSTALLED,
+  TelemetryEventName.MARKETPLACE_ITEM_REMOVED,
 ])
 
 export class KiloProvider implements vscode.WebviewViewProvider, TelemetryPropertiesProvider {
@@ -30,7 +30,8 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   private cachedAgentsMessage: unknown = null
   /** Cached configLoaded payload so requestConfig can be served before httpClient is ready */
   private cachedConfigMessage: unknown = null
-  private readonly marketplaceService = new MarketplaceService()
+  private readonly marketplaceService: MarketplaceService
+  private isRefreshingBackendAfterMarketplaceMutation = false
 
   private trackedSessionIds: Set<string> = new Set()
   /** Per-session directory overrides (e.g., worktree paths registered by AgentManagerProvider). */
@@ -46,8 +47,10 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly connectionService: KiloConnectionService,
+    private readonly globalStorageFsPath?: string,
   ) {
     TelemetryProxy.getInstance().setProvider(this)
+    this.marketplaceService = new MarketplaceService(globalStorageFsPath)
   }
 
   getTelemetryProperties(): Record<string, unknown> {
@@ -718,6 +721,11 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     return parsed.success ? parsed.data : null
   }
 
+  private parseMarketplaceItemId(rawItem: unknown): string | undefined {
+    const parsed = z.object({ id: z.string().min(1) }).safeParse(rawItem)
+    return parsed.success ? parsed.data.id : undefined
+  }
+
   private parseMarketplaceTarget(rawTarget: unknown): "project" | "global" {
     return z.enum(["project", "global"]).catch("project").parse(rawTarget)
   }
@@ -738,7 +746,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   }
 
   private handleTelemetryEvent(rawEvent: unknown, rawProperties?: unknown): void {
-    const parsedEvent = z.string().safeParse(rawEvent)
+    const parsedEvent = z.nativeEnum(TelemetryEventName).safeParse(rawEvent)
     if (!parsedEvent.success) {
       return
     }
@@ -752,11 +760,59 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       return
     }
 
-    console.debug("[Kilo New] Telemetry:", parsedEvent.data, this.parseTelemetryProperties(rawProperties) ?? {})
+    const properties = this.parseTelemetryProperties(rawProperties) ?? {}
+    TelemetryProxy.capture(parsedEvent.data, properties)
+    console.debug("[Kilo New] Telemetry:", parsedEvent.data, properties)
+  }
+
+  private withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs)
+      void promise.then(
+        (value) => {
+          clearTimeout(timeout)
+          resolve(value)
+        },
+        (error) => {
+          clearTimeout(timeout)
+          reject(error)
+        },
+      )
+    })
+  }
+
+  /**
+   * Marketplace installs/removals mutate legacy kilocode config files consumed by
+   * opencode's config migrators. Those migrators are cached per instance, so force
+   * an instance rebuild to make changes effective immediately.
+   */
+  private async refreshBackendAfterMarketplaceMutation(): Promise<void> {
+    if (this.isRefreshingBackendAfterMarketplaceMutation) {
+      return
+    }
+    if (!this.httpClient) {
+      return
+    }
+
+    this.isRefreshingBackendAfterMarketplaceMutation = true
+    try {
+      const workspaceDir = this.getWorkspaceDirectory(this.currentSession?.id)
+      await this.withTimeout(this.httpClient.disposeInstance(workspaceDir), 8_000, "marketplace instance dispose")
+      await this.withTimeout(
+        Promise.all([this.fetchAndSendProviders(), this.fetchAndSendAgents(), this.fetchAndSendConfig()]),
+        10_000,
+        "marketplace backend refresh",
+      )
+    } catch (error) {
+      console.error("[Kilo New] KiloProvider: Failed to refresh backend after marketplace mutation:", error)
+    } finally {
+      this.isRefreshingBackendAfterMarketplaceMutation = false
+    }
   }
 
   private async handleRequestMarketplaceData(): Promise<void> {
     const errors: string[] = []
+    const hasWorkspace = !!vscode.workspace.workspaceFolders?.[0]
 
     try {
       const result = await this.marketplaceService.getCatalog()
@@ -764,6 +820,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         type: "marketplaceData",
         items: result.items,
         installedMetadata: result.installedMetadata,
+        hasWorkspace,
         errors: [...errors, ...(result.errors ?? [])],
       })
     } catch (error) {
@@ -772,6 +829,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         type: "marketplaceData",
         items: [],
         installedMetadata: { project: {}, global: {} },
+        hasWorkspace,
         errors: [...errors, error instanceof Error ? error.message : String(error)],
       })
     }
@@ -783,19 +841,22 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     rawSelectedIndex?: unknown,
     rawParameters?: unknown,
   ): Promise<void> {
+    const target = this.parseMarketplaceTarget(rawTarget)
     const item = this.parseMarketplaceItem(rawItem)
     if (!item) {
+      const itemID = this.parseMarketplaceItemId(rawItem)
       this.postMessage({
         type: "marketplaceActionResult",
         action: "install",
         success: false,
+        itemID,
+        target,
         error: "Invalid marketplace item payload",
       })
       return
     }
 
     try {
-      const target = this.parseMarketplaceTarget(rawTarget)
       const selectedIndex = this.parseMarketplaceSelectedIndex(rawSelectedIndex)
       const parameters = this.parseMarketplaceParameters(rawParameters)
 
@@ -813,39 +874,51 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         ...(typeof installationMethodName === "string" ? { installationMethodName } : {}),
       })
       this.marketplaceService.invalidateCache()
-      await this.handleRequestMarketplaceData()
       this.postMessage({
         type: "marketplaceActionResult",
         action: "install",
         success: true,
         itemID: item.id,
+        itemType: item.type,
+        target,
       })
+      void vscode.window.showInformationMessage(`Installed "${item.name}" (${target})`)
+      // Keep UI responsive: refresh catalog/backend in the background.
+      void this.handleRequestMarketplaceData()
+      void this.refreshBackendAfterMarketplaceMutation()
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to install marketplace item:", error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
       this.postMessage({
         type: "marketplaceActionResult",
         action: "install",
         success: false,
         itemID: item.id,
-        error: error instanceof Error ? error.message : String(error),
+        itemType: item.type,
+        target,
+        error: errorMessage,
       })
+      void vscode.window.showErrorMessage(`Failed to install "${item.name}": ${errorMessage}`)
     }
   }
 
   private async handleRemoveMarketplaceItem(rawItem: unknown, rawTarget: unknown): Promise<void> {
+    const target = this.parseMarketplaceTarget(rawTarget)
     const item = this.parseMarketplaceItem(rawItem)
     if (!item) {
+      const itemID = this.parseMarketplaceItemId(rawItem)
       this.postMessage({
         type: "marketplaceActionResult",
         action: "remove",
         success: false,
+        itemID,
+        target,
         error: "Invalid marketplace item payload",
       })
       return
     }
 
     try {
-      const target = this.parseMarketplaceTarget(rawTarget)
       await this.marketplaceService.removeItem(item, target)
       this.handleTelemetryEvent("Marketplace Item Removed", {
         itemId: item.id,
@@ -854,22 +927,31 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         target,
       })
       this.marketplaceService.invalidateCache()
-      await this.handleRequestMarketplaceData()
       this.postMessage({
         type: "marketplaceActionResult",
         action: "remove",
         success: true,
         itemID: item.id,
+        itemType: item.type,
+        target,
       })
+      void vscode.window.showInformationMessage(`Removed "${item.name}" (${target})`)
+      // Keep UI responsive: refresh catalog/backend in the background.
+      void this.handleRequestMarketplaceData()
+      void this.refreshBackendAfterMarketplaceMutation()
     } catch (error) {
       console.error("[Kilo New] KiloProvider: Failed to remove marketplace item:", error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
       this.postMessage({
         type: "marketplaceActionResult",
         action: "remove",
         success: false,
         itemID: item.id,
-        error: error instanceof Error ? error.message : String(error),
+        itemType: item.type,
+        target,
+        error: errorMessage,
       })
+      void vscode.window.showErrorMessage(`Failed to remove "${item.name}": ${errorMessage}`)
     }
   }
 

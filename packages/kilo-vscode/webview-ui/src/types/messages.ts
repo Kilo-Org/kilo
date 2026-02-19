@@ -580,6 +580,7 @@ export interface MarketplaceDataMessage {
   type: "marketplaceData"
   items: MarketplaceItem[]
   installedMetadata: MarketplaceInstalledMetadata
+  hasWorkspace?: boolean
   errors?: string[]
 }
 
@@ -588,6 +589,8 @@ export interface MarketplaceActionResultMessage {
   action: "install" | "remove"
   success: boolean
   itemID?: string
+  itemType?: MarketplaceItemType
+  target?: "project" | "global"
   error?: string
 }
 

@@ -31,7 +31,7 @@ export function activate(context: vscode.ExtensionContext) {
   })
 
   // Create the provider with shared service
-  const provider = new KiloProvider(context.extensionUri, connectionService)
+  const provider = new KiloProvider(context.extensionUri, connectionService, context.globalStorageUri.fsPath)
 
   // Register the webview view provider for the sidebar.
   // retainContextWhenHidden keeps the webview alive when switching to other sidebar panels.
@@ -42,7 +42,11 @@ export function activate(context: vscode.ExtensionContext) {
   )
 
   // Create Agent Manager provider for editor panel
-  const agentManagerProvider = new AgentManagerProvider(context.extensionUri, connectionService)
+  const agentManagerProvider = new AgentManagerProvider(
+    context.extensionUri,
+    connectionService,
+    context.globalStorageUri.fsPath,
+  )
   context.subscriptions.push(agentManagerProvider)
 
   // Register toolbar button command handlers
@@ -115,7 +119,7 @@ async function openKiloInNewTab(context: vscode.ExtensionContext, connectionServ
     dark: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "kilo-dark.svg"),
   }
 
-  const tabProvider = new KiloProvider(context.extensionUri, connectionService)
+  const tabProvider = new KiloProvider(context.extensionUri, connectionService, context.globalStorageUri.fsPath)
   tabProvider.resolveWebviewPanel(panel)
 
   // Wait for the new panel to become active before locking the editor group.

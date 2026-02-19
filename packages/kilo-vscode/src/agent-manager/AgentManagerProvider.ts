@@ -27,6 +27,7 @@ export class AgentManagerProvider implements vscode.Disposable {
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly connectionService: KiloConnectionService,
+    private readonly globalStorageFsPath: string,
   ) {
     this.outputChannel = vscode.window.createOutputChannel("Kilo Agent Manager")
   }
@@ -62,7 +63,7 @@ export class AgentManagerProvider implements vscode.Disposable {
 
     this.panel.webview.html = this.getHtml(this.panel.webview)
 
-    this.provider = new KiloProvider(this.extensionUri, this.connectionService)
+    this.provider = new KiloProvider(this.extensionUri, this.connectionService, this.globalStorageFsPath)
     this.provider.attachToWebview(this.panel.webview, {
       onBeforeMessage: (msg) => this.onMessage(msg),
     })

@@ -53,6 +53,7 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
   const [activeTab, setActiveTab] = createSignal<MarketplaceItemType>("mcp")
   const [items, setItems] = createSignal<MarketplaceItem[]>([])
   const [installed, setInstalled] = createSignal<MarketplaceInstalledMetadata>(emptyInstalled)
+  const [hasWorkspace, setHasWorkspace] = createSignal(true)
   const [search, setSearch] = createSignal("")
   const [installFilter, setInstallFilter] = createSignal<InstallFilter>("all")
   const [selectedTags, setSelectedTags] = createSignal<string[]>([])
@@ -91,6 +92,7 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
       if (message.type === "marketplaceData") {
         setItems(Array.isArray(message.items) ? message.items : [])
         setInstalled(message.installedMetadata ?? emptyInstalled)
+        setHasWorkspace(message.hasWorkspace !== false)
         if (message.errors?.length) {
           setStatusMessage(message.errors.join(" | "))
         } else {
@@ -102,9 +104,14 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
 
       if (message.type === "marketplaceActionResult") {
         const itemID = typeof message.itemID === "string" ? message.itemID : undefined
+        const target = message.target === "project" || message.target === "global" ? message.target : undefined
         if (itemID) {
           setPendingActionsByItem(
             produce((state) => {
+              if (target) {
+                delete state[actionKey(itemID, target)]
+                return
+              }
               delete state[actionKey(itemID, "project")]
               delete state[actionKey(itemID, "global")]
             }),
@@ -119,12 +126,31 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
               }),
           )
         } else {
+          if (itemID && target) {
+            setInstalled((current) => {
+              const nextProject = { ...current.project }
+              const nextGlobal = { ...current.global }
+              const targetMap = target === "project" ? nextProject : nextGlobal
+              if (message.action === "install") {
+                const inferredType =
+                  message.itemType ??
+                  targetMap[itemID]?.type ??
+                  items().find((entry) => entry.id === itemID)?.type
+                if (!inferredType) {
+                  return current
+                }
+                targetMap[itemID] = { type: inferredType }
+              } else {
+                delete targetMap[itemID]
+              }
+              return { project: nextProject, global: nextGlobal }
+            })
+          }
           setStatusMessage(
             language.t("marketplace.status.actionSucceeded", {
               action: message.action,
             }),
           )
-          requestData()
         }
       }
     })
@@ -240,6 +266,26 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
       .map((parameter) => parameter.name)
   }
 
+  const buildInstallParameters = (item: MarketplaceItem): Record<string, string> => {
+    const rawValues = parameterValuesByItem[item.id] ?? {}
+    if (item.type !== "mcp") {
+      return { ...rawValues }
+    }
+
+    const next: Record<string, string> = {}
+    for (const parameter of getMcpParameters(item)) {
+      const value = rawValues[parameter.key]
+      if (typeof value === "string" && value.trim().length > 0) {
+        next[parameter.key] = value
+        continue
+      }
+      if (parameter.optional) {
+        next[parameter.key] = ""
+      }
+    }
+    return next
+  }
+
   const handleInstall = (item: MarketplaceItem, target: "project" | "global") => {
     vscode.postMessage({
       type: "telemetryEvent",
@@ -254,6 +300,11 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
 
     setStatusMessage(null)
 
+    if (target === "project" && !hasWorkspace()) {
+      setStatusMessage("Open a workspace folder to install project-scoped marketplace items.")
+      return
+    }
+
     const missingRequired = validateParameters(item)
     if (missingRequired.length > 0) {
       setStatusMessage(
@@ -266,8 +317,8 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
 
     setPendingActionsByItem(actionKey(item.id, target), "installing")
 
-    const selectedIndex = selectedMethodByItem[item.id] ?? 0
-    const parameters = parameterValuesByItem[item.id] ?? {}
+    const selectedIndex = item.type === "mcp" && Array.isArray(item.content) ? (selectedMethodByItem[item.id] ?? 0) : undefined
+    const parameters = buildInstallParameters(item)
     vscode.postMessage({
       type: "installMarketplaceItem",
       item,
@@ -278,20 +329,6 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
   }
 
   const handleRemove = (item: MarketplaceItem, target: "project" | "global") => {
-    const subject = language.t(`marketplace.itemType.${item.type}`)
-    const label = toItemLabel(item)
-    const targetLabel =
-      target === "project" ? language.t("marketplace.target.project") : language.t("marketplace.target.global")
-    const confirmed = window.confirm(
-      language.t("marketplace.confirm.remove", {
-        subject,
-        label,
-        target: targetLabel,
-      }),
-    )
-    if (!confirmed) {
-      return
-    }
     setStatusMessage(null)
     setPendingActionsByItem(actionKey(item.id, target), "removing")
     vscode.postMessage({
@@ -371,6 +408,8 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
     const filterTags = itemFilterTags(item)
     const projectInstalled = isInstalledInTarget(item, "project")
     const globalInstalled = isInstalledInTarget(item, "global")
+    const canUseProjectScope = hasWorkspace()
+    const projectInstallDisabled = !projectInstalled && !canUseProjectScope
     const projectActionState = () => pendingActionsByItem[actionKey(item.id, "project")]
     const globalActionState = () => pendingActionsByItem[actionKey(item.id, "global")]
     const prerequisites = getMcpPrerequisites(item)
@@ -592,23 +631,26 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
         </Show>
 
         <div style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
+          <Show when={canUseProjectScope || projectInstalled || projectActionState()}>
+            <Button
+              size="small"
+              variant={projectInstalled ? "ghost" : "primary"}
+              onClick={() => (projectInstalled ? handleRemove(item, "project") : handleInstall(item, "project"))}
+              disabled={projectInstallDisabled || isActionPending(item, "project") || isActionPending(item, "global")}
+              title={projectInstallDisabled ? "Open a workspace folder to install to project scope." : undefined}
+            >
+              {projectActionState() === "installing"
+                ? language.t("marketplace.action.installing")
+                : projectActionState() === "removing"
+                  ? language.t("marketplace.action.removing")
+                  : projectInstalled
+                    ? language.t("marketplace.action.removeProject")
+                    : language.t("marketplace.action.installProject")}
+            </Button>
+          </Show>
           <Button
             size="small"
-            variant={projectInstalled ? "ghost" : "primary"}
-            onClick={() => (projectInstalled ? handleRemove(item, "project") : handleInstall(item, "project"))}
-            disabled={isActionPending(item, "project") || isActionPending(item, "global")}
-          >
-            {projectActionState() === "installing"
-              ? language.t("marketplace.action.installing")
-              : projectActionState() === "removing"
-                ? language.t("marketplace.action.removing")
-                : projectInstalled
-                  ? language.t("marketplace.action.removeProject")
-                  : language.t("marketplace.action.installProject")}
-          </Button>
-          <Button
-            size="small"
-            variant={globalInstalled ? "ghost" : "secondary"}
+            variant={globalInstalled ? "ghost" : canUseProjectScope ? "secondary" : "primary"}
             onClick={() => (globalInstalled ? handleRemove(item, "global") : handleInstall(item, "global"))}
             disabled={isActionPending(item, "project") || isActionPending(item, "global")}
           >
@@ -839,6 +881,19 @@ const MarketplaceView: Component<{ onBack?: () => void }> = (props) => {
             <Button size="small" variant="ghost" onClick={openSettings}>
               {language.t("marketplace.notice.openSettings")}
             </Button>
+          </div>
+        </Show>
+        <Show when={!hasWorkspace()}>
+          <div
+            style={{
+              "font-size": "12px",
+              color: "var(--vscode-descriptionForeground)",
+              padding: "8px 10px",
+              border: "1px solid var(--vscode-panel-border)",
+              "border-radius": "6px",
+            }}
+          >
+            Open a workspace folder to enable project installs. Global installs remain available.
           </div>
         </Show>
 

@@ -265,7 +265,7 @@ const AgentManagerContent: Component = () => {
     }
     window.addEventListener("message", handler)
 
-    // Prevent Cmd+Arrow/T/W/N/P from triggering native browser actions
+    // Prevent Cmd+Arrow/T/W/N from triggering native browser actions
     const preventDefaults = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {

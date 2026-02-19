@@ -81,9 +81,9 @@ export class AgentManagerProvider implements vscode.Disposable {
   // ---------------------------------------------------------------------------
 
   private async initializeState(): Promise<void> {
-    const mgr = this.getWorktreeManager()
+    const manager = this.getWorktreeManager()
     const state = this.getStateManager()
-    if (!mgr || !state) return
+    if (!manager || !state) return
 
     await state.load()
 
@@ -151,9 +151,9 @@ export class AgentManagerProvider implements vscode.Disposable {
     worktree: ReturnType<WorktreeStateManager["addWorktree"]>
     result: CreateWorktreeResult
   } | null> {
-    const mgr = this.getWorktreeManager()
+    const manager = this.getWorktreeManager()
     const state = this.getStateManager()
-    if (!mgr || !state) {
+    if (!manager || !state) {
       this.postToWebview({ type: "agentManager.worktreeSetup", status: "error", message: "No workspace folder open" })
       return null
     }
@@ -162,7 +162,7 @@ export class AgentManagerProvider implements vscode.Disposable {
 
     let result: CreateWorktreeResult
     try {
-      result = await mgr.createWorktree({ prompt: "kilo" })
+      result = await manager.createWorktree({ prompt: "kilo" })
     } catch (error) {
       const err = error instanceof Error ? error.message : String(error)
       this.postToWebview({
@@ -243,9 +243,9 @@ export class AgentManagerProvider implements vscode.Disposable {
     const session = await this.createSessionInWorktree(created.result.path, created.result.branch)
     if (!session) {
       const state = this.getStateManager()
-      const mgr = this.getWorktreeManager()
+      const manager = this.getWorktreeManager()
       state?.removeWorktree(created.worktree.id)
-      await mgr?.removeWorktree(created.result.path)
+      await manager?.removeWorktree(created.result.path)
       return null
     }
 
@@ -259,9 +259,9 @@ export class AgentManagerProvider implements vscode.Disposable {
 
   /** Delete a worktree and dissociate its sessions. */
   private async onDeleteWorktree(worktreeId: string): Promise<null> {
-    const mgr = this.getWorktreeManager()
+    const manager = this.getWorktreeManager()
     const state = this.getStateManager()
-    if (!mgr || !state) return null
+    if (!manager || !state) return null
 
     const worktree = state.getWorktree(worktreeId)
     if (!worktree) {
@@ -270,7 +270,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     }
 
     try {
-      await mgr.removeWorktree(worktree.path)
+      await manager.removeWorktree(worktree.path)
     } catch (error) {
       this.log(`Failed to remove worktree from disk: ${error}`)
     }
@@ -369,10 +369,10 @@ export class AgentManagerProvider implements vscode.Disposable {
   // ---------------------------------------------------------------------------
 
   private async sendRepoInfo(): Promise<void> {
-    const mgr = this.getWorktreeManager()
-    if (!mgr) return
+    const manager = this.getWorktreeManager()
+    if (!manager) return
     try {
-      const branch = await mgr.currentBranch()
+      const branch = await manager.currentBranch()
       this.postToWebview({ type: "agentManager.repoInfo", branch })
     } catch (error) {
       this.log(`Failed to get current branch: ${error}`)

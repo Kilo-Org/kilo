@@ -409,7 +409,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       await runner.runIfConfigured({ worktreePath, repoPath: root })
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
-      this.outputChannel.appendLine(`[AgentManager] Setup script error (non-blocking): ${msg}`)
+      this.outputChannel.appendLine(`[AgentManager] Setup script error: ${msg}`)
     }
   }
 

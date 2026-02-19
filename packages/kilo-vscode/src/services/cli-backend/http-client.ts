@@ -1,6 +1,7 @@
 import type {
   ServerConfig,
   SessionInfo,
+  SessionStatusInfo,
   MessageInfo,
   MessagePart,
   AgentInfo,
@@ -137,6 +138,14 @@ export class HttpClient {
    */
   async listSessions(directory: string): Promise<SessionInfo[]> {
     return this.request<SessionInfo[]>("GET", "/session", undefined, { directory })
+  }
+
+  /**
+   * Get the status of all sessions.
+   * Returns a map of sessionID → SessionStatusInfo.
+   */
+  async getSessionStatuses(directory: string): Promise<Record<string, SessionStatusInfo>> {
+    return this.request<Record<string, SessionStatusInfo>>("GET", "/session/status", undefined, { directory })
   }
 
   /**

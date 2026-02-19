@@ -511,6 +511,12 @@ export interface AgentManagerSessionMetaMessage {
   parentBranch?: string
 }
 
+// Agent Manager repo info (current branch of the main workspace)
+export interface AgentManagerRepoInfoMessage {
+  type: "agentManager.repoInfo"
+  branch: string
+}
+
 // Agent Manager worktree setup progress
 export interface AgentManagerWorktreeSetupMessage {
   type: "agentManager.worktreeSetup"
@@ -518,6 +524,28 @@ export interface AgentManagerWorktreeSetupMessage {
   message: string
   sessionId?: string
   branch?: string
+}
+
+// Agent Manager worktree state types (mirrored from WorktreeStateManager)
+export interface WorktreeState {
+  id: string
+  branch: string
+  path: string
+  parentBranch: string
+  createdAt: string
+}
+
+export interface ManagedSessionState {
+  id: string
+  worktreeId: string | null
+  createdAt: string
+}
+
+// Full state push from extension to webview
+export interface AgentManagerStateMessage {
+  type: "agentManager.state"
+  worktrees: WorktreeState[]
+  sessions: ManagedSessionState[]
 }
 
 export type ExtensionMessage =
@@ -554,7 +582,9 @@ export type ExtensionMessage =
   | ConfigUpdatedMessage
   | NotificationSettingsLoadedMessage
   | AgentManagerSessionMetaMessage
+  | AgentManagerRepoInfoMessage
   | AgentManagerWorktreeSetupMessage
+  | AgentManagerStateMessage
 
 // ============================================
 // Messages FROM webview TO extension
@@ -750,6 +780,39 @@ export interface TelemetryRequest {
   properties?: Record<string, unknown>
 }
 
+// Create a new worktree (with auto-created first session)
+export interface CreateWorktreeRequest {
+  type: "agentManager.createWorktree"
+}
+
+// Delete a worktree and dissociate its sessions
+export interface DeleteWorktreeRequest {
+  type: "agentManager.deleteWorktree"
+  worktreeId: string
+}
+
+// Promote a session: create a worktree and move the session into it
+export interface PromoteSessionRequest {
+  type: "agentManager.promoteSession"
+  sessionId: string
+}
+
+// Add a new session to an existing worktree
+export interface AddSessionToWorktreeRequest {
+  type: "agentManager.addSessionToWorktree"
+  worktreeId: string
+}
+
+// Close (remove) a session from its worktree
+export interface CloseSessionRequest {
+  type: "agentManager.closeSession"
+  sessionId: string
+}
+
+export interface RequestRepoInfoMessage {
+  type: "agentManager.requestRepoInfo"
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -786,7 +849,13 @@ export type WebviewMessage =
   | ResetAllSettingsRequest
   | SyncSessionRequest
   | CreateWorktreeSessionRequest
+  | CreateWorktreeRequest
+  | DeleteWorktreeRequest
+  | PromoteSessionRequest
+  | AddSessionToWorktreeRequest
+  | CloseSessionRequest
   | TelemetryRequest
+  | RequestRepoInfoMessage
 
 // ============================================
 // VS Code API type

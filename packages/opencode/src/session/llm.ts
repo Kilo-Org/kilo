@@ -26,7 +26,8 @@ import { DEFAULT_HEADERS } from "@/kilocode/const" // kilocode_change
 import { Telemetry } from "@kilocode/kilo-telemetry" // kilocode_change
 // kilocode_change start
 import { getKiloProjectId } from "@/kilocode/project-id"
-import { HEADER_PROJECTID } from "@kilocode/kilo-gateway"
+import { HEADER_PROJECTID, HEADER_MACHINEID } from "@kilocode/kilo-gateway"
+import { Identity } from "@kilocode/kilo-telemetry"
 // kilocode_change end
 
 export namespace LLM {
@@ -159,9 +160,10 @@ export namespace LLM {
       },
     )
 
-    // kilocode_change start - resolve project ID for kilo provider
-    const kiloProjectId =
-      input.model.api.npm === "@kilocode/kilo-gateway" ? await getKiloProjectId().catch(() => undefined) : undefined
+    // kilocode_change start - resolve project ID and machine ID for kilo provider
+    const isKilo = input.model.api.npm === "@kilocode/kilo-gateway"
+    const kiloProjectId = isKilo ? await getKiloProjectId().catch(() => undefined) : undefined
+    const machineId = isKilo ? await Identity.getMachineId().catch(() => undefined) : undefined
     // kilocode_change end
 
     const maxOutputTokens =
@@ -236,13 +238,10 @@ export namespace LLM {
           : input.model.providerID !== "anthropic"
             ? DEFAULT_HEADERS // kilocode_change
             : undefined),
-        ...(input.model.api.npm === "@kilocode/kilo-gateway" && input.agent.name
-          ? { "x-kilocode-mode": input.agent.name.toLowerCase() }
-          : {}),
-        // kilocode_change start - add project ID header for kilo provider
-        ...(input.model.api.npm === "@kilocode/kilo-gateway" && kiloProjectId
-          ? { [HEADER_PROJECTID]: kiloProjectId }
-          : {}),
+        ...(isKilo && input.agent.name ? { "x-kilocode-mode": input.agent.name.toLowerCase() } : {}),
+        // kilocode_change start - add project ID and machine ID headers for kilo provider
+        ...(isKilo && kiloProjectId ? { [HEADER_PROJECTID]: kiloProjectId } : {}),
+        ...(isKilo && machineId ? { [HEADER_MACHINEID]: machineId } : {}),
         // kilocode_change end
         ...input.model.headers,
         ...headers,

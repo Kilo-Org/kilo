@@ -833,6 +833,12 @@ export interface RequestRepoInfoMessage {
   type: "agentManager.requestRepoInfo"
 }
 
+// Show terminal for a session
+export interface ShowTerminalRequest {
+  type: "agentManager.showTerminal"
+  sessionId: string
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -876,6 +882,7 @@ export type WebviewMessage =
   | CloseSessionRequest
   | TelemetryRequest
   | RequestRepoInfoMessage
+  | ShowTerminalRequest
 
 // ============================================
 // VS Code API type

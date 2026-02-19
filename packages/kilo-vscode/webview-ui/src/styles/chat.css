@@ -642,7 +642,19 @@
   right: 4px;
 }
 
-/* Dialog Confirmation — styles now in kilo-ui dialog.css via data-slot="dialog-confirm" */
+/* Dialog Confirmation */
+.dialog-confirm-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0 24px 12px 24px;
+}
+
+.dialog-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
 
 /* ============================================
    Working Indicator

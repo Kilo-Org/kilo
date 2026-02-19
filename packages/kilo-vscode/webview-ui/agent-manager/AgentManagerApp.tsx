@@ -376,7 +376,7 @@ const AgentManagerContent: Component = () => {
     }
     dialog.show(() => (
       <Dialog title="Delete Worktree" fit>
-        <div data-slot="dialog-confirm">
+        <div class="am-confirm">
           <div class="am-confirm-message">
             <Icon name="trash" size="small" />
             <span>
@@ -384,7 +384,7 @@ const AgentManagerContent: Component = () => {
               and dissociates all sessions.
             </span>
           </div>
-          <div data-slot="dialog-confirm-actions">
+          <div class="am-confirm-actions">
             <Button variant="ghost" size="large" onClick={() => dialog.close()}>
               Cancel
             </Button>

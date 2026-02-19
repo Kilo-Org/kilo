@@ -3768,6 +3768,12 @@
                                   },
                                   "required": ["input", "output"]
                                 },
+                                "recommended": {
+                                  "type": "boolean"
+                                },
+                                "recommendedIndex": {
+                                  "type": "number"
+                                },
                                 "experimental": {
                                   "type": "boolean"
                                 },
@@ -4112,6 +4118,83 @@
           {
             "lang": "js",
             "source": "import { createOpencodeClient } from \"@kilocode/sdk\n\nconst client = createOpencodeClient()\nawait client.telemetry.capture({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/commit-message": {
+      "post": {
+        "operationId": "commitMessage.generate",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "directory",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "summary": "Generate commit message",
+        "description": "Generate a commit message using AI based on the current git diff.",
+        "responses": {
+          "200": {
+            "description": "Generated commit message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["message"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "description": "Workspace/repo path",
+                    "type": "string"
+                  },
+                  "selectedFiles": {
+                    "description": "Optional subset of files to include",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "previousMessage": {
+                    "description": "Previously generated message — triggers regeneration with a different result",
+                    "type": "string"
+                  }
+                },
+                "required": ["path"]
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@kilocode/sdk\n\nconst client = createOpencodeClient()\nawait client.commitMessage.generate({\n  ...\n})"
           }
         ]
       }
@@ -9812,6 +9895,12 @@
                   },
                   "required": ["input", "output"]
                 },
+                "recommended": {
+                  "type": "boolean"
+                },
+                "recommendedIndex": {
+                  "type": "number"
+                },
                 "experimental": {
                   "type": "boolean"
                 },
@@ -10795,6 +10884,12 @@
               },
               "additionalProperties": {}
             }
+          },
+          "recommended": {
+            "type": "boolean"
+          },
+          "recommendedIndex": {
+            "type": "number"
           }
         },
         "required": [

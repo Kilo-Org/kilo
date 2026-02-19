@@ -27,7 +27,7 @@ import { WorktreeModeProvider, useWorktreeMode, type SessionMode } from "../src/
 import { ChatView } from "../src/components/chat"
 import { LanguageBridge, DataBridge } from "../src/App"
 import { formatRelativeDate } from "../src/utils/date"
-import { resolveNavigation } from "./navigate"
+import { resolveNavigation, validateLocalSession } from "./navigate"
 import "./agent-manager.css"
 
 interface WorktreeMeta {
@@ -164,6 +164,24 @@ const AgentManagerContent: Component = () => {
   createEffect(() => {
     const lid = localSessionID()
     vscode.setState({ localSessionID: lid })
+  })
+
+  // Invalidate persisted local session ID if it no longer exists (e.g. server
+  // restarted, session expired). Without this the UI would get stuck selecting a
+  // ghost session on recovery.
+  createEffect(() => {
+    const all = session.sessions()
+    if (all.length === 0) return // sessions not loaded yet
+    const lid = localSessionID()
+    if (!lid) return
+    const valid = validateLocalSession(
+      lid,
+      all.map((s) => s.id),
+    )
+    if (!valid) {
+      setLocalSessionID(undefined)
+      session.clearCurrentSession()
+    }
   })
 
   // Reset worktree mode when no session is selected

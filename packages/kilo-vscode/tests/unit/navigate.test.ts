@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { resolveNavigation } from "../../webview-ui/agent-manager/navigate"
+import { resolveNavigation, validateLocalSession } from "../../webview-ui/agent-manager/navigate"
 
 const ids = ["a", "b", "c", "d"]
 
@@ -110,5 +110,27 @@ describe("resolveNavigation", () => {
       }
       expect(upTrail).toEqual(["s2", "s1", "local"])
     })
+  })
+})
+
+describe("validateLocalSession", () => {
+  it("returns the ID when it exists in the sessions list", () => {
+    expect(validateLocalSession("abc", ["abc", "def"])).toBe("abc")
+  })
+
+  it("returns undefined when the ID is not in the sessions list (stale/deleted)", () => {
+    expect(validateLocalSession("gone", ["abc", "def"])).toBeUndefined()
+  })
+
+  it("returns undefined when sessions list is empty", () => {
+    expect(validateLocalSession("abc", [])).toBeUndefined()
+  })
+
+  it("returns undefined when persisted ID is undefined", () => {
+    expect(validateLocalSession(undefined, ["abc"])).toBeUndefined()
+  })
+
+  it("returns undefined when both are empty/undefined", () => {
+    expect(validateLocalSession(undefined, [])).toBeUndefined()
   })
 })

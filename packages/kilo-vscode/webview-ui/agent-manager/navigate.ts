@@ -32,3 +32,13 @@ export function resolveNavigation(direction: "up" | "down", current: string | un
 
   return { action: "select", id: ids[next]! }
 }
+
+/**
+ * Validate a persisted local session ID against the current sessions list.
+ * Returns the ID if it still exists, undefined otherwise.
+ */
+export function validateLocalSession(persisted: string | undefined, ids: string[]): string | undefined {
+  if (!persisted) return undefined
+  if (ids.indexOf(persisted) === -1) return undefined
+  return persisted
+}

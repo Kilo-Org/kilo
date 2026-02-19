@@ -70,10 +70,30 @@ export const PromptInput: Component = () => {
   const canSend = () => (text().trim().length > 0 || imageAttach.images().length > 0) && !isBusy() && !isDisabled()
 
   const unsubscribe = vscode.onMessage((message) => {
-    if (message.type !== "chatCompletionResult") return
-    const result = message as { type: "chatCompletionResult"; text: string; requestId: string }
-    if (result.requestId === `chat-ac-${requestCounter}` && result.text) {
-      setGhostText(result.text)
+    if (message.type === "chatCompletionResult") {
+      const result = message as { type: "chatCompletionResult"; text: string; requestId: string }
+      if (result.requestId === `chat-ac-${requestCounter}` && result.text) {
+        setGhostText(result.text)
+      }
+    }
+
+    if (message.type === "setChatBoxMessage") {
+      setText(message.text)
+      setGhostText("")
+      if (textareaRef) {
+        textareaRef.value = message.text
+        adjustHeight()
+      }
+    }
+
+    if (message.type === "triggerTask") {
+      if (isBusy() || isDisabled()) return
+      const sel = session.selected()
+      session.sendMessage(message.text, sel?.providerID, sel?.modelID)
+    }
+
+    if (message.type === "action" && message.action === "focusInput") {
+      textareaRef?.focus()
     }
   })
 

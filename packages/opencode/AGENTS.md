@@ -71,7 +71,7 @@ Uses the **Vercel AI SDK** as the abstraction layer. Providers are loaded from a
 
 Requires configuration in `opencode.json`:
 
-```json
+```jsonc
 {
   "provider": {
     "kilo": {

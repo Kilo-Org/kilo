@@ -73,8 +73,4 @@ export namespace State {
     if (!entries) return
     entries.delete(init)
   }
-
-  export function clearAll(key: string) {
-    recordsByKey.delete(key)
-  }
 }

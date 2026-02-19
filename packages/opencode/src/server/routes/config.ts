@@ -81,7 +81,6 @@ export const ConfigRoutes = lazy(() =>
         },
       }),
       async (c) => {
-        const { Config } = await import("../../config/config")
         await Config.clearCache()
         return c.json({ success: true })
       },

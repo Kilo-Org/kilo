@@ -843,4 +843,45 @@
     flex-shrink: 0;
     color: var(--icon-weak);
   }
+
+  .clickable {
+    cursor: pointer;
+    text-decoration: underline;
+    transition: color 0.15s ease;
+
+    &:hover {
+      color: var(--text-base);
+    }
+  }
+}
+
+[data-component="clickable-file-output"] {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+
+  [data-slot="file-output-line"] {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-small);
+    line-height: var(--line-height-large);
+    color: var(--text-weak);
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &.clickable {
+      cursor: pointer;
+      text-decoration: underline;
+      text-decoration-color: transparent;
+      transition:
+        color 0.15s ease,
+        text-decoration-color 0.15s ease;
+
+      &:hover {
+        color: var(--text-base);
+        text-decoration-color: var(--text-base);
+      }
+    }
+  }
 }

@@ -318,7 +318,10 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
           break
         case "openFile":
           if (message.path) {
-            await vscode.window.showTextDocument(vscode.Uri.file(message.path))
+            const uri = message.path.startsWith("/")
+              ? vscode.Uri.file(message.path)
+              : vscode.Uri.joinPath(vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.file(""), message.path)
+            await vscode.window.showTextDocument(uri)
           }
           break
         case "requestProviders":

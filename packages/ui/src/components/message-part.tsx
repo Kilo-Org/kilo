@@ -173,6 +173,7 @@ export function getSessionToolParts(store: ReturnType<typeof useData>["store"], 
   return parts
 }
 
+import type { OpenFileFn } from "../context/data"
 import type { IconProps } from "./icon"
 
 export type ToolInfo = {
@@ -532,6 +533,42 @@ export const ToolRegistry = {
   render: getTool,
 }
 
+/**
+ * Renders tool output text with file paths as clickable elements.
+ * Lines that look like file paths (start with / or contain common path patterns)
+ * become clickable to open the file in the editor.
+ */
+function ClickableFileOutput(props: { text: string; openFile?: OpenFileFn; directory?: string }) {
+  const lines = createMemo(() => props.text.split("\n").filter((l) => l.trim()))
+  const hasClickable = () => !!props.openFile
+
+  return (
+    <div data-component="clickable-file-output">
+      <For each={lines()}>
+        {(line) => {
+          const trimmed = line.trim()
+          const isPath = trimmed.startsWith("/") || trimmed.match(/^[a-zA-Z]:\\/) || trimmed.match(/^\w[\w.-]*\//)
+          const displayPath = props.directory ? relativizeProjectPaths(trimmed, props.directory) : trimmed
+          return (
+            <Show
+              when={hasClickable() && isPath}
+              fallback={<div data-slot="file-output-line">{displayPath}</div>}
+            >
+              <div
+                data-slot="file-output-line"
+                class="clickable"
+                onClick={() => props.openFile!(trimmed)}
+              >
+                {displayPath}
+              </div>
+            </Show>
+          )
+        }}
+      </For>
+    </div>
+  )
+}
+
 PART_MAPPING["tool"] = function ToolPartDisplay(props) {
   const data = useData()
   const i18n = useI18n()
@@ -760,7 +797,15 @@ ToolRegistry.register({
           {(filepath) => (
             <div data-component="tool-loaded-file">
               <Icon name="enter" size="small" />
-              <span>
+              <span
+                classList={{ clickable: !!data.openFile }}
+                onClick={(e) => {
+                  if (data.openFile) {
+                    e.stopPropagation()
+                    data.openFile(filepath)
+                  }
+                }}
+              >
                 {i18n.t("ui.tool.loaded")} {relativizeProjectPaths(filepath, data.directory)}
               </span>
             </div>
@@ -774,6 +819,7 @@ ToolRegistry.register({
 ToolRegistry.register({
   name: "list",
   render(props) {
+    const data = useData()
     const i18n = useI18n()
     return (
       <BasicTool
@@ -784,7 +830,7 @@ ToolRegistry.register({
         <Show when={props.output}>
           {(output) => (
             <div data-component="tool-output" data-scrollable>
-              <Markdown text={output()} />
+              <ClickableFileOutput text={output()} openFile={data.openFile} directory={data.directory} />
             </div>
           )}
         </Show>
@@ -796,6 +842,7 @@ ToolRegistry.register({
 ToolRegistry.register({
   name: "glob",
   render(props) {
+    const data = useData()
     const i18n = useI18n()
     return (
       <BasicTool
@@ -810,7 +857,7 @@ ToolRegistry.register({
         <Show when={props.output}>
           {(output) => (
             <div data-component="tool-output" data-scrollable>
-              <Markdown text={output()} />
+              <ClickableFileOutput text={output()} openFile={data.openFile} directory={data.directory} />
             </div>
           )}
         </Show>
@@ -822,6 +869,7 @@ ToolRegistry.register({
 ToolRegistry.register({
   name: "grep",
   render(props) {
+    const data = useData()
     const i18n = useI18n()
     const args: string[] = []
     if (props.input.pattern) args.push("pattern=" + props.input.pattern)
@@ -839,7 +887,7 @@ ToolRegistry.register({
         <Show when={props.output}>
           {(output) => (
             <div data-component="tool-output" data-scrollable>
-              <Markdown text={output()} />
+              <ClickableFileOutput text={output()} openFile={data.openFile} directory={data.directory} />
             </div>
           )}
         </Show>

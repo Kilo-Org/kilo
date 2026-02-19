@@ -829,7 +829,6 @@ export const dict = {
   "settings.language.current": "当前：",
 
   "common.add": "添加",
-  "common.default": "默认",
   "common.choose": "选择…",
   "settings.notImplemented": "此部分尚未实现。",
   "settings.notImplemented.description":
@@ -941,7 +940,6 @@ export const dict = {
 
   // Marketplace & custom provider translations
   "command.workspace.toggle.description": "在侧边栏启用或禁用多个工作区",
-  "provider.connect.apiKey.description": "输入你的 {{provider}} API 密钥以连接帐户，并在 Kilo 中使用 {{provider}} 模型。",
   "common.goForward": "前进",
   "language.en": "English",
   "language.zh": "简体中文",
@@ -959,7 +957,6 @@ export const dict = {
   "language.br": "Português (Brasil)",
   "language.bs": "Bosanski",
   "language.th": "ไทย",
-  "error.chain.configDirectoryTypo": '{{path}} 中的目录 "{{dir}}" 无效。请将目录重命名为 "{{suggestion}}" 或移除它。这是一个常见拼写错误。',
   "session.header.openIn": "打开方式",
   "session.header.open.action": "打开 {{app}}",
   "session.header.open.ariaLabel": "在 {{app}} 中打开",

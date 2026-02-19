@@ -826,7 +826,6 @@ export const dict = {
   "settings.language.current": "目前：",
 
   "common.add": "新增",
-  "common.default": "預設",
   "common.choose": "選擇…",
   "settings.notImplemented": "此部分尚未實作。",
   "settings.notImplemented.description": "此處將包含與所選設定類別相關的設定選項和說明文字。",
@@ -941,7 +940,6 @@ export const dict = {
   "dialog.provider.google.note": "Gemini 模型，提供快速且結構化的回應",
   "dialog.provider.openrouter.note": "從單一提供者存取所有支援的模型",
   "dialog.provider.vercel.note": "透過智慧路由統一存取 AI 模型",
-  "provider.connect.apiKey.description": "輸入你的 {{provider}} API 金鑰以連線帳戶，並在 Kilo 中使用 {{provider}} 模型。",
   "common.goForward": "前進",
   "language.en": "English",
   "language.zh": "简体中文",
@@ -959,7 +957,6 @@ export const dict = {
   "language.br": "Português (Brasil)",
   "language.bs": "Bosanski",
   "language.th": "ไทย",
-  "error.chain.configDirectoryTypo": '{{path}} 中的目錄 "{{dir}}" 無效。請將目錄重新命名為 "{{suggestion}}" 或移除它。這是一個常見拼寫錯誤。',
   "session.header.openIn": "開啟於",
   "session.header.open.action": "開啟 {{app}}",
   "session.header.open.ariaLabel": "在 {{app}} 中開啟",

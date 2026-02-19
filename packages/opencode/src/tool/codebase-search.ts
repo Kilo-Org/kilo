@@ -49,19 +49,6 @@ async function searchQdrant(
     score_threshold: 0,
   }
 
-  if (pathPrefix) {
-    body.filter = {
-      must: [
-        {
-          key: "filePath",
-          match: {
-            prefix: pathPrefix,
-          },
-        },
-      ],
-    }
-  }
-
   const response = await fetch(url.toString(), {
     method: "POST",
     headers,
@@ -75,13 +62,23 @@ async function searchQdrant(
 
   const data = (await response.json()) as QdrantSearchResponse
 
-  return data.result.map((item) => ({
+  let results = data.result.map((item) => ({
     filePath: item.payload.filePath,
     score: item.score,
     startLine: item.payload.startLine,
     endLine: item.payload.endLine,
     codeChunk: item.payload.codeChunk,
   }))
+
+  if (pathPrefix) {
+    const normalizedPrefix = pathPrefix.startsWith("/") ? pathPrefix.slice(1) : pathPrefix
+    results = results.filter((r) => {
+      const normalizedPath = r.filePath.startsWith("/") ? r.filePath.slice(1) : r.filePath
+      return normalizedPath.startsWith(normalizedPrefix)
+    })
+  }
+
+  return results
 }
 
 // Helper function to format search results

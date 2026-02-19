@@ -1044,6 +1044,7 @@ export namespace Provider {
           }
         }
       }
+      // kilocode_change end
 
       const key = Bun.hash.xxHash32(JSON.stringify({ providerID: model.providerID, npm: model.api.npm, options }))
       const existing = s.sdk.get(key)

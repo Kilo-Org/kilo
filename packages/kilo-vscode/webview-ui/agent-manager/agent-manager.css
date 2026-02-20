@@ -323,9 +323,10 @@
   position: relative;
   display: flex;
   min-width: 0;
-  flex: 1;
+  flex-shrink: 1;
   align-items: stretch;
   height: 100%;
+  overflow: hidden;
 }
 
 /* Fade indicators for overflow */

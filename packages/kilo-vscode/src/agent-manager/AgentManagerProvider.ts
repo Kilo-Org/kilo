@@ -168,7 +168,11 @@ export class AgentManagerProvider implements vscode.Disposable {
     const manager = this.getWorktreeManager()
     const state = this.getStateManager()
     if (!manager || !state) {
-      this.postToWebview({ type: "agentManager.worktreeSetup", status: "error", message: "No workspace folder open" })
+      this.postToWebview({
+        type: "agentManager.worktreeSetup",
+        status: "error",
+        message: "Open a folder that contains a git repository to use worktrees",
+      })
       return null
     }
 
@@ -178,11 +182,11 @@ export class AgentManagerProvider implements vscode.Disposable {
     try {
       result = await manager.createWorktree({ prompt: "kilo" })
     } catch (error) {
-      const err = error instanceof Error ? error.message : String(error)
+      const msg = error instanceof Error ? error.message : String(error)
       this.postToWebview({
         type: "agentManager.worktreeSetup",
         status: "error",
-        message: `Failed to create worktree: ${err}`,
+        message: msg,
       })
       return null
     }

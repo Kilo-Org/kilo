@@ -41,6 +41,10 @@ function result(label: string, allowed: boolean, detail?: string) {
   console.log(`  ${icon} ${label}${suffix}`)
 }
 
+// ---- Suppress internal log noise for clean demo output ----
+import { Log } from "../../src/util/log"
+await Log.init({ print: false, level: "ERROR" })
+
 // ---- Clean State ----
 
 delete (globalThis as any).__warmContext

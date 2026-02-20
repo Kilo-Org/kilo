@@ -135,6 +135,8 @@ interface SessionContextValue {
   selectAgent: (name: string) => void
   getSessionAgent: (sessionID: string) => string
   getSessionModel: (sessionID: string) => ModelSelection | null
+  setSessionModel: (sessionID: string, providerID: string, modelID: string) => void
+  setSessionAgent: (sessionID: string, name: string) => void
 
   // Actions
   sendMessage: (text: string, providerID?: string, modelID?: string, files?: FileAttachment[]) => void
@@ -896,6 +898,12 @@ export const SessionProvider: ParentComponent = (props) => {
     selectAgent,
     getSessionAgent: (sessionID: string) => store.agentSelections[sessionID] ?? defaultAgent(),
     getSessionModel: (sessionID: string) => store.modelSelections[sessionID] ?? provider.defaultSelection(),
+    setSessionModel: (sessionID: string, providerID: string, modelID: string) => {
+      setStore("modelSelections", sessionID, { providerID, modelID })
+    },
+    setSessionAgent: (sessionID: string, name: string) => {
+      setStore("agentSelections", sessionID, name)
+    },
     allMessages,
     allParts,
     sendMessage,

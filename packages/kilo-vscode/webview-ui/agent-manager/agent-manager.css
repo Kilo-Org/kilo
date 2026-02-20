@@ -672,7 +672,15 @@
 }
 
 .am-split-menu {
-  min-width: 200px;
+  min-width: 210px;
+}
+
+.am-split-menu [data-slot="dropdown-menu-item"] {
+  padding: 6px 10px;
+}
+
+.am-split-menu [data-slot="dropdown-menu-separator"] {
+  margin: 4px 0;
 }
 
 /* New Versioned Session Dialog */
@@ -680,61 +688,36 @@
 .am-nv-dialog {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 2px 0 0;
+  gap: 14px;
+  padding: 0 20px 20px;
   min-width: 460px;
 }
 
-.am-nv-section {
+/* Reuse prompt-input-container inside dialog — resizable from bottom edge */
+.am-nv-dialog .prompt-input-container {
+  margin: 0;
+  resize: vertical;
+  overflow: hidden;
+  min-height: 120px;
+  max-height: 400px;
   display: flex;
   flex-direction: column;
 }
 
-.am-nv-textarea {
-  width: 100%;
-  min-height: 100px;
-  max-height: 240px;
-  padding: 12px 14px;
-  font-family: inherit;
-  font-size: var(--font-size-base);
-  line-height: 1.6;
-  color: var(--text-base);
-  background: var(--surface-inset-base);
-  border: 1px solid var(--border-base);
-  border-radius: var(--radius-md, 8px);
-  resize: vertical;
-  box-sizing: border-box;
-  transition:
-    border-color 150ms,
-    box-shadow 150ms;
+.am-nv-dialog .prompt-input-wrapper {
+  flex: 1;
+  min-height: 0;
 }
 
-.am-nv-textarea:focus {
-  outline: none;
-  border-color: var(--border-focus, #007fd4);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-focus, #007fd4) 40%, transparent);
+.am-nv-dialog .prompt-input-ghost-wrapper {
+  height: 100%;
 }
 
-.am-nv-textarea::placeholder {
-  color: var(--text-weaker);
-}
-
-/* Config bar — horizontal row of settings */
-
-.am-nv-config {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  background: var(--surface-inset-base);
-  border: 1px solid var(--border-base);
-  border-radius: var(--radius-md, 8px);
-}
-
-.am-nv-config-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.am-nv-dialog .prompt-input {
+  color: var(--vscode-input-foreground, var(--text-base));
+  resize: none;
+  min-height: 100%;
+  max-height: none;
 }
 
 .am-nv-config-label {
@@ -746,11 +729,11 @@
   white-space: nowrap;
 }
 
-.am-nv-config-sep {
-  width: 1px;
-  height: 20px;
-  background: var(--border-base);
-  flex-shrink: 0;
+/* Version selector bar below the prompt */
+.am-nv-version-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 /* Version pills */
@@ -790,51 +773,11 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-/* Selector buttons inside config bar */
+/* Version hint text */
 
-.am-nv-selector [data-component="button"] {
-  height: auto !important;
-  min-height: 24px;
-  padding: 2px 8px !important;
+.am-nv-version-hint {
   font-size: 12px;
-  line-height: normal;
-  border-radius: var(--radius-sm);
-  background: var(--surface-base);
-  border: none;
-  box-shadow: none;
-}
-
-.am-nv-selector [data-component="button"]:hover:not(:disabled) {
-  background: var(--surface-base-hover);
-}
-
-/* Info banner */
-
-.am-nv-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  font-size: 12px;
-  color: var(--text-weak);
-  background: color-mix(in srgb, var(--border-focus, #007fd4) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border-focus, #007fd4) 20%, transparent);
-  border-radius: var(--radius-md, 8px);
-  line-height: 1.4;
-}
-
-.am-nv-info [data-component="icon"] {
-  flex-shrink: 0;
-  color: var(--border-focus, #007fd4);
-}
-
-/* Action buttons */
-
-.am-nv-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-top: 2px;
+  color: var(--text-weaker);
 }
 
 .am-nv-spinner {

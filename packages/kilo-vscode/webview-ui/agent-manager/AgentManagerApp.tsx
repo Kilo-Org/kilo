@@ -555,6 +555,15 @@ const AgentManagerContent: Component = () => {
           agent?: string
           files?: Array<{ mime: string; url: string }>
         }
+
+        // Set model and agent selections for this session so the UI reflects them
+        if (ev.providerID && ev.modelID) {
+          session.setSessionModel(ev.sessionId, ev.providerID, ev.modelID)
+        }
+        if (ev.agent) {
+          session.setSessionAgent(ev.sessionId, ev.agent)
+        }
+
         vscode.postMessage({
           type: "sendMessage",
           text: ev.text,
@@ -1052,7 +1061,11 @@ const NewWorktreeDialog: Component<{ onClose: () => void }> = (props) => {
   let textareaRef: HTMLTextAreaElement | undefined
 
   onMount(() => {
-    requestAnimationFrame(() => textareaRef?.focus())
+    requestAnimationFrame(() => {
+      if (!textareaRef) return
+      textareaRef.focus()
+      textareaRef.select()
+    })
   })
 
   const canSubmit = () => prompt().trim().length > 0 && !starting()
@@ -1088,94 +1101,85 @@ const NewWorktreeDialog: Component<{ onClose: () => void }> = (props) => {
     }
   }
 
+  const adjustHeight = () => {
+    if (!textareaRef) return
+    textareaRef.style.height = "auto"
+    textareaRef.style.height = `${Math.min(textareaRef.scrollHeight, 200)}px`
+  }
+
   return (
-    <Dialog title="New Versioned Session" fit>
-      <div class="am-nv-dialog">
-        {/* Prompt */}
-        <div class="am-nv-section">
-          <textarea
-            ref={textareaRef}
-            class="am-nv-textarea"
-            placeholder="Describe the task..."
-            value={prompt()}
-            onInput={(e) => setPrompt(e.currentTarget.value)}
-            onKeyDown={handleKeyDown}
-            rows={5}
-          />
-        </div>
-
-        {/* Config bar */}
-        <div class="am-nv-config">
-          <div class="am-nv-config-item">
-            <span class="am-nv-config-label">Versions</span>
-            <div class="am-nv-pills">
-              {VERSION_OPTIONS.map((count) => (
-                <button
-                  class="am-nv-pill"
-                  classList={{ "am-nv-pill-active": versions() === count }}
-                  onClick={() => setVersions(count)}
-                  type="button"
-                >
-                  {count}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div class="am-nv-config-sep" />
-
-          <div class="am-nv-config-item">
-            <span class="am-nv-config-label">Model</span>
-            <div class="am-nv-selector">
-              <ModelSelectorBase
-                value={model()}
-                onSelect={(pid, mid) => setModel(pid && mid ? { providerID: pid, modelID: mid } : null)}
-                placement="bottom-start"
-                allowClear
-                clearLabel="Default"
+    <Dialog title="New Worktree" fit>
+      <div class="am-nv-dialog" onKeyDown={handleKeyDown}>
+        {/* Prompt input — reuses the same CSS as the sidebar chat input */}
+        <div class="prompt-input-container">
+          <div class="prompt-input-wrapper">
+            <div class="prompt-input-ghost-wrapper">
+              <textarea
+                ref={textareaRef}
+                class="prompt-input"
+                placeholder={`Type a message (${isMac ? "\u2318" : "Ctrl+"}Enter to send)`}
+                value={prompt()}
+                onInput={(e) => {
+                  setPrompt(e.currentTarget.value)
+                  adjustHeight()
+                }}
+                rows={3}
               />
             </div>
           </div>
-
-          <div class="am-nv-config-sep" />
-
-          <div class="am-nv-config-item">
-            <span class="am-nv-config-label">Mode</span>
-            <div class="am-nv-selector">
-              <ModeSwitcherBase agents={session.agents()} value={agent()} onSelect={setAgent} />
+          <div class="prompt-input-hint">
+            <div class="prompt-input-hint-selectors">
+              <ModelSelectorBase
+                value={model()}
+                onSelect={(pid, mid) => setModel(pid && mid ? { providerID: pid, modelID: mid } : null)}
+                placement="top-start"
+                allowClear
+                clearLabel="Default"
+              />
+              <Show when={session.agents().length > 1}>
+                <ModeSwitcherBase agents={session.agents()} value={agent()} onSelect={setAgent} />
+              </Show>
+            </div>
+            <div class="prompt-input-hint-actions">
+              <Tooltip value={`${isMac ? "\u2318" : "Ctrl+"}Enter`} placement="top">
+                <Button variant="primary" size="small" onClick={handleSubmit} disabled={!canSubmit()}>
+                  <Show
+                    when={!starting()}
+                    fallback={
+                      <>
+                        <Spinner class="am-nv-spinner" />
+                        <span>Creating...</span>
+                      </>
+                    }
+                  >
+                    <svg data-slot="icon-svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M1.5 1.5L14.5 8L1.5 14.5V9L10 8L1.5 7V1.5Z" />
+                    </svg>
+                  </Show>
+                </Button>
+              </Tooltip>
             </div>
           </div>
         </div>
 
-        {/* Hint */}
-        <Show when={versions() > 1}>
-          <div class="am-nv-info">
-            <Icon name="layers" size="small" />
-            <span>{versions()} independent worktrees will run the same prompt in parallel</span>
-          </div>
-        </Show>
-
-        {/* Actions */}
-        <div class="am-nv-actions">
-          <Button variant="ghost" size="large" onClick={props.onClose}>
-            Cancel
-          </Button>
-          <Tooltip value={`${isMac ? "\u2318" : "Ctrl+"}Enter`} placement="top">
-            <Button variant="primary" size="large" onClick={handleSubmit} disabled={!canSubmit()}>
-              <Show
-                when={!starting()}
-                fallback={
-                  <>
-                    <Spinner class="am-nv-spinner" />
-                    <span>Creating...</span>
-                  </>
-                }
+        {/* Version selector + info */}
+        <div class="am-nv-version-bar">
+          <span class="am-nv-config-label">Versions</span>
+          <div class="am-nv-pills">
+            {VERSION_OPTIONS.map((count) => (
+              <button
+                class="am-nv-pill"
+                classList={{ "am-nv-pill-active": versions() === count }}
+                onClick={() => setVersions(count)}
+                type="button"
               >
-                <Icon name="branch" size="small" />
-                <span>{versions() > 1 ? `Launch ${versions()} Versions` : "Launch"}</span>
-              </Show>
-            </Button>
-          </Tooltip>
+                {count}
+              </button>
+            ))}
+          </div>
+          <Show when={versions() > 1}>
+            <span class="am-nv-version-hint">{versions()} worktrees will run in parallel</span>
+          </Show>
         </div>
       </div>
     </Dialog>

@@ -417,11 +417,21 @@ export class AgentManagerProvider implements vscode.Disposable {
     const mac = process.platform === "darwin"
     const prefix = "kilo-code.new.agentManager."
     const bindings: Record<string, string> = {}
+
+    // Global keybindings exposed to the shortcuts dialog
+    const globals: Record<string, string> = {
+      "kilo-code.new.agentManagerOpen": "agentManagerOpen",
+    }
+
     for (const kb of keybindings) {
-      if (!kb.command.startsWith(prefix)) continue
-      const action = kb.command.slice(prefix.length)
       const raw = mac ? (kb.mac ?? kb.key) : kb.key
-      if (raw) bindings[action] = formatKeybinding(raw, mac)
+      if (!raw) continue
+
+      if (kb.command.startsWith(prefix)) {
+        bindings[kb.command.slice(prefix.length)] = formatKeybinding(raw, mac)
+      } else if (globals[kb.command]) {
+        bindings[globals[kb.command]] = formatKeybinding(raw, mac)
+      }
     }
 
     this.postToWebview({ type: "agentManager.keybindings", bindings })

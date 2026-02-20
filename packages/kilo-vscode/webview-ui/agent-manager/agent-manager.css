@@ -720,6 +720,82 @@
   color: var(--text-base);
 }
 
+/* Keyboard shortcuts dialog */
+
+.am-shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 0 24px 20px 24px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.am-shortcuts-category {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.am-shortcuts-category-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-weaker);
+  padding: 0 0 4px 0;
+}
+
+.am-shortcuts-list {
+  border: 1px solid var(--border-weak-base);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.am-shortcuts-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  gap: 16px;
+}
+
+.am-shortcuts-row + .am-shortcuts-row {
+  border-top: 1px solid var(--border-weak-base);
+}
+
+.am-shortcuts-label {
+  font-size: var(--font-size-base);
+  color: var(--text-base);
+  white-space: nowrap;
+}
+
+.am-shortcuts-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.am-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--surface-inset-base);
+  border: 1px solid var(--border-weak-base);
+  font-family: var(--font-family-sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-weak);
+  white-space: nowrap;
+  box-shadow: 0 1px 0 var(--border-weak-base);
+}
+
 /* Skeleton loading states */
 
 @keyframes am-skeleton-pulse {

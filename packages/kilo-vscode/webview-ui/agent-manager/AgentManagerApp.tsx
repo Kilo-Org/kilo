@@ -77,6 +77,8 @@ const defaultBindings: Record<string, string> = {
   closeTab: isMac ? "⌘W" : "Ctrl+W",
   newWorktree: isMac ? "⌘N" : "Ctrl+N",
   closeWorktree: isMac ? "⌘⇧W" : "Ctrl+Shift+W",
+  agentManagerOpen: isMac ? "⌘⇧M" : "Ctrl+Shift+M",
+  focusPanel: isMac ? "⌘." : "Ctrl+.",
 }
 
 /** Manages horizontal scroll for the tab list: hides the scrollbar, converts
@@ -142,6 +144,76 @@ function useTabScroll(activeTabs: Accessor<SessionInfo[]>, activeId: Accessor<st
   })
 
   return { setRef, showLeft, showRight }
+}
+
+/** Shortcut category definition for the keyboard shortcuts dialog */
+interface ShortcutEntry {
+  label: string
+  binding: string
+}
+
+interface ShortcutCategory {
+  title: string
+  shortcuts: ShortcutEntry[]
+}
+
+/** Build the categorized list of keyboard shortcuts from the current bindings */
+function buildShortcutCategories(bindings: Record<string, string>): ShortcutCategory[] {
+  return [
+    {
+      title: "Sidebar",
+      shortcuts: [
+        { label: "Previous item", binding: bindings.previousSession ?? "" },
+        { label: "Next item", binding: bindings.nextSession ?? "" },
+        { label: "New worktree", binding: bindings.newWorktree ?? "" },
+        { label: "Delete worktree", binding: bindings.closeWorktree ?? "" },
+      ],
+    },
+    {
+      title: "Tabs",
+      shortcuts: [
+        { label: "Previous tab", binding: bindings.previousTab ?? "" },
+        { label: "Next tab", binding: bindings.nextTab ?? "" },
+        { label: "New tab", binding: bindings.newTab ?? "" },
+        { label: "Close tab", binding: bindings.closeTab ?? "" },
+      ],
+    },
+    {
+      title: "Terminal",
+      shortcuts: [
+        { label: "Toggle terminal", binding: bindings.showTerminal ?? "" },
+        { label: "Focus panel", binding: bindings.focusPanel ?? "" },
+      ],
+    },
+    {
+      title: "Global",
+      shortcuts: [{ label: "Open Agent Manager", binding: bindings.agentManagerOpen ?? "" }].filter((s) => s.binding),
+    },
+  ].filter((c) => c.shortcuts.length > 0)
+}
+
+/** Parse a display keybinding string into separate key tokens for rendering.
+ *  Windows/Linux format ("Ctrl+Shift+W") splits on "+".
+ *  Mac format ("⌘⇧W") splits on known modifier symbols. */
+function parseBindingTokens(binding: string): string[] {
+  if (!binding) return []
+  // Windows/Linux: "Ctrl+Shift+W" → ["Ctrl", "Shift", "W"]
+  if (binding.includes("+")) return binding.split("+")
+  // Mac: "⌘⇧W" → ["⌘", "⇧", "W"] — peel off known modifier symbols
+  const tokens: string[] = []
+  let rest = binding
+  const modifiers = ["⌘", "⇧", "⌃", "⌥"]
+  while (rest.length > 0) {
+    const mod = modifiers.find((m) => rest.startsWith(m))
+    if (mod) {
+      tokens.push(mod)
+      rest = rest.slice(mod.length)
+    } else {
+      tokens.push(rest)
+      break
+    }
+  }
+  return tokens
 }
 
 const AgentManagerContent: Component = () => {
@@ -538,6 +610,37 @@ const AgentManagerContent: Component = () => {
     vscode.postMessage({ type: "agentManager.configureSetupScript" })
   }
 
+  const handleShowKeyboardShortcuts = () => {
+    const categories = buildShortcutCategories(kb())
+    dialog.show(() => (
+      <Dialog title="Keyboard Shortcuts" fit>
+        <div class="am-shortcuts">
+          <For each={categories}>
+            {(category) => (
+              <div class="am-shortcuts-category">
+                <div class="am-shortcuts-category-title">{category.title}</div>
+                <div class="am-shortcuts-list">
+                  <For each={category.shortcuts}>
+                    {(shortcut) => (
+                      <div class="am-shortcuts-row">
+                        <span class="am-shortcuts-label">{shortcut.label}</span>
+                        <span class="am-shortcuts-keys">
+                          <For each={parseBindingTokens(shortcut.binding)}>
+                            {(token) => <kbd class="am-kbd">{token}</kbd>}
+                          </For>
+                        </span>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </div>
+            )}
+          </For>
+        </div>
+      </Dialog>
+    ))
+  }
+
   const handleCreateWorktree = () => {
     vscode.postMessage({ type: "agentManager.createWorktree" })
   }
@@ -781,6 +884,10 @@ const AgentManagerContent: Component = () => {
                 />
                 <DropdownMenu.Portal>
                   <DropdownMenu.Content>
+                    <DropdownMenu.Item onSelect={handleShowKeyboardShortcuts}>
+                      <DropdownMenu.ItemLabel>Keyboard Shortcuts</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Separator />
                     <DropdownMenu.Item onSelect={handleConfigureSetupScript}>
                       <DropdownMenu.ItemLabel>Worktree Setup Script</DropdownMenu.ItemLabel>
                     </DropdownMenu.Item>

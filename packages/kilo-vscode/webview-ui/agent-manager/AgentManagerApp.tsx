@@ -35,7 +35,7 @@ import { WorktreeModeProvider } from "../src/context/worktree-mode"
 import { ChatView } from "../src/components/chat"
 import { LanguageBridge, DataBridge } from "../src/App"
 import { formatRelativeDate } from "../src/utils/date"
-import { validateLocalSession, nextSelectionAfterDelete, LOCAL } from "./navigate"
+import { validateLocalSession, nextSelectionAfterDelete, adjacentHint, LOCAL } from "./navigate"
 import "./agent-manager.css"
 
 interface SetupState {
@@ -582,21 +582,13 @@ const AgentManagerContent: Component = () => {
                   {(wt, wtIdx) => {
                     const sessions = createMemo(() => managedSessions().filter((ms) => ms.worktreeId === wt.id))
                     const navHint = () => {
-                      const sel = selection()
-                      if (sel === wt.id) return ""
                       const flat = [
                         LOCAL as string,
                         ...worktrees().map((w) => w.id),
                         ...unassignedSessions().map((s) => s.id),
                       ]
-                      const current = sel ?? session.currentSessionID() ?? ""
-                      const activeFlat = flat.indexOf(current)
-                      const myFlat = flat.indexOf(wt.id)
-                      if (activeFlat === -1 || myFlat === -1) return ""
-                      const diff = myFlat - activeFlat
-                      if (diff === -1) return kb().previousSession ?? ""
-                      if (diff === 1) return kb().nextSession ?? ""
-                      return ""
+                      const active = selection() ?? session.currentSessionID() ?? ""
+                      return adjacentHint(wt.id, active, flat, kb().previousSession ?? "", kb().nextSession ?? "")
                     }
                     return (
                       <HoverCard
@@ -730,19 +722,9 @@ const AgentManagerContent: Component = () => {
                       : s.id === session.currentSessionID()
                   const tabDirection = () => {
                     if (active()) return ""
-                    const tabs = activeTabs()
-                    const current = session.currentSessionID()
-                    const pendingId = activePendingId()
-                    const activeIdx = current
-                      ? tabs.findIndex((t) => t.id === current)
-                      : pendingId
-                        ? tabs.findIndex((t) => t.id === pendingId)
-                        : -1
-                    if (activeIdx === -1) return ""
-                    const diff = idx() - activeIdx
-                    if (diff === -1) return kb().previousTab ?? ""
-                    if (diff === 1) return kb().nextTab ?? ""
-                    return ""
+                    const tabIds = activeTabs().map((t) => t.id)
+                    const activeId = session.currentSessionID() ?? activePendingId() ?? ""
+                    return adjacentHint(s.id, activeId, tabIds, kb().previousTab ?? "", kb().nextTab ?? "")
                   }
                   return (
                     <TooltipKeybind

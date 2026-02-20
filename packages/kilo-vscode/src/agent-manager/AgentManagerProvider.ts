@@ -5,6 +5,7 @@ import { buildWebviewHtml } from "../utils"
 import { WorktreeManager, type CreateWorktreeResult } from "./WorktreeManager"
 import { WorktreeStateManager } from "./WorktreeStateManager"
 import { SessionTerminalManager } from "./SessionTerminalManager"
+import { formatKeybinding } from "./format-keybinding"
 
 /**
  * AgentManagerProvider opens the Agent Manager panel.
@@ -382,36 +383,14 @@ export class AgentManagerProvider implements vscode.Disposable {
     const keybindings: Array<{ command: string; key?: string; mac?: string }> =
       ext?.packageJSON?.contributes?.keybindings ?? []
 
-    const platform = process.platform
-    const format = (raw: string): string => {
-      // Normalize VS Code keybinding syntax to display symbols
-      const parts = raw.split("+").map((p) => p.trim().toLowerCase())
-      const symbols: string[] = []
-      for (const part of parts) {
-        if (part === "ctrl") symbols.push(platform === "darwin" ? "⌃" : "Ctrl")
-        else if (part === "cmd") symbols.push(platform === "darwin" ? "⌘" : "Ctrl")
-        else if (part === "shift") symbols.push(platform === "darwin" ? "⇧" : "Shift")
-        else if (part === "alt") symbols.push(platform === "darwin" ? "⌥" : "Alt")
-        else if (part === "left") symbols.push("←")
-        else if (part === "right") symbols.push("→")
-        else if (part === "up") symbols.push("↑")
-        else if (part === "down") symbols.push("↓")
-        else if (part === "backspace") symbols.push("⌫")
-        else if (part === "delete") symbols.push("Del")
-        else if (part === "enter") symbols.push("↵")
-        else if (part === "escape") symbols.push("Esc")
-        else symbols.push(part.toUpperCase())
-      }
-      return platform === "darwin" ? symbols.join("") : symbols.join("+")
-    }
-
+    const mac = process.platform === "darwin"
     const prefix = "kilo-code.new.agentManager."
     const bindings: Record<string, string> = {}
     for (const kb of keybindings) {
       if (!kb.command.startsWith(prefix)) continue
       const action = kb.command.slice(prefix.length)
-      const raw = platform === "darwin" ? (kb.mac ?? kb.key) : kb.key
-      if (raw) bindings[action] = format(raw)
+      const raw = mac ? (kb.mac ?? kb.key) : kb.key
+      if (raw) bindings[action] = formatKeybinding(raw, mac)
     }
 
     this.postToWebview({ type: "agentManager.keybindings", bindings })

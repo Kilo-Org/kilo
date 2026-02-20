@@ -563,6 +563,7 @@ export interface AgentManagerStateMessage {
   type: "agentManager.state"
   worktrees: WorktreeState[]
   sessions: ManagedSessionState[]
+  tabOrder?: Record<string, string[]>
 }
 
 export type ExtensionMessage =
@@ -839,6 +840,13 @@ export interface ShowTerminalRequest {
   sessionId: string
 }
 
+// Persist tab order for a context (worktree ID or "local")
+export interface SetTabOrderRequest {
+  type: "agentManager.setTabOrder"
+  key: string
+  order: string[]
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -883,6 +891,7 @@ export type WebviewMessage =
   | TelemetryRequest
   | RequestRepoInfoMessage
   | ShowTerminalRequest
+  | SetTabOrderRequest
 
 // ============================================
 // VS Code API type

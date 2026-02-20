@@ -137,6 +137,10 @@ export class AgentManagerProvider implements vscode.Disposable {
       void this.sendRepoInfo()
       return null
     }
+    if (type === "agentManager.setTabOrder" && typeof msg.key === "string" && Array.isArray(msg.order)) {
+      this.state?.setTabOrder(msg.key as string, msg.order as string[])
+      return null
+    }
 
     // When switching sessions, show existing terminal if one is open
     if (type === "loadMessages" && typeof msg.sessionID === "string") {
@@ -404,6 +408,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       type: "agentManager.state",
       worktrees: state.getWorktrees(),
       sessions: state.getSessions(),
+      tabOrder: state.getTabOrder(),
     })
   }
 

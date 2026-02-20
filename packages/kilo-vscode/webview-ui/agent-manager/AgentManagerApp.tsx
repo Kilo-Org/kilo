@@ -10,6 +10,17 @@ import type {
   ManagedSessionState,
   SessionInfo,
 } from "../src/types/messages"
+import {
+  DragDropProvider,
+  DragDropSensors,
+  DragOverlay,
+  SortableProvider,
+  createSortable,
+  closestCenter,
+  useDragDropContext,
+} from "@thisbeyond/solid-dnd"
+import type { DragEvent, Transformer } from "@thisbeyond/solid-dnd"
+import { createRoot } from "solid-js"
 import { ThemeProvider } from "@kilocode/kilo-ui/theme"
 import { DialogProvider, useDialog } from "@kilocode/kilo-ui/context/dialog"
 import { Dialog } from "@kilocode/kilo-ui/dialog"
@@ -33,7 +44,7 @@ import { WorktreeModeProvider } from "../src/context/worktree-mode"
 import { ChatView } from "../src/components/chat"
 import { LanguageBridge, DataBridge } from "../src/App"
 import { formatRelativeDate } from "../src/utils/date"
-import { validateLocalSession, nextSelectionAfterDelete, LOCAL } from "./navigate"
+import { validateLocalSession, nextSelectionAfterDelete, reorderTabs, LOCAL } from "./navigate"
 import "./agent-manager.css"
 
 interface SetupState {
@@ -48,6 +59,61 @@ type SidebarSelection = typeof LOCAL | string | null
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent)
 const modKey = isMac ? "\u2318" : "Ctrl+"
+
+// Lock drag movement to the X axis (horizontal-only tab dragging)
+const ConstrainDragYAxis: Component = () => {
+  const context = useDragDropContext()
+  if (!context) return null
+  const [, { onDragStart, onDragEnd, addTransformer, removeTransformer }] = context
+  const transformer: Transformer = { id: "constrain-y-axis", order: 100, callback: (t) => ({ ...t, y: 0 }) }
+  const dispose = createRoot((dispose) => {
+    onDragStart(({ draggable }) => {
+      if (draggable) addTransformer("draggables", draggable.id as string, transformer)
+    })
+    onDragEnd(({ draggable }) => {
+      if (draggable) removeTransformer("draggables", draggable.id as string, transformer.id)
+    })
+    return dispose
+  })
+  onCleanup(dispose)
+  return null
+}
+
+// Individual sortable tab wrapper
+const SortableTab: Component<{
+  tab: SessionInfo
+  active: boolean
+  pending: boolean
+  onSelect: () => void
+  onMiddleClick: (e: MouseEvent) => void
+  onClose: (e: MouseEvent) => void
+}> = (props) => {
+  const sortable = createSortable(props.tab.id)
+  // Prevent tree-shaking of the directive reference used by `use:sortable`
+  void sortable
+  return (
+    // @ts-ignore - use:sortable is a SolidJS directive compiled by esbuild-plugin-solid
+    <div use:sortable class={`am-tab-sortable ${sortable.isActiveDraggable ? "am-tab-dragging" : ""}`}>
+      <Tooltip value={props.tab.title || "Untitled"} placement="bottom">
+        <div
+          class={`am-tab ${props.active ? "am-tab-active" : ""}`}
+          onClick={props.onSelect}
+          onMouseDown={props.onMiddleClick}
+        >
+          <span class="am-tab-label">{props.tab.title || "Untitled"}</span>
+          <IconButton
+            icon="close-small"
+            size="small"
+            variant="ghost"
+            label="Close tab"
+            class="am-tab-close"
+            onClick={props.onClose}
+          />
+        </div>
+      </Tooltip>
+    </div>
+  )
+}
 
 const AgentManagerContent: Component = () => {
   const session = useSession()
@@ -71,6 +137,11 @@ const AgentManagerContent: Component = () => {
   const [activePendingId, setActivePendingId] = createSignal<string | undefined>()
 
   const isPending = (id: string) => id.startsWith(PENDING_PREFIX)
+
+  // Drag-and-drop state for tab reordering
+  const [draggingTab, setDraggingTab] = createSignal<string | undefined>()
+  // Tab ordering: context key → ordered session ID array (recovered from extension state)
+  const [worktreeTabOrder, setWorktreeTabOrder] = createSignal<Record<string, string[]>>({})
 
   const addPendingTab = () => {
     const id = `${PENDING_PREFIX}${++pendingCounter}`
@@ -132,16 +203,30 @@ const AgentManagerContent: Component = () => {
     return result
   })
 
-  // Sessions for the currently selected worktree (tab bar), sorted by creation date
+  // Sessions for the currently selected worktree (tab bar), respecting custom order if set
   const activeWorktreeSessions = createMemo((): SessionInfo[] => {
     const sel = selection()
     if (!sel || sel === LOCAL) return []
     const managed = managedSessions().filter((ms) => ms.worktreeId === sel)
     const ids = new Set(managed.map((ms) => ms.id))
-    return session
+    const sessions = session
       .sessions()
       .filter((s) => ids.has(s.id))
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    const order = worktreeTabOrder()[sel]
+    if (!order) return sessions
+    // Sort by custom order, append any new sessions not in the order
+    const lookup = new Map(sessions.map((s) => [s.id, s]))
+    const ordered: SessionInfo[] = []
+    for (const id of order) {
+      const s = lookup.get(id)
+      if (s) {
+        ordered.push(s)
+        lookup.delete(id)
+      }
+    }
+    for (const s of lookup.values()) ordered.push(s)
+    return ordered
   })
 
   // Active tab sessions: local sessions when on "local", worktree sessions otherwise
@@ -163,11 +248,20 @@ const AgentManagerContent: Component = () => {
   // Read-only mode: viewing an unassigned session (not in a worktree or local)
   const readOnly = createMemo(() => selection() === null && !!session.currentSessionID())
 
-  // Display name for worktree
+  // Display name for worktree — uses first tab in custom order when available
   const worktreeLabel = (wt: WorktreeState): string => {
+    const order = worktreeTabOrder()[wt.id]
     const managed = managedSessions().filter((ms) => ms.worktreeId === wt.id)
     const ids = new Set(managed.map((ms) => ms.id))
-    const first = session.sessions().find((s) => ids.has(s.id))
+    const sessions = session.sessions().filter((s) => ids.has(s.id))
+    if (order) {
+      const lookup = new Map(sessions.map((s) => [s.id, s]))
+      for (const id of order) {
+        const s = lookup.get(id)
+        if (s?.title) return s.title
+      }
+    }
+    const first = sessions.find((s) => s.title)
     return first?.title || wt.branch
   }
 
@@ -338,10 +432,20 @@ const AgentManagerContent: Component = () => {
         const state = msg as AgentManagerStateMessage
         setWorktrees(state.worktrees)
         setManagedSessions(state.sessions)
+        if (state.tabOrder) setWorktreeTabOrder(state.tabOrder)
         const current = session.currentSessionID()
         if (current) {
           const ms = state.sessions.find((s) => s.id === current)
           if (ms?.worktreeId) setSelection(ms.worktreeId)
+        }
+        // Recover local tab order from persisted state
+        const localOrder = state.tabOrder?.[LOCAL]
+        if (localOrder && localSessionIDs().length > 0) {
+          const currentIds = new Set(localSessionIDs())
+          const valid = localOrder.filter((id) => currentIds.has(id))
+          if (valid.length > 0 && valid.length === localSessionIDs().length) {
+            setLocalSessionIDs(valid)
+          }
         }
         // Clear deleting state for worktrees that have been removed
         const ids = new Set(state.worktrees.map((wt) => wt.id))
@@ -466,6 +570,49 @@ const AgentManagerContent: Component = () => {
       handleCloseTab(sessionId, e)
     }
   }
+
+  // Drag-and-drop handlers for tab reordering
+  const tabIds = createMemo(() => activeTabs().map((s) => s.id))
+
+  const handleDragStart = (event: DragEvent) => {
+    const id = event.draggable?.id
+    if (typeof id === "string") setDraggingTab(id)
+  }
+
+  const handleDragOver = (event: DragEvent) => {
+    const from = event.draggable?.id
+    const to = event.droppable?.id
+    if (typeof from !== "string" || typeof to !== "string") return
+    const sel = selection()
+    if (sel === LOCAL) {
+      setLocalSessionIDs((prev) => reorderTabs(prev, from, to) ?? prev)
+    } else if (sel) {
+      setWorktreeTabOrder((prev) => {
+        const reordered = reorderTabs(prev[sel] ?? tabIds(), from, to)
+        if (!reordered) return prev
+        return { ...prev, [sel]: reordered }
+      })
+    }
+  }
+
+  const handleDragEnd = () => {
+    setDraggingTab(undefined)
+    // Persist the new tab order to the extension
+    const sel = selection()
+    if (sel === LOCAL) {
+      const order = localSessionIDs().filter((id) => !isPending(id))
+      if (order.length > 0) vscode.postMessage({ type: "agentManager.setTabOrder", key: LOCAL, order })
+    } else if (sel) {
+      const order = worktreeTabOrder()[sel]
+      if (order) vscode.postMessage({ type: "agentManager.setTabOrder", key: sel, order })
+    }
+  }
+
+  const draggedTab = createMemo(() => {
+    const id = draggingTab()
+    if (!id) return undefined
+    return activeTabs().find((s) => s.id === id)
+  })
 
   // Close the currently active tab via keyboard shortcut.
   // If no tabs remain, fall through to close the selected worktree.
@@ -614,68 +761,79 @@ const AgentManagerContent: Component = () => {
       <div class="am-detail">
         {/* Tab bar — visible when a section is selected and has tabs or a pending new session */}
         <Show when={selection() !== null && !contextEmpty()}>
-          <div class="am-tab-bar">
-            <div class="am-tab-list">
-              <For each={activeTabs()}>
-                {(s) => {
-                  const pending = isPending(s.id)
-                  const active = () =>
-                    pending
-                      ? s.id === activePendingId() && !session.currentSessionID()
-                      : s.id === session.currentSessionID()
-                  return (
-                    <Tooltip value={s.title || "Untitled"} placement="bottom">
-                      <div
-                        class={`am-tab ${active() ? "am-tab-active" : ""}`}
-                        onClick={() => {
-                          if (pending) {
-                            setActivePendingId(s.id)
-                            session.clearCurrentSession()
-                          } else {
-                            setActivePendingId(undefined)
-                            session.selectSession(s.id)
-                          }
-                        }}
-                        onMouseDown={(e: MouseEvent) => handleTabMouseDown(s.id, e)}
-                      >
-                        <span class="am-tab-label">{s.title || "Untitled"}</span>
-                        <IconButton
-                          icon="close-small"
-                          size="small"
-                          variant="ghost"
-                          label="Close tab"
-                          class="am-tab-close"
-                          onClick={(e: MouseEvent) => handleCloseTab(s.id, e)}
+          <DragDropProvider
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragOver={handleDragOver}
+            collisionDetector={closestCenter}
+          >
+            <DragDropSensors />
+            <ConstrainDragYAxis />
+            <div class="am-tab-bar">
+              <div class="am-tab-list">
+                <SortableProvider ids={tabIds()}>
+                  <For each={activeTabs()}>
+                    {(s) => {
+                      const pending = isPending(s.id)
+                      const active = () =>
+                        pending
+                          ? s.id === activePendingId() && !session.currentSessionID()
+                          : s.id === session.currentSessionID()
+                      return (
+                        <SortableTab
+                          tab={s}
+                          active={active()}
+                          pending={pending}
+                          onSelect={() => {
+                            if (pending) {
+                              setActivePendingId(s.id)
+                              session.clearCurrentSession()
+                            } else {
+                              setActivePendingId(undefined)
+                              session.selectSession(s.id)
+                            }
+                          }}
+                          onMiddleClick={(e: MouseEvent) => handleTabMouseDown(s.id, e)}
+                          onClose={(e: MouseEvent) => handleCloseTab(s.id, e)}
                         />
-                      </div>
-                    </Tooltip>
-                  )
-                }}
-              </For>
+                      )
+                    }}
+                  </For>
+                </SortableProvider>
+              </div>
+              <IconButton
+                icon="plus"
+                size="small"
+                variant="ghost"
+                label={`New session (${modKey}T)`}
+                class="am-tab-add"
+                onClick={handleAddSession}
+              />
+              <div class="am-tab-terminal">
+                <Tooltip value="Open Terminal" placement="bottom">
+                  <IconButton
+                    icon="console"
+                    size="small"
+                    variant="ghost"
+                    label="Open Terminal"
+                    onClick={() => {
+                      const id = session.currentSessionID()
+                      if (id) vscode.postMessage({ type: "agentManager.showTerminal", sessionId: id })
+                    }}
+                  />
+                </Tooltip>
+              </div>
             </div>
-            <IconButton
-              icon="plus"
-              size="small"
-              variant="ghost"
-              label={`New session (${modKey}T)`}
-              class="am-tab-add"
-              onClick={handleAddSession}
-            />
-            <div class="am-tab-terminal">
-              <Tooltip value="Open Terminal" placement="bottom">
-                <IconButton
-                  icon="console"
-                  size="small"
-                  variant="ghost"
-                  label="Open Terminal"
-                  onClick={() => {
-                    const id = session.currentSessionID()
-                    if (id) vscode.postMessage({ type: "agentManager.showTerminal", sessionId: id })
-                  }}
-                />
-              </Tooltip>
-            </div>
-          </div>
+            <DragOverlay>
+              <Show when={draggedTab()}>
+                {(tab) => (
+                  <div class="am-tab am-tab-overlay">
+                    <span class="am-tab-label">{tab().title || "Untitled"}</span>
+                  </div>
+                )}
+              </Show>
+            </DragOverlay>
+          </DragDropProvider>
         </Show>
 
         {/* Empty worktree state */}

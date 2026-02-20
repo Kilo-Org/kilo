@@ -66,7 +66,7 @@ export namespace Filesystem {
       const search = normalize(path.join(current, target))
       if (await exists(search)) result.push(search)
       if (stop === current) break
-      const parent = path.dirname(current)
+      const parent = normalize(path.dirname(current))
       if (parent === current) break
       current = parent
     }
@@ -82,7 +82,7 @@ export namespace Filesystem {
         if (await exists(search)) yield search
       }
       if (stop === current) break
-      const parent = path.dirname(current)
+      const parent = normalize(path.dirname(current))
       if (parent === current) break
       current = parent
     }
@@ -107,7 +107,7 @@ export namespace Filesystem {
         // Skip invalid glob patterns
       }
       if (stop === current) break
-      const parent = path.dirname(current)
+      const parent = normalize(path.dirname(current))
       if (parent === current) break
       current = parent
     }

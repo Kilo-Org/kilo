@@ -18,7 +18,12 @@ export const ServeCommand = cmd({
     }
     const opts = await resolveNetworkOptions(args)
     if (args.cwd) {
-      process.chdir(args.cwd)
+      try {
+        process.chdir(args.cwd)
+      } catch {
+        console.error(`Failed to change directory to ${args.cwd}`)
+        process.exit(1)
+      }
     }
     const server = Server.listen(opts)
     console.log(`kilo server listening on http://${server.hostname}:${server.port}`) // kilocode_change

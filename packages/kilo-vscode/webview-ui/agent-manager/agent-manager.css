@@ -600,10 +600,10 @@
 @keyframes am-skeleton-pulse {
   0%,
   100% {
-    opacity: 0.15;
+    opacity: 0.12;
   }
   50% {
-    opacity: 0.35;
+    opacity: 0.28;
   }
 }
 
@@ -611,51 +611,69 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 2px 0;
   animation: am-fade-in 0.2s ease;
 }
 
-.am-skeleton-item {
+/* Worktree skeleton — matches .am-worktree-item layout */
+.am-skeleton-wt {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 10px;
-  border-radius: var(--radius-sm);
 }
 
-.am-skeleton-icon {
+.am-skeleton-wt-icon {
   width: 16px;
   height: 16px;
-  border-radius: var(--radius-sm);
+  border-radius: 3px;
   background: var(--text-base);
   animation: am-skeleton-pulse 1.5s ease-in-out infinite;
   flex-shrink: 0;
 }
 
-.am-skeleton-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-base);
-  animation: am-skeleton-pulse 1.5s ease-in-out infinite;
-  flex-shrink: 0;
-}
-
-.am-skeleton-text {
-  height: 12px;
-  border-radius: var(--radius-sm);
+.am-skeleton-wt-text {
+  height: 13px;
+  border-radius: 3px;
   background: var(--text-base);
   animation: am-skeleton-pulse 1.5s ease-in-out infinite;
 }
 
-.am-skeleton-item:nth-child(2) .am-skeleton-icon,
-.am-skeleton-item:nth-child(2) .am-skeleton-dot,
-.am-skeleton-item:nth-child(2) .am-skeleton-text {
+.am-skeleton-wt:nth-child(2) .am-skeleton-wt-icon,
+.am-skeleton-wt:nth-child(2) .am-skeleton-wt-text {
   animation-delay: 0.15s;
 }
 
-.am-skeleton-item:nth-child(3) .am-skeleton-icon,
-.am-skeleton-item:nth-child(3) .am-skeleton-dot,
-.am-skeleton-item:nth-child(3) .am-skeleton-text {
+/* Session skeleton — matches .am-item layout */
+.am-skeleton-session {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+}
+
+.am-skeleton-session-title {
+  height: 13px;
+  border-radius: 3px;
+  background: var(--text-base);
+  animation: am-skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.am-skeleton-session-time {
+  height: 10px;
+  width: 52px;
+  border-radius: 3px;
+  background: var(--text-base);
+  animation: am-skeleton-pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.am-skeleton-session:nth-child(2) .am-skeleton-session-title,
+.am-skeleton-session:nth-child(2) .am-skeleton-session-time {
+  animation-delay: 0.15s;
+}
+
+.am-skeleton-session:nth-child(3) .am-skeleton-session-title,
+.am-skeleton-session:nth-child(3) .am-skeleton-session-time {
   animation-delay: 0.3s;
 }

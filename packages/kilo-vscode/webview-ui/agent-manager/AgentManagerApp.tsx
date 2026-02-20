@@ -668,13 +668,9 @@ const AgentManagerContent: Component = () => {
               when={worktreesLoaded() && sessionsLoaded()}
               fallback={
                 <div class="am-skeleton-list">
-                  <div class="am-skeleton-item">
-                    <div class="am-skeleton-icon" />
-                    <div class="am-skeleton-text" style={{ width: "65%" }} />
-                  </div>
-                  <div class="am-skeleton-item">
-                    <div class="am-skeleton-icon" />
-                    <div class="am-skeleton-text" style={{ width: "50%" }} />
+                  <div class="am-skeleton-wt">
+                    <div class="am-skeleton-wt-icon" />
+                    <div class="am-skeleton-wt-text" style={{ width: "60%" }} />
                   </div>
                 </div>
               }
@@ -723,17 +719,17 @@ const AgentManagerContent: Component = () => {
               when={sessionsLoaded()}
               fallback={
                 <div class="am-skeleton-list">
-                  <div class="am-skeleton-item">
-                    <div class="am-skeleton-dot" />
-                    <div class="am-skeleton-text" style={{ width: "80%" }} />
+                  <div class="am-skeleton-session">
+                    <div class="am-skeleton-session-title" style={{ width: "70%" }} />
+                    <div class="am-skeleton-session-time" />
                   </div>
-                  <div class="am-skeleton-item">
-                    <div class="am-skeleton-dot" />
-                    <div class="am-skeleton-text" style={{ width: "60%" }} />
+                  <div class="am-skeleton-session">
+                    <div class="am-skeleton-session-title" style={{ width: "55%" }} />
+                    <div class="am-skeleton-session-time" />
                   </div>
-                  <div class="am-skeleton-item">
-                    <div class="am-skeleton-dot" />
-                    <div class="am-skeleton-text" style={{ width: "70%" }} />
+                  <div class="am-skeleton-session">
+                    <div class="am-skeleton-session-title" style={{ width: "65%" }} />
+                    <div class="am-skeleton-session-time" />
                   </div>
                 </div>
               }

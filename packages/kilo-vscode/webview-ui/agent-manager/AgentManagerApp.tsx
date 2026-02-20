@@ -532,8 +532,8 @@ const AgentManagerContent: Component = () => {
           direction="horizontal"
           size={sidebarWidth()}
           min={MIN_SIDEBAR_WIDTH}
-          max={window.innerWidth * MAX_SIDEBAR_WIDTH_RATIO}
-          onResize={setSidebarWidth}
+          max={9999}
+          onResize={(width) => setSidebarWidth(Math.min(width, window.innerWidth * MAX_SIDEBAR_WIDTH_RATIO))}
         />
         {/* Local workspace item */}
         <button

@@ -460,6 +460,12 @@ export class AgentManagerProvider implements vscode.Disposable {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
       this.outputChannel.appendLine(`[AgentManager] Setup script error: ${msg}`)
+      this.postToWebview({
+        type: "agentManager.worktreeSetup",
+        status: "error",
+        message: `Setup script failed: ${msg}`,
+        branch,
+      })
     }
   }
 

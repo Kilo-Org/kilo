@@ -559,7 +559,14 @@ const AgentManagerContent: Component = () => {
     window.addEventListener("keydown", preventDefaults)
 
     // When the panel regains focus (e.g. returning from terminal), focus the prompt
-    const onWindowFocus = () => window.dispatchEvent(new Event("focusPrompt"))
+    // and clear any stale body styles left by Kobalte modal overlays (dropdowns/dialogs
+    // set pointer-events:none and overflow:hidden on body, but cleanup never runs if
+    // focus leaves the webview before the overlay closes).
+    const onWindowFocus = () => {
+      document.body.style.pointerEvents = ""
+      document.body.style.overflow = ""
+      window.dispatchEvent(new Event("focusPrompt"))
+    }
     window.addEventListener("focus", onWindowFocus)
 
     // When a session is created while on local, replace the current pending tab with the real session.

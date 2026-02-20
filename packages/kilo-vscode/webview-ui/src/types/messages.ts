@@ -320,6 +320,7 @@ export interface ErrorMessage {
   type: "error"
   message: string
   code?: string
+  sessionID?: string
 }
 
 export interface PartUpdatedMessage {

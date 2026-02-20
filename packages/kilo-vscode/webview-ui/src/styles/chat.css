@@ -43,6 +43,17 @@
   gap: 12px;
 }
 
+.message-list-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--vscode-descriptionForeground);
+  gap: 12px;
+  font-size: 13px;
+}
+
 .message-list-empty {
   display: flex;
   flex-direction: column;

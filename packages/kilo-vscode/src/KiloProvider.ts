@@ -26,6 +26,8 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   private trackedSessionIds: Set<string> = new Set()
   /** Per-session directory overrides (e.g., worktree paths registered by AgentManagerProvider). */
   private sessionDirectories = new Map<string, string>()
+  /** Abort controller for the current loadMessages request; aborted when a new session is selected. */
+  private loadMessagesAbort: AbortController | null = null
   private unsubscribeEvent: (() => void) | null = null
   private unsubscribeState: (() => void) | null = null
   private webviewMessageDisposable: vscode.Disposable | null = null
@@ -285,7 +287,9 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
           this.trackedSessionIds.clear()
           break
         case "loadMessages":
-          await this.handleLoadMessages(message.sessionID)
+          // Don't await: allow parallel loads so rapid session switching
+          // isn't blocked by slow responses for earlier sessions.
+          void this.handleLoadMessages(message.sessionID)
           break
         case "syncSession":
           await this.handleSyncSession(message.sessionID)
@@ -560,25 +564,36 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       this.postMessage({
         type: "error",
         message: "Not connected to CLI backend",
+        sessionID,
       })
       return
     }
 
+    // Abort any previous in-flight loadMessages request so the backend
+    // isn't overwhelmed when the user switches sessions rapidly.
+    this.loadMessagesAbort?.abort()
+    const abort = new AbortController()
+    this.loadMessagesAbort = abort
+
     try {
       const workspaceDir = this.getWorkspaceDirectory(sessionID)
-      const messagesData = await this.httpClient.getMessages(sessionID, workspaceDir)
+      const messagesData = await this.httpClient.getMessages(sessionID, workspaceDir, abort.signal)
+
+      // If this request was aborted while awaiting, skip posting stale results
+      if (abort.signal.aborted) return
 
       // Update currentSession so fallback logic in handleSendMessage/handleAbort
       // references the correct session after switching to a historical session.
       // Non-blocking: don't let a failure here prevent messages from loading.
+      // 404s are expected for cross-worktree sessions — use silent to suppress HTTP error logs.
       this.httpClient
-        .getSession(sessionID, workspaceDir)
+        .getSession(sessionID, workspaceDir, true)
         .then((session) => {
           if (!this.currentSession || this.currentSession.id === sessionID) {
             this.currentSession = session
           }
         })
-        .catch((err) => console.error("[Kilo New] KiloProvider: Failed to fetch session for tracking:", err))
+        .catch(() => {})
 
       // Fetch current session status so the webview has the correct busy/idle
       // state after switching tabs (SSE events may have been missed).
@@ -618,10 +633,13 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
         messages,
       })
     } catch (error) {
+      // Silently ignore aborted requests — the user switched to a different session
+      if (abort.signal.aborted) return
       console.error("[Kilo New] KiloProvider: Failed to load messages:", error)
       this.postMessage({
         type: "error",
         message: error instanceof Error ? error.message : "Failed to load messages",
+        sessionID,
       })
     }
   }

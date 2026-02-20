@@ -357,7 +357,9 @@ export const SessionProvider: ParentComponent = (props) => {
           break
 
         case "error":
-          setLoading(false)
+          // Only clear loading if the error is for the current session
+          // (or has no sessionID for backwards compatibility)
+          if (!message.sessionID || message.sessionID === currentSessionID()) setLoading(false)
           break
       }
     })

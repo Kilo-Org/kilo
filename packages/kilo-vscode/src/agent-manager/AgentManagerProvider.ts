@@ -139,7 +139,12 @@ export class AgentManagerProvider implements vscode.Disposable {
       return null
     }
     if (type === "agentManager.requestState") {
-      void this.stateReady?.then(() => this.pushState()).catch(() => this.pushState())
+      void this.stateReady
+        ?.then(() => this.pushState())
+        .catch((err) => {
+          this.log("initializeState failed, pushing partial state:", err)
+          this.pushState()
+        })
       return null
     }
 

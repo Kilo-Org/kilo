@@ -779,6 +779,16 @@ export namespace ProviderTransform {
       result["chat_template_args"] = { enable_thinking: true }
     }
 
+    // kilocode_change - some thinking models (e.g. moonshot) require reasoning enabled
+    // see test/provider/transform.test.ts "thinking models require reasoning enabled"
+    if (
+      input.model.api.npm === "@kilocode/kilo-gateway" &&
+      input.model.capabilities.reasoning &&
+      input.model.api.id.includes("thinking")
+    ) {
+      result["reasoning"] = { enabled: true }
+    }
+
     if (["zai", "zhipuai"].includes(input.model.providerID) && input.model.api.npm === "@ai-sdk/openai-compatible") {
       result["thinking"] = {
         type: "enabled",

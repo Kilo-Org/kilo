@@ -2158,5 +2158,80 @@ describe("ProviderTransform.smallOptions", () => {
       expect(result).toEqual({ reasoning: { enabled: false } })
     })
   })
+
+  // Some thinking models via Kilo Gateway (observed with moonshot) require reasoning
+  // to be explicitly enabled. Use "thinking" in model name as heuristic rather than
+  // hard-coding provider/model names.
+  describe("thinking models require reasoning enabled", () => {
+    const sessionID = "test-session"
+
+    test("kimi-k2-thinking gets reasoning enabled", () => {
+      const model = createMockModel({
+        id: "kilo/moonshotai/kimi-k2-thinking",
+        providerID: "kilo",
+        reasoning: true,
+        api: {
+          id: "moonshotai/kimi-k2-thinking",
+          url: "https://gateway.kilo.ai",
+          npm: "@kilocode/kilo-gateway",
+        },
+      })
+      const result = ProviderTransform.options({ model, sessionID })
+      expect(result.reasoning).toEqual({ enabled: true })
+    })
+
+    test("any future -thinking model gets reasoning enabled", () => {
+      const model = createMockModel({
+        id: "kilo/someprovider/some-model-thinking",
+        providerID: "kilo",
+        reasoning: true,
+        api: {
+          id: "someprovider/some-model-thinking",
+          url: "https://gateway.kilo.ai",
+          npm: "@kilocode/kilo-gateway",
+        },
+      })
+      const result = ProviderTransform.options({ model, sessionID })
+      expect(result.reasoning).toEqual({ enabled: true })
+    })
+
+    test("non-thinking models do not get reasoning auto-enabled", () => {
+      const model = createMockModel({
+        id: "kilo/moonshotai/kimi-k2",
+        providerID: "kilo",
+        reasoning: true,
+        api: {
+          id: "moonshotai/kimi-k2",
+          url: "https://gateway.kilo.ai",
+          npm: "@kilocode/kilo-gateway",
+        },
+      })
+      const result = ProviderTransform.options({ model, sessionID })
+      expect(result.reasoning).toBeUndefined()
+    })
+
+    test("thinking model without reasoning capability does not get reasoning enabled", () => {
+      const model = createMockModel({
+        id: "kilo/someprovider/fake-thinking",
+        providerID: "kilo",
+        capabilities: {
+          temperature: true,
+          reasoning: false,
+          attachment: true,
+          toolcall: true,
+          input: { text: true, audio: false, image: true, video: false, pdf: false },
+          output: { text: true, audio: false, image: false, video: false, pdf: false },
+          interleaved: false,
+        },
+        api: {
+          id: "someprovider/fake-thinking",
+          url: "https://gateway.kilo.ai",
+          npm: "@kilocode/kilo-gateway",
+        },
+      })
+      const result = ProviderTransform.options({ model, sessionID })
+      expect(result.reasoning).toBeUndefined()
+    })
+  })
 })
 // kilocode_change end

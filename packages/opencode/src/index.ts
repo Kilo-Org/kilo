@@ -26,6 +26,7 @@ import { EOL } from "os"
 import { WebCommand } from "./cli/cmd/web"
 import { PrCommand } from "./cli/cmd/pr"
 import { SessionCommand } from "./cli/cmd/session"
+import { WindowsCommand } from "./cli/cmd/windows" // kilocode_change - Windows context menu
 // kilocode_change start - Import telemetry and legacy migration
 import { Telemetry } from "@kilocode/kilo-telemetry"
 import { migrateLegacyKiloAuth, ENV_FEATURE } from "@kilocode/kilo-gateway"
@@ -114,6 +115,15 @@ const cli = yargs(hideBin(process.argv))
 
     Telemetry.trackCliStart()
     // kilocode_change end
+
+    // kilocode_change start - first-launch context menu prompt (Windows only)
+    if (process.platform === "win32") {
+      const { FirstLaunch } = await import("./windows-context-menu/first-launch")
+      if (await FirstLaunch.shouldPrompt()) {
+        await FirstLaunch.prompt()
+      }
+    }
+    // kilocode_change end
   })
   .usage("\n" + UI.logo())
   .completion("completion", "generate shell completion script")
@@ -137,6 +147,7 @@ const cli = yargs(hideBin(process.argv))
   // .command(GithubCommand) // kilocode_change (Disabled until backend is ready)
   .command(PrCommand)
   .command(SessionCommand)
+  .command(WindowsCommand) // kilocode_change - Windows context menu
   .fail((msg, err) => {
     if (
       msg?.startsWith("Unknown argument") ||

@@ -577,6 +577,10 @@ export class AgentManagerProvider implements vscode.Disposable {
     this.panel.reveal(vscode.ViewColumn.One, false)
   }
 
+  public isActive(): boolean {
+    return this.panel?.active === true
+  }
+
   public postMessage(message: unknown): void {
     this.panel?.webview.postMessage(message)
   }

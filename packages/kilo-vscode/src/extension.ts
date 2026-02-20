@@ -109,7 +109,7 @@ export function activate(context: vscode.ExtensionContext) {
   registerCommitMessageService(context, connectionService)
 
   // Register code actions (editor context menus, terminal context menus, keyboard shortcuts)
-  registerCodeActions(context, provider)
+  registerCodeActions(context, provider, agentManagerProvider)
   registerTerminalActions(context, provider)
 
   // Register CodeActionProvider (lightbulb quick fixes)

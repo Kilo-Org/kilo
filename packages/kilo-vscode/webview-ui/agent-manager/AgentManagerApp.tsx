@@ -405,6 +405,7 @@ const AgentManagerContent: Component = () => {
       else if (msg.action === "closeTab") closeActiveTab()
       else if (msg.action === "newWorktree") handleNewWorktreeOrPromote()
       else if (msg.action === "closeWorktree") closeSelectedWorktree()
+      else if (msg.action === "focusInput") window.dispatchEvent(new Event("focusPrompt"))
     }
     window.addEventListener("message", handler)
 

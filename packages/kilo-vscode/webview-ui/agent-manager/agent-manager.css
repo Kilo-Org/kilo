@@ -7,7 +7,7 @@
 }
 
 .am-sidebar {
-  width: 260px;
+  position: relative;
   min-width: 200px;
   border-right: 1px solid var(--border-weak-base);
   display: flex;
@@ -16,6 +16,10 @@
   background: var(--surface-base);
   padding: 8px;
   gap: 4px;
+}
+
+.am-sidebar > [data-component="resize-handle"]::after {
+  background: var(--surface-interactive-base);
 }
 
 /* Fixed local workspace item */

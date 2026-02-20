@@ -19,6 +19,7 @@ import { DiffComponentProvider } from "@kilocode/kilo-ui/context/diff"
 import { Code } from "@kilocode/kilo-ui/code"
 import { Diff } from "@kilocode/kilo-ui/diff"
 import { Toast } from "@kilocode/kilo-ui/toast"
+import { ResizeHandle } from "@kilocode/kilo-ui/resize-handle"
 import { Icon } from "@kilocode/kilo-ui/icon"
 import { Button } from "@kilocode/kilo-ui/button"
 import { IconButton } from "@kilocode/kilo-ui/icon-button"
@@ -61,9 +62,14 @@ const AgentManagerContent: Component = () => {
   const [repoBranch, setRepoBranch] = createSignal<string | undefined>()
   const [deletingWorktrees, setDeletingWorktrees] = createSignal<Set<string>>(new Set())
 
+  const DEFAULT_SIDEBAR_WIDTH = 260
+  const MIN_SIDEBAR_WIDTH = 200
+  const MAX_SIDEBAR_WIDTH_RATIO = 0.4
+
   // Recover persisted local session IDs from webview state
-  const persisted = vscode.getState<{ localSessionIDs?: string[] }>()
+  const persisted = vscode.getState<{ localSessionIDs?: string[]; sidebarWidth?: number }>()
   const [localSessionIDs, setLocalSessionIDs] = createSignal<string[]>(persisted?.localSessionIDs ?? [])
+  const [sidebarWidth, setSidebarWidth] = createSignal(persisted?.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH)
 
   // Pending local tab counter for generating unique IDs
   let pendingCounter = 0
@@ -80,9 +86,12 @@ const AgentManagerContent: Component = () => {
     return id
   }
 
-  // Persist local session IDs to webview state for recovery (exclude pending tabs)
+  // Persist local session IDs and sidebar width to webview state for recovery (exclude pending tabs)
   createEffect(() => {
-    vscode.setState({ localSessionIDs: localSessionIDs().filter((id) => !isPending(id)) })
+    vscode.setState({
+      localSessionIDs: localSessionIDs().filter((id) => !isPending(id)),
+      sidebarWidth: sidebarWidth(),
+    })
   })
 
   // Invalidate local session IDs if they no longer exist (preserve pending tabs)
@@ -518,7 +527,14 @@ const AgentManagerContent: Component = () => {
 
   return (
     <div class="am-layout">
-      <div class="am-sidebar">
+      <div class="am-sidebar" style={{ width: `${sidebarWidth()}px` }}>
+        <ResizeHandle
+          direction="horizontal"
+          size={sidebarWidth()}
+          min={MIN_SIDEBAR_WIDTH}
+          max={window.innerWidth * MAX_SIDEBAR_WIDTH_RATIO}
+          onResize={setSidebarWidth}
+        />
         {/* Local workspace item */}
         <button
           class={`am-local-item ${selection() === LOCAL ? "am-local-item-active" : ""}`}

@@ -56,7 +56,7 @@ export namespace Filesystem {
 
   export function contains(parent: string, child: string) {
     const path = relative(parent, child)
-    return !/^\.\.|.:/.test(path)
+    return !/^\.\.|^.:/.test(path)
   }
 
   export async function findUp(target: string, start: string, stop?: string) {

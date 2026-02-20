@@ -174,6 +174,81 @@ describe("WorktreeStateManager", () => {
     })
   })
 
+  describe("tab order", () => {
+    it("sets and gets tab order for a key", () => {
+      manager.setTabOrder("wt-1", ["s1", "s2", "s3"])
+      expect(manager.getTabOrder()["wt-1"]).toEqual(["s1", "s2", "s3"])
+    })
+
+    it("overwrites existing tab order", () => {
+      manager.setTabOrder("wt-1", ["s1", "s2"])
+      manager.setTabOrder("wt-1", ["s2", "s1"])
+      expect(manager.getTabOrder()["wt-1"]).toEqual(["s2", "s1"])
+    })
+
+    it("removes tab order for a key", () => {
+      manager.setTabOrder("wt-1", ["s1"])
+      manager.removeTabOrder("wt-1")
+      expect(manager.getTabOrder()["wt-1"]).toBeUndefined()
+    })
+
+    it("removeTabOrder is a no-op for missing key", () => {
+      manager.removeTabOrder("nonexistent")
+      expect(Object.keys(manager.getTabOrder())).toHaveLength(0)
+    })
+
+    it("cleans up tab order when worktree is removed", () => {
+      const wt = manager.addWorktree({ branch: "fix", path: "/tmp/fix", parentBranch: "main" })
+      manager.addSession("s1", wt.id)
+      manager.setTabOrder(wt.id, ["s1"])
+
+      manager.removeWorktree(wt.id)
+      expect(manager.getTabOrder()[wt.id]).toBeUndefined()
+    })
+
+    it("removes session from tab order arrays when session is removed", () => {
+      const wt = manager.addWorktree({ branch: "fix", path: "/tmp/fix", parentBranch: "main" })
+      manager.addSession("s1", wt.id)
+      manager.addSession("s2", wt.id)
+      manager.setTabOrder(wt.id, ["s1", "s2"])
+
+      manager.removeSession("s1")
+      expect(manager.getTabOrder()[wt.id]).toEqual(["s2"])
+    })
+
+    it("removes tab order entry when last session in order is removed", () => {
+      manager.addSession("s1", null)
+      manager.setTabOrder("local", ["s1"])
+
+      manager.removeSession("s1")
+      expect(manager.getTabOrder()["local"]).toBeUndefined()
+    })
+
+    it("persists and loads tab order", async () => {
+      const wt = manager.addWorktree({ branch: "fix", path: "/tmp/fix", parentBranch: "main" })
+      manager.setTabOrder(wt.id, ["s2", "s1"])
+      manager.setTabOrder("local", ["s3", "s4"])
+      await manager.flush()
+      await manager.save()
+
+      const loaded = new WorktreeStateManager(root, () => {})
+      await loaded.load()
+
+      expect(loaded.getTabOrder()[wt.id]).toEqual(["s2", "s1"])
+      expect(loaded.getTabOrder()["local"]).toEqual(["s3", "s4"])
+    })
+
+    it("does not persist empty tab order", async () => {
+      manager.addWorktree({ branch: "fix", path: "/tmp/fix", parentBranch: "main" })
+      await manager.flush()
+      await manager.save()
+
+      const content = fs.readFileSync(path.join(root, ".kilocode", "agent-manager.json"), "utf-8")
+      const data = JSON.parse(content)
+      expect(data.tabOrder).toBeUndefined()
+    })
+  })
+
   describe("validate", () => {
     it("removes worktrees whose directories do not exist", async () => {
       const existing = path.join(root, "wt-exists")

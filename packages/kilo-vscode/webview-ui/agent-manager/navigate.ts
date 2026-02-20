@@ -59,17 +59,5 @@ export function nextSelectionAfterDelete(deletedId: string, worktreeIds: string[
   return remaining[Math.min(idx, remaining.length - 1)]!
 }
 
-/**
- * Reorder an array by moving the item at `from` to the position of `to`.
- * Returns a new array, or undefined if either ID is not found or they are equal.
- */
-export function reorderTabs(tabs: readonly string[], from: string, to: string): string[] | undefined {
-  if (from === to) return undefined
-  const fi = tabs.indexOf(from)
-  const ti = tabs.indexOf(to)
-  if (fi === -1 || ti === -1) return undefined
-  const result = [...tabs]
-  result.splice(fi, 1)
-  result.splice(ti, 0, from)
-  return result
-}
+// Re-export tab ordering utilities for backwards compatibility
+export { reorderTabs } from "./tab-order"

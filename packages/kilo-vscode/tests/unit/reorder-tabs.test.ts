@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { reorderTabs } from "../../webview-ui/agent-manager/navigate"
+import { reorderTabs } from "../../webview-ui/agent-manager/tab-order"
 
 describe("reorderTabs", () => {
   const tabs = ["a", "b", "c", "d"]

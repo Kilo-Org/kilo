@@ -10,17 +10,8 @@ import type {
   ManagedSessionState,
   SessionInfo,
 } from "../src/types/messages"
-import {
-  DragDropProvider,
-  DragDropSensors,
-  DragOverlay,
-  SortableProvider,
-  createSortable,
-  closestCenter,
-  useDragDropContext,
-} from "@thisbeyond/solid-dnd"
-import type { DragEvent, Transformer } from "@thisbeyond/solid-dnd"
-import { createRoot } from "solid-js"
+import { DragDropProvider, DragDropSensors, DragOverlay, SortableProvider, closestCenter } from "@thisbeyond/solid-dnd"
+import type { DragEvent } from "@thisbeyond/solid-dnd"
 import { ThemeProvider } from "@kilocode/kilo-ui/theme"
 import { DialogProvider, useDialog } from "@kilocode/kilo-ui/context/dialog"
 import { Dialog } from "@kilocode/kilo-ui/dialog"
@@ -44,7 +35,9 @@ import { WorktreeModeProvider } from "../src/context/worktree-mode"
 import { ChatView } from "../src/components/chat"
 import { LanguageBridge, DataBridge } from "../src/App"
 import { formatRelativeDate } from "../src/utils/date"
-import { validateLocalSession, nextSelectionAfterDelete, reorderTabs, LOCAL } from "./navigate"
+import { validateLocalSession, nextSelectionAfterDelete, LOCAL } from "./navigate"
+import { reorderTabs, applyTabOrder, firstOrderedTitle, reconcileOrder } from "./tab-order"
+import { ConstrainDragYAxis, SortableTab } from "./sortable-tab"
 import "./agent-manager.css"
 
 interface SetupState {
@@ -59,61 +52,6 @@ type SidebarSelection = typeof LOCAL | string | null
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent)
 const modKey = isMac ? "\u2318" : "Ctrl+"
-
-// Lock drag movement to the X axis (horizontal-only tab dragging)
-const ConstrainDragYAxis: Component = () => {
-  const context = useDragDropContext()
-  if (!context) return null
-  const [, { onDragStart, onDragEnd, addTransformer, removeTransformer }] = context
-  const transformer: Transformer = { id: "constrain-y-axis", order: 100, callback: (t) => ({ ...t, y: 0 }) }
-  const dispose = createRoot((dispose) => {
-    onDragStart(({ draggable }) => {
-      if (draggable) addTransformer("draggables", draggable.id as string, transformer)
-    })
-    onDragEnd(({ draggable }) => {
-      if (draggable) removeTransformer("draggables", draggable.id as string, transformer.id)
-    })
-    return dispose
-  })
-  onCleanup(dispose)
-  return null
-}
-
-// Individual sortable tab wrapper
-const SortableTab: Component<{
-  tab: SessionInfo
-  active: boolean
-  pending: boolean
-  onSelect: () => void
-  onMiddleClick: (e: MouseEvent) => void
-  onClose: (e: MouseEvent) => void
-}> = (props) => {
-  const sortable = createSortable(props.tab.id)
-  // Prevent tree-shaking of the directive reference used by `use:sortable`
-  void sortable
-  return (
-    // @ts-ignore - use:sortable is a SolidJS directive compiled by esbuild-plugin-solid
-    <div use:sortable class={`am-tab-sortable ${sortable.isActiveDraggable ? "am-tab-dragging" : ""}`}>
-      <Tooltip value={props.tab.title || "Untitled"} placement="bottom">
-        <div
-          class={`am-tab ${props.active ? "am-tab-active" : ""}`}
-          onClick={props.onSelect}
-          onMouseDown={props.onMiddleClick}
-        >
-          <span class="am-tab-label">{props.tab.title || "Untitled"}</span>
-          <IconButton
-            icon="close-small"
-            size="small"
-            variant="ghost"
-            label="Close tab"
-            class="am-tab-close"
-            onClick={props.onClose}
-          />
-        </div>
-      </Tooltip>
-    </div>
-  )
-}
 
 const AgentManagerContent: Component = () => {
   const session = useSession()
@@ -213,20 +151,7 @@ const AgentManagerContent: Component = () => {
       .sessions()
       .filter((s) => ids.has(s.id))
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-    const order = worktreeTabOrder()[sel]
-    if (!order) return sessions
-    // Sort by custom order, append any new sessions not in the order
-    const lookup = new Map(sessions.map((s) => [s.id, s]))
-    const ordered: SessionInfo[] = []
-    for (const id of order) {
-      const s = lookup.get(id)
-      if (s) {
-        ordered.push(s)
-        lookup.delete(id)
-      }
-    }
-    for (const s of lookup.values()) ordered.push(s)
-    return ordered
+    return applyTabOrder(sessions, worktreeTabOrder()[sel])
   })
 
   // Active tab sessions: local sessions when on "local", worktree sessions otherwise
@@ -250,19 +175,10 @@ const AgentManagerContent: Component = () => {
 
   // Display name for worktree — uses first tab in custom order when available
   const worktreeLabel = (wt: WorktreeState): string => {
-    const order = worktreeTabOrder()[wt.id]
     const managed = managedSessions().filter((ms) => ms.worktreeId === wt.id)
     const ids = new Set(managed.map((ms) => ms.id))
     const sessions = session.sessions().filter((s) => ids.has(s.id))
-    if (order) {
-      const lookup = new Map(sessions.map((s) => [s.id, s]))
-      for (const id of order) {
-        const s = lookup.get(id)
-        if (s?.title) return s.title
-      }
-    }
-    const first = sessions.find((s) => s.title)
-    return first?.title || wt.branch
+    return firstOrderedTitle(sessions, worktreeTabOrder()[wt.id], wt.branch)
   }
 
   const scrollIntoView = (el: HTMLElement) => {
@@ -588,7 +504,8 @@ const AgentManagerContent: Component = () => {
       setLocalSessionIDs((prev) => reorderTabs(prev, from, to) ?? prev)
     } else if (sel) {
       setWorktreeTabOrder((prev) => {
-        const reordered = reorderTabs(prev[sel] ?? tabIds(), from, to)
+        const reconciled = reconcileOrder(prev[sel] ?? [], tabIds())
+        const reordered = reorderTabs(reconciled, from, to)
         if (!reordered) return prev
         return { ...prev, [sel]: reordered }
       })

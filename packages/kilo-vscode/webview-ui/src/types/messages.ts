@@ -863,7 +863,6 @@ export interface CreateMultiVersionRequest {
   type: "agentManager.createMultiVersion"
   text: string
   versions: number
-  labels: string[]
   providerID?: string
   modelID?: string
   agent?: string

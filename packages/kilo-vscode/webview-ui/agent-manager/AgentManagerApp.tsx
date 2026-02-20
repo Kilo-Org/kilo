@@ -1329,13 +1329,10 @@ const NewWorktreeDialog: Component<{ onClose: () => void }> = (props) => {
     const sel = model()
     const defaultAgent = session.agents()[0]?.name
     const selectedAgent = agent() !== defaultAgent ? agent() : undefined
-    const labels = Array.from({ length: count }, (_, i) => `${text.slice(0, 50)} (v${i + 1})`)
-
     vscode.postMessage({
       type: "agentManager.createMultiVersion",
       text,
       versions: count,
-      labels,
       providerID: sel?.providerID,
       modelID: sel?.modelID,
       agent: selectedAgent,

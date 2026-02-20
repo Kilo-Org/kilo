@@ -421,8 +421,9 @@ export class AgentManagerProvider implements vscode.Disposable {
   /** Create N worktree sessions for the same prompt (multi-version mode). */
   private async onCreateMultiVersion(msg: Record<string, unknown>): Promise<null> {
     const text = msg.text as string
+    if (!text) return null
+
     const versions = Math.min(Math.max(Number(msg.versions) || 1, 1), 4)
-    const labels = (msg.labels as string[]) ?? []
     const providerID = msg.providerID as string | undefined
     const modelID = msg.modelID as string | undefined
     const agent = msg.agent as string | undefined
@@ -461,6 +462,8 @@ export class AgentManagerProvider implements vscode.Disposable {
         this.log(`Failed to create worktree for version ${i + 1}`)
         continue
       }
+
+      await this.runSetupScriptForWorktree(wt.result.path, wt.result.branch)
 
       const session = await this.createSessionInWorktree(wt.result.path, wt.result.branch)
       if (!session) {

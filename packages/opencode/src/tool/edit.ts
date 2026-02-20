@@ -42,6 +42,23 @@ export const EditTool = Tool.define("edit", {
     }
 
     const filePath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
+
+    // kilocode_change start - governed agent protocol: check write path
+    const { GovernanceIntegration } = await import("../governance/integration")
+    const govCheck = GovernanceIntegration.checkWritePath(filePath, Instance.directory)
+    if (!govCheck.allowed) {
+      return {
+        title: "[governance] blocked",
+        metadata: {
+          diagnostics: {},
+          diff: "",
+          filediff: { file: filePath, before: "", after: "", additions: 0, deletions: 0 },
+        },
+        output: govCheck.output!,
+      }
+    }
+    // kilocode_change end
+
     await assertExternalDirectory(ctx, filePath)
 
     let diff = ""

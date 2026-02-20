@@ -11,6 +11,7 @@ export namespace Flag {
   export declare const KILO_CONFIG_DIR: string | undefined
   export const KILO_CONFIG_CONTENT = process.env["KILO_CONFIG_CONTENT"]
   export const KILO_DISABLE_AUTOUPDATE = truthy("KILO_DISABLE_AUTOUPDATE")
+  export const KILO_DISABLE_GOVERNANCE = truthy("KILO_DISABLE_GOVERNANCE")
   export const KILO_DISABLE_PRUNE = truthy("KILO_DISABLE_PRUNE")
   export const KILO_DISABLE_TERMINAL_TITLE = truthy("KILO_DISABLE_TERMINAL_TITLE")
   export const KILO_PERMISSION = process.env["KILO_PERMISSION"]

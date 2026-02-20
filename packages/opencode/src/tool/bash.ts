@@ -89,6 +89,9 @@ export const BashTool = Tool.define("bash", async () => {
       if (!Instance.containsPath(cwd)) directories.add(cwd)
       const patterns = new Set<string>()
       const always = new Set<string>()
+      // kilocode_change start - governed agent protocol: collect tokens for governance check
+      const governanceTokenSets: string[][] = []
+      // kilocode_change end
 
       for (const node of tree.rootNode.descendantsOfType("command")) {
         if (!node) continue
@@ -137,12 +140,32 @@ export const BashTool = Tool.define("bash", async () => {
           }
         }
 
+        // kilocode_change start - governed agent protocol: collect tokens
+        if (command.length > 0) governanceTokenSets.push([...command])
+        // kilocode_change end
+
         // cd covered by above check
         if (command.length && command[0] !== "cd") {
           patterns.add(commandText)
           always.add(BashArity.prefix(command).join(" ") + " *")
         }
       }
+
+      // kilocode_change start - governed agent protocol: check for destructive commands
+      const { GovernanceIntegration } = await import("../governance/integration")
+      const govCheck = GovernanceIntegration.checkBash(params.command, governanceTokenSets)
+      if (!govCheck.allowed) {
+        return {
+          title: "[governance] blocked",
+          metadata: {
+            output: govCheck.output!,
+            exit: 1,
+            description: params.description,
+          },
+          output: govCheck.output!,
+        }
+      }
+      // kilocode_change end
 
       if (directories.size > 0) {
         const globs = Array.from(directories).map((dir) => path.join(dir, "*"))
@@ -254,6 +277,12 @@ export const BashTool = Tool.define("bash", async () => {
       if (resultMetadata.length > 0) {
         output += "\n\n<bash_metadata>\n" + resultMetadata.join("\n") + "\n</bash_metadata>"
       }
+
+      // kilocode_change start - governed agent protocol: append warnings for medium severity
+      if (govCheck.warnings) {
+        output += "\n\n" + govCheck.warnings
+      }
+      // kilocode_change end
 
       return {
         title: params.description,

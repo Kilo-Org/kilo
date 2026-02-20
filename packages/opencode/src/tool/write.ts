@@ -24,6 +24,23 @@ export const WriteTool = Tool.define("write", {
   }),
   async execute(params, ctx) {
     const filepath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
+
+    // kilocode_change start - governed agent protocol: check write path
+    const { GovernanceIntegration } = await import("../governance/integration")
+    const govCheck = GovernanceIntegration.checkWritePath(filepath, Instance.directory)
+    if (!govCheck.allowed) {
+      return {
+        title: "[governance] blocked",
+        metadata: {
+          diagnostics: {},
+          filepath,
+          exists: false,
+        },
+        output: govCheck.output!,
+      }
+    }
+    // kilocode_change end
+
     await assertExternalDirectory(ctx, filepath)
 
     const file = Bun.file(filepath)

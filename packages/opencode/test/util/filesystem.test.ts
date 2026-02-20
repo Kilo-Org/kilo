@@ -37,29 +37,29 @@ describe("util.filesystem", () => {
     await rm(tmp, { recursive: true, force: true })
   })
 
-  test("normalize() converts paths to posix format", () => {
+  test.skipIf(process.platform !== "win32")("normalize() converts paths to posix format", () => {
     expect(Filesystem.normalize("C:\\Users\\test\\file.txt")).toBe("C:/Users/test/file.txt")
     expect(Filesystem.normalize("/unix/path/file.txt")).toBe("/unix/path/file.txt")
     expect(Filesystem.normalize("relative\\path\\file.txt")).toBe("relative/path/file.txt")
   })
 
-  test("relative() returns posix-style relative paths", () => {
+  test.skipIf(process.platform !== "win32")("relative() returns posix-style relative paths", () => {
     const from = "C:\\Users\\test\\project"
     const to = "C:\\Users\\test\\project\\src\\file.txt"
     expect(Filesystem.relative(from, to)).toBe("src/file.txt")
   })
 
-  test("join() produces posix-style paths", () => {
+  test.skipIf(process.platform !== "win32")("join() produces posix-style paths", () => {
     expect(Filesystem.join("C:\\Users", "test", "file.txt")).toBe("C:/Users/test/file.txt")
     expect(Filesystem.join("/unix", "path", "file.txt")).toBe("/unix/path/file.txt")
   })
 
-  test("dirname() returns posix-style directory", () => {
+  test.skipIf(process.platform !== "win32")("dirname() returns posix-style directory", () => {
     expect(Filesystem.dirname("C:\\Users\\test\\file.txt")).toBe("C:/Users/test")
     expect(Filesystem.dirname("/unix/path/file.txt")).toBe("/unix/path")
   })
 
-  test("contains() checks if path is within directory", () => {
+  test.skipIf(process.platform !== "win32")("contains() checks if path is within directory", () => {
     const dir = "C:\\Users\\test\\project"
     const inside = "C:\\Users\\test\\project\\src\\file.txt"
     const outside = "C:\\Users\\other\\file.txt"

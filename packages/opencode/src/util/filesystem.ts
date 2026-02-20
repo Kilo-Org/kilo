@@ -1,5 +1,4 @@
 import { realpathSync } from "fs"
-import { Flag } from "@/flag/flag"
 import path from "path"
 import { normalize as _normalize } from "@opencode-ai/util/path"
 

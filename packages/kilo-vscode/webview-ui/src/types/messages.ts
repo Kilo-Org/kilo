@@ -565,6 +565,13 @@ export interface AgentManagerStateMessage {
   type: "agentManager.state"
   worktrees: WorktreeState[]
   sessions: ManagedSessionState[]
+  tabOrder?: Record<string, string[]>
+}
+
+// Resolved keybindings for agent manager actions
+export interface AgentManagerKeybindingsMessage {
+  type: "agentManager.keybindings"
+  bindings: Record<string, string>
 }
 
 export type ExtensionMessage =
@@ -605,6 +612,7 @@ export type ExtensionMessage =
   | AgentManagerWorktreeSetupMessage
   | AgentManagerSessionAddedMessage
   | AgentManagerStateMessage
+  | AgentManagerKeybindingsMessage
   | SetChatBoxMessage
   | TriggerTaskMessage
 
@@ -835,6 +843,11 @@ export interface RequestRepoInfoMessage {
   type: "agentManager.requestRepoInfo"
 }
 
+// Configure worktree setup script
+export interface ConfigureSetupScriptRequest {
+  type: "agentManager.configureSetupScript"
+}
+
 // Show terminal for a session
 export interface ShowTerminalRequest {
   type: "agentManager.showTerminal"
@@ -852,6 +865,13 @@ export interface CreateMultiVersionRequest {
   agent?: string
   files?: FileAttachment[]
   baseBranch?: string
+}
+
+// Persist tab order for a context (worktree ID or "local")
+export interface SetTabOrderRequest {
+  type: "agentManager.setTabOrder"
+  key: string
+  order: string[]
 }
 
 export type WebviewMessage =
@@ -897,8 +917,10 @@ export type WebviewMessage =
   | CloseSessionRequest
   | TelemetryRequest
   | RequestRepoInfoMessage
+  | ConfigureSetupScriptRequest
   | ShowTerminalRequest
   | CreateMultiVersionRequest
+  | SetTabOrderRequest
 
 // ============================================
 // VS Code API type

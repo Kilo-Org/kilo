@@ -31,7 +31,7 @@ function normalizePath(input?: string) {
   if (!relative.startsWith("..")) return relative
 
   // outside cwd - use ~ or absolute
-  if (home && (absolute === home || absolute.startsWith(home + path.sep))) {
+  if (home && (absolute === home || absolute.startsWith(home + '/'))) {
     return absolute.replace(home, "~")
   }
   return absolute

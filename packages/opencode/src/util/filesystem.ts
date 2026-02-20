@@ -25,7 +25,7 @@ export namespace Filesystem {
     try {
       return normalize(realpathSync.native(p))
     } catch {
-      return p
+      return normalize(p)
     }
   }
 

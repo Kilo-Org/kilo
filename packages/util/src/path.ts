@@ -41,5 +41,6 @@ export function truncateMiddle(text: string, maxLength: number = 20) {
  * On Windows, also convert MSYS and Cygwin style paths to Windows drive letter paths.
  */
 export function normalize(p: string): string {
+  if (process.platform !== "win32") return p
   return p.replace(/^\/(?:cygdrive\/)?([a-zA-Z])(\/|$)/, (_, d) => `${d.toUpperCase()}:/`).replace(/\\+/g, "/")
 }

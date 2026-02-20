@@ -24,7 +24,7 @@ function normalizePath(input?: string) {
 
   const cwd = process.cwd()
   const home = Global.Path.home
-  const absolute = path.isAbsolute(input) ? input : Filesystem.resolve(cwd, input)
+  const absolute = Filesystem.normalize(path.isAbsolute(input) ? input : Filesystem.resolve(cwd, input))
   const relative = Filesystem.relative(cwd, absolute)
 
   if (!relative) return "."

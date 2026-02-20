@@ -28,7 +28,7 @@ export const ReadTool = Tool.define("read", {
     }
     let filepath = Filesystem.normalize(params.filePath)
     if (!path.isAbsolute(filepath)) {
-      filepath = Filesystem.join(Instance.directory, filepath)
+      filepath = Filesystem.resolve(Instance.directory, filepath)
     }
     const title = Filesystem.relative(Instance.worktree, filepath)
 

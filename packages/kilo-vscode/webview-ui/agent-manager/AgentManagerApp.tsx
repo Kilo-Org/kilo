@@ -48,6 +48,7 @@ import { ProviderProvider } from "../src/context/provider"
 import { ConfigProvider } from "../src/context/config"
 import { SessionProvider, useSession } from "../src/context/session"
 import { WorktreeModeProvider } from "../src/context/worktree-mode"
+import { NotificationsProvider } from "../src/context/notifications"
 import { ChatView } from "../src/components/chat"
 import { ModelSelectorBase } from "../src/components/chat/ModelSelector"
 import { ModeSwitcherBase } from "../src/components/chat/ModeSwitcher"
@@ -1634,13 +1635,15 @@ export const AgentManagerApp: Component = () => {
                   <CodeComponentProvider component={Code}>
                     <ProviderProvider>
                       <ConfigProvider>
-                        <SessionProvider>
-                          <WorktreeModeProvider>
-                            <DataBridge>
-                              <AgentManagerContent />
-                            </DataBridge>
-                          </WorktreeModeProvider>
-                        </SessionProvider>
+                        <NotificationsProvider>
+                          <SessionProvider>
+                            <WorktreeModeProvider>
+                              <DataBridge>
+                                <AgentManagerContent />
+                              </DataBridge>
+                            </WorktreeModeProvider>
+                          </SessionProvider>
+                        </NotificationsProvider>
                       </ConfigProvider>
                     </ProviderProvider>
                   </CodeComponentProvider>

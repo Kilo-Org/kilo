@@ -390,9 +390,15 @@ const AgentManagerContent: Component = () => {
       }
       dialog.close()
     }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        doDelete()
+      }
+    }
     dialog.show(() => (
       <Dialog title="Delete Worktree" fit>
-        <div class="am-confirm">
+        <div class="am-confirm" onKeyDown={onKeyDown}>
           <div class="am-confirm-message">
             <Icon name="trash" size="small" />
             <span>

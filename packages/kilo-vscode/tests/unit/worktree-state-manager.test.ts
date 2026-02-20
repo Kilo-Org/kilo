@@ -277,4 +277,125 @@ describe("WorktreeStateManager", () => {
       expect(manager.getWorktrees()).toHaveLength(1)
     })
   })
+
+  describe("concurrent save serialization", () => {
+    it("rapid mutations do not lose data after flush", async () => {
+      // Fire many mutations without awaiting saves individually
+      for (let i = 0; i < 20; i++) {
+        manager.addWorktree({ branch: `b-${i}`, path: `/tmp/b-${i}`, parentBranch: "main" })
+      }
+      for (let i = 0; i < 20; i++) {
+        manager.addSession(`s-${i}`, null)
+      }
+
+      // Wait for all fire-and-forget saves to settle
+      await manager.flush()
+      await manager.save()
+
+      // Reload from disk and verify all data persisted
+      const loaded = new WorktreeStateManager(root, () => {})
+      await loaded.load()
+
+      expect(loaded.getWorktrees()).toHaveLength(20)
+      expect(loaded.getSessions()).toHaveLength(20)
+      for (let i = 0; i < 20; i++) {
+        expect(loaded.getWorktrees().find((w) => w.branch === `b-${i}`)).toBeTruthy()
+        expect(loaded.getSession(`s-${i}`)).toBeTruthy()
+      }
+    })
+
+    it("interleaved add and remove persists correctly", async () => {
+      const wt1 = manager.addWorktree({ branch: "keep", path: "/tmp/keep", parentBranch: "main" })
+      const wt2 = manager.addWorktree({ branch: "remove", path: "/tmp/remove", parentBranch: "main" })
+      manager.addSession("s1", wt1.id)
+      manager.addSession("s2", wt2.id)
+      manager.removeWorktree(wt2.id)
+      manager.addSession("s3", wt1.id)
+
+      await manager.flush()
+      await manager.save()
+
+      const loaded = new WorktreeStateManager(root, () => {})
+      await loaded.load()
+
+      expect(loaded.getWorktrees()).toHaveLength(1)
+      expect(loaded.getWorktrees()[0].branch).toBe("keep")
+      // s2 was orphaned when wt2 was removed, s1 and s3 belong to wt1
+      expect(loaded.getSession("s1")?.worktreeId).toBe(wt1.id)
+      expect(loaded.getSession("s2")?.worktreeId).toBeNull()
+      expect(loaded.getSession("s3")?.worktreeId).toBe(wt1.id)
+    })
+
+    it("concurrent save() calls resolve without data loss", async () => {
+      manager.addWorktree({ branch: "first", path: "/tmp/first", parentBranch: "main" })
+
+      // Trigger multiple saves concurrently — the second should queue behind the first
+      const p1 = manager.save()
+      manager.addWorktree({ branch: "second", path: "/tmp/second", parentBranch: "main" })
+      const p2 = manager.save()
+      await Promise.all([p1, p2])
+
+      const loaded = new WorktreeStateManager(root, () => {})
+      await loaded.load()
+      expect(loaded.getWorktrees()).toHaveLength(2)
+    })
+
+    it("flush resolves after in-flight save completes", async () => {
+      manager.addWorktree({ branch: "flush-test", path: "/tmp/flush", parentBranch: "main" })
+      // Don't await — let save fire in background
+      void manager.save()
+      // flush must wait for it
+      await manager.flush()
+
+      const loaded = new WorktreeStateManager(root, () => {})
+      await loaded.load()
+      expect(loaded.getWorktrees().find((w) => w.branch === "flush-test")).toBeTruthy()
+    })
+  })
+
+  describe("load with corrupt data", () => {
+    it("handles malformed JSON gracefully", async () => {
+      const file = path.join(root, ".kilocode", "agent-manager.json")
+      fs.writeFileSync(file, "not-valid-json{{{", "utf-8")
+
+      await manager.load()
+
+      // State should be empty — no crash
+      expect(manager.getWorktrees()).toHaveLength(0)
+      expect(manager.getSessions()).toHaveLength(0)
+      // Should have logged an error
+      expect(logs.some((l) => l.includes("Failed to load state"))).toBe(true)
+    })
+
+    it("handles partial data with missing sessions key", async () => {
+      const file = path.join(root, ".kilocode", "agent-manager.json")
+      fs.writeFileSync(
+        file,
+        JSON.stringify({
+          worktrees: { "wt-1": { branch: "a", path: "/a", parentBranch: "main", createdAt: new Date().toISOString() } },
+        }),
+        "utf-8",
+      )
+
+      await manager.load()
+
+      expect(manager.getWorktrees()).toHaveLength(1)
+      expect(manager.getWorktrees()[0].branch).toBe("a")
+      expect(manager.getSessions()).toHaveLength(0)
+    })
+
+    it("handles partial data with missing worktrees key", async () => {
+      const file = path.join(root, ".kilocode", "agent-manager.json")
+      fs.writeFileSync(
+        file,
+        JSON.stringify({ sessions: { "s-1": { worktreeId: null, createdAt: new Date().toISOString() } } }),
+        "utf-8",
+      )
+
+      await manager.load()
+
+      expect(manager.getWorktrees()).toHaveLength(0)
+      expect(manager.getSessions()).toHaveLength(1)
+    })
+  })
 })

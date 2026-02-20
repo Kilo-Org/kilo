@@ -45,6 +45,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   private loadMessagesAbort: AbortController | null = null
   private unsubscribeEvent: (() => void) | null = null
   private unsubscribeState: (() => void) | null = null
+  private unsubscribeNotificationDismiss: (() => void) | null = null
   private webviewMessageDisposable: vscode.Disposable | null = null
 
   /** Optional interceptor called before the standard message handler.
@@ -465,6 +466,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     // Clean up any existing subscriptions (e.g., sidebar re-shown)
     this.unsubscribeEvent?.()
     this.unsubscribeState?.()
+    this.unsubscribeNotificationDismiss?.()
 
     try {
       const workspaceDir = this.getWorkspaceDirectory()
@@ -510,6 +512,11 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
             })
           }
         }
+      })
+
+      // Subscribe to notification dismiss broadcast from other KiloProvider instances
+      this.unsubscribeNotificationDismiss = this.connectionService.onNotificationDismissed(() => {
+        this.fetchAndSendNotifications()
       })
 
       // Get current state and push to webview
@@ -955,6 +962,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       await this.extensionContext.globalState.update("kilo.dismissedNotificationIds", [...existing, notificationId])
     }
     await this.fetchAndSendNotifications()
+    this.connectionService.notifyNotificationDismissed(notificationId)
   }
 
   /**
@@ -1532,6 +1540,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   dispose(): void {
     this.unsubscribeEvent?.()
     this.unsubscribeState?.()
+    this.unsubscribeNotificationDismiss?.()
     this.webviewMessageDisposable?.dispose()
     this.trackedSessionIds.clear()
     this.sessionDirectories.clear()

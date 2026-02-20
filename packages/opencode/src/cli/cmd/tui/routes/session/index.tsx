@@ -806,6 +806,7 @@ export function Session() {
       slash: {
         name: "copy",
       },
+      keybind: "session_copy",
       onSelect: async (dialog) => {
         try {
           const sessionData = session()

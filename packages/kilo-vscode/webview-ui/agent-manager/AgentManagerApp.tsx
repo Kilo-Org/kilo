@@ -1,6 +1,16 @@
 // Agent Manager root component
 
-import { Component, For, Show, createSignal, createMemo, createEffect, onMount, onCleanup } from "solid-js"
+import {
+  Component,
+  For,
+  Show,
+  createSignal,
+  createMemo,
+  createEffect,
+  onMount,
+  onCleanup,
+  type Accessor,
+} from "solid-js"
 import type {
   ExtensionMessage,
   AgentManagerRepoInfoMessage,
@@ -49,6 +59,71 @@ type SidebarSelection = typeof LOCAL | string | null
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent)
 const modKey = isMac ? "\u2318" : "Ctrl+"
 
+/** Manages horizontal scroll for the tab list: hides the scrollbar, converts
+ *  vertical wheel events to horizontal scroll, tracks overflow to show/hide
+ *  fade indicators, and auto-scrolls the active tab into view. */
+function useTabScroll(activeTabs: Accessor<SessionInfo[]>, activeId: Accessor<string | undefined>) {
+  const [ref, setRef] = createSignal<HTMLDivElement | undefined>()
+  const [showLeft, setShowLeft] = createSignal(false)
+  const [showRight, setShowRight] = createSignal(false)
+
+  const update = () => {
+    const el = ref()
+    if (!el) return
+    setShowLeft(el.scrollLeft > 2)
+    setShowRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2)
+  }
+
+  // Wheel → horizontal scroll conversion
+  const onWheel = (e: WheelEvent) => {
+    const el = ref()
+    if (!el) return
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+    e.preventDefault()
+    el.scrollLeft += e.deltaY > 0 ? 60 : -60
+  }
+
+  // Recalculate on scroll, resize, or tab changes
+  createEffect(() => {
+    const el = ref()
+    if (!el) return
+    el.addEventListener("scroll", update, { passive: true })
+    el.addEventListener("wheel", onWheel, { passive: false })
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    const mo = new MutationObserver(update)
+    mo.observe(el, { childList: true, subtree: true })
+    onCleanup(() => {
+      el.removeEventListener("scroll", update)
+      el.removeEventListener("wheel", onWheel)
+      ro.disconnect()
+      mo.disconnect()
+    })
+  })
+
+  // Auto-scroll active tab into view
+  createEffect(() => {
+    const id = activeId()
+    const el = ref()
+    // depend on tabs length to trigger on tab add/remove
+    activeTabs()
+    if (!id || !el) return
+    requestAnimationFrame(() => {
+      const tab = el.querySelector(`[data-tab-id="${id}"]`) as HTMLElement | null
+      if (!tab) return
+      const left = tab.offsetLeft
+      const right = left + tab.offsetWidth
+      if (left < el.scrollLeft) {
+        el.scrollTo({ left: left - 8, behavior: "smooth" })
+      } else if (right > el.scrollLeft + el.clientWidth) {
+        el.scrollTo({ left: right - el.clientWidth + 8, behavior: "smooth" })
+      }
+    })
+  })
+
+  return { setRef, showLeft, showRight }
+}
+
 const AgentManagerContent: Component = () => {
   const session = useSession()
   const vscode = useVSCode()
@@ -70,6 +145,9 @@ const AgentManagerContent: Component = () => {
   const PENDING_PREFIX = "pending:"
   const [activePendingId, setActivePendingId] = createSignal<string | undefined>()
 
+  // Per-context tab memory: maps sidebar selection key -> last active session/pending ID
+  const [tabMemory, setTabMemory] = createSignal<Record<string, string>>({})
+
   const isPending = (id: string) => id.startsWith(PENDING_PREFIX)
 
   const addPendingTab = () => {
@@ -84,6 +162,17 @@ const AgentManagerContent: Component = () => {
   createEffect(() => {
     vscode.setState({ localSessionIDs: localSessionIDs().filter((id) => !isPending(id)) })
   })
+
+  // Save the currently active tab for the current sidebar context before switching away
+  const saveTabMemory = () => {
+    const sel = selection()
+    if (sel === null) return
+    const key = sel === LOCAL ? LOCAL : sel
+    const active = session.currentSessionID() ?? activePendingId()
+    if (active) {
+      setTabMemory((prev) => (prev[key] === active ? prev : { ...prev, [key]: active }))
+    }
+  }
 
   // Invalidate local session IDs if they no longer exist (preserve pending tabs)
   createEffect(() => {
@@ -163,6 +252,10 @@ const AgentManagerContent: Component = () => {
   // Read-only mode: viewing an unassigned session (not in a worktree or local)
   const readOnly = createMemo(() => selection() === null && !!session.currentSessionID())
 
+  // Tab scroll: hidden scrollbar with fade overflow indicators
+  const visibleTabId = createMemo(() => session.currentSessionID() ?? activePendingId())
+  const tabScroll = useTabScroll(activeTabs, visibleTabId)
+
   // Display name for worktree
   const worktreeLabel = (wt: WorktreeState): string => {
     const managed = managedSessions().filter((ms) => ms.worktreeId === wt.id)
@@ -195,6 +288,7 @@ const AgentManagerContent: Component = () => {
     } else if (item.type === "wt") {
       selectWorktree(item.id)
     } else {
+      saveTabMemory()
       setSelection(null)
       session.selectSession(item.id)
     }
@@ -223,15 +317,18 @@ const AgentManagerContent: Component = () => {
   }
 
   const selectLocal = () => {
+    saveTabMemory()
     setSelection(LOCAL)
     vscode.postMessage({ type: "agentManager.requestRepoInfo" })
     const locals = localSessions()
-    const first = locals[0]
-    if (first && !isPending(first.id)) {
+    const remembered = tabMemory()[LOCAL]
+    const target = remembered ? locals.find((s) => s.id === remembered) : undefined
+    const fallback = target ?? locals[0]
+    if (fallback && !isPending(fallback.id)) {
       setActivePendingId(undefined)
-      session.selectSession(first.id)
-    } else if (first && isPending(first.id)) {
-      setActivePendingId(first.id)
+      session.selectSession(fallback.id)
+    } else if (fallback && isPending(fallback.id)) {
+      setActivePendingId(fallback.id)
       session.clearCurrentSession()
     } else {
       setActivePendingId(undefined)
@@ -240,12 +337,16 @@ const AgentManagerContent: Component = () => {
   }
 
   const selectWorktree = (worktreeId: string) => {
+    saveTabMemory()
     setSelection(worktreeId)
     const managed = managedSessions().filter((ms) => ms.worktreeId === worktreeId)
     const ids = new Set(managed.map((ms) => ms.id))
-    const first = session.sessions().find((s) => ids.has(s.id))
-    if (first) {
-      session.selectSession(first.id)
+    const sessions = session.sessions().filter((s) => ids.has(s.id))
+    const remembered = tabMemory()[worktreeId]
+    const target = remembered ? sessions.find((s) => s.id === remembered) : undefined
+    const fallback = target ?? sessions[0]
+    if (fallback) {
+      session.selectSession(fallback.id)
     } else {
       session.setCurrentSessionID(undefined)
     }
@@ -390,9 +491,15 @@ const AgentManagerContent: Component = () => {
       }
       dialog.close()
     }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        doDelete()
+      }
+    }
     dialog.show(() => (
       <Dialog title="Delete Worktree" fit>
-        <div class="am-confirm">
+        <div class="am-confirm" onKeyDown={onKeyDown}>
           <div class="am-confirm-message">
             <Icon name="trash" size="small" />
             <span>
@@ -590,6 +697,7 @@ const AgentManagerContent: Component = () => {
                   class={`am-item ${s.id === session.currentSessionID() && selection() === null ? "am-item-active" : ""}`}
                   data-sidebar-id={s.id}
                   onClick={() => {
+                    saveTabMemory()
                     setSelection(null)
                     session.selectSession(s.id)
                   }}
@@ -615,43 +723,48 @@ const AgentManagerContent: Component = () => {
         {/* Tab bar — visible when a section is selected and has tabs or a pending new session */}
         <Show when={selection() !== null && !contextEmpty()}>
           <div class="am-tab-bar">
-            <div class="am-tab-list">
-              <For each={activeTabs()}>
-                {(s) => {
-                  const pending = isPending(s.id)
-                  const active = () =>
-                    pending
-                      ? s.id === activePendingId() && !session.currentSessionID()
-                      : s.id === session.currentSessionID()
-                  return (
-                    <Tooltip value={s.title || "Untitled"} placement="bottom">
-                      <div
-                        class={`am-tab ${active() ? "am-tab-active" : ""}`}
-                        onClick={() => {
-                          if (pending) {
-                            setActivePendingId(s.id)
-                            session.clearCurrentSession()
-                          } else {
-                            setActivePendingId(undefined)
-                            session.selectSession(s.id)
-                          }
-                        }}
-                        onMouseDown={(e: MouseEvent) => handleTabMouseDown(s.id, e)}
-                      >
-                        <span class="am-tab-label">{s.title || "Untitled"}</span>
-                        <IconButton
-                          icon="close-small"
-                          size="small"
-                          variant="ghost"
-                          label="Close tab"
-                          class="am-tab-close"
-                          onClick={(e: MouseEvent) => handleCloseTab(s.id, e)}
-                        />
-                      </div>
-                    </Tooltip>
-                  )
-                }}
-              </For>
+            <div class="am-tab-scroll-area">
+              <div class={`am-tab-fade am-tab-fade-left ${tabScroll.showLeft() ? "am-tab-fade-visible" : ""}`} />
+              <div class="am-tab-list" ref={tabScroll.setRef}>
+                <For each={activeTabs()}>
+                  {(s) => {
+                    const pending = isPending(s.id)
+                    const active = () =>
+                      pending
+                        ? s.id === activePendingId() && !session.currentSessionID()
+                        : s.id === session.currentSessionID()
+                    return (
+                      <Tooltip value={s.title || "Untitled"} placement="bottom">
+                        <div
+                          class={`am-tab ${active() ? "am-tab-active" : ""}`}
+                          data-tab-id={s.id}
+                          onClick={() => {
+                            if (pending) {
+                              setActivePendingId(s.id)
+                              session.clearCurrentSession()
+                            } else {
+                              setActivePendingId(undefined)
+                              session.selectSession(s.id)
+                            }
+                          }}
+                          onMouseDown={(e: MouseEvent) => handleTabMouseDown(s.id, e)}
+                        >
+                          <span class="am-tab-label">{s.title || "Untitled"}</span>
+                          <IconButton
+                            icon="close-small"
+                            size="small"
+                            variant="ghost"
+                            label="Close tab"
+                            class="am-tab-close"
+                            onClick={(e: MouseEvent) => handleCloseTab(s.id, e)}
+                          />
+                        </div>
+                      </Tooltip>
+                    )
+                  }}
+                </For>
+              </div>
+              <div class={`am-tab-fade am-tab-fade-right ${tabScroll.showRight() ? "am-tab-fade-visible" : ""}`} />
             </div>
             <IconButton
               icon="plus"
@@ -696,7 +809,7 @@ const AgentManagerContent: Component = () => {
           <div class="am-setup-overlay">
             <div class="am-setup-card">
               <Icon name="branch" size="large" />
-              <div class="am-setup-title">Setting up workspace</div>
+              <div class="am-setup-title">{setup().error ? "Workspace setup failed" : "Setting up workspace"}</div>
               <Show when={setup().branch}>
                 <div class="am-setup-branch">{setup().branch}</div>
               </Show>

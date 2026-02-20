@@ -27,7 +27,7 @@ export const ChatView: Component<ChatViewProps> = (props) => {
   const sessionPermissions = () => session.permissions().filter((p) => p.sessionID === id())
 
   const questionRequest = () => sessionQuestions()[0]
-  const permissionRequest = () => sessionPermissions()[0]
+  const permissionRequest = () => sessionPermissions().find((p) => !p.tool)
   const blocked = () => sessionPermissions().length > 0 || sessionQuestions().length > 0
 
   const [responding, setResponding] = createSignal(false)

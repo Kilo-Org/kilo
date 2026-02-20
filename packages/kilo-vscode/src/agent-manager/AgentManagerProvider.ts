@@ -160,6 +160,10 @@ export class AgentManagerProvider implements vscode.Disposable {
       this.state?.setTabOrder(msg.key as string, msg.order as string[])
       return null
     }
+    if (type === "agentManager.setSessionsCollapsed" && typeof msg.collapsed === "boolean") {
+      this.state?.setSessionsCollapsed(msg.collapsed as boolean)
+      return null
+    }
 
     // When switching sessions, show existing terminal if one is open
     if (type === "loadMessages" && typeof msg.sessionID === "string") {
@@ -496,6 +500,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       worktrees: state.getWorktrees(),
       sessions: state.getSessions(),
       tabOrder: state.getTabOrder(),
+      sessionsCollapsed: state.getSessionsCollapsed(),
     })
   }
 

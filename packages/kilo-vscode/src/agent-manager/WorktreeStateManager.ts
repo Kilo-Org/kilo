@@ -30,6 +30,7 @@ interface StateFile {
   worktrees: Record<string, Omit<Worktree, "id">>
   sessions: Record<string, Omit<ManagedSession, "id">>
   tabOrder?: Record<string, string[]>
+  sessionsCollapsed?: boolean
 }
 
 const STATE_FILE = "agent-manager.json"
@@ -46,6 +47,7 @@ export class WorktreeStateManager {
   private worktrees = new Map<string, Worktree>()
   private sessions = new Map<string, ManagedSession>()
   private tabOrder: Record<string, string[]> = {}
+  private collapsed = false
   private readonly log: (msg: string) => void
   private saving: Promise<void> | undefined
   private pendingSave = false
@@ -186,6 +188,19 @@ export class WorktreeStateManager {
   }
 
   // ---------------------------------------------------------------------------
+  // Sessions collapsed
+  // ---------------------------------------------------------------------------
+
+  getSessionsCollapsed(): boolean {
+    return this.collapsed
+  }
+
+  setSessionsCollapsed(value: boolean): void {
+    this.collapsed = value
+    void this.save()
+  }
+
+  // ---------------------------------------------------------------------------
   // Persistence
   // ---------------------------------------------------------------------------
 
@@ -206,6 +221,7 @@ export class WorktreeStateManager {
       if (data.tabOrder) {
         this.tabOrder = data.tabOrder
       }
+      this.collapsed = data.sessionsCollapsed ?? false
       this.log(`Loaded state: ${this.worktrees.size} worktrees, ${this.sessions.size} sessions`)
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
@@ -268,6 +284,9 @@ export class WorktreeStateManager {
     }
     if (Object.keys(this.tabOrder).length > 0) {
       data.tabOrder = this.tabOrder
+    }
+    if (this.collapsed) {
+      data.sessionsCollapsed = true
     }
 
     const dir = path.dirname(this.file)

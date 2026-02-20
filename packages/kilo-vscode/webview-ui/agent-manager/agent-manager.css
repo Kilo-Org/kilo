@@ -107,6 +107,30 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-weak);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Collapsible section toggle */
+
+button.am-section-toggle {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 2px;
+  cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+button.am-section-toggle:hover .am-section-label {
+  color: var(--text-base);
+}
+
+.am-section-chevron {
+  flex-shrink: 0;
 }
 
 .am-section-actions {
@@ -124,6 +148,11 @@
   overflow-y: auto;
   overflow-x: hidden;
   max-height: 50vh;
+}
+
+.am-section-grow .am-worktree-list {
+  max-height: none;
+  flex: 1;
 }
 
 /* Worktree item — larger card style */

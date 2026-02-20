@@ -249,6 +249,40 @@ describe("WorktreeStateManager", () => {
     })
   })
 
+  describe("sessionsCollapsed", () => {
+    it("defaults to false", () => {
+      expect(manager.getSessionsCollapsed()).toBe(false)
+    })
+
+    it("sets and gets collapsed state", () => {
+      manager.setSessionsCollapsed(true)
+      expect(manager.getSessionsCollapsed()).toBe(true)
+
+      manager.setSessionsCollapsed(false)
+      expect(manager.getSessionsCollapsed()).toBe(false)
+    })
+
+    it("persists and loads collapsed state", async () => {
+      manager.setSessionsCollapsed(true)
+      await manager.flush()
+      await manager.save()
+
+      const loaded = new WorktreeStateManager(root, () => {})
+      await loaded.load()
+      expect(loaded.getSessionsCollapsed()).toBe(true)
+    })
+
+    it("does not persist when false", async () => {
+      manager.setSessionsCollapsed(false)
+      await manager.flush()
+      await manager.save()
+
+      const content = fs.readFileSync(path.join(root, ".kilocode", "agent-manager.json"), "utf-8")
+      const data = JSON.parse(content)
+      expect(data.sessionsCollapsed).toBeUndefined()
+    })
+  })
+
   describe("validate", () => {
     it("removes worktrees whose directories do not exist", async () => {
       const existing = path.join(root, "wt-exists")

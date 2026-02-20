@@ -168,6 +168,7 @@ const AgentManagerContent: Component = () => {
   const persisted = vscode.getState<{ localSessionIDs?: string[]; sidebarWidth?: number }>()
   const [localSessionIDs, setLocalSessionIDs] = createSignal<string[]>(persisted?.localSessionIDs ?? [])
   const [sidebarWidth, setSidebarWidth] = createSignal(persisted?.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH)
+  const [sessionsCollapsed, setSessionsCollapsed] = createSignal(false)
 
   // Pending local tab counter for generating unique IDs
   let pendingCounter = 0
@@ -503,6 +504,8 @@ const AgentManagerContent: Component = () => {
           ).map((item) => item.id)
           setLocalSessionIDs(reordered)
         }
+        // Recover sessions collapsed state from extension-persisted state
+        if (state.sessionsCollapsed !== undefined) setSessionsCollapsed(state.sessionsCollapsed)
         // Clear deleting state for worktrees that have been removed
         const ids = new Set(state.worktrees.map((wt) => wt.id))
         setDeletingWorktrees((prev) => {
@@ -767,7 +770,7 @@ const AgentManagerContent: Component = () => {
         </button>
 
         {/* WORKTREES section */}
-        <div class="am-section">
+        <div class={`am-section ${sessionsCollapsed() ? "am-section-grow" : ""}`}>
           <div class="am-section-header">
             <span class="am-section-label">WORKTREES</span>
             <div class="am-section-actions">
@@ -909,60 +912,76 @@ const AgentManagerContent: Component = () => {
           </div>
         </div>
 
-        {/* SESSIONS section (unassigned) */}
-        <div class="am-section am-section-grow">
-          <div class="am-section-header">
-            <span class="am-section-label">SESSIONS</span>
-          </div>
-          <div class="am-list">
-            <Show
-              when={sessionsLoaded()}
-              fallback={
-                <div class="am-skeleton-list">
-                  <div class="am-skeleton-session">
-                    <div class="am-skeleton-session-title" style={{ width: "70%" }} />
-                    <div class="am-skeleton-session-time" />
-                  </div>
-                  <div class="am-skeleton-session">
-                    <div class="am-skeleton-session-title" style={{ width: "55%" }} />
-                    <div class="am-skeleton-session-time" />
-                  </div>
-                  <div class="am-skeleton-session">
-                    <div class="am-skeleton-session-title" style={{ width: "65%" }} />
-                    <div class="am-skeleton-session-time" />
-                  </div>
-                </div>
-              }
-            >
-              <For each={unassignedSessions()}>
-                {(s) => (
-                  <button
-                    class={`am-item ${s.id === session.currentSessionID() && selection() === null ? "am-item-active" : ""}`}
-                    data-sidebar-id={s.id}
-                    onClick={() => {
-                      saveTabMemory()
-                      setSelection(null)
-                      session.selectSession(s.id)
-                    }}
-                  >
-                    <span class="am-item-title">{s.title || "Untitled"}</span>
-                    <span class="am-item-time">{formatRelativeDate(s.updatedAt)}</span>
-                    <div class="am-item-promote">
-                      <TooltipKeybind title="Open in worktree" keybind={kb().newWorktree ?? ""} placement="right">
-                        <IconButton
-                          icon="branch"
-                          size="small"
-                          variant="ghost"
-                          label="Open in worktree"
-                          onClick={(e: MouseEvent) => handlePromote(s.id, e)}
-                        />
-                      </TooltipKeybind>
+        {/* SESSIONS section (unassigned) — collapsible */}
+        <div class={`am-section ${sessionsCollapsed() ? "" : "am-section-grow"}`}>
+          <button
+            class="am-section-header am-section-toggle"
+            onClick={() => {
+              const next = !sessionsCollapsed()
+              setSessionsCollapsed(next)
+              vscode.postMessage({ type: "agentManager.setSessionsCollapsed", collapsed: next })
+            }}
+          >
+            <span class="am-section-label">
+              <Icon
+                name={sessionsCollapsed() ? "chevron-right" : "chevron-down"}
+                size="small"
+                class="am-section-chevron"
+              />
+              SESSIONS
+            </span>
+          </button>
+          <Show when={!sessionsCollapsed()}>
+            <div class="am-list">
+              <Show
+                when={sessionsLoaded()}
+                fallback={
+                  <div class="am-skeleton-list">
+                    <div class="am-skeleton-session">
+                      <div class="am-skeleton-session-title" style={{ width: "70%" }} />
+                      <div class="am-skeleton-session-time" />
                     </div>
-                  </button>
-                )}
-              </For>
-            </Show>
-          </div>
+                    <div class="am-skeleton-session">
+                      <div class="am-skeleton-session-title" style={{ width: "55%" }} />
+                      <div class="am-skeleton-session-time" />
+                    </div>
+                    <div class="am-skeleton-session">
+                      <div class="am-skeleton-session-title" style={{ width: "65%" }} />
+                      <div class="am-skeleton-session-time" />
+                    </div>
+                  </div>
+                }
+              >
+                <For each={unassignedSessions()}>
+                  {(s) => (
+                    <button
+                      class={`am-item ${s.id === session.currentSessionID() && selection() === null ? "am-item-active" : ""}`}
+                      data-sidebar-id={s.id}
+                      onClick={() => {
+                        saveTabMemory()
+                        setSelection(null)
+                        session.selectSession(s.id)
+                      }}
+                    >
+                      <span class="am-item-title">{s.title || "Untitled"}</span>
+                      <span class="am-item-time">{formatRelativeDate(s.updatedAt)}</span>
+                      <div class="am-item-promote">
+                        <TooltipKeybind title="Open in worktree" keybind={kb().newWorktree ?? ""} placement="right">
+                          <IconButton
+                            icon="branch"
+                            size="small"
+                            variant="ghost"
+                            label="Open in worktree"
+                            onClick={(e: MouseEvent) => handlePromote(s.id, e)}
+                          />
+                        </TooltipKeybind>
+                      </div>
+                    </button>
+                  )}
+                </For>
+              </Show>
+            </div>
+          </Show>
         </div>
       </div>
 

@@ -564,6 +564,7 @@ export interface AgentManagerStateMessage {
   worktrees: WorktreeState[]
   sessions: ManagedSessionState[]
   tabOrder?: Record<string, string[]>
+  sessionsCollapsed?: boolean
 }
 
 // Resolved keybindings for agent manager actions
@@ -863,6 +864,12 @@ export interface SetTabOrderRequest {
   order: string[]
 }
 
+// Persist sessions collapsed state
+export interface SetSessionsCollapsedRequest {
+  type: "agentManager.setSessionsCollapsed"
+  collapsed: boolean
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -910,6 +917,7 @@ export type WebviewMessage =
   | ConfigureSetupScriptRequest
   | ShowTerminalRequest
   | SetTabOrderRequest
+  | SetSessionsCollapsedRequest
 
 // ============================================
 // VS Code API type

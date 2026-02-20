@@ -1027,6 +1027,17 @@ button.am-section-toggle:hover .am-section-label {
   }
 }
 
+/* Not a git repo notice */
+
+.am-not-git-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text-weak);
+}
+
 .am-skeleton-list {
   display: flex;
   flex-direction: column;

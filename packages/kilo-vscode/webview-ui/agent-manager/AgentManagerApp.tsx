@@ -236,6 +236,7 @@ const AgentManagerContent: Component = () => {
   const [loadingWorktrees, setLoadingWorktrees] = createSignal<Set<string>>(new Set())
   const [worktreesLoaded, setWorktreesLoaded] = createSignal(false)
   const [sessionsLoaded, setSessionsLoaded] = createSignal(false)
+  const [isGitRepo, setIsGitRepo] = createSignal(true)
 
   const DEFAULT_SIDEBAR_WIDTH = 260
   const MIN_SIDEBAR_WIDTH = 200
@@ -620,6 +621,7 @@ const AgentManagerContent: Component = () => {
         const state = msg as AgentManagerStateMessage
         setWorktrees(state.worktrees)
         setManagedSessions(state.sessions)
+        if (state.isGitRepo !== undefined) setIsGitRepo(state.isGitRepo)
         if (!worktreesLoaded()) setWorktreesLoaded(true)
         if (state.tabOrder) setWorktreeTabOrder(state.tabOrder)
         const current = session.currentSessionID()
@@ -1004,54 +1006,56 @@ const AgentManagerContent: Component = () => {
         <div class={`am-section ${sessionsCollapsed() ? "am-section-grow" : ""}`}>
           <div class="am-section-header">
             <span class="am-section-label">WORKTREES</span>
-            <div class="am-section-actions">
-              <DropdownMenu>
-                <DropdownMenu.Trigger
-                  as={IconButton}
-                  icon="settings-gear"
-                  size="small"
-                  variant="ghost"
-                  label="Worktree settings"
-                />
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content>
-                    <DropdownMenu.Item onSelect={handleShowKeyboardShortcuts}>
-                      <DropdownMenu.ItemLabel>Keyboard Shortcuts</DropdownMenu.ItemLabel>
-                    </DropdownMenu.Item>
-                    <DropdownMenu.Separator />
-                    <DropdownMenu.Item onSelect={handleConfigureSetupScript}>
-                      <DropdownMenu.ItemLabel>Worktree Setup Script</DropdownMenu.ItemLabel>
-                    </DropdownMenu.Item>
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu>
-              <div class="am-split-button">
-                <IconButton
-                  icon="plus"
-                  size="small"
-                  variant="ghost"
-                  label="New Worktree"
-                  onClick={handleCreateWorktree}
-                />
-                <DropdownMenu gutter={4} placement="bottom-end">
-                  <DropdownMenu.Trigger class="am-split-arrow" aria-label="Advanced worktree options">
-                    <Icon name="chevron-down" size="small" />
-                  </DropdownMenu.Trigger>
+            <Show when={isGitRepo()}>
+              <div class="am-section-actions">
+                <DropdownMenu>
+                  <DropdownMenu.Trigger
+                    as={IconButton}
+                    icon="settings-gear"
+                    size="small"
+                    variant="ghost"
+                    label="Worktree settings"
+                  />
                   <DropdownMenu.Portal>
-                    <DropdownMenu.Content class="am-split-menu">
-                      <DropdownMenu.Item onSelect={handleCreateWorktree}>
-                        <DropdownMenu.ItemLabel>New Worktree</DropdownMenu.ItemLabel>
+                    <DropdownMenu.Content>
+                      <DropdownMenu.Item onSelect={handleShowKeyboardShortcuts}>
+                        <DropdownMenu.ItemLabel>Keyboard Shortcuts</DropdownMenu.ItemLabel>
                       </DropdownMenu.Item>
                       <DropdownMenu.Separator />
-                      <DropdownMenu.Item onSelect={showAdvancedWorktreeDialog}>
-                        <Icon name="layers" size="small" />
-                        <DropdownMenu.ItemLabel>New with Versions...</DropdownMenu.ItemLabel>
+                      <DropdownMenu.Item onSelect={handleConfigureSetupScript}>
+                        <DropdownMenu.ItemLabel>Worktree Setup Script</DropdownMenu.ItemLabel>
                       </DropdownMenu.Item>
                     </DropdownMenu.Content>
                   </DropdownMenu.Portal>
                 </DropdownMenu>
+                <div class="am-split-button">
+                  <IconButton
+                    icon="plus"
+                    size="small"
+                    variant="ghost"
+                    label="New Worktree"
+                    onClick={handleCreateWorktree}
+                  />
+                  <DropdownMenu gutter={4} placement="bottom-end">
+                    <DropdownMenu.Trigger class="am-split-arrow" aria-label="Advanced worktree options">
+                      <Icon name="chevron-down" size="small" />
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Portal>
+                      <DropdownMenu.Content class="am-split-menu">
+                        <DropdownMenu.Item onSelect={handleCreateWorktree}>
+                          <DropdownMenu.ItemLabel>New Worktree</DropdownMenu.ItemLabel>
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Separator />
+                        <DropdownMenu.Item onSelect={showAdvancedWorktreeDialog}>
+                          <Icon name="layers" size="small" />
+                          <DropdownMenu.ItemLabel>New with Versions...</DropdownMenu.ItemLabel>
+                        </DropdownMenu.Item>
+                      </DropdownMenu.Content>
+                    </DropdownMenu.Portal>
+                  </DropdownMenu>
+                </div>
               </div>
-            </div>
+            </Show>
           </div>
           <div class="am-worktree-list">
             <Show
@@ -1065,118 +1069,126 @@ const AgentManagerContent: Component = () => {
                 </div>
               }
             >
-              {(() => {
-                const [hoveredWt, setHoveredWt] = createSignal<string | null>(null)
-                const [overClose, setOverClose] = createSignal(false)
-                return (
-                  <For each={sortedWorktrees()}>
-                    {(wt, idx) => {
-                      const grouped = () => isGrouped(wt)
-                      const start = () => isGroupStart(wt, idx())
-                      const end = () => isGroupEnd(wt, idx())
-                      const busy = () => deletingWorktrees().has(wt.id) || loadingWorktrees().has(wt.id)
-                      const groupSize = () => {
-                        if (!wt.groupId) return 0
-                        return sortedWorktrees().filter((w) => w.groupId === wt.groupId).length
-                      }
-                      const sessions = createMemo(() => managedSessions().filter((ms) => ms.worktreeId === wt.id))
-                      const navHint = () => {
-                        const flat = [
-                          LOCAL as string,
-                          ...sortedWorktrees().map((w) => w.id),
-                          ...unassignedSessions().map((s) => s.id),
-                        ]
-                        const active = selection() ?? session.currentSessionID() ?? ""
-                        return adjacentHint(wt.id, active, flat, kb().previousSession ?? "", kb().nextSession ?? "")
-                      }
-                      return (
-                        <>
-                          <Show when={start()}>
-                            <div class="am-wt-group-header">
-                              <Icon name="layers" size="small" />
-                              <span class="am-wt-group-label">{groupSize()} versions</span>
-                            </div>
-                          </Show>
-                          <HoverCard
-                            openDelay={100}
-                            closeDelay={100}
-                            placement="right-start"
-                            gutter={8}
-                            open={hoveredWt() === wt.id && !overClose()}
-                            onOpenChange={(open) => setHoveredWt(open ? wt.id : null)}
-                            trigger={
-                              <div
-                                class="am-worktree-item"
-                                classList={{
-                                  "am-worktree-item-active": selection() === wt.id,
-                                  "am-wt-grouped": grouped(),
-                                  "am-wt-group-end": end(),
-                                }}
-                                data-sidebar-id={wt.id}
-                                onClick={() => selectWorktree(wt.id)}
-                              >
-                                <Icon name="branch" size="small" />
-                                <span class="am-worktree-branch">{worktreeLabel(wt)}</span>
-                                <Show when={!busy()} fallback={<Spinner class="am-worktree-spinner" />}>
-                                  <div
-                                    class="am-worktree-close"
-                                    onMouseEnter={() => setOverClose(true)}
-                                    onMouseLeave={() => setOverClose(false)}
-                                  >
-                                    <TooltipKeybind
-                                      title="Delete worktree"
-                                      keybind={kb().closeWorktree ?? ""}
-                                      placement="top"
+              <Show when={!isGitRepo()}>
+                <div class="am-not-git-notice">
+                  <Icon name="info" size="small" />
+                  <span>Not a git repository</span>
+                </div>
+              </Show>
+              <Show when={isGitRepo()}>
+                {(() => {
+                  const [hoveredWt, setHoveredWt] = createSignal<string | null>(null)
+                  const [overClose, setOverClose] = createSignal(false)
+                  return (
+                    <For each={sortedWorktrees()}>
+                      {(wt, idx) => {
+                        const grouped = () => isGrouped(wt)
+                        const start = () => isGroupStart(wt, idx())
+                        const end = () => isGroupEnd(wt, idx())
+                        const busy = () => deletingWorktrees().has(wt.id) || loadingWorktrees().has(wt.id)
+                        const groupSize = () => {
+                          if (!wt.groupId) return 0
+                          return sortedWorktrees().filter((w) => w.groupId === wt.groupId).length
+                        }
+                        const sessions = createMemo(() => managedSessions().filter((ms) => ms.worktreeId === wt.id))
+                        const navHint = () => {
+                          const flat = [
+                            LOCAL as string,
+                            ...sortedWorktrees().map((w) => w.id),
+                            ...unassignedSessions().map((s) => s.id),
+                          ]
+                          const active = selection() ?? session.currentSessionID() ?? ""
+                          return adjacentHint(wt.id, active, flat, kb().previousSession ?? "", kb().nextSession ?? "")
+                        }
+                        return (
+                          <>
+                            <Show when={start()}>
+                              <div class="am-wt-group-header">
+                                <Icon name="layers" size="small" />
+                                <span class="am-wt-group-label">{groupSize()} versions</span>
+                              </div>
+                            </Show>
+                            <HoverCard
+                              openDelay={100}
+                              closeDelay={100}
+                              placement="right-start"
+                              gutter={8}
+                              open={hoveredWt() === wt.id && !overClose()}
+                              onOpenChange={(open) => setHoveredWt(open ? wt.id : null)}
+                              trigger={
+                                <div
+                                  class="am-worktree-item"
+                                  classList={{
+                                    "am-worktree-item-active": selection() === wt.id,
+                                    "am-wt-grouped": grouped(),
+                                    "am-wt-group-end": end(),
+                                  }}
+                                  data-sidebar-id={wt.id}
+                                  onClick={() => selectWorktree(wt.id)}
+                                >
+                                  <Icon name="branch" size="small" />
+                                  <span class="am-worktree-branch">{worktreeLabel(wt)}</span>
+                                  <Show when={!busy()} fallback={<Spinner class="am-worktree-spinner" />}>
+                                    <div
+                                      class="am-worktree-close"
+                                      onMouseEnter={() => setOverClose(true)}
+                                      onMouseLeave={() => setOverClose(false)}
                                     >
-                                      <IconButton
-                                        icon="close-small"
-                                        size="small"
-                                        variant="ghost"
-                                        label="Delete worktree"
-                                        onClick={(e: MouseEvent) => handleDeleteWorktree(wt.id, e)}
-                                      />
-                                    </TooltipKeybind>
+                                      <TooltipKeybind
+                                        title="Delete worktree"
+                                        keybind={kb().closeWorktree ?? ""}
+                                        placement="top"
+                                      >
+                                        <IconButton
+                                          icon="close-small"
+                                          size="small"
+                                          variant="ghost"
+                                          label="Delete worktree"
+                                          onClick={(e: MouseEvent) => handleDeleteWorktree(wt.id, e)}
+                                        />
+                                      </TooltipKeybind>
+                                    </div>
+                                  </Show>
+                                </div>
+                              }
+                            >
+                              <div class="am-hover-card">
+                                <div class="am-hover-card-header">
+                                  <div>
+                                    <div class="am-hover-card-label">BRANCH</div>
+                                    <div class="am-hover-card-branch">{wt.branch}</div>
+                                    <div class="am-hover-card-meta">{formatRelativeDate(wt.createdAt)}</div>
+                                  </div>
+                                  <Show when={navHint()}>
+                                    <span class="am-hover-card-keybind">{navHint()}</span>
+                                  </Show>
+                                </div>
+                                <Show when={wt.parentBranch}>
+                                  <div class="am-hover-card-divider" />
+                                  <div class="am-hover-card-row">
+                                    <span class="am-hover-card-row-label">Base</span>
+                                    <span class="am-hover-card-row-value">{wt.parentBranch}</span>
                                   </div>
                                 </Show>
-                              </div>
-                            }
-                          >
-                            <div class="am-hover-card">
-                              <div class="am-hover-card-header">
-                                <div>
-                                  <div class="am-hover-card-label">BRANCH</div>
-                                  <div class="am-hover-card-branch">{wt.branch}</div>
-                                  <div class="am-hover-card-meta">{formatRelativeDate(wt.createdAt)}</div>
-                                </div>
-                                <Show when={navHint()}>
-                                  <span class="am-hover-card-keybind">{navHint()}</span>
-                                </Show>
-                              </div>
-                              <Show when={wt.parentBranch}>
                                 <div class="am-hover-card-divider" />
                                 <div class="am-hover-card-row">
-                                  <span class="am-hover-card-row-label">Base</span>
-                                  <span class="am-hover-card-row-value">{wt.parentBranch}</span>
+                                  <span class="am-hover-card-row-label">Sessions</span>
+                                  <span class="am-hover-card-row-value">{sessions().length}</span>
                                 </div>
-                              </Show>
-                              <div class="am-hover-card-divider" />
-                              <div class="am-hover-card-row">
-                                <span class="am-hover-card-row-label">Sessions</span>
-                                <span class="am-hover-card-row-value">{sessions().length}</span>
                               </div>
-                            </div>
-                          </HoverCard>
-                        </>
-                      )
-                    }}
-                  </For>
-                )
-              })()}
-              <Show when={worktrees().length === 0}>
-                <button class="am-worktree-create" onClick={handleCreateWorktree}>
-                  <Icon name="plus" size="small" />
-                  <span>New Worktree</span>
-                </button>
+                            </HoverCard>
+                          </>
+                        )
+                      }}
+                    </For>
+                  )
+                })()}
+                <Show when={worktrees().length === 0}>
+                  <button class="am-worktree-create" onClick={handleCreateWorktree}>
+                    <Icon name="plus" size="small" />
+                    <span>New Worktree</span>
+                  </button>
+                </Show>
               </Show>
             </Show>
           </div>

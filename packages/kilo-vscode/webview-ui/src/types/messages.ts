@@ -567,6 +567,7 @@ export interface AgentManagerStateMessage {
   sessions: ManagedSessionState[]
   tabOrder?: Record<string, string[]>
   sessionsCollapsed?: boolean
+  isGitRepo?: boolean
 }
 
 // Resolved keybindings for agent manager actions

@@ -138,6 +138,7 @@ const AgentManagerContent: Component = () => {
   const [selection, setSelection] = createSignal<SidebarSelection>(LOCAL)
   const [repoBranch, setRepoBranch] = createSignal<string | undefined>()
   const [deletingWorktrees, setDeletingWorktrees] = createSignal<Set<string>>(new Set())
+  const [loadingWorktrees, setLoadingWorktrees] = createSignal<Set<string>>(new Set())
 
   // Recover persisted local session IDs from webview state
   const persisted = vscode.getState<{ localSessionIDs?: string[] }>()
@@ -265,6 +266,64 @@ const AgentManagerContent: Component = () => {
     const ids = new Set(managed.map((ms) => ms.id))
     const first = session.sessions().find((s) => ids.has(s.id))
     return first?.title || wt.branch
+  }
+
+  /** Worktrees sorted so that grouped items are always adjacent, ordered by creation time. */
+  const sortedWorktrees = createMemo(() => {
+    const all = worktrees()
+    if (all.length === 0) return []
+
+    // Separate grouped and ungrouped
+    const grouped = new Map<string, WorktreeState[]>()
+    const ungrouped: WorktreeState[] = []
+    for (const wt of all) {
+      if (wt.groupId) {
+        const list = grouped.get(wt.groupId) ?? []
+        list.push(wt)
+        grouped.set(wt.groupId, list)
+      } else {
+        ungrouped.push(wt)
+      }
+    }
+
+    // Build output: interleave groups at the position of their earliest member
+    const result: WorktreeState[] = []
+    const placed = new Set<string>()
+    for (const wt of all) {
+      if (placed.has(wt.id)) continue
+      if (wt.groupId) {
+        if (placed.has(wt.groupId)) continue
+        placed.add(wt.groupId)
+        const group = grouped.get(wt.groupId) ?? []
+        for (const g of group) {
+          result.push(g)
+          placed.add(g.id)
+        }
+      } else {
+        result.push(wt)
+        placed.add(wt.id)
+      }
+    }
+    return result
+  })
+
+  /** Check if this worktree is part of a group. */
+  const isGrouped = (wt: WorktreeState) => !!wt.groupId
+
+  /** Check if this is the first item in its group. */
+  const isGroupStart = (wt: WorktreeState, idx: number) => {
+    if (!wt.groupId) return false
+    const list = sortedWorktrees()
+    if (idx === 0) return true
+    return list[idx - 1]?.groupId !== wt.groupId
+  }
+
+  /** Check if this is the last item in its group. */
+  const isGroupEnd = (wt: WorktreeState, idx: number) => {
+    if (!wt.groupId) return false
+    const list = sortedWorktrees()
+    if (idx === list.length - 1) return true
+    return list[idx + 1]?.groupId !== wt.groupId
   }
 
   const scrollIntoView = (el: HTMLElement) => {
@@ -453,6 +512,67 @@ const AgentManagerContent: Component = () => {
           const next = new Set([...prev].filter((id) => ids.has(id)))
           return next.size === prev.size ? prev : next
         })
+      }
+
+      // When a multi-version progress update arrives, mark newly created worktrees as loading
+      if ((msg as { type: string }).type === "agentManager.multiVersionProgress") {
+        const ev = msg as unknown as { status: string; groupId?: string }
+        if (ev.status === "done" && ev.groupId) {
+          // Clear loading state for all worktrees in this group
+          setLoadingWorktrees((prev) => {
+            const next = new Set(prev)
+            for (const wt of worktrees()) {
+              if (wt.groupId === ev.groupId) next.delete(wt.id)
+            }
+            return next
+          })
+        }
+      }
+
+      // When state updates arrive, mark new grouped worktrees as loading
+      // (they were just created and haven't received their prompt yet)
+      if (msg.type === "agentManager.worktreeSetup") {
+        const ev = msg as AgentManagerWorktreeSetupMessage
+        if (ev.status === "ready" && ev.sessionId) {
+          const ms = managedSessions().find((s) => s.id === ev.sessionId)
+          const wt = ms?.worktreeId ? worktrees().find((w) => w.id === ms.worktreeId) : undefined
+          if (wt?.groupId) {
+            setLoadingWorktrees((prev) => new Set([...prev, wt.id]))
+          }
+        }
+      }
+
+      // Handle initial message send for multi-version sessions.
+      // The extension creates the worktrees/sessions, then asks the webview
+      // to send the prompt through the normal KiloProvider sendMessage path.
+      // Once the message is sent, clear the loading state for that worktree.
+      if ((msg as { type: string }).type === "agentManager.sendInitialMessage") {
+        const ev = msg as unknown as {
+          sessionId: string
+          text: string
+          providerID?: string
+          modelID?: string
+          agent?: string
+          files?: Array<{ mime: string; url: string }>
+        }
+        vscode.postMessage({
+          type: "sendMessage",
+          text: ev.text,
+          sessionID: ev.sessionId,
+          providerID: ev.providerID,
+          modelID: ev.modelID,
+          agent: ev.agent,
+          files: ev.files,
+        })
+        // Clear loading state for this worktree
+        const ms = managedSessions().find((s) => s.id === ev.sessionId)
+        if (ms?.worktreeId) {
+          setLoadingWorktrees((prev) => {
+            const next = new Set(prev)
+            next.delete(ms.worktreeId!)
+            return next
+          })
+        }
       }
     })
 
@@ -685,29 +805,54 @@ const AgentManagerContent: Component = () => {
             </div>
           </div>
           <div class="am-worktree-list">
-            <For each={worktrees()}>
-              {(wt) => (
-                <div
-                  class={`am-worktree-item ${selection() === wt.id ? "am-worktree-item-active" : ""}`}
-                  data-sidebar-id={wt.id}
-                  onClick={() => selectWorktree(wt.id)}
-                >
-                  <Icon name="branch" size="small" />
-                  <span class="am-worktree-branch" title={wt.branch}>
-                    {worktreeLabel(wt)}
-                  </span>
-                  <Show when={!deletingWorktrees().has(wt.id)} fallback={<Spinner class="am-worktree-spinner" />}>
-                    <IconButton
-                      icon="close-small"
-                      size="small"
-                      variant="ghost"
-                      label="Close worktree"
-                      class="am-worktree-close"
-                      onClick={(e: MouseEvent) => handleDeleteWorktree(wt.id, e)}
-                    />
-                  </Show>
-                </div>
-              )}
+            <For each={sortedWorktrees()}>
+              {(wt, idx) => {
+                const grouped = () => isGrouped(wt)
+                const start = () => isGroupStart(wt, idx())
+                const end = () => isGroupEnd(wt, idx())
+                const busy = () => deletingWorktrees().has(wt.id) || loadingWorktrees().has(wt.id)
+                const groupSize = () => {
+                  if (!wt.groupId) return 0
+                  return sortedWorktrees().filter((w) => w.groupId === wt.groupId).length
+                }
+
+                return (
+                  <>
+                    {/* Group header — shown above the first item in a group */}
+                    <Show when={start()}>
+                      <div class="am-wt-group-header">
+                        <Icon name="layers" size="small" />
+                        <span class="am-wt-group-label">{groupSize()} versions</span>
+                      </div>
+                    </Show>
+                    <div
+                      class="am-worktree-item"
+                      classList={{
+                        "am-worktree-item-active": selection() === wt.id,
+                        "am-wt-grouped": grouped(),
+                        "am-wt-group-end": end(),
+                      }}
+                      data-sidebar-id={wt.id}
+                      onClick={() => selectWorktree(wt.id)}
+                    >
+                      <Icon name="branch" size="small" />
+                      <span class="am-worktree-branch" title={wt.branch}>
+                        {worktreeLabel(wt)}
+                      </span>
+                      <Show when={!busy()} fallback={<Spinner class="am-worktree-spinner" />}>
+                        <IconButton
+                          icon="close-small"
+                          size="small"
+                          variant="ghost"
+                          label="Close worktree"
+                          class="am-worktree-close"
+                          onClick={(e: MouseEvent) => handleDeleteWorktree(wt.id, e)}
+                        />
+                      </Show>
+                    </div>
+                  </>
+                )
+              }}
             </For>
             <Show when={worktrees().length === 0}>
               <button class="am-worktree-create" onClick={handleCreateWorktree}>

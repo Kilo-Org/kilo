@@ -543,6 +543,8 @@ export interface WorktreeState {
   path: string
   parentBranch: string
   createdAt: string
+  /** Shared identifier for worktrees created together via multi-version mode. */
+  groupId?: string
 }
 
 export interface ManagedSessionState {

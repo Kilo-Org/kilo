@@ -165,7 +165,7 @@ export class AgentManagerProvider implements vscode.Disposable {
   // ---------------------------------------------------------------------------
 
   /** Create a git worktree on disk and register it in state. Returns null on failure. */
-  private async createWorktreeOnDisk(): Promise<{
+  private async createWorktreeOnDisk(groupId?: string): Promise<{
     worktree: ReturnType<WorktreeStateManager["addWorktree"]>
     result: CreateWorktreeResult
   } | null> {
@@ -195,7 +195,12 @@ export class AgentManagerProvider implements vscode.Disposable {
       return null
     }
 
-    const worktree = state.addWorktree({ branch: result.branch, path: result.path, parentBranch: result.parentBranch })
+    const worktree = state.addWorktree({
+      branch: result.branch,
+      path: result.path,
+      parentBranch: result.parentBranch,
+      groupId,
+    })
     return { worktree, result }
   }
 
@@ -394,7 +399,21 @@ export class AgentManagerProvider implements vscode.Disposable {
     const agent = msg.agent as string | undefined
     const files = msg.files as Array<{ mime: string; url: string }> | undefined
 
-    this.log(`Creating ${versions} multi-version worktrees for: ${text.slice(0, 60)}`)
+    // Generate a shared group ID for multi-version worktrees
+    const groupId = versions > 1 ? `grp-${Date.now()}` : undefined
+
+    this.log(
+      `Creating ${versions} multi-version worktrees for: ${text.slice(0, 60)}${groupId ? ` (group=${groupId})` : ""}`,
+    )
+
+    // Notify webview that multi-version creation has started
+    this.postToWebview({
+      type: "agentManager.multiVersionProgress",
+      status: "creating",
+      total: versions,
+      completed: 0,
+      groupId,
+    })
 
     // Phase 1: Create all worktrees + sessions first
     const created: Array<{
@@ -408,7 +427,7 @@ export class AgentManagerProvider implements vscode.Disposable {
     for (let i = 0; i < versions; i++) {
       this.log(`Creating worktree ${i + 1}/${versions}`)
 
-      const wt = await this.createWorktreeOnDisk()
+      const wt = await this.createWorktreeOnDisk(groupId)
       if (!wt) {
         this.log(`Failed to create worktree for version ${i + 1}`)
         continue
@@ -438,35 +457,50 @@ export class AgentManagerProvider implements vscode.Disposable {
       })
 
       this.log(`Version ${i + 1} worktree ready: session=${session.id}`)
+
+      // Update progress
+      this.postToWebview({
+        type: "agentManager.multiVersionProgress",
+        status: "creating",
+        total: versions,
+        completed: created.length,
+        groupId,
+      })
     }
 
-    // Phase 2: Send the initial message to all sessions (with delay between each)
+    // Phase 2: Send the initial prompt to all sessions via the KiloProvider's
+    // message handling (same path as typing in the chat). This ensures SSE
+    // subscriptions and session tracking are properly set up before the message
+    // is sent. We route each message through the webview→KiloProvider pipeline.
     for (let i = 0; i < created.length; i++) {
       const entry = created[i]!
-      const label = labels[i] ?? `${text.slice(0, 50)} (v${i + 1})`
-      this.log(`Sending initial message to version ${i + 1}: ${label}`)
+      this.log(`Sending initial message to version ${i + 1} (session=${entry.sessionId})`)
 
-      // Small delay to let the CLI backend settle between messages
-      if (i > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 500))
-      }
+      // Tell the webview to send the message through the normal session flow
+      this.postToWebview({
+        type: "agentManager.sendInitialMessage",
+        sessionId: entry.sessionId,
+        text,
+        providerID,
+        modelID,
+        agent,
+        files,
+      })
 
-      try {
-        const client = this.connectionService.getHttpClient()
-        const parts: Array<{ type: "text"; text: string } | { type: "file"; mime: string; url: string }> = [
-          { type: "text" as const, text },
-        ]
-        if (files) {
-          for (const f of files) {
-            parts.push({ type: "file" as const, mime: f.mime, url: f.url })
-          }
-        }
-        await client.sendMessage(entry.sessionId, parts, entry.path, { providerID, modelID, agent })
-        this.log(`Message sent to version ${i + 1} (session=${entry.sessionId})`)
-      } catch (error) {
-        this.log(`Failed to send initial message to version ${i + 1}: ${error}`)
+      // Small delay between sends to avoid overwhelming the backend
+      if (i < created.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 300))
       }
     }
+
+    // Notify completion
+    this.postToWebview({
+      type: "agentManager.multiVersionProgress",
+      status: "done",
+      total: versions,
+      completed: created.length,
+      groupId,
+    })
 
     this.log(`Multi-version creation complete: ${created.length}/${versions} versions`)
     return null

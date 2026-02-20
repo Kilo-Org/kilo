@@ -18,6 +18,8 @@ export interface Worktree {
   path: string
   parentBranch: string
   createdAt: string
+  /** Shared identifier for worktrees created together via multi-version mode. */
+  groupId?: string
 }
 
 export interface ManagedSession {
@@ -103,11 +105,18 @@ export class WorktreeStateManager {
   // Mutations
   // ---------------------------------------------------------------------------
 
-  addWorktree(params: { branch: string; path: string; parentBranch: string }): Worktree {
+  addWorktree(params: { branch: string; path: string; parentBranch: string; groupId?: string }): Worktree {
     const id = generateId("wt")
-    const wt: Worktree = { id, ...params, createdAt: new Date().toISOString() }
+    const wt: Worktree = {
+      id,
+      branch: params.branch,
+      path: params.path,
+      parentBranch: params.parentBranch,
+      createdAt: new Date().toISOString(),
+    }
+    if (params.groupId) wt.groupId = params.groupId
     this.worktrees.set(id, wt)
-    this.log(`Added worktree ${id}: ${params.branch}`)
+    this.log(`Added worktree ${id}: ${params.branch}${params.groupId ? ` (group=${params.groupId})` : ""}`)
     void this.save()
     return wt
   }

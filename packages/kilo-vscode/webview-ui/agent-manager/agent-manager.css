@@ -173,6 +173,48 @@
   flex-shrink: 0;
 }
 
+/* Grouped worktrees — visual grouping with header and left accent */
+
+.am-wt-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 2px;
+  margin-top: 6px;
+  color: var(--text-weaker);
+}
+
+.am-wt-group-header [data-component="icon"] {
+  color: var(--border-focus, #007fd4);
+  opacity: 0.7;
+}
+
+.am-wt-group-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  color: color-mix(in srgb, var(--border-focus, #007fd4) 80%, var(--text-weak));
+}
+
+.am-wt-grouped {
+  margin-left: 8px;
+  padding-left: 10px;
+  border-left: 2px solid color-mix(in srgb, var(--border-focus, #007fd4) 35%, transparent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.am-wt-group-end {
+  margin-bottom: 6px;
+}
+
+.am-wt-grouped:hover {
+  border-left-color: color-mix(in srgb, var(--border-focus, #007fd4) 60%, transparent);
+}
+
+.am-wt-grouped.am-worktree-item-active {
+  border-left-color: var(--border-focus, #007fd4);
+}
+
 /* Session list */
 
 .am-list {

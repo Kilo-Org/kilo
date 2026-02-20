@@ -33,7 +33,6 @@ export const ConstrainDragYAxis: Component = () => {
 export const SortableTab: Component<{
   tab: SessionInfo
   active: boolean
-  pending: boolean
   onSelect: () => void
   onMiddleClick: (e: MouseEvent) => void
   onClose: (e: MouseEvent) => void

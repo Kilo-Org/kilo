@@ -458,11 +458,11 @@ const AgentManagerContent: Component = () => {
         // Recover local tab order from persisted state
         const localOrder = state.tabOrder?.[LOCAL]
         if (localOrder && localSessionIDs().length > 0) {
-          const currentIds = new Set(localSessionIDs())
-          const valid = localOrder.filter((id) => currentIds.has(id))
-          if (valid.length > 0 && valid.length === localSessionIDs().length) {
-            setLocalSessionIDs(valid)
-          }
+          const reordered = applyTabOrder(
+            localSessionIDs().map((id) => ({ id })),
+            localOrder,
+          ).map((item) => item.id)
+          setLocalSessionIDs(reordered)
         }
         // Clear deleting state for worktrees that have been removed
         const ids = new Set(state.worktrees.map((wt) => wt.id))
@@ -813,7 +813,6 @@ const AgentManagerContent: Component = () => {
                           <SortableTab
                             tab={s}
                             active={active()}
-                            pending={pending}
                             onSelect={() => {
                               if (pending) {
                                 setActivePendingId(s.id)

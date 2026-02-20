@@ -509,7 +509,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "test:unit": "bun test tests/unit/"
   },
   "devDependencies": {
     "@types/diff": "^6.0.0",

@@ -94,7 +94,10 @@ export class AgentManagerProvider implements vscode.Disposable {
   private async initializeState(): Promise<void> {
     const manager = this.getWorktreeManager()
     const state = this.getStateManager()
-    if (!manager || !state) return
+    if (!manager || !state) {
+      this.pushEmptyState()
+      return
+    }
 
     await state.load()
 
@@ -147,6 +150,10 @@ export class AgentManagerProvider implements vscode.Disposable {
       void this.sendRepoInfo()
       return null
     }
+    if (type === "agentManager.createMultiVersion") {
+      void this.onCreateMultiVersion(msg)
+      return null
+    }
     if (type === "agentManager.requestState") {
       void this.stateReady
         ?.then(() => this.pushState())
@@ -158,6 +165,10 @@ export class AgentManagerProvider implements vscode.Disposable {
     }
     if (type === "agentManager.setTabOrder" && typeof msg.key === "string" && Array.isArray(msg.order)) {
       this.state?.setTabOrder(msg.key as string, msg.order as string[])
+      return null
+    }
+    if (type === "agentManager.setSessionsCollapsed" && typeof msg.collapsed === "boolean") {
+      this.state?.setSessionsCollapsed(msg.collapsed as boolean)
       return null
     }
 
@@ -184,7 +195,7 @@ export class AgentManagerProvider implements vscode.Disposable {
   // ---------------------------------------------------------------------------
 
   /** Create a git worktree on disk and register it in state. Returns null on failure. */
-  private async createWorktreeOnDisk(): Promise<{
+  private async createWorktreeOnDisk(groupId?: string): Promise<{
     worktree: ReturnType<WorktreeStateManager["addWorktree"]>
     result: CreateWorktreeResult
   } | null> {
@@ -214,7 +225,12 @@ export class AgentManagerProvider implements vscode.Disposable {
       return null
     }
 
-    const worktree = state.addWorktree({ branch: result.branch, path: result.path, parentBranch: result.parentBranch })
+    const worktree = state.addWorktree({
+      branch: result.branch,
+      path: result.path,
+      parentBranch: result.parentBranch,
+      groupId,
+    })
     return { worktree, result }
   }
 
@@ -406,6 +422,135 @@ export class AgentManagerProvider implements vscode.Disposable {
   }
 
   // ---------------------------------------------------------------------------
+  // Multi-version worktree creation
+  // ---------------------------------------------------------------------------
+
+  /** Create N worktree sessions for the same prompt (multi-version mode). */
+  private async onCreateMultiVersion(msg: Record<string, unknown>): Promise<null> {
+    const text = msg.text as string
+    if (!text) return null
+
+    const versions = Math.min(Math.max(Number(msg.versions) || 1, 1), 4)
+    const providerID = msg.providerID as string | undefined
+    const modelID = msg.modelID as string | undefined
+    const agent = msg.agent as string | undefined
+    const files = msg.files as Array<{ mime: string; url: string }> | undefined
+
+    // Generate a shared group ID for multi-version worktrees
+    const groupId = versions > 1 ? `grp-${Date.now()}` : undefined
+
+    this.log(
+      `Creating ${versions} multi-version worktrees for: ${text.slice(0, 60)}${groupId ? ` (group=${groupId})` : ""}`,
+    )
+
+    // Notify webview that multi-version creation has started
+    this.postToWebview({
+      type: "agentManager.multiVersionProgress",
+      status: "creating",
+      total: versions,
+      completed: 0,
+      groupId,
+    })
+
+    // Phase 1: Create all worktrees + sessions first
+    const created: Array<{
+      worktreeId: string
+      sessionId: string
+      path: string
+      branch: string
+      parentBranch: string
+    }> = []
+
+    for (let i = 0; i < versions; i++) {
+      this.log(`Creating worktree ${i + 1}/${versions}`)
+
+      const wt = await this.createWorktreeOnDisk(groupId)
+      if (!wt) {
+        this.log(`Failed to create worktree for version ${i + 1}`)
+        continue
+      }
+
+      await this.runSetupScriptForWorktree(wt.result.path, wt.result.branch)
+
+      const session = await this.createSessionInWorktree(wt.result.path, wt.result.branch)
+      if (!session) {
+        const state = this.getStateManager()
+        const manager = this.getWorktreeManager()
+        state?.removeWorktree(wt.worktree.id)
+        await manager?.removeWorktree(wt.result.path)
+        this.log(`Failed to create session for version ${i + 1}`)
+        continue
+      }
+
+      const state = this.getStateManager()!
+      state.addSession(session.id, wt.worktree.id)
+      this.registerWorktreeSession(session.id, wt.result.path)
+      this.notifyWorktreeReady(session.id, wt.result)
+
+      created.push({
+        worktreeId: wt.worktree.id,
+        sessionId: session.id,
+        path: wt.result.path,
+        branch: wt.result.branch,
+        parentBranch: wt.result.parentBranch,
+      })
+
+      this.log(`Version ${i + 1} worktree ready: session=${session.id}`)
+
+      // Update progress
+      this.postToWebview({
+        type: "agentManager.multiVersionProgress",
+        status: "creating",
+        total: versions,
+        completed: created.length,
+        groupId,
+      })
+    }
+
+    // Phase 2: Send the initial prompt to all sessions via the KiloProvider's
+    // message handling (same path as typing in the chat). This ensures SSE
+    // subscriptions and session tracking are properly set up before the message
+    // is sent. We route each message through the webview→KiloProvider pipeline.
+    for (let i = 0; i < created.length; i++) {
+      const entry = created[i]!
+      this.log(`Sending initial message to version ${i + 1} (session=${entry.sessionId})`)
+
+      // Tell the webview to send the message through the normal session flow
+      this.postToWebview({
+        type: "agentManager.sendInitialMessage",
+        sessionId: entry.sessionId,
+        worktreeId: entry.worktreeId,
+        text,
+        providerID,
+        modelID,
+        agent,
+        files,
+      })
+
+      // Small delay between sends to avoid overwhelming the backend
+      if (i < created.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 300))
+      }
+    }
+
+    // Notify completion
+    this.postToWebview({
+      type: "agentManager.multiVersionProgress",
+      status: "done",
+      total: versions,
+      completed: created.length,
+      groupId,
+    })
+
+    if (created.length === 0) {
+      vscode.window.showErrorMessage(`Failed to create any of the ${versions} multi-version worktrees.`)
+    }
+
+    this.log(`Multi-version creation complete: ${created.length}/${versions} versions`)
+    return null
+  }
+
+  // ---------------------------------------------------------------------------
   // Keybindings
   // ---------------------------------------------------------------------------
 
@@ -417,11 +562,21 @@ export class AgentManagerProvider implements vscode.Disposable {
     const mac = process.platform === "darwin"
     const prefix = "kilo-code.new.agentManager."
     const bindings: Record<string, string> = {}
+
+    // Global keybindings exposed to the shortcuts dialog
+    const globals: Record<string, string> = {
+      "kilo-code.new.agentManagerOpen": "agentManagerOpen",
+    }
+
     for (const kb of keybindings) {
-      if (!kb.command.startsWith(prefix)) continue
-      const action = kb.command.slice(prefix.length)
       const raw = mac ? (kb.mac ?? kb.key) : kb.key
-      if (raw) bindings[action] = formatKeybinding(raw, mac)
+      if (!raw) continue
+
+      if (kb.command.startsWith(prefix)) {
+        bindings[kb.command.slice(prefix.length)] = formatKeybinding(raw, mac)
+      } else if (globals[kb.command]) {
+        bindings[globals[kb.command]] = formatKeybinding(raw, mac)
+      }
     }
 
     this.postToWebview({ type: "agentManager.keybindings", bindings })
@@ -460,6 +615,12 @@ export class AgentManagerProvider implements vscode.Disposable {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
       this.outputChannel.appendLine(`[AgentManager] Setup script error: ${msg}`)
+      this.postToWebview({
+        type: "agentManager.worktreeSetup",
+        status: "error",
+        message: `Setup script failed: ${msg}`,
+        branch,
+      })
     }
   }
 
@@ -496,6 +657,18 @@ export class AgentManagerProvider implements vscode.Disposable {
       worktrees: state.getWorktrees(),
       sessions: state.getSessions(),
       tabOrder: state.getTabOrder(),
+      sessionsCollapsed: state.getSessionsCollapsed(),
+      isGitRepo: true,
+    })
+  }
+
+  /** Push empty state when the workspace is not a git repo or has no workspace folder. */
+  private pushEmptyState(): void {
+    this.postToWebview({
+      type: "agentManager.state",
+      worktrees: [],
+      sessions: [],
+      isGitRepo: false,
     })
   }
 
@@ -575,6 +748,10 @@ export class AgentManagerProvider implements vscode.Disposable {
   public focusPanel(): void {
     if (!this.panel) return
     this.panel.reveal(vscode.ViewColumn.One, false)
+  }
+
+  public isActive(): boolean {
+    return this.panel?.active === true
   }
 
   public postMessage(message: unknown): void {

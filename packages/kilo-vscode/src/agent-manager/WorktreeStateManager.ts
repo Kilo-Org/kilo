@@ -18,6 +18,8 @@ export interface Worktree {
   path: string
   parentBranch: string
   createdAt: string
+  /** Shared identifier for worktrees created together via multi-version mode. */
+  groupId?: string
 }
 
 export interface ManagedSession {
@@ -30,6 +32,7 @@ interface StateFile {
   worktrees: Record<string, Omit<Worktree, "id">>
   sessions: Record<string, Omit<ManagedSession, "id">>
   tabOrder?: Record<string, string[]>
+  sessionsCollapsed?: boolean
 }
 
 const STATE_FILE = "agent-manager.json"
@@ -46,6 +49,7 @@ export class WorktreeStateManager {
   private worktrees = new Map<string, Worktree>()
   private sessions = new Map<string, ManagedSession>()
   private tabOrder: Record<string, string[]> = {}
+  private collapsed = false
   private readonly log: (msg: string) => void
   private saving: Promise<void> | undefined
   private pendingSave = false
@@ -105,11 +109,18 @@ export class WorktreeStateManager {
   // Mutations
   // ---------------------------------------------------------------------------
 
-  addWorktree(params: { branch: string; path: string; parentBranch: string }): Worktree {
+  addWorktree(params: { branch: string; path: string; parentBranch: string; groupId?: string }): Worktree {
     const id = generateId("wt")
-    const wt: Worktree = { id, ...params, createdAt: new Date().toISOString() }
+    const wt: Worktree = {
+      id,
+      branch: params.branch,
+      path: params.path,
+      parentBranch: params.parentBranch,
+      createdAt: new Date().toISOString(),
+    }
+    if (params.groupId) wt.groupId = params.groupId
     this.worktrees.set(id, wt)
-    this.log(`Added worktree ${id}: ${params.branch}`)
+    this.log(`Added worktree ${id}: ${params.branch}${params.groupId ? ` (group=${params.groupId})` : ""}`)
     void this.save()
     return wt
   }
@@ -186,6 +197,19 @@ export class WorktreeStateManager {
   }
 
   // ---------------------------------------------------------------------------
+  // Sessions collapsed
+  // ---------------------------------------------------------------------------
+
+  getSessionsCollapsed(): boolean {
+    return this.collapsed
+  }
+
+  setSessionsCollapsed(value: boolean): void {
+    this.collapsed = value
+    void this.save()
+  }
+
+  // ---------------------------------------------------------------------------
   // Persistence
   // ---------------------------------------------------------------------------
 
@@ -206,6 +230,7 @@ export class WorktreeStateManager {
       if (data.tabOrder) {
         this.tabOrder = data.tabOrder
       }
+      this.collapsed = data.sessionsCollapsed ?? false
       this.log(`Loaded state: ${this.worktrees.size} worktrees, ${this.sessions.size} sessions`)
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
@@ -268,6 +293,9 @@ export class WorktreeStateManager {
     }
     if (Object.keys(this.tabOrder).length > 0) {
       data.tabOrder = this.tabOrder
+    }
+    if (this.collapsed) {
+      data.sessionsCollapsed = true
     }
 
     const dir = path.dirname(this.file)

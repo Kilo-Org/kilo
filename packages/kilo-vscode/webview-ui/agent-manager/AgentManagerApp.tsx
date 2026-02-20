@@ -409,6 +409,11 @@ const AgentManagerContent: Component = () => {
       }
     })
 
+    // Mark sessions loaded as soon as the session context receives data (even if empty)
+    const unsubSessions = vscode.onMessage((msg) => {
+      if (msg.type === "sessionsLoaded" && !sessionsLoaded()) setSessionsLoaded(true)
+    })
+
     const unsub = vscode.onMessage((msg) => {
       if (msg.type === "agentManager.repoInfo") {
         const info = msg as AgentManagerRepoInfoMessage
@@ -442,7 +447,6 @@ const AgentManagerContent: Component = () => {
         setWorktrees(state.worktrees)
         setManagedSessions(state.sessions)
         if (!worktreesLoaded()) setWorktreesLoaded(true)
-        if (!sessionsLoaded()) setSessionsLoaded(true)
         const current = session.currentSessionID()
         if (current) {
           const ms = state.sessions.find((s) => s.id === current)
@@ -462,13 +466,9 @@ const AgentManagerContent: Component = () => {
       window.removeEventListener("keydown", preventDefaults)
       window.removeEventListener("focus", onWindowFocus)
       unsubCreate()
+      unsubSessions()
       unsub()
     })
-  })
-
-  // Mark sessions loaded once the session context receives data
-  createEffect(() => {
-    if (session.sessions().length > 0 && !sessionsLoaded()) setSessionsLoaded(true)
   })
 
   // Always select local on mount to initialize branch info and session state
@@ -665,7 +665,7 @@ const AgentManagerContent: Component = () => {
           </div>
           <div class="am-worktree-list">
             <Show
-              when={worktreesLoaded()}
+              when={worktreesLoaded() && sessionsLoaded()}
               fallback={
                 <div class="am-skeleton-list">
                   <div class="am-skeleton-item">

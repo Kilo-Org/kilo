@@ -43,7 +43,11 @@ export const SortableTab: Component<{
   void sortable
   return (
     // @ts-ignore - use:sortable is a SolidJS directive compiled by esbuild-plugin-solid
-    <div use:sortable class={`am-tab-sortable ${sortable.isActiveDraggable ? "am-tab-dragging" : ""}`}>
+    <div
+      use:sortable
+      class={`am-tab-sortable ${sortable.isActiveDraggable ? "am-tab-dragging" : ""}`}
+      data-tab-id={props.tab.id}
+    >
       <Tooltip value={props.tab.title || "Untitled"} placement="bottom">
         <div
           class={`am-tab ${props.active ? "am-tab-active" : ""}`}

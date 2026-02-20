@@ -696,7 +696,7 @@ const AgentManagerContent: Component = () => {
           <div class="am-setup-overlay">
             <div class="am-setup-card">
               <Icon name="branch" size="large" />
-              <div class="am-setup-title">Setting up workspace</div>
+              <div class="am-setup-title">{setup().error ? "Workspace setup failed" : "Setting up workspace"}</div>
               <Show when={setup().branch}>
                 <div class="am-setup-branch">{setup().branch}</div>
               </Show>

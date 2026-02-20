@@ -455,7 +455,7 @@
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  max-width: 300px;
+  max-width: 400px;
   text-align: center;
 }
 
@@ -479,12 +479,14 @@
 .am-setup-status {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 8px 16px;
   border-radius: var(--radius-sm);
   background: var(--surface-inset-base);
   color: var(--text-base);
   font-size: var(--font-size-base);
+  text-align: center;
 }
 
 .am-setup-spinner {

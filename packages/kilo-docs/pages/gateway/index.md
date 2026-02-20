@@ -30,7 +30,7 @@ const kilo = createOpenAI({
 })
 
 const result = streamText({
-  model: kilo("anthropic/claude-sonnet-4.5"),
+  model: kilo.chat("anthropic/claude-sonnet-4.5"),
   prompt: "Why is the sky blue?",
 })
 ```

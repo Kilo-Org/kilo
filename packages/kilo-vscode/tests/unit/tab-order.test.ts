@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { reorderTabs, applyTabOrder, firstOrderedTitle, reconcileOrder } from "../../webview-ui/agent-manager/tab-order"
+import { reorderTabs, applyTabOrder, firstOrderedTitle } from "../../webview-ui/agent-manager/tab-order"
 
 describe("reorderTabs", () => {
   const tabs = ["a", "b", "c", "d"]
@@ -12,8 +12,20 @@ describe("reorderTabs", () => {
     expect(reorderTabs(tabs, "c", "a")).toEqual(["c", "a", "b", "d"])
   })
 
-  it("swaps adjacent items", () => {
+  it("swaps adjacent items forward", () => {
     expect(reorderTabs(tabs, "a", "b")).toEqual(["b", "a", "c", "d"])
+  })
+
+  it("swaps adjacent items backward", () => {
+    expect(reorderTabs(tabs, "b", "a")).toEqual(["b", "a", "c", "d"])
+  })
+
+  it("moves first to last", () => {
+    expect(reorderTabs(tabs, "a", "d")).toEqual(["b", "c", "d", "a"])
+  })
+
+  it("moves last to first", () => {
+    expect(reorderTabs(tabs, "d", "a")).toEqual(["d", "a", "b", "c"])
   })
 
   it("returns undefined when from equals to", () => {
@@ -28,10 +40,39 @@ describe("reorderTabs", () => {
     expect(reorderTabs(tabs, "a", "x")).toBeUndefined()
   })
 
+  it("returns undefined when both are missing", () => {
+    expect(reorderTabs(tabs, "x", "y")).toBeUndefined()
+  })
+
+  it("handles a two-item list", () => {
+    expect(reorderTabs(["a", "b"], "a", "b")).toEqual(["b", "a"])
+    expect(reorderTabs(["a", "b"], "b", "a")).toEqual(["b", "a"])
+  })
+
+  it("handles a single-item list (from === to)", () => {
+    expect(reorderTabs(["a"], "a", "a")).toBeUndefined()
+  })
+
+  it("handles empty list", () => {
+    expect(reorderTabs([], "a", "b")).toBeUndefined()
+  })
+
   it("does not mutate the original array", () => {
     const original = ["a", "b", "c"]
     reorderTabs(original, "a", "c")
     expect(original).toEqual(["a", "b", "c"])
+  })
+
+  it("preserves unrelated items", () => {
+    const result = reorderTabs(["a", "b", "c", "d", "e"], "b", "d")!
+    expect(result).toEqual(["a", "c", "d", "b", "e"])
+    expect(result.sort()).toEqual(["a", "b", "c", "d", "e"])
+  })
+
+  it("round-trip: moving forward then back restores original order", () => {
+    const moved = reorderTabs(tabs, "a", "c")!
+    const restored = reorderTabs(moved, "a", "b")!
+    expect(restored).toEqual(["a", "b", "c", "d"])
   })
 })
 
@@ -105,43 +146,43 @@ describe("firstOrderedTitle", () => {
   })
 })
 
-describe("reconcileOrder", () => {
+// Helper: simulate reconciliation the same way handleDragOver does
+function reconcile(current: string[], stored: string[]): string[] {
+  return applyTabOrder(
+    current.map((id) => ({ id })),
+    stored,
+  ).map((item) => item.id)
+}
+
+describe("applyTabOrder as reconciliation (string IDs)", () => {
   it("returns stored order unchanged when it matches current IDs", () => {
-    expect(reconcileOrder(["a", "b", "c"], ["a", "b", "c"])).toEqual(["a", "b", "c"])
+    expect(reconcile(["a", "b", "c"], ["a", "b", "c"])).toEqual(["a", "b", "c"])
   })
 
   it("appends new IDs not in stored order", () => {
-    // Stored order had [a, b], a new tab "c" was added
-    expect(reconcileOrder(["a", "b"], ["a", "b", "c"])).toEqual(["a", "b", "c"])
+    expect(reconcile(["a", "b", "c"], ["a", "b"])).toEqual(["a", "b", "c"])
   })
 
   it("removes stale IDs no longer in current", () => {
-    // Stored order had [a, b, c], tab "b" was closed
-    expect(reconcileOrder(["a", "b", "c"], ["a", "c"])).toEqual(["a", "c"])
+    expect(reconcile(["a", "c"], ["a", "b", "c"])).toEqual(["a", "c"])
   })
 
   it("preserves custom ordering while adding new tabs", () => {
-    // User reordered to [b, a], then a new tab "c" was added
-    expect(reconcileOrder(["b", "a"], ["a", "b", "c"])).toEqual(["b", "a", "c"])
+    expect(reconcile(["a", "b", "c"], ["b", "a"])).toEqual(["b", "a", "c"])
   })
 
-  it("handles empty stored order by returning current IDs", () => {
-    expect(reconcileOrder([], ["a", "b"])).toEqual(["a", "b"])
-  })
-
-  it("handles empty current IDs", () => {
-    expect(reconcileOrder(["a", "b"], [])).toEqual([])
+  it("returns current IDs when stored order is undefined", () => {
+    expect(applyTabOrder([{ id: "a" }, { id: "b" }], undefined).map((i) => i.id)).toEqual(["a", "b"])
   })
 
   describe("regression: reorder a newly added tab immediately", () => {
-    it("new tab should be reorderable after reconcile", () => {
+    it("new tab should be reorderable after reconcile via applyTabOrder", () => {
       // Stored order from a previous drag: [s2, s1]
       // A third session s3 was just added to the worktree
       const stored = ["s2", "s1"]
       const current = ["s2", "s1", "s3"]
 
-      // Reconcile should include s3
-      const reconciled = reconcileOrder(stored, current)
+      const reconciled = reconcile(current, stored)
       expect(reconciled).toEqual(["s2", "s1", "s3"])
 
       // Now the user drags s3 to position of s2 — this must succeed
@@ -151,10 +192,8 @@ describe("reconcileOrder", () => {
     })
 
     it("without reconcile, reorderTabs fails on the new tab", () => {
-      // This demonstrates the bug: stored order doesn't contain s3
       const stored = ["s2", "s1"]
       const reordered = reorderTabs(stored, "s3", "s2")
-      // reorderTabs returns undefined because "s3" is not in stored
       expect(reordered).toBeUndefined()
     })
   })

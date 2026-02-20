@@ -46,7 +46,7 @@ import { ChatView } from "../src/components/chat"
 import { LanguageBridge, DataBridge } from "../src/App"
 import { formatRelativeDate } from "../src/utils/date"
 import { validateLocalSession, nextSelectionAfterDelete, LOCAL } from "./navigate"
-import { reorderTabs, applyTabOrder, firstOrderedTitle, reconcileOrder } from "./tab-order"
+import { reorderTabs, applyTabOrder, firstOrderedTitle } from "./tab-order"
 import { ConstrainDragYAxis, SortableTab } from "./sortable-tab"
 import "./agent-manager.css"
 
@@ -611,8 +611,11 @@ const AgentManagerContent: Component = () => {
       setLocalSessionIDs((prev) => reorderTabs(prev, from, to) ?? prev)
     } else if (sel) {
       setWorktreeTabOrder((prev) => {
-        const reconciled = reconcileOrder(prev[sel] ?? [], tabIds())
-        const reordered = reorderTabs(reconciled, from, to)
+        const ids = applyTabOrder(
+          tabIds().map((id) => ({ id })),
+          prev[sel],
+        ).map((item) => item.id)
+        const reordered = reorderTabs(ids, from, to)
         if (!reordered) return prev
         return { ...prev, [sel]: reordered }
       })

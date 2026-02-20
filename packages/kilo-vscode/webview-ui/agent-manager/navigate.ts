@@ -58,6 +58,3 @@ export function nextSelectionAfterDelete(deletedId: string, worktreeIds: string[
   // Prefer the item that was below (same index in the shortened list), else the one above
   return remaining[Math.min(idx, remaining.length - 1)]!
 }
-
-// Re-export tab ordering utilities for backwards compatibility
-export { reorderTabs } from "./tab-order"

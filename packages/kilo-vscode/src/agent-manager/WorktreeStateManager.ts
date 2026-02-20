@@ -153,7 +153,6 @@ export class WorktreeStateManager {
   }
 
   removeSession(id: string): void {
-    const session = this.sessions.get(id)
     this.sessions.delete(id)
 
     // Remove this session from any tab order arrays

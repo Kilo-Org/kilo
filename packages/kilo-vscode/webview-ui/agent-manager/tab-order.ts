@@ -1,7 +1,5 @@
 /**
  * Pure tab-ordering logic for the agent manager.
- *
- * All functions are side-effect-free and independently testable.
  */
 
 /**
@@ -39,28 +37,6 @@ export function applyTabOrder<T extends { id: string }>(items: T[], order: strin
   }
   for (const item of lookup.values()) ordered.push(item)
   return ordered
-}
-
-/**
- * Reconcile a stored tab order with the current set of tab IDs.
- *
- * Preserves the relative order from `stored`, removes IDs no longer
- * in `current`, and appends any new IDs from `current` at the end.
- */
-export function reconcileOrder(stored: readonly string[], current: readonly string[]): string[] {
-  const alive = new Set(current)
-  const seen = new Set<string>()
-  const result: string[] = []
-  for (const id of stored) {
-    if (alive.has(id)) {
-      result.push(id)
-      seen.add(id)
-    }
-  }
-  for (const id of current) {
-    if (!seen.has(id)) result.push(id)
-  }
-  return result
 }
 
 /**

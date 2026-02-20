@@ -70,6 +70,9 @@ const AgentManagerContent: Component = () => {
   const PENDING_PREFIX = "pending:"
   const [activePendingId, setActivePendingId] = createSignal<string | undefined>()
 
+  // Per-context tab memory: maps sidebar selection key -> last active session/pending ID
+  const [tabMemory, setTabMemory] = createSignal<Record<string, string>>({})
+
   const isPending = (id: string) => id.startsWith(PENDING_PREFIX)
 
   const addPendingTab = () => {
@@ -84,6 +87,17 @@ const AgentManagerContent: Component = () => {
   createEffect(() => {
     vscode.setState({ localSessionIDs: localSessionIDs().filter((id) => !isPending(id)) })
   })
+
+  // Save the currently active tab for the current sidebar context before switching away
+  const saveTabMemory = () => {
+    const sel = selection()
+    if (sel === null) return
+    const key = sel === LOCAL ? LOCAL : sel
+    const active = session.currentSessionID() ?? activePendingId()
+    if (active) {
+      setTabMemory((prev) => (prev[key] === active ? prev : { ...prev, [key]: active }))
+    }
+  }
 
   // Invalidate local session IDs if they no longer exist (preserve pending tabs)
   createEffect(() => {
@@ -195,6 +209,7 @@ const AgentManagerContent: Component = () => {
     } else if (item.type === "wt") {
       selectWorktree(item.id)
     } else {
+      saveTabMemory()
       setSelection(null)
       session.selectSession(item.id)
     }
@@ -223,15 +238,18 @@ const AgentManagerContent: Component = () => {
   }
 
   const selectLocal = () => {
+    saveTabMemory()
     setSelection(LOCAL)
     vscode.postMessage({ type: "agentManager.requestRepoInfo" })
     const locals = localSessions()
-    const first = locals[0]
-    if (first && !isPending(first.id)) {
+    const remembered = tabMemory()[LOCAL]
+    const target = remembered ? locals.find((s) => s.id === remembered) : undefined
+    const fallback = target ?? locals[0]
+    if (fallback && !isPending(fallback.id)) {
       setActivePendingId(undefined)
-      session.selectSession(first.id)
-    } else if (first && isPending(first.id)) {
-      setActivePendingId(first.id)
+      session.selectSession(fallback.id)
+    } else if (fallback && isPending(fallback.id)) {
+      setActivePendingId(fallback.id)
       session.clearCurrentSession()
     } else {
       setActivePendingId(undefined)
@@ -240,12 +258,16 @@ const AgentManagerContent: Component = () => {
   }
 
   const selectWorktree = (worktreeId: string) => {
+    saveTabMemory()
     setSelection(worktreeId)
     const managed = managedSessions().filter((ms) => ms.worktreeId === worktreeId)
     const ids = new Set(managed.map((ms) => ms.id))
-    const first = session.sessions().find((s) => ids.has(s.id))
-    if (first) {
-      session.selectSession(first.id)
+    const sessions = session.sessions().filter((s) => ids.has(s.id))
+    const remembered = tabMemory()[worktreeId]
+    const target = remembered ? sessions.find((s) => s.id === remembered) : undefined
+    const fallback = target ?? sessions[0]
+    if (fallback) {
+      session.selectSession(fallback.id)
     } else {
       session.setCurrentSessionID(undefined)
     }
@@ -590,6 +612,7 @@ const AgentManagerContent: Component = () => {
                   class={`am-item ${s.id === session.currentSessionID() && selection() === null ? "am-item-active" : ""}`}
                   data-sidebar-id={s.id}
                   onClick={() => {
+                    saveTabMemory()
                     setSelection(null)
                     session.selectSession(s.id)
                   }}

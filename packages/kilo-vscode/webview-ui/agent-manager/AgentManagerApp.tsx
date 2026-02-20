@@ -59,6 +59,13 @@ interface SetupState {
   message: string
   branch?: string
   error?: boolean
+  worktreeId?: string
+}
+
+interface WorktreeBusyState {
+  reason: "setting-up" | "deleting"
+  message?: string
+  branch?: string
 }
 
 /** Sidebar selection: LOCAL for workspace, worktree ID for a worktree, or null for an unassigned session. */
@@ -156,7 +163,7 @@ const AgentManagerContent: Component = () => {
   const [managedSessions, setManagedSessions] = createSignal<ManagedSessionState[]>([])
   const [selection, setSelection] = createSignal<SidebarSelection>(LOCAL)
   const [repoBranch, setRepoBranch] = createSignal<string | undefined>()
-  const [deletingWorktrees, setDeletingWorktrees] = createSignal<Set<string>>(new Set())
+  const [busyWorktrees, setBusyWorktrees] = createSignal<Map<string, WorktreeBusyState>>(new Map())
   const [worktreesLoaded, setWorktreesLoaded] = createSignal(false)
   const [sessionsLoaded, setSessionsLoaded] = createSignal(false)
 
@@ -460,7 +467,15 @@ const AgentManagerContent: Component = () => {
         const ev = msg as AgentManagerWorktreeSetupMessage
         if (ev.status === "ready" || ev.status === "error") {
           const error = ev.status === "error"
-          setSetup({ active: true, message: ev.message, branch: ev.branch, error })
+          // Remove from busy map
+          if (ev.worktreeId) {
+            setBusyWorktrees((prev) => {
+              const next = new Map(prev)
+              next.delete(ev.worktreeId!)
+              return next
+            })
+          }
+          setSetup({ active: true, message: ev.message, branch: ev.branch, error, worktreeId: ev.worktreeId })
           globalThis.setTimeout(() => setSetup({ active: false, message: "" }), error ? 3000 : 500)
           if (!error && ev.sessionId) {
             session.selectSession(ev.sessionId)
@@ -469,7 +484,15 @@ const AgentManagerContent: Component = () => {
             if (ms?.worktreeId) setSelection(ms.worktreeId)
           }
         } else {
-          setSetup({ active: true, message: ev.message, branch: ev.branch })
+          // Track this worktree as setting up and auto-select it in the sidebar
+          if (ev.worktreeId) {
+            setBusyWorktrees(
+              (prev) =>
+                new Map([...prev, [ev.worktreeId!, { reason: "setting-up", message: ev.message, branch: ev.branch }]]),
+            )
+            setSelection(ev.worktreeId)
+          }
+          setSetup({ active: true, message: ev.message, branch: ev.branch, worktreeId: ev.worktreeId })
         }
       }
 
@@ -503,10 +526,10 @@ const AgentManagerContent: Component = () => {
           ).map((item) => item.id)
           setLocalSessionIDs(reordered)
         }
-        // Clear deleting state for worktrees that have been removed
+        // Clear busy state for worktrees that have been removed
         const ids = new Set(state.worktrees.map((wt) => wt.id))
-        setDeletingWorktrees((prev) => {
-          const next = new Set([...prev].filter((id) => ids.has(id)))
+        setBusyWorktrees((prev) => {
+          const next = new Map([...prev].filter(([id]) => ids.has(id)))
           return next.size === prev.size ? prev : next
         })
       }
@@ -546,7 +569,7 @@ const AgentManagerContent: Component = () => {
     const wt = worktrees().find((w) => w.id === worktreeId)
     if (!wt) return
     const doDelete = () => {
-      setDeletingWorktrees((prev) => new Set([...prev, wt.id]))
+      setBusyWorktrees((prev) => new Map([...prev, [wt.id, { reason: "deleting" as const }]]))
       vscode.postMessage({ type: "agentManager.deleteWorktree", worktreeId: wt.id })
       if (selection() === wt.id) {
         const next = nextSelectionAfterDelete(
@@ -840,12 +863,14 @@ const AgentManagerContent: Component = () => {
                               data-sidebar-id={wt.id}
                               onClick={() => selectWorktree(wt.id)}
                             >
-                              <Icon name="branch" size="small" />
-                              <span class="am-worktree-branch">{worktreeLabel(wt)}</span>
                               <Show
-                                when={!deletingWorktrees().has(wt.id)}
+                                when={!busyWorktrees().has(wt.id)}
                                 fallback={<Spinner class="am-worktree-spinner" />}
                               >
+                                <Icon name="branch" size="small" />
+                              </Show>
+                              <span class="am-worktree-branch">{worktreeLabel(wt)}</span>
+                              <Show when={!busyWorktrees().has(wt.id)}>
                                 <div
                                   class="am-worktree-close"
                                   onMouseEnter={() => setOverClose(true)}
@@ -1071,23 +1096,48 @@ const AgentManagerContent: Component = () => {
           </div>
         </Show>
 
-        <Show when={setup().active}>
-          <div class="am-setup-overlay">
-            <div class="am-setup-card">
-              <Icon name="branch" size="large" />
-              <div class="am-setup-title">{setup().error ? "Workspace setup failed" : "Setting up workspace"}</div>
-              <Show when={setup().branch}>
-                <div class="am-setup-branch">{setup().branch}</div>
-              </Show>
-              <div class="am-setup-status">
-                <Show when={!setup().error} fallback={<Icon name="circle-x" size="small" />}>
-                  <Spinner class="am-setup-spinner" />
-                </Show>
-                <span>{setup().message}</span>
-              </div>
-            </div>
-          </div>
-        </Show>
+        {(() => {
+          // Show setup overlay: either the transient ready/error state for the selected worktree,
+          // or if the selected worktree is still being set up (from busyWorktrees map)
+          const overlayState = () => {
+            const s = setup()
+            const sel = selection()
+            // Transient ready/error overlay for the selected worktree (or worktree-less setup)
+            if (s.active && (!s.worktreeId || sel === s.worktreeId)) return s
+            // Persistent setup-in-progress for the currently selected worktree
+            if (typeof sel === "string" && sel !== LOCAL) {
+              const busy = busyWorktrees().get(sel)
+              if (busy?.reason === "setting-up") {
+                const wt = worktrees().find((w) => w.id === sel)
+                return { active: true, message: busy.message, branch: busy.branch ?? wt?.branch }
+              }
+            }
+            return null
+          }
+          return (
+            <Show when={overlayState()}>
+              {(state) => (
+                <div class="am-setup-overlay">
+                  <div class="am-setup-card">
+                    <Icon name="branch" size="large" />
+                    <div class="am-setup-title">
+                      {state().error ? "Workspace setup failed" : "Setting up workspace"}
+                    </div>
+                    <Show when={state().branch}>
+                      <div class="am-setup-branch">{state().branch}</div>
+                    </Show>
+                    <div class="am-setup-status">
+                      <Show when={!state().error} fallback={<Icon name="circle-x" size="small" />}>
+                        <Spinner class="am-setup-spinner" />
+                      </Show>
+                      <span>{state().message}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Show>
+          )
+        })()}
         <Show when={!contextEmpty()}>
           <div class="am-chat-wrapper">
             <ChatView

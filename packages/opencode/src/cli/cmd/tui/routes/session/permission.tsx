@@ -15,6 +15,7 @@ import { Keybind } from "@/util/keybind"
 import { Locale } from "@/util/locale"
 import { Global } from "@/global"
 import { useDialog } from "../../ui/dialog"
+import { Filesystem } from "@/util/filesystem"
 
 type PermissionStage = "permission" | "always" | "reject"
 
@@ -23,8 +24,8 @@ function normalizePath(input?: string) {
 
   const cwd = process.cwd()
   const home = Global.Path.home
-  const absolute = path.isAbsolute(input) ? input : path.resolve(cwd, input)
-  const relative = path.relative(cwd, absolute)
+  const absolute = path.isAbsolute(input) ? input : Filesystem.resolve(cwd, input)
+  const relative = Filesystem.relative(cwd, absolute)
 
   if (!relative) return "."
   if (!relative.startsWith("..")) return relative
@@ -248,7 +249,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
                       const derived =
                         typeof pattern === "string"
                           ? pattern.includes("*")
-                            ? path.dirname(pattern)
+                            ? Filesystem.dirname(pattern)
                             : pattern
                           : undefined
 

@@ -10,6 +10,7 @@ import { TaskHeader } from "./TaskHeader"
 import { MessageList } from "./MessageList"
 import { PromptInput } from "./PromptInput"
 import { QuestionDock } from "./QuestionDock"
+import { KiloNotifications } from "./KiloNotifications"
 import { useSession } from "../../context/session"
 import { useLanguage } from "../../context/language"
 
@@ -54,6 +55,9 @@ export const ChatView: Component<ChatViewProps> = (props) => {
   return (
     <div class="chat-view">
       <TaskHeader />
+      <Show when={!id()}>
+        <KiloNotifications />
+      </Show>
       <div class="chat-messages">
         <MessageList onSelectSession={props.onSelectSession} />
       </div>

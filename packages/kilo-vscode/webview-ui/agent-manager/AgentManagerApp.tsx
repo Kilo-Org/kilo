@@ -60,6 +60,8 @@ const AgentManagerContent: Component = () => {
   const [selection, setSelection] = createSignal<SidebarSelection>(LOCAL)
   const [repoBranch, setRepoBranch] = createSignal<string | undefined>()
   const [deletingWorktrees, setDeletingWorktrees] = createSignal<Set<string>>(new Set())
+  const [worktreesLoaded, setWorktreesLoaded] = createSignal(false)
+  const [sessionsLoaded, setSessionsLoaded] = createSignal(false)
 
   // Recover persisted local session IDs from webview state
   const persisted = vscode.getState<{ localSessionIDs?: string[] }>()
@@ -338,6 +340,8 @@ const AgentManagerContent: Component = () => {
         const state = msg as AgentManagerStateMessage
         setWorktrees(state.worktrees)
         setManagedSessions(state.sessions)
+        if (!worktreesLoaded()) setWorktreesLoaded(true)
+        if (!sessionsLoaded()) setSessionsLoaded(true)
         const current = session.currentSessionID()
         if (current) {
           const ms = state.sessions.find((s) => s.id === current)
@@ -361,9 +365,17 @@ const AgentManagerContent: Component = () => {
     })
   })
 
+  // Mark sessions loaded once the session context receives data
+  createEffect(() => {
+    if (session.sessions().length > 0 && !sessionsLoaded()) setSessionsLoaded(true)
+  })
+
   // Always select local on mount to initialize branch info and session state
   onMount(() => {
     selectLocal()
+    // Request worktree/session state from extension — handles race where
+    // initializeState() pushState fires before the webview is mounted
+    vscode.postMessage({ type: "agentManager.requestState" })
     // Open a pending "New Session" tab if there are no persisted local sessions
     if (localSessionIDs().length === 0) {
       addPendingTab()
@@ -545,35 +557,51 @@ const AgentManagerContent: Component = () => {
             <IconButton icon="plus" size="small" variant="ghost" label="New Worktree" onClick={handleCreateWorktree} />
           </div>
           <div class="am-worktree-list">
-            <For each={worktrees()}>
-              {(wt) => (
-                <div
-                  class={`am-worktree-item ${selection() === wt.id ? "am-worktree-item-active" : ""}`}
-                  data-sidebar-id={wt.id}
-                  onClick={() => selectWorktree(wt.id)}
-                >
-                  <Icon name="branch" size="small" />
-                  <span class="am-worktree-branch" title={wt.branch}>
-                    {worktreeLabel(wt)}
-                  </span>
-                  <Show when={!deletingWorktrees().has(wt.id)} fallback={<Spinner class="am-worktree-spinner" />}>
-                    <IconButton
-                      icon="close-small"
-                      size="small"
-                      variant="ghost"
-                      label="Close worktree"
-                      class="am-worktree-close"
-                      onClick={(e: MouseEvent) => handleDeleteWorktree(wt.id, e)}
-                    />
-                  </Show>
+            <Show
+              when={worktreesLoaded()}
+              fallback={
+                <div class="am-skeleton-list">
+                  <div class="am-skeleton-item">
+                    <div class="am-skeleton-icon" />
+                    <div class="am-skeleton-text" style={{ width: "65%" }} />
+                  </div>
+                  <div class="am-skeleton-item">
+                    <div class="am-skeleton-icon" />
+                    <div class="am-skeleton-text" style={{ width: "50%" }} />
+                  </div>
                 </div>
-              )}
-            </For>
-            <Show when={worktrees().length === 0}>
-              <button class="am-worktree-create" onClick={handleCreateWorktree}>
-                <Icon name="plus" size="small" />
-                <span>New Worktree</span>
-              </button>
+              }
+            >
+              <For each={worktrees()}>
+                {(wt) => (
+                  <div
+                    class={`am-worktree-item ${selection() === wt.id ? "am-worktree-item-active" : ""}`}
+                    data-sidebar-id={wt.id}
+                    onClick={() => selectWorktree(wt.id)}
+                  >
+                    <Icon name="branch" size="small" />
+                    <span class="am-worktree-branch" title={wt.branch}>
+                      {worktreeLabel(wt)}
+                    </span>
+                    <Show when={!deletingWorktrees().has(wt.id)} fallback={<Spinner class="am-worktree-spinner" />}>
+                      <IconButton
+                        icon="close-small"
+                        size="small"
+                        variant="ghost"
+                        label="Close worktree"
+                        class="am-worktree-close"
+                        onClick={(e: MouseEvent) => handleDeleteWorktree(wt.id, e)}
+                      />
+                    </Show>
+                  </div>
+                )}
+              </For>
+              <Show when={worktrees().length === 0}>
+                <button class="am-worktree-create" onClick={handleCreateWorktree}>
+                  <Icon name="plus" size="small" />
+                  <span>New Worktree</span>
+                </button>
+              </Show>
             </Show>
           </div>
         </div>
@@ -584,29 +612,49 @@ const AgentManagerContent: Component = () => {
             <span class="am-section-label">SESSIONS</span>
           </div>
           <div class="am-list">
-            <For each={unassignedSessions()}>
-              {(s) => (
-                <button
-                  class={`am-item ${s.id === session.currentSessionID() && selection() === null ? "am-item-active" : ""}`}
-                  data-sidebar-id={s.id}
-                  onClick={() => {
-                    setSelection(null)
-                    session.selectSession(s.id)
-                  }}
-                >
-                  <span class="am-item-title">{s.title || "Untitled"}</span>
-                  <span class="am-item-time">{formatRelativeDate(s.updatedAt)}</span>
-                  <IconButton
-                    icon="branch"
-                    size="small"
-                    variant="ghost"
-                    label="Open in worktree"
-                    class="am-item-promote"
-                    onClick={(e: MouseEvent) => handlePromote(s.id, e)}
-                  />
-                </button>
-              )}
-            </For>
+            <Show
+              when={sessionsLoaded()}
+              fallback={
+                <div class="am-skeleton-list">
+                  <div class="am-skeleton-item">
+                    <div class="am-skeleton-dot" />
+                    <div class="am-skeleton-text" style={{ width: "80%" }} />
+                  </div>
+                  <div class="am-skeleton-item">
+                    <div class="am-skeleton-dot" />
+                    <div class="am-skeleton-text" style={{ width: "60%" }} />
+                  </div>
+                  <div class="am-skeleton-item">
+                    <div class="am-skeleton-dot" />
+                    <div class="am-skeleton-text" style={{ width: "70%" }} />
+                  </div>
+                </div>
+              }
+            >
+              <For each={unassignedSessions()}>
+                {(s) => (
+                  <button
+                    class={`am-item ${s.id === session.currentSessionID() && selection() === null ? "am-item-active" : ""}`}
+                    data-sidebar-id={s.id}
+                    onClick={() => {
+                      setSelection(null)
+                      session.selectSession(s.id)
+                    }}
+                  >
+                    <span class="am-item-title">{s.title || "Untitled"}</span>
+                    <span class="am-item-time">{formatRelativeDate(s.updatedAt)}</span>
+                    <IconButton
+                      icon="branch"
+                      size="small"
+                      variant="ghost"
+                      label="Open in worktree"
+                      class="am-item-promote"
+                      onClick={(e: MouseEvent) => handlePromote(s.id, e)}
+                    />
+                  </button>
+                )}
+              </For>
+            </Show>
           </div>
         </div>
       </div>

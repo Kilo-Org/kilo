@@ -548,3 +548,68 @@
   opacity: 0.6;
   margin-left: 6px;
 }
+
+/* Skeleton loading states */
+
+@keyframes am-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.am-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
+  animation: am-fade-in 0.2s ease;
+}
+
+.am-skeleton-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.am-skeleton-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-sm);
+  background: var(--text-base);
+  animation: am-skeleton-pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.am-skeleton-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-base);
+  animation: am-skeleton-pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.am-skeleton-text {
+  height: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--text-base);
+  animation: am-skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.am-skeleton-item:nth-child(2) .am-skeleton-icon,
+.am-skeleton-item:nth-child(2) .am-skeleton-dot,
+.am-skeleton-item:nth-child(2) .am-skeleton-text {
+  animation-delay: 0.15s;
+}
+
+.am-skeleton-item:nth-child(3) .am-skeleton-icon,
+.am-skeleton-item:nth-child(3) .am-skeleton-dot,
+.am-skeleton-item:nth-child(3) .am-skeleton-text {
+  animation-delay: 0.3s;
+}

@@ -833,6 +833,10 @@ export interface RequestRepoInfoMessage {
   type: "agentManager.requestRepoInfo"
 }
 
+export interface RequestStateMessage {
+  type: "agentManager.requestState"
+}
+
 // Show terminal for a session
 export interface ShowTerminalRequest {
   type: "agentManager.showTerminal"
@@ -882,6 +886,7 @@ export type WebviewMessage =
   | CloseSessionRequest
   | TelemetryRequest
   | RequestRepoInfoMessage
+  | RequestStateMessage
   | ShowTerminalRequest
 
 // ============================================

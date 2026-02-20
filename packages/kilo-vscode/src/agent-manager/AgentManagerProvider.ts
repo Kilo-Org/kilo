@@ -23,6 +23,7 @@ export class AgentManagerProvider implements vscode.Disposable {
   private worktrees: WorktreeManager | undefined
   private state: WorktreeStateManager | undefined
   private terminalManager: SessionTerminalManager
+  private stateReady: Promise<void> | undefined
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -70,7 +71,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       onBeforeMessage: (msg) => this.onMessage(msg),
     })
 
-    void this.initializeState()
+    this.stateReady = this.initializeState()
     void this.sendRepoInfo()
 
     this.panel.onDidDispose(() => {
@@ -135,6 +136,10 @@ export class AgentManagerProvider implements vscode.Disposable {
     }
     if (type === "agentManager.requestRepoInfo") {
       void this.sendRepoInfo()
+      return null
+    }
+    if (type === "agentManager.requestState") {
+      void this.stateReady?.then(() => this.pushState())
       return null
     }
 

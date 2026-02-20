@@ -139,7 +139,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       return null
     }
     if (type === "agentManager.requestState") {
-      void this.stateReady?.then(() => this.pushState())
+      void this.stateReady?.then(() => this.pushState()).catch(() => this.pushState())
       return null
     }
 

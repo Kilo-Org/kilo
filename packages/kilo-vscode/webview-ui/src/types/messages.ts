@@ -839,6 +839,19 @@ export interface ShowTerminalRequest {
   sessionId: string
 }
 
+// Create multiple worktree sessions for the same prompt (multi-version mode)
+export interface CreateMultiVersionRequest {
+  type: "agentManager.createMultiVersion"
+  text: string
+  versions: number
+  labels: string[]
+  providerID?: string
+  modelID?: string
+  agent?: string
+  files?: FileAttachment[]
+  baseBranch?: string
+}
+
 export type WebviewMessage =
   | SendMessageRequest
   | AbortRequest
@@ -883,6 +896,7 @@ export type WebviewMessage =
   | TelemetryRequest
   | RequestRepoInfoMessage
   | ShowTerminalRequest
+  | CreateMultiVersionRequest
 
 // ============================================
 // VS Code API type

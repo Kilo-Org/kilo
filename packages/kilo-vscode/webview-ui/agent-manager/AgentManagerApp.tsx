@@ -13,6 +13,7 @@ import type {
 import { ThemeProvider } from "@kilocode/kilo-ui/theme"
 import { DialogProvider, useDialog } from "@kilocode/kilo-ui/context/dialog"
 import { Dialog } from "@kilocode/kilo-ui/dialog"
+import { DropdownMenu } from "@kilocode/kilo-ui/dropdown-menu"
 import { MarkedProvider } from "@kilocode/kilo-ui/context/marked"
 import { CodeComponentProvider } from "@kilocode/kilo-ui/context/code"
 import { DiffComponentProvider } from "@kilocode/kilo-ui/context/diff"
@@ -31,6 +32,8 @@ import { ConfigProvider } from "../src/context/config"
 import { SessionProvider, useSession } from "../src/context/session"
 import { WorktreeModeProvider } from "../src/context/worktree-mode"
 import { ChatView } from "../src/components/chat"
+import { ModelSelectorBase } from "../src/components/chat/ModelSelector"
+import { ModeSwitcherBase } from "../src/components/chat/ModeSwitcher"
 import { LanguageBridge, DataBridge } from "../src/App"
 import { formatRelativeDate } from "../src/utils/date"
 import { validateLocalSession, nextSelectionAfterDelete, LOCAL } from "./navigate"
@@ -374,6 +377,11 @@ const AgentManagerContent: Component = () => {
     vscode.postMessage({ type: "agentManager.createWorktree" })
   }
 
+  // Advanced worktree dialog — opens a full dialog with prompt, versions, model, mode
+  const showAdvancedWorktreeDialog = () => {
+    dialog.show(() => <NewWorktreeDialog onClose={() => dialog.close()} />)
+  }
+
   const confirmDeleteWorktree = (worktreeId: string) => {
     const wt = worktrees().find((w) => w.id === worktreeId)
     if (!wt) return
@@ -542,7 +550,32 @@ const AgentManagerContent: Component = () => {
         <div class="am-section">
           <div class="am-section-header">
             <span class="am-section-label">WORKTREES</span>
-            <IconButton icon="plus" size="small" variant="ghost" label="New Worktree" onClick={handleCreateWorktree} />
+            <div class="am-split-button">
+              <IconButton
+                icon="plus"
+                size="small"
+                variant="ghost"
+                label="New Worktree"
+                onClick={handleCreateWorktree}
+              />
+              <DropdownMenu gutter={4} placement="bottom-end">
+                <DropdownMenu.Trigger class="am-split-arrow" aria-label="Advanced worktree options">
+                  <Icon name="chevron-down" size="small" />
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content class="am-split-menu">
+                    <DropdownMenu.Item onSelect={handleCreateWorktree}>
+                      <DropdownMenu.ItemLabel>New Worktree</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Separator />
+                    <DropdownMenu.Item onSelect={showAdvancedWorktreeDialog}>
+                      <Icon name="layers" size="small" />
+                      <DropdownMenu.ItemLabel>New with Versions...</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu>
+            </div>
           </div>
           <div class="am-worktree-list">
             <For each={worktrees()}>
@@ -738,6 +771,156 @@ const AgentManagerContent: Component = () => {
         </Show>
       </div>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Advanced "New Worktree" dialog — prompt, versions, model, mode
+// ---------------------------------------------------------------------------
+
+type VersionCount = 1 | 2 | 3 | 4
+const VERSION_OPTIONS: VersionCount[] = [1, 2, 3, 4]
+
+const NewWorktreeDialog: Component<{ onClose: () => void }> = (props) => {
+  const vscode = useVSCode()
+  const session = useSession()
+
+  const [prompt, setPrompt] = createSignal("")
+  const [versions, setVersions] = createSignal<VersionCount>(2)
+  const [model, setModel] = createSignal<{ providerID: string; modelID: string } | null>(null)
+  const [agent, setAgent] = createSignal(session.selectedAgent())
+  const [starting, setStarting] = createSignal(false)
+
+  let textareaRef: HTMLTextAreaElement | undefined
+
+  onMount(() => {
+    requestAnimationFrame(() => textareaRef?.focus())
+  })
+
+  const canSubmit = () => prompt().trim().length > 0 && !starting()
+
+  const handleSubmit = () => {
+    const text = prompt().trim()
+    if (!text || starting()) return
+    setStarting(true)
+
+    const count = versions()
+    const sel = model()
+    const defaultAgent = session.agents()[0]?.name
+    const selectedAgent = agent() !== defaultAgent ? agent() : undefined
+    const labels = Array.from({ length: count }, (_, i) => `${text.slice(0, 50)} (v${i + 1})`)
+
+    vscode.postMessage({
+      type: "agentManager.createMultiVersion",
+      text,
+      versions: count,
+      labels,
+      providerID: sel?.providerID,
+      modelID: sel?.modelID,
+      agent: selectedAgent,
+    })
+
+    props.onClose()
+  }
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault()
+      handleSubmit()
+    }
+  }
+
+  return (
+    <Dialog title="New Versioned Session" fit>
+      <div class="am-nv-dialog">
+        {/* Prompt */}
+        <div class="am-nv-section">
+          <textarea
+            ref={textareaRef}
+            class="am-nv-textarea"
+            placeholder="Describe the task..."
+            value={prompt()}
+            onInput={(e) => setPrompt(e.currentTarget.value)}
+            onKeyDown={handleKeyDown}
+            rows={5}
+          />
+        </div>
+
+        {/* Config bar */}
+        <div class="am-nv-config">
+          <div class="am-nv-config-item">
+            <span class="am-nv-config-label">Versions</span>
+            <div class="am-nv-pills">
+              {VERSION_OPTIONS.map((count) => (
+                <button
+                  class="am-nv-pill"
+                  classList={{ "am-nv-pill-active": versions() === count }}
+                  onClick={() => setVersions(count)}
+                  type="button"
+                >
+                  {count}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div class="am-nv-config-sep" />
+
+          <div class="am-nv-config-item">
+            <span class="am-nv-config-label">Model</span>
+            <div class="am-nv-selector">
+              <ModelSelectorBase
+                value={model()}
+                onSelect={(pid, mid) => setModel(pid && mid ? { providerID: pid, modelID: mid } : null)}
+                placement="bottom-start"
+                allowClear
+                clearLabel="Default"
+              />
+            </div>
+          </div>
+
+          <div class="am-nv-config-sep" />
+
+          <div class="am-nv-config-item">
+            <span class="am-nv-config-label">Mode</span>
+            <div class="am-nv-selector">
+              <ModeSwitcherBase agents={session.agents()} value={agent()} onSelect={setAgent} />
+            </div>
+          </div>
+        </div>
+
+        {/* Hint */}
+        <Show when={versions() > 1}>
+          <div class="am-nv-info">
+            <Icon name="layers" size="small" />
+            <span>{versions()} independent worktrees will run the same prompt in parallel</span>
+          </div>
+        </Show>
+
+        {/* Actions */}
+        <div class="am-nv-actions">
+          <Button variant="ghost" size="large" onClick={props.onClose}>
+            Cancel
+          </Button>
+          <Tooltip value={`${isMac ? "\u2318" : "Ctrl+"}Enter`} placement="top">
+            <Button variant="primary" size="large" onClick={handleSubmit} disabled={!canSubmit()}>
+              <Show
+                when={!starting()}
+                fallback={
+                  <>
+                    <Spinner class="am-nv-spinner" />
+                    <span>Creating...</span>
+                  </>
+                }
+              >
+                <Icon name="branch" size="small" />
+                <span>{versions() > 1 ? `Launch ${versions()} Versions` : "Launch"}</span>
+              </Show>
+            </Button>
+          </Tooltip>
+        </div>
+      </div>
+    </Dialog>
   )
 }
 

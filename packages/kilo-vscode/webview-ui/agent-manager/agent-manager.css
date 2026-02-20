@@ -548,3 +548,208 @@
   opacity: 0.6;
   margin-left: 6px;
 }
+
+/* Split button (+ with dropdown arrow) */
+
+.am-split-button {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.am-split-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-weak);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  opacity: 0.6;
+  transition: all 120ms;
+}
+
+.am-split-arrow:hover {
+  opacity: 1;
+  background: var(--surface-inset-base-hover);
+}
+
+.am-split-arrow[data-expanded] {
+  opacity: 1;
+  background: var(--surface-inset-base-hover);
+}
+
+.am-split-menu {
+  min-width: 200px;
+}
+
+/* New Versioned Session Dialog */
+
+.am-nv-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px 0 0;
+  min-width: 460px;
+}
+
+.am-nv-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.am-nv-textarea {
+  width: 100%;
+  min-height: 100px;
+  max-height: 240px;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  color: var(--text-base);
+  background: var(--surface-inset-base);
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-md, 8px);
+  resize: vertical;
+  box-sizing: border-box;
+  transition:
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.am-nv-textarea:focus {
+  outline: none;
+  border-color: var(--border-focus, #007fd4);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-focus, #007fd4) 40%, transparent);
+}
+
+.am-nv-textarea::placeholder {
+  color: var(--text-weaker);
+}
+
+/* Config bar — horizontal row of settings */
+
+.am-nv-config {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface-inset-base);
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-md, 8px);
+}
+
+.am-nv-config-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.am-nv-config-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text-weaker);
+  white-space: nowrap;
+}
+
+.am-nv-config-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border-base);
+  flex-shrink: 0;
+}
+
+/* Version pills */
+
+.am-nv-pills {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-base);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.am-nv-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  border: none;
+  border-radius: calc(var(--radius-sm) - 1px);
+  background: transparent;
+  color: var(--text-weak);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 100ms;
+}
+
+.am-nv-pill:hover {
+  background: var(--surface-inset-base-hover);
+  color: var(--text-base);
+}
+
+.am-nv-pill-active {
+  background: var(--border-focus, #007fd4) !important;
+  color: #fff !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Selector buttons inside config bar */
+
+.am-nv-selector [data-component="button"] {
+  height: auto !important;
+  min-height: 24px;
+  padding: 2px 8px !important;
+  font-size: 12px;
+  line-height: normal;
+  border-radius: var(--radius-sm);
+  background: var(--surface-base);
+  border: none;
+  box-shadow: none;
+}
+
+.am-nv-selector [data-component="button"]:hover:not(:disabled) {
+  background: var(--surface-base-hover);
+}
+
+/* Info banner */
+
+.am-nv-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-weak);
+  background: color-mix(in srgb, var(--border-focus, #007fd4) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-focus, #007fd4) 20%, transparent);
+  border-radius: var(--radius-md, 8px);
+  line-height: 1.4;
+}
+
+.am-nv-info [data-component="icon"] {
+  flex-shrink: 0;
+  color: var(--border-focus, #007fd4);
+}
+
+/* Action buttons */
+
+.am-nv-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.am-nv-spinner {
+  width: 14px;
+  height: 14px;
+}

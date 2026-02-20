@@ -137,6 +137,10 @@ export class AgentManagerProvider implements vscode.Disposable {
       void this.sendRepoInfo()
       return null
     }
+    if (type === "agentManager.createMultiVersion") {
+      void this.onCreateMultiVersion(msg)
+      return null
+    }
 
     // When switching sessions, show existing terminal if one is open
     if (type === "loadMessages" && typeof msg.sessionID === "string") {
@@ -369,6 +373,98 @@ export class AgentManagerProvider implements vscode.Disposable {
     state.removeSession(sessionId)
     this.pushState()
     this.log(`Closed session ${sessionId}`)
+    return null
+  }
+
+  // ---------------------------------------------------------------------------
+  // Multi-version worktree creation
+  // ---------------------------------------------------------------------------
+
+  /** Create N worktree sessions for the same prompt (multi-version mode). */
+  private async onCreateMultiVersion(msg: Record<string, unknown>): Promise<null> {
+    const text = msg.text as string
+    const versions = Math.min(Math.max(Number(msg.versions) || 1, 1), 4)
+    const labels = (msg.labels as string[]) ?? []
+    const providerID = msg.providerID as string | undefined
+    const modelID = msg.modelID as string | undefined
+    const agent = msg.agent as string | undefined
+    const files = msg.files as Array<{ mime: string; url: string }> | undefined
+
+    this.log(`Creating ${versions} multi-version worktrees for: ${text.slice(0, 60)}`)
+
+    // Phase 1: Create all worktrees + sessions first
+    const created: Array<{
+      worktreeId: string
+      sessionId: string
+      path: string
+      branch: string
+      parentBranch: string
+    }> = []
+
+    for (let i = 0; i < versions; i++) {
+      this.log(`Creating worktree ${i + 1}/${versions}`)
+
+      const wt = await this.createWorktreeOnDisk()
+      if (!wt) {
+        this.log(`Failed to create worktree for version ${i + 1}`)
+        continue
+      }
+
+      const session = await this.createSessionInWorktree(wt.result.path, wt.result.branch)
+      if (!session) {
+        const state = this.getStateManager()
+        const manager = this.getWorktreeManager()
+        state?.removeWorktree(wt.worktree.id)
+        await manager?.removeWorktree(wt.result.path)
+        this.log(`Failed to create session for version ${i + 1}`)
+        continue
+      }
+
+      const state = this.getStateManager()!
+      state.addSession(session.id, wt.worktree.id)
+      this.registerWorktreeSession(session.id, wt.result.path)
+      this.notifyWorktreeReady(session.id, wt.result)
+
+      created.push({
+        worktreeId: wt.worktree.id,
+        sessionId: session.id,
+        path: wt.result.path,
+        branch: wt.result.branch,
+        parentBranch: wt.result.parentBranch,
+      })
+
+      this.log(`Version ${i + 1} worktree ready: session=${session.id}`)
+    }
+
+    // Phase 2: Send the initial message to all sessions (with delay between each)
+    for (let i = 0; i < created.length; i++) {
+      const entry = created[i]!
+      const label = labels[i] ?? `${text.slice(0, 50)} (v${i + 1})`
+      this.log(`Sending initial message to version ${i + 1}: ${label}`)
+
+      // Small delay to let the CLI backend settle between messages
+      if (i > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 500))
+      }
+
+      try {
+        const client = this.connectionService.getHttpClient()
+        const parts: Array<{ type: "text"; text: string } | { type: "file"; mime: string; url: string }> = [
+          { type: "text" as const, text },
+        ]
+        if (files) {
+          for (const f of files) {
+            parts.push({ type: "file" as const, mime: f.mime, url: f.url })
+          }
+        }
+        await client.sendMessage(entry.sessionId, parts, entry.path, { providerID, modelID, agent })
+        this.log(`Message sent to version ${i + 1} (session=${entry.sessionId})`)
+      } catch (error) {
+        this.log(`Failed to send initial message to version ${i + 1}: ${error}`)
+      }
+    }
+
+    this.log(`Multi-version creation complete: ${created.length}/${versions} versions`)
     return null
   }
 

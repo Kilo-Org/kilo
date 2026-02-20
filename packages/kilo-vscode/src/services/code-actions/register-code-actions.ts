@@ -61,7 +61,7 @@ export function registerCodeActions(
         endLine: String(ctx.endLine),
         selectedText: ctx.selectedText,
       })
-      provider.postMessage({ type: "setChatBoxMessage", text: prompt })
+      target().postMessage({ type: "setChatBoxMessage", text: prompt })
       target().postMessage({ type: "action", action: "focusInput" })
     }),
 

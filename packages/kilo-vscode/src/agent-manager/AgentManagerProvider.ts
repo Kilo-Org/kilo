@@ -7,6 +7,7 @@ import { WorktreeStateManager } from "./WorktreeStateManager"
 import { SetupScriptService } from "./SetupScriptService"
 import { SetupScriptRunner } from "./SetupScriptRunner"
 import { SessionTerminalManager } from "./SessionTerminalManager"
+import { formatKeybinding } from "./format-keybinding"
 
 /**
  * AgentManagerProvider opens the Agent Manager panel.
@@ -76,6 +77,7 @@ export class AgentManagerProvider implements vscode.Disposable {
 
     this.stateReady = this.initializeState()
     void this.sendRepoInfo()
+    this.sendKeybindings()
 
     this.panel.onDidDispose(() => {
       this.log("Panel disposed")
@@ -401,6 +403,28 @@ export class AgentManagerProvider implements vscode.Disposable {
     this.pushState()
     this.log(`Closed session ${sessionId}`)
     return null
+  }
+
+  // ---------------------------------------------------------------------------
+  // Keybindings
+  // ---------------------------------------------------------------------------
+
+  private sendKeybindings(): void {
+    const ext = vscode.extensions.getExtension("kilocode.kilo-code")
+    const keybindings: Array<{ command: string; key?: string; mac?: string }> =
+      ext?.packageJSON?.contributes?.keybindings ?? []
+
+    const mac = process.platform === "darwin"
+    const prefix = "kilo-code.new.agentManager."
+    const bindings: Record<string, string> = {}
+    for (const kb of keybindings) {
+      if (!kb.command.startsWith(prefix)) continue
+      const action = kb.command.slice(prefix.length)
+      const raw = mac ? (kb.mac ?? kb.key) : kb.key
+      if (raw) bindings[action] = formatKeybinding(raw, mac)
+    }
+
+    this.postToWebview({ type: "agentManager.keybindings", bindings })
   }
 
   // ---------------------------------------------------------------------------

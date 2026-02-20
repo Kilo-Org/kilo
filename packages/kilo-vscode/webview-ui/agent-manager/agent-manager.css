@@ -122,10 +122,15 @@
   flex-direction: column;
   gap: 2px;
   overflow-y: auto;
+  overflow-x: hidden;
   max-height: 50vh;
 }
 
 /* Worktree item — larger card style */
+
+.am-worktree-list [data-slot="hover-card-trigger"] {
+  min-width: 0;
+}
 
 .am-worktree-item {
   position: relative;
@@ -137,6 +142,8 @@
   cursor: pointer;
   font-size: var(--font-size-base);
   color: var(--text-base);
+  min-width: 0;
+  width: 100%;
 }
 
 .am-worktree-item:hover {
@@ -333,9 +340,10 @@
   position: relative;
   display: flex;
   min-width: 0;
-  flex: 1;
+  flex-shrink: 1;
   align-items: stretch;
   height: 100%;
+  overflow: hidden;
 }
 
 /* Fade indicators for overflow */
@@ -626,6 +634,90 @@
   font-size: var(--font-size-small);
   opacity: 0.6;
   margin-left: 6px;
+}
+
+/* HoverCard popover for worktree items */
+
+.am-hover-card {
+  padding: 10px 12px;
+  min-width: 160px;
+  max-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.am-hover-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.am-hover-card-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-weaker);
+  line-height: 1.4;
+}
+
+.am-hover-card-branch {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.am-hover-card-meta {
+  font-size: 12px;
+  color: var(--text-weaker);
+  line-height: 1.4;
+}
+
+.am-hover-card-keybind {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--surface-inset-base);
+  border: 1px solid var(--border-weak-base);
+  font-family: var(--font-family-sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-weak);
+  white-space: nowrap;
+}
+
+.am-hover-card-divider {
+  height: 1px;
+  background: var(--border-weak-base);
+  margin: 6px 0;
+}
+
+.am-hover-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.am-hover-card-row-label {
+  font-size: 12px;
+  color: var(--text-weaker);
+}
+
+.am-hover-card-row-value {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-base);
 }
 
 /* Skeleton loading states */

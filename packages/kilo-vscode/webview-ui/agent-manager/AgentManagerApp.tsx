@@ -16,6 +16,7 @@ import type {
   AgentManagerRepoInfoMessage,
   AgentManagerWorktreeSetupMessage,
   AgentManagerStateMessage,
+  AgentManagerKeybindingsMessage,
   WorktreeState,
   ManagedSessionState,
   SessionInfo,
@@ -36,7 +37,8 @@ import { Icon } from "@kilocode/kilo-ui/icon"
 import { Button } from "@kilocode/kilo-ui/button"
 import { IconButton } from "@kilocode/kilo-ui/icon-button"
 import { Spinner } from "@kilocode/kilo-ui/spinner"
-import { Tooltip } from "@kilocode/kilo-ui/tooltip"
+import { TooltipKeybind } from "@kilocode/kilo-ui/tooltip"
+import { HoverCard } from "@kilocode/kilo-ui/hover-card"
 import { DropdownMenu } from "@kilocode/kilo-ui/dropdown-menu"
 import { VSCodeProvider, useVSCode } from "../src/context/vscode"
 import { ServerProvider } from "../src/context/server"
@@ -47,7 +49,7 @@ import { WorktreeModeProvider } from "../src/context/worktree-mode"
 import { ChatView } from "../src/components/chat"
 import { LanguageBridge, DataBridge } from "../src/App"
 import { formatRelativeDate } from "../src/utils/date"
-import { validateLocalSession, nextSelectionAfterDelete, LOCAL } from "./navigate"
+import { validateLocalSession, nextSelectionAfterDelete, adjacentHint, LOCAL } from "./navigate"
 import { reorderTabs, applyTabOrder, firstOrderedTitle } from "./tab-order"
 import { ConstrainDragYAxis, SortableTab } from "./sortable-tab"
 import "./agent-manager.css"
@@ -63,7 +65,19 @@ interface SetupState {
 type SidebarSelection = typeof LOCAL | string | null
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent)
-const modKey = isMac ? "\u2318" : "Ctrl+"
+
+// Fallback keybindings before extension sends resolved ones
+const defaultBindings: Record<string, string> = {
+  previousSession: isMac ? "⌘↑" : "Ctrl+↑",
+  nextSession: isMac ? "⌘↓" : "Ctrl+↓",
+  previousTab: isMac ? "⌘←" : "Ctrl+←",
+  nextTab: isMac ? "⌘→" : "Ctrl+→",
+  showTerminal: isMac ? "⌘/" : "Ctrl+/",
+  newTab: isMac ? "⌘T" : "Ctrl+T",
+  closeTab: isMac ? "⌘W" : "Ctrl+W",
+  newWorktree: isMac ? "⌘N" : "Ctrl+N",
+  closeWorktree: isMac ? "⌘⇧W" : "Ctrl+Shift+W",
+}
 
 /** Manages horizontal scroll for the tab list: hides the scrollbar, converts
  *  vertical wheel events to horizontal scroll, tracks overflow to show/hide
@@ -134,6 +148,8 @@ const AgentManagerContent: Component = () => {
   const session = useSession()
   const vscode = useVSCode()
   const dialog = useDialog()
+
+  const [kb, setKb] = createSignal<Record<string, string>>(defaultBindings)
 
   const [setup, setSetup] = createSignal<SetupState>({ active: false, message: "" })
   const [worktrees, setWorktrees] = createSignal<WorktreeState[]>([])
@@ -462,6 +478,11 @@ const AgentManagerContent: Component = () => {
         session.selectSession(ev.sessionId)
       }
 
+      if (msg.type === "agentManager.keybindings") {
+        const ev = msg as AgentManagerKeybindingsMessage
+        setKb(ev.bindings)
+      }
+
       if (msg.type === "agentManager.state") {
         const state = msg as AgentManagerStateMessage
         setWorktrees(state.worktrees)
@@ -766,13 +787,15 @@ const AgentManagerContent: Component = () => {
                   </DropdownMenu.Content>
                 </DropdownMenu.Portal>
               </DropdownMenu>
-              <IconButton
-                icon="plus"
-                size="small"
-                variant="ghost"
-                label="New Worktree"
-                onClick={handleCreateWorktree}
-              />
+              <TooltipKeybind title="New worktree" keybind={kb().newWorktree ?? ""} placement="bottom">
+                <IconButton
+                  icon="plus"
+                  size="small"
+                  variant="ghost"
+                  label="New worktree"
+                  onClick={handleCreateWorktree}
+                />
+              </TooltipKeybind>
             </div>
           </div>
           <div class="am-worktree-list">
@@ -787,30 +810,95 @@ const AgentManagerContent: Component = () => {
                 </div>
               }
             >
-              <For each={worktrees()}>
-                {(wt) => (
-                  <div
-                    class={`am-worktree-item ${selection() === wt.id ? "am-worktree-item-active" : ""}`}
-                    data-sidebar-id={wt.id}
-                    onClick={() => selectWorktree(wt.id)}
-                  >
-                    <Icon name="branch" size="small" />
-                    <span class="am-worktree-branch" title={wt.branch}>
-                      {worktreeLabel(wt)}
-                    </span>
-                    <Show when={!deletingWorktrees().has(wt.id)} fallback={<Spinner class="am-worktree-spinner" />}>
-                      <IconButton
-                        icon="close-small"
-                        size="small"
-                        variant="ghost"
-                        label="Close worktree"
-                        class="am-worktree-close"
-                        onClick={(e: MouseEvent) => handleDeleteWorktree(wt.id, e)}
-                      />
-                    </Show>
-                  </div>
-                )}
-              </For>
+              {(() => {
+                const [hoveredWt, setHoveredWt] = createSignal<string | null>(null)
+                const [overClose, setOverClose] = createSignal(false)
+                return (
+                  <For each={worktrees()}>
+                    {(wt, wtIdx) => {
+                      const sessions = createMemo(() => managedSessions().filter((ms) => ms.worktreeId === wt.id))
+                      const navHint = () => {
+                        const flat = [
+                          LOCAL as string,
+                          ...worktrees().map((w) => w.id),
+                          ...unassignedSessions().map((s) => s.id),
+                        ]
+                        const active = selection() ?? session.currentSessionID() ?? ""
+                        return adjacentHint(wt.id, active, flat, kb().previousSession ?? "", kb().nextSession ?? "")
+                      }
+                      return (
+                        <HoverCard
+                          openDelay={100}
+                          closeDelay={100}
+                          placement="right-start"
+                          gutter={8}
+                          open={hoveredWt() === wt.id && !overClose()}
+                          onOpenChange={(open) => setHoveredWt(open ? wt.id : null)}
+                          trigger={
+                            <div
+                              class={`am-worktree-item ${selection() === wt.id ? "am-worktree-item-active" : ""}`}
+                              data-sidebar-id={wt.id}
+                              onClick={() => selectWorktree(wt.id)}
+                            >
+                              <Icon name="branch" size="small" />
+                              <span class="am-worktree-branch">{worktreeLabel(wt)}</span>
+                              <Show
+                                when={!deletingWorktrees().has(wt.id)}
+                                fallback={<Spinner class="am-worktree-spinner" />}
+                              >
+                                <div
+                                  class="am-worktree-close"
+                                  onMouseEnter={() => setOverClose(true)}
+                                  onMouseLeave={() => setOverClose(false)}
+                                >
+                                  <TooltipKeybind
+                                    title="Delete worktree"
+                                    keybind={kb().closeWorktree ?? ""}
+                                    placement="top"
+                                  >
+                                    <IconButton
+                                      icon="close-small"
+                                      size="small"
+                                      variant="ghost"
+                                      label="Delete worktree"
+                                      onClick={(e: MouseEvent) => handleDeleteWorktree(wt.id, e)}
+                                    />
+                                  </TooltipKeybind>
+                                </div>
+                              </Show>
+                            </div>
+                          }
+                        >
+                          <div class="am-hover-card">
+                            <div class="am-hover-card-header">
+                              <div>
+                                <div class="am-hover-card-label">BRANCH</div>
+                                <div class="am-hover-card-branch">{wt.branch}</div>
+                                <div class="am-hover-card-meta">{formatRelativeDate(wt.createdAt)}</div>
+                              </div>
+                              <Show when={navHint()}>
+                                <span class="am-hover-card-keybind">{navHint()}</span>
+                              </Show>
+                            </div>
+                            <Show when={wt.parentBranch}>
+                              <div class="am-hover-card-divider" />
+                              <div class="am-hover-card-row">
+                                <span class="am-hover-card-row-label">Base</span>
+                                <span class="am-hover-card-row-value">{wt.parentBranch}</span>
+                              </div>
+                            </Show>
+                            <div class="am-hover-card-divider" />
+                            <div class="am-hover-card-row">
+                              <span class="am-hover-card-row-label">Sessions</span>
+                              <span class="am-hover-card-row-value">{sessions().length}</span>
+                            </div>
+                          </div>
+                        </HoverCard>
+                      )
+                    }}
+                  </For>
+                )
+              })()}
               <Show when={worktrees().length === 0}>
                 <button class="am-worktree-create" onClick={handleCreateWorktree}>
                   <Icon name="plus" size="small" />
@@ -859,14 +947,17 @@ const AgentManagerContent: Component = () => {
                   >
                     <span class="am-item-title">{s.title || "Untitled"}</span>
                     <span class="am-item-time">{formatRelativeDate(s.updatedAt)}</span>
-                    <IconButton
-                      icon="branch"
-                      size="small"
-                      variant="ghost"
-                      label="Open in worktree"
-                      class="am-item-promote"
-                      onClick={(e: MouseEvent) => handlePromote(s.id, e)}
-                    />
+                    <div class="am-item-promote">
+                      <TooltipKeybind title="Open in worktree" keybind={kb().newWorktree ?? ""} placement="right">
+                        <IconButton
+                          icon="branch"
+                          size="small"
+                          variant="ghost"
+                          label="Open in worktree"
+                          onClick={(e: MouseEvent) => handlePromote(s.id, e)}
+                        />
+                      </TooltipKeybind>
+                    </div>
                   </button>
                 )}
               </For>
@@ -898,10 +989,18 @@ const AgentManagerContent: Component = () => {
                           pending
                             ? s.id === activePendingId() && !session.currentSessionID()
                             : s.id === session.currentSessionID()
+                        const tabDirection = () => {
+                          if (active()) return ""
+                          const ids = activeTabs().map((t) => t.id)
+                          const activeId = session.currentSessionID() ?? activePendingId() ?? ""
+                          return adjacentHint(s.id, activeId, ids, kb().previousTab ?? "", kb().nextTab ?? "")
+                        }
                         return (
                           <SortableTab
                             tab={s}
                             active={active()}
+                            keybind={tabDirection()}
+                            closeKeybind={kb().closeTab ?? ""}
                             onSelect={() => {
                               if (pending) {
                                 setActivePendingId(s.id)
@@ -921,16 +1020,18 @@ const AgentManagerContent: Component = () => {
                 </div>
                 <div class={`am-tab-fade am-tab-fade-right ${tabScroll.showRight() ? "am-tab-fade-visible" : ""}`} />
               </div>
-              <IconButton
-                icon="plus"
-                size="small"
-                variant="ghost"
-                label={`New session (${modKey}T)`}
-                class="am-tab-add"
-                onClick={handleAddSession}
-              />
+              <TooltipKeybind title="New session" keybind={kb().newTab ?? ""} placement="bottom">
+                <IconButton
+                  icon="plus"
+                  size="small"
+                  variant="ghost"
+                  label="New session"
+                  class="am-tab-add"
+                  onClick={handleAddSession}
+                />
+              </TooltipKeybind>
               <div class="am-tab-terminal">
-                <Tooltip value="Open Terminal" placement="bottom">
+                <TooltipKeybind title="Terminal" keybind={kb().showTerminal ?? ""} placement="bottom">
                   <IconButton
                     icon="console"
                     size="small"
@@ -941,7 +1042,7 @@ const AgentManagerContent: Component = () => {
                       if (id) vscode.postMessage({ type: "agentManager.showTerminal", sessionId: id })
                     }}
                   />
-                </Tooltip>
+                </TooltipKeybind>
               </div>
             </div>
             <DragOverlay>
@@ -965,7 +1066,7 @@ const AgentManagerContent: Component = () => {
             <div class="am-empty-state-text">No sessions open</div>
             <Button variant="primary" size="small" onClick={handleAddSession}>
               New session
-              <span class="am-shortcut-hint">{modKey}T</span>
+              <span class="am-shortcut-hint">{kb().newTab ?? ""}</span>
             </Button>
           </div>
         </Show>

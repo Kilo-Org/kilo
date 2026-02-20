@@ -17,6 +17,8 @@ import type {
   AgentManagerWorktreeSetupMessage,
   AgentManagerStateMessage,
   AgentManagerKeybindingsMessage,
+  AgentManagerMultiVersionProgressMessage,
+  AgentManagerSendInitialMessage,
   WorktreeState,
   ManagedSessionState,
   SessionInfo,
@@ -310,17 +312,13 @@ const AgentManagerContent: Component = () => {
     const all = worktrees()
     if (all.length === 0) return []
 
-    // Separate grouped and ungrouped
+    // Collect grouped worktrees by groupId
     const grouped = new Map<string, WorktreeState[]>()
-    const ungrouped: WorktreeState[] = []
     for (const wt of all) {
-      if (wt.groupId) {
-        const list = grouped.get(wt.groupId) ?? []
-        list.push(wt)
-        grouped.set(wt.groupId, list)
-      } else {
-        ungrouped.push(wt)
-      }
+      if (!wt.groupId) continue
+      const list = grouped.get(wt.groupId) ?? []
+      list.push(wt)
+      grouped.set(wt.groupId, list)
     }
 
     // Build output: interleave groups at the position of their earliest member
@@ -574,7 +572,7 @@ const AgentManagerContent: Component = () => {
 
       // When a multi-version progress update arrives, mark newly created worktrees as loading
       if ((msg as { type: string }).type === "agentManager.multiVersionProgress") {
-        const ev = msg as unknown as { status: string; groupId?: string }
+        const ev = msg as unknown as AgentManagerMultiVersionProgressMessage
         if (ev.status === "done" && ev.groupId) {
           // Clear loading state for all worktrees in this group
           setLoadingWorktrees((prev) => {
@@ -605,14 +603,7 @@ const AgentManagerContent: Component = () => {
       // to send the prompt through the normal KiloProvider sendMessage path.
       // Once the message is sent, clear the loading state for that worktree.
       if ((msg as { type: string }).type === "agentManager.sendInitialMessage") {
-        const ev = msg as unknown as {
-          sessionId: string
-          text: string
-          providerID?: string
-          modelID?: string
-          agent?: string
-          files?: Array<{ mime: string; url: string }>
-        }
+        const ev = msg as unknown as AgentManagerSendInitialMessage
 
         // Set model and agent selections for this session so the UI reflects them
         if (ev.providerID && ev.modelID) {
@@ -631,12 +622,12 @@ const AgentManagerContent: Component = () => {
           agent: ev.agent,
           files: ev.files,
         })
-        // Clear loading state for this worktree
-        const ms = managedSessions().find((s) => s.id === ev.sessionId)
-        if (ms?.worktreeId) {
+        // Clear loading state — use worktreeId from the message directly
+        // to avoid race condition where managedSessions() hasn't updated yet
+        if (ev.worktreeId) {
           setLoadingWorktrees((prev) => {
             const next = new Set(prev)
-            next.delete(ms.worktreeId!)
+            next.delete(ev.worktreeId)
             return next
           })
         }

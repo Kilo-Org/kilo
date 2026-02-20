@@ -574,6 +574,27 @@ export interface AgentManagerKeybindingsMessage {
   bindings: Record<string, string>
 }
 
+// Multi-version creation progress (extension → webview)
+export interface AgentManagerMultiVersionProgressMessage {
+  type: "agentManager.multiVersionProgress"
+  status: "creating" | "done"
+  total: number
+  completed: number
+  groupId?: string
+}
+
+// Request webview to send initial prompt to a newly created session (extension → webview)
+export interface AgentManagerSendInitialMessage {
+  type: "agentManager.sendInitialMessage"
+  sessionId: string
+  worktreeId: string
+  text: string
+  providerID?: string
+  modelID?: string
+  agent?: string
+  files?: Array<{ mime: string; url: string }>
+}
+
 export type ExtensionMessage =
   | ReadyMessage
   | ConnectionStateMessage
@@ -613,6 +634,8 @@ export type ExtensionMessage =
   | AgentManagerSessionAddedMessage
   | AgentManagerStateMessage
   | AgentManagerKeybindingsMessage
+  | AgentManagerMultiVersionProgressMessage
+  | AgentManagerSendInitialMessage
   | SetChatBoxMessage
   | TriggerTaskMessage
 

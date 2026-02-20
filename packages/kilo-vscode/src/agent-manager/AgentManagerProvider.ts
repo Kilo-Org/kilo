@@ -512,6 +512,7 @@ export class AgentManagerProvider implements vscode.Disposable {
       this.postToWebview({
         type: "agentManager.sendInitialMessage",
         sessionId: entry.sessionId,
+        worktreeId: entry.worktreeId,
         text,
         providerID,
         modelID,
@@ -533,6 +534,10 @@ export class AgentManagerProvider implements vscode.Disposable {
       completed: created.length,
       groupId,
     })
+
+    if (created.length === 0) {
+      vscode.window.showErrorMessage(`Failed to create any of the ${versions} multi-version worktrees.`)
+    }
 
     this.log(`Multi-version creation complete: ${created.length}/${versions} versions`)
     return null

@@ -72,6 +72,7 @@ export class AgentManagerProvider implements vscode.Disposable {
 
     void this.initializeState()
     void this.sendRepoInfo()
+    this.sendKeybindings()
 
     this.panel.onDidDispose(() => {
       this.log("Panel disposed")
@@ -370,6 +371,50 @@ export class AgentManagerProvider implements vscode.Disposable {
     this.pushState()
     this.log(`Closed session ${sessionId}`)
     return null
+  }
+
+  // ---------------------------------------------------------------------------
+  // Keybindings
+  // ---------------------------------------------------------------------------
+
+  private sendKeybindings(): void {
+    const ext = vscode.extensions.getExtension("kilocode.kilo-code")
+    const keybindings: Array<{ command: string; key?: string; mac?: string }> =
+      ext?.packageJSON?.contributes?.keybindings ?? []
+
+    const platform = process.platform
+    const format = (raw: string): string => {
+      // Normalize VS Code keybinding syntax to display symbols
+      const parts = raw.split("+").map((p) => p.trim().toLowerCase())
+      const symbols: string[] = []
+      for (const part of parts) {
+        if (part === "ctrl") symbols.push(platform === "darwin" ? "⌃" : "Ctrl")
+        else if (part === "cmd") symbols.push(platform === "darwin" ? "⌘" : "Ctrl")
+        else if (part === "shift") symbols.push(platform === "darwin" ? "⇧" : "Shift")
+        else if (part === "alt") symbols.push(platform === "darwin" ? "⌥" : "Alt")
+        else if (part === "left") symbols.push("←")
+        else if (part === "right") symbols.push("→")
+        else if (part === "up") symbols.push("↑")
+        else if (part === "down") symbols.push("↓")
+        else if (part === "backspace") symbols.push("⌫")
+        else if (part === "delete") symbols.push("Del")
+        else if (part === "enter") symbols.push("↵")
+        else if (part === "escape") symbols.push("Esc")
+        else symbols.push(part.toUpperCase())
+      }
+      return platform === "darwin" ? symbols.join("") : symbols.join("+")
+    }
+
+    const prefix = "kilo-code.new.agentManager."
+    const bindings: Record<string, string> = {}
+    for (const kb of keybindings) {
+      if (!kb.command.startsWith(prefix)) continue
+      const action = kb.command.slice(prefix.length)
+      const raw = platform === "darwin" ? (kb.mac ?? kb.key) : kb.key
+      if (raw) bindings[action] = format(raw)
+    }
+
+    this.postToWebview({ type: "agentManager.keybindings", bindings })
   }
 
   // ---------------------------------------------------------------------------

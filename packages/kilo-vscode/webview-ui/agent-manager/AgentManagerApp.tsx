@@ -6,6 +6,7 @@ import type {
   AgentManagerRepoInfoMessage,
   AgentManagerWorktreeSetupMessage,
   AgentManagerStateMessage,
+  AgentManagerKeybindingsMessage,
   WorktreeState,
   ManagedSessionState,
   SessionInfo,
@@ -23,7 +24,8 @@ import { Icon } from "@kilocode/kilo-ui/icon"
 import { Button } from "@kilocode/kilo-ui/button"
 import { IconButton } from "@kilocode/kilo-ui/icon-button"
 import { Spinner } from "@kilocode/kilo-ui/spinner"
-import { Tooltip } from "@kilocode/kilo-ui/tooltip"
+import { TooltipKeybind } from "@kilocode/kilo-ui/tooltip"
+import { HoverCard } from "@kilocode/kilo-ui/hover-card"
 import { VSCodeProvider, useVSCode } from "../src/context/vscode"
 import { ServerProvider } from "../src/context/server"
 import { ProviderProvider } from "../src/context/provider"
@@ -47,12 +49,26 @@ interface SetupState {
 type SidebarSelection = typeof LOCAL | string | null
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent)
-const modKey = isMac ? "\u2318" : "Ctrl+"
+
+// Fallback keybindings before extension sends resolved ones
+const defaultBindings: Record<string, string> = {
+  previousSession: isMac ? "⌘↑" : "Ctrl+↑",
+  nextSession: isMac ? "⌘↓" : "Ctrl+↓",
+  previousTab: isMac ? "⌘←" : "Ctrl+←",
+  nextTab: isMac ? "⌘→" : "Ctrl+→",
+  showTerminal: isMac ? "⌘/" : "Ctrl+/",
+  newTab: isMac ? "⌘T" : "Ctrl+T",
+  closeTab: isMac ? "⌘W" : "Ctrl+W",
+  newWorktree: isMac ? "⌘N" : "Ctrl+N",
+  closeWorktree: isMac ? "⌘⇧W" : "Ctrl+Shift+W",
+}
 
 const AgentManagerContent: Component = () => {
   const session = useSession()
   const vscode = useVSCode()
   const dialog = useDialog()
+
+  const [kb, setKb] = createSignal<Record<string, string>>(defaultBindings)
 
   const [setup, setSetup] = createSignal<SetupState>({ active: false, message: "" })
   const [worktrees, setWorktrees] = createSignal<WorktreeState[]>([])
@@ -334,6 +350,11 @@ const AgentManagerContent: Component = () => {
         session.selectSession(ev.sessionId)
       }
 
+      if (msg.type === "agentManager.keybindings") {
+        const ev = msg as AgentManagerKeybindingsMessage
+        setKb(ev.bindings)
+      }
+
       if (msg.type === "agentManager.state") {
         const state = msg as AgentManagerStateMessage
         setWorktrees(state.worktrees)
@@ -542,33 +563,114 @@ const AgentManagerContent: Component = () => {
         <div class="am-section">
           <div class="am-section-header">
             <span class="am-section-label">WORKTREES</span>
-            <IconButton icon="plus" size="small" variant="ghost" label="New Worktree" onClick={handleCreateWorktree} />
+            <TooltipKeybind title="New worktree" keybind={kb().newWorktree ?? ""} placement="bottom">
+              <IconButton
+                icon="plus"
+                size="small"
+                variant="ghost"
+                label="New worktree"
+                onClick={handleCreateWorktree}
+              />
+            </TooltipKeybind>
           </div>
           <div class="am-worktree-list">
-            <For each={worktrees()}>
-              {(wt) => (
-                <div
-                  class={`am-worktree-item ${selection() === wt.id ? "am-worktree-item-active" : ""}`}
-                  data-sidebar-id={wt.id}
-                  onClick={() => selectWorktree(wt.id)}
-                >
-                  <Icon name="branch" size="small" />
-                  <span class="am-worktree-branch" title={wt.branch}>
-                    {worktreeLabel(wt)}
-                  </span>
-                  <Show when={!deletingWorktrees().has(wt.id)} fallback={<Spinner class="am-worktree-spinner" />}>
-                    <IconButton
-                      icon="close-small"
-                      size="small"
-                      variant="ghost"
-                      label="Close worktree"
-                      class="am-worktree-close"
-                      onClick={(e: MouseEvent) => handleDeleteWorktree(wt.id, e)}
-                    />
-                  </Show>
-                </div>
-              )}
-            </For>
+            {(() => {
+              const [hoveredWt, setHoveredWt] = createSignal<string | null>(null)
+              const [overClose, setOverClose] = createSignal(false)
+              return (
+                <For each={worktrees()}>
+                  {(wt, wtIdx) => {
+                    const sessions = createMemo(() => managedSessions().filter((ms) => ms.worktreeId === wt.id))
+                    const navHint = () => {
+                      const sel = selection()
+                      if (sel === wt.id) return ""
+                      const flat = [
+                        LOCAL as string,
+                        ...worktrees().map((w) => w.id),
+                        ...unassignedSessions().map((s) => s.id),
+                      ]
+                      const current = sel ?? session.currentSessionID() ?? ""
+                      const activeFlat = flat.indexOf(current)
+                      const myFlat = flat.indexOf(wt.id)
+                      if (activeFlat === -1 || myFlat === -1) return ""
+                      const diff = myFlat - activeFlat
+                      if (diff === -1) return kb().previousSession ?? ""
+                      if (diff === 1) return kb().nextSession ?? ""
+                      return ""
+                    }
+                    return (
+                      <HoverCard
+                        openDelay={100}
+                        closeDelay={100}
+                        placement="right-start"
+                        gutter={8}
+                        open={hoveredWt() === wt.id && !overClose()}
+                        onOpenChange={(open) => setHoveredWt(open ? wt.id : null)}
+                        trigger={
+                          <div
+                            class={`am-worktree-item ${selection() === wt.id ? "am-worktree-item-active" : ""}`}
+                            data-sidebar-id={wt.id}
+                            onClick={() => selectWorktree(wt.id)}
+                          >
+                            <Icon name="branch" size="small" />
+                            <span class="am-worktree-branch">{worktreeLabel(wt)}</span>
+                            <Show
+                              when={!deletingWorktrees().has(wt.id)}
+                              fallback={<Spinner class="am-worktree-spinner" />}
+                            >
+                              <div
+                                class="am-worktree-close"
+                                onMouseEnter={() => setOverClose(true)}
+                                onMouseLeave={() => setOverClose(false)}
+                              >
+                                <TooltipKeybind
+                                  title="Delete worktree"
+                                  keybind={kb().closeWorktree ?? ""}
+                                  placement="top"
+                                >
+                                  <IconButton
+                                    icon="close-small"
+                                    size="small"
+                                    variant="ghost"
+                                    label="Delete worktree"
+                                    onClick={(e: MouseEvent) => handleDeleteWorktree(wt.id, e)}
+                                  />
+                                </TooltipKeybind>
+                              </div>
+                            </Show>
+                          </div>
+                        }
+                      >
+                        <div class="am-hover-card">
+                          <div class="am-hover-card-header">
+                            <div>
+                              <div class="am-hover-card-label">BRANCH</div>
+                              <div class="am-hover-card-branch">{wt.branch}</div>
+                              <div class="am-hover-card-meta">{formatRelativeDate(wt.createdAt)}</div>
+                            </div>
+                            <Show when={navHint()}>
+                              <span class="am-hover-card-keybind">{navHint()}</span>
+                            </Show>
+                          </div>
+                          <Show when={wt.parentBranch}>
+                            <div class="am-hover-card-divider" />
+                            <div class="am-hover-card-row">
+                              <span class="am-hover-card-row-label">Base</span>
+                              <span class="am-hover-card-row-value">{wt.parentBranch}</span>
+                            </div>
+                          </Show>
+                          <div class="am-hover-card-divider" />
+                          <div class="am-hover-card-row">
+                            <span class="am-hover-card-row-label">Sessions</span>
+                            <span class="am-hover-card-row-value">{sessions().length}</span>
+                          </div>
+                        </div>
+                      </HoverCard>
+                    )
+                  }}
+                </For>
+              )
+            })()}
             <Show when={worktrees().length === 0}>
               <button class="am-worktree-create" onClick={handleCreateWorktree}>
                 <Icon name="plus" size="small" />
@@ -596,14 +698,17 @@ const AgentManagerContent: Component = () => {
                 >
                   <span class="am-item-title">{s.title || "Untitled"}</span>
                   <span class="am-item-time">{formatRelativeDate(s.updatedAt)}</span>
-                  <IconButton
-                    icon="branch"
-                    size="small"
-                    variant="ghost"
-                    label="Open in worktree"
-                    class="am-item-promote"
-                    onClick={(e: MouseEvent) => handlePromote(s.id, e)}
-                  />
+                  <div class="am-item-promote">
+                    <TooltipKeybind title="Open in worktree" keybind={kb().newWorktree ?? ""} placement="right">
+                      <IconButton
+                        icon="branch"
+                        size="small"
+                        variant="ghost"
+                        label="Open in worktree"
+                        onClick={(e: MouseEvent) => handlePromote(s.id, e)}
+                      />
+                    </TooltipKeybind>
+                  </div>
                 </button>
               )}
             </For>
@@ -617,14 +722,35 @@ const AgentManagerContent: Component = () => {
           <div class="am-tab-bar">
             <div class="am-tab-list">
               <For each={activeTabs()}>
-                {(s) => {
+                {(s, idx) => {
                   const pending = isPending(s.id)
                   const active = () =>
                     pending
                       ? s.id === activePendingId() && !session.currentSessionID()
                       : s.id === session.currentSessionID()
+                  const tabDirection = () => {
+                    if (active()) return ""
+                    const tabs = activeTabs()
+                    const current = session.currentSessionID()
+                    const pendingId = activePendingId()
+                    const activeIdx = current
+                      ? tabs.findIndex((t) => t.id === current)
+                      : pendingId
+                        ? tabs.findIndex((t) => t.id === pendingId)
+                        : -1
+                    if (activeIdx === -1) return ""
+                    const diff = idx() - activeIdx
+                    if (diff === -1) return kb().previousTab ?? ""
+                    if (diff === 1) return kb().nextTab ?? ""
+                    return ""
+                  }
                   return (
-                    <Tooltip value={s.title || "Untitled"} placement="bottom">
+                    <TooltipKeybind
+                      title={s.title || "Untitled"}
+                      keybind={tabDirection()}
+                      placement="bottom"
+                      inactive={active()}
+                    >
                       <div
                         class={`am-tab ${active() ? "am-tab-active" : ""}`}
                         onClick={() => {
@@ -639,30 +765,34 @@ const AgentManagerContent: Component = () => {
                         onMouseDown={(e: MouseEvent) => handleTabMouseDown(s.id, e)}
                       >
                         <span class="am-tab-label">{s.title || "Untitled"}</span>
-                        <IconButton
-                          icon="close-small"
-                          size="small"
-                          variant="ghost"
-                          label="Close tab"
-                          class="am-tab-close"
-                          onClick={(e: MouseEvent) => handleCloseTab(s.id, e)}
-                        />
+                        <TooltipKeybind title="Close" keybind={kb().closeTab ?? ""} placement="bottom">
+                          <IconButton
+                            icon="close-small"
+                            size="small"
+                            variant="ghost"
+                            label="Close tab"
+                            class="am-tab-close"
+                            onClick={(e: MouseEvent) => handleCloseTab(s.id, e)}
+                          />
+                        </TooltipKeybind>
                       </div>
-                    </Tooltip>
+                    </TooltipKeybind>
                   )
                 }}
               </For>
             </div>
-            <IconButton
-              icon="plus"
-              size="small"
-              variant="ghost"
-              label={`New session (${modKey}T)`}
-              class="am-tab-add"
-              onClick={handleAddSession}
-            />
+            <TooltipKeybind title="New session" keybind={kb().newTab ?? ""} placement="bottom">
+              <IconButton
+                icon="plus"
+                size="small"
+                variant="ghost"
+                label="New session"
+                class="am-tab-add"
+                onClick={handleAddSession}
+              />
+            </TooltipKeybind>
             <div class="am-tab-terminal">
-              <Tooltip value="Open Terminal" placement="bottom">
+              <TooltipKeybind title="Terminal" keybind={kb().showTerminal ?? ""} placement="bottom">
                 <IconButton
                   icon="console"
                   size="small"
@@ -673,7 +803,7 @@ const AgentManagerContent: Component = () => {
                     if (id) vscode.postMessage({ type: "agentManager.showTerminal", sessionId: id })
                   }}
                 />
-              </Tooltip>
+              </TooltipKeybind>
             </div>
           </div>
         </Show>
@@ -687,7 +817,7 @@ const AgentManagerContent: Component = () => {
             <div class="am-empty-state-text">No sessions open</div>
             <Button variant="primary" size="small" onClick={handleAddSession}>
               New session
-              <span class="am-shortcut-hint">{modKey}T</span>
+              <span class="am-shortcut-hint">{kb().newTab ?? ""}</span>
             </Button>
           </div>
         </Show>

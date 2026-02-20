@@ -565,6 +565,12 @@ export interface AgentManagerStateMessage {
   sessions: ManagedSessionState[]
 }
 
+// Resolved keybindings for agent manager actions
+export interface AgentManagerKeybindingsMessage {
+  type: "agentManager.keybindings"
+  bindings: Record<string, string>
+}
+
 export type ExtensionMessage =
   | ReadyMessage
   | ConnectionStateMessage
@@ -603,6 +609,7 @@ export type ExtensionMessage =
   | AgentManagerWorktreeSetupMessage
   | AgentManagerSessionAddedMessage
   | AgentManagerStateMessage
+  | AgentManagerKeybindingsMessage
   | SetChatBoxMessage
   | TriggerTaskMessage
 

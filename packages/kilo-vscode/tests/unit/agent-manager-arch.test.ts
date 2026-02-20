@@ -14,8 +14,16 @@ import { Project, SyntaxKind } from "ts-morph"
 
 const ROOT = path.resolve(import.meta.dir, "../..")
 const CSS_FILE = path.join(ROOT, "webview-ui/agent-manager/agent-manager.css")
-const TSX_FILE = path.join(ROOT, "webview-ui/agent-manager/AgentManagerApp.tsx")
+const TSX_FILES = [
+  path.join(ROOT, "webview-ui/agent-manager/AgentManagerApp.tsx"),
+  path.join(ROOT, "webview-ui/agent-manager/sortable-tab.tsx"),
+]
+const TSX_FILE = TSX_FILES[0]
 const PROVIDER_FILE = path.join(ROOT, "src/agent-manager/AgentManagerProvider.ts")
+
+function readAllTsx(): string {
+  return TSX_FILES.map((f) => fs.readFileSync(f, "utf-8")).join("\n")
+}
 
 describe("Agent Manager CSS Prefix", () => {
   it("all class selectors should use am- prefix", () => {
@@ -54,7 +62,7 @@ describe("Agent Manager CSS Prefix", () => {
 describe("Agent Manager CSS/TSX Consistency", () => {
   it("all classes used in TSX should be defined in CSS", () => {
     const css = fs.readFileSync(CSS_FILE, "utf-8")
-    const tsx = fs.readFileSync(TSX_FILE, "utf-8")
+    const tsx = readAllTsx()
 
     // Extract am- classes defined in CSS
     const cssMatches = [...css.matchAll(/\.([a-z][a-z0-9-]*)/gi)]
@@ -71,7 +79,7 @@ describe("Agent Manager CSS/TSX Consistency", () => {
 
   it("all am- classes defined in CSS should be used in TSX", () => {
     const css = fs.readFileSync(CSS_FILE, "utf-8")
-    const tsx = fs.readFileSync(TSX_FILE, "utf-8")
+    const tsx = readAllTsx()
 
     // Extract am- classes defined in CSS
     const cssMatches = [...css.matchAll(/\.([a-z][a-z0-9-]*)/gi)]

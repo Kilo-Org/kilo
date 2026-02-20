@@ -20,6 +20,8 @@ import type {
   ManagedSessionState,
   SessionInfo,
 } from "../src/types/messages"
+import { DragDropProvider, DragDropSensors, DragOverlay, SortableProvider, closestCenter } from "@thisbeyond/solid-dnd"
+import type { DragEvent } from "@thisbeyond/solid-dnd"
 import { ThemeProvider } from "@kilocode/kilo-ui/theme"
 import { DialogProvider, useDialog } from "@kilocode/kilo-ui/context/dialog"
 import { Dialog } from "@kilocode/kilo-ui/dialog"
@@ -29,11 +31,13 @@ import { DiffComponentProvider } from "@kilocode/kilo-ui/context/diff"
 import { Code } from "@kilocode/kilo-ui/code"
 import { Diff } from "@kilocode/kilo-ui/diff"
 import { Toast } from "@kilocode/kilo-ui/toast"
+import { ResizeHandle } from "@kilocode/kilo-ui/resize-handle"
 import { Icon } from "@kilocode/kilo-ui/icon"
 import { Button } from "@kilocode/kilo-ui/button"
 import { IconButton } from "@kilocode/kilo-ui/icon-button"
 import { Spinner } from "@kilocode/kilo-ui/spinner"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
+import { DropdownMenu } from "@kilocode/kilo-ui/dropdown-menu"
 import { VSCodeProvider, useVSCode } from "../src/context/vscode"
 import { ServerProvider } from "../src/context/server"
 import { ProviderProvider } from "../src/context/provider"
@@ -44,6 +48,8 @@ import { ChatView } from "../src/components/chat"
 import { LanguageBridge, DataBridge } from "../src/App"
 import { formatRelativeDate } from "../src/utils/date"
 import { validateLocalSession, nextSelectionAfterDelete, LOCAL } from "./navigate"
+import { reorderTabs, applyTabOrder, firstOrderedTitle } from "./tab-order"
+import { ConstrainDragYAxis, SortableTab } from "./sortable-tab"
 import "./agent-manager.css"
 
 interface SetupState {
@@ -138,9 +144,14 @@ const AgentManagerContent: Component = () => {
   const [worktreesLoaded, setWorktreesLoaded] = createSignal(false)
   const [sessionsLoaded, setSessionsLoaded] = createSignal(false)
 
+  const DEFAULT_SIDEBAR_WIDTH = 260
+  const MIN_SIDEBAR_WIDTH = 200
+  const MAX_SIDEBAR_WIDTH_RATIO = 0.4
+
   // Recover persisted local session IDs from webview state
-  const persisted = vscode.getState<{ localSessionIDs?: string[] }>()
+  const persisted = vscode.getState<{ localSessionIDs?: string[]; sidebarWidth?: number }>()
   const [localSessionIDs, setLocalSessionIDs] = createSignal<string[]>(persisted?.localSessionIDs ?? [])
+  const [sidebarWidth, setSidebarWidth] = createSignal(persisted?.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH)
 
   // Pending local tab counter for generating unique IDs
   let pendingCounter = 0
@@ -152,6 +163,11 @@ const AgentManagerContent: Component = () => {
 
   const isPending = (id: string) => id.startsWith(PENDING_PREFIX)
 
+  // Drag-and-drop state for tab reordering
+  const [draggingTab, setDraggingTab] = createSignal<string | undefined>()
+  // Tab ordering: context key → ordered session ID array (recovered from extension state)
+  const [worktreeTabOrder, setWorktreeTabOrder] = createSignal<Record<string, string[]>>({})
+
   const addPendingTab = () => {
     const id = `${PENDING_PREFIX}${++pendingCounter}`
     setLocalSessionIDs((prev) => [...prev, id])
@@ -160,9 +176,12 @@ const AgentManagerContent: Component = () => {
     return id
   }
 
-  // Persist local session IDs to webview state for recovery (exclude pending tabs)
+  // Persist local session IDs and sidebar width to webview state for recovery (exclude pending tabs)
   createEffect(() => {
-    vscode.setState({ localSessionIDs: localSessionIDs().filter((id) => !isPending(id)) })
+    vscode.setState({
+      localSessionIDs: localSessionIDs().filter((id) => !isPending(id)),
+      sidebarWidth: sidebarWidth(),
+    })
   })
 
   // Save the currently active tab for the current sidebar context before switching away
@@ -223,16 +242,17 @@ const AgentManagerContent: Component = () => {
     return result
   })
 
-  // Sessions for the currently selected worktree (tab bar), sorted by creation date
+  // Sessions for the currently selected worktree (tab bar), respecting custom order if set
   const activeWorktreeSessions = createMemo((): SessionInfo[] => {
     const sel = selection()
     if (!sel || sel === LOCAL) return []
     const managed = managedSessions().filter((ms) => ms.worktreeId === sel)
     const ids = new Set(managed.map((ms) => ms.id))
-    return session
+    const sessions = session
       .sessions()
       .filter((s) => ids.has(s.id))
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    return applyTabOrder(sessions, worktreeTabOrder()[sel])
   })
 
   // Active tab sessions: local sessions when on "local", worktree sessions otherwise
@@ -258,12 +278,12 @@ const AgentManagerContent: Component = () => {
   const visibleTabId = createMemo(() => session.currentSessionID() ?? activePendingId())
   const tabScroll = useTabScroll(activeTabs, visibleTabId)
 
-  // Display name for worktree
+  // Display name for worktree — uses first tab in custom order when available
   const worktreeLabel = (wt: WorktreeState): string => {
     const managed = managedSessions().filter((ms) => ms.worktreeId === wt.id)
     const ids = new Set(managed.map((ms) => ms.id))
-    const first = session.sessions().find((s) => ids.has(s.id))
-    return first?.title || wt.branch
+    const sessions = session.sessions().filter((s) => ids.has(s.id))
+    return firstOrderedTitle(sessions, worktreeTabOrder()[wt.id], wt.branch)
   }
 
   const scrollIntoView = (el: HTMLElement) => {
@@ -447,10 +467,20 @@ const AgentManagerContent: Component = () => {
         setWorktrees(state.worktrees)
         setManagedSessions(state.sessions)
         if (!worktreesLoaded()) setWorktreesLoaded(true)
+        if (state.tabOrder) setWorktreeTabOrder(state.tabOrder)
         const current = session.currentSessionID()
         if (current) {
           const ms = state.sessions.find((s) => s.id === current)
           if (ms?.worktreeId) setSelection(ms.worktreeId)
+        }
+        // Recover local tab order from persisted state
+        const localOrder = state.tabOrder?.[LOCAL]
+        if (localOrder && localSessionIDs().length > 0) {
+          const reordered = applyTabOrder(
+            localSessionIDs().map((id) => ({ id })),
+            localOrder,
+          ).map((item) => item.id)
+          setLocalSessionIDs(reordered)
         }
         // Clear deleting state for worktrees that have been removed
         const ids = new Set(state.worktrees.map((wt) => wt.id))
@@ -482,6 +512,10 @@ const AgentManagerContent: Component = () => {
       addPendingTab()
     }
   })
+
+  const handleConfigureSetupScript = () => {
+    vscode.postMessage({ type: "agentManager.configureSetupScript" })
+  }
 
   const handleCreateWorktree = () => {
     vscode.postMessage({ type: "agentManager.createWorktree" })
@@ -586,6 +620,53 @@ const AgentManagerContent: Component = () => {
     }
   }
 
+  // Drag-and-drop handlers for tab reordering
+  const tabIds = createMemo(() => activeTabs().map((s) => s.id))
+
+  const handleDragStart = (event: DragEvent) => {
+    const id = event.draggable?.id
+    if (typeof id === "string") setDraggingTab(id)
+  }
+
+  const handleDragOver = (event: DragEvent) => {
+    const from = event.draggable?.id
+    const to = event.droppable?.id
+    if (typeof from !== "string" || typeof to !== "string") return
+    const sel = selection()
+    if (sel === LOCAL) {
+      setLocalSessionIDs((prev) => reorderTabs(prev, from, to) ?? prev)
+    } else if (sel) {
+      setWorktreeTabOrder((prev) => {
+        const ids = applyTabOrder(
+          tabIds().map((id) => ({ id })),
+          prev[sel],
+        ).map((item) => item.id)
+        const reordered = reorderTabs(ids, from, to)
+        if (!reordered) return prev
+        return { ...prev, [sel]: reordered }
+      })
+    }
+  }
+
+  const handleDragEnd = () => {
+    setDraggingTab(undefined)
+    // Persist the new tab order to the extension
+    const sel = selection()
+    if (sel === LOCAL) {
+      const order = localSessionIDs().filter((id) => !isPending(id))
+      if (order.length > 0) vscode.postMessage({ type: "agentManager.setTabOrder", key: LOCAL, order })
+    } else if (sel) {
+      const order = worktreeTabOrder()[sel]
+      if (order) vscode.postMessage({ type: "agentManager.setTabOrder", key: sel, order })
+    }
+  }
+
+  const draggedTab = createMemo(() => {
+    const id = draggingTab()
+    if (!id) return undefined
+    return activeTabs().find((s) => s.id === id)
+  })
+
   // Close the currently active tab via keyboard shortcut.
   // If no tabs remain, fall through to close the selected worktree.
   const closeActiveTab = () => {
@@ -637,7 +718,14 @@ const AgentManagerContent: Component = () => {
 
   return (
     <div class="am-layout">
-      <div class="am-sidebar">
+      <div class="am-sidebar" style={{ width: `${sidebarWidth()}px` }}>
+        <ResizeHandle
+          direction="horizontal"
+          size={sidebarWidth()}
+          min={MIN_SIDEBAR_WIDTH}
+          max={9999}
+          onResize={(width) => setSidebarWidth(Math.min(width, window.innerWidth * MAX_SIDEBAR_WIDTH_RATIO))}
+        />
         {/* Local workspace item */}
         <button
           class={`am-local-item ${selection() === LOCAL ? "am-local-item-active" : ""}`}
@@ -661,7 +749,31 @@ const AgentManagerContent: Component = () => {
         <div class="am-section">
           <div class="am-section-header">
             <span class="am-section-label">WORKTREES</span>
-            <IconButton icon="plus" size="small" variant="ghost" label="New Worktree" onClick={handleCreateWorktree} />
+            <div class="am-section-actions">
+              <DropdownMenu>
+                <DropdownMenu.Trigger
+                  as={IconButton}
+                  icon="settings-gear"
+                  size="small"
+                  variant="ghost"
+                  label="Worktree settings"
+                />
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content>
+                    <DropdownMenu.Item onSelect={handleConfigureSetupScript}>
+                      <DropdownMenu.ItemLabel>Worktree Setup Script</DropdownMenu.ItemLabel>
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu>
+              <IconButton
+                icon="plus"
+                size="small"
+                variant="ghost"
+                label="New Worktree"
+                onClick={handleCreateWorktree}
+              />
+            </div>
           </div>
           <div class="am-worktree-list">
             <Show
@@ -766,73 +878,82 @@ const AgentManagerContent: Component = () => {
       <div class="am-detail">
         {/* Tab bar — visible when a section is selected and has tabs or a pending new session */}
         <Show when={selection() !== null && !contextEmpty()}>
-          <div class="am-tab-bar">
-            <div class="am-tab-scroll-area">
-              <div class={`am-tab-fade am-tab-fade-left ${tabScroll.showLeft() ? "am-tab-fade-visible" : ""}`} />
-              <div class="am-tab-list" ref={tabScroll.setRef}>
-                <For each={activeTabs()}>
-                  {(s) => {
-                    const pending = isPending(s.id)
-                    const active = () =>
-                      pending
-                        ? s.id === activePendingId() && !session.currentSessionID()
-                        : s.id === session.currentSessionID()
-                    return (
-                      <Tooltip value={s.title || "Untitled"} placement="bottom">
-                        <div
-                          class={`am-tab ${active() ? "am-tab-active" : ""}`}
-                          data-tab-id={s.id}
-                          onClick={() => {
-                            if (pending) {
-                              setActivePendingId(s.id)
-                              session.clearCurrentSession()
-                            } else {
-                              setActivePendingId(undefined)
-                              session.selectSession(s.id)
-                            }
-                          }}
-                          onMouseDown={(e: MouseEvent) => handleTabMouseDown(s.id, e)}
-                        >
-                          <span class="am-tab-label">{s.title || "Untitled"}</span>
-                          <IconButton
-                            icon="close-small"
-                            size="small"
-                            variant="ghost"
-                            label="Close tab"
-                            class="am-tab-close"
-                            onClick={(e: MouseEvent) => handleCloseTab(s.id, e)}
+          <DragDropProvider
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragOver={handleDragOver}
+            collisionDetector={closestCenter}
+          >
+            <DragDropSensors />
+            <ConstrainDragYAxis />
+            <div class="am-tab-bar">
+              <div class="am-tab-scroll-area">
+                <div class={`am-tab-fade am-tab-fade-left ${tabScroll.showLeft() ? "am-tab-fade-visible" : ""}`} />
+                <div class="am-tab-list" ref={tabScroll.setRef}>
+                  <SortableProvider ids={tabIds()}>
+                    <For each={activeTabs()}>
+                      {(s) => {
+                        const pending = isPending(s.id)
+                        const active = () =>
+                          pending
+                            ? s.id === activePendingId() && !session.currentSessionID()
+                            : s.id === session.currentSessionID()
+                        return (
+                          <SortableTab
+                            tab={s}
+                            active={active()}
+                            onSelect={() => {
+                              if (pending) {
+                                setActivePendingId(s.id)
+                                session.clearCurrentSession()
+                              } else {
+                                setActivePendingId(undefined)
+                                session.selectSession(s.id)
+                              }
+                            }}
+                            onMiddleClick={(e: MouseEvent) => handleTabMouseDown(s.id, e)}
+                            onClose={(e: MouseEvent) => handleCloseTab(s.id, e)}
                           />
-                        </div>
-                      </Tooltip>
-                    )
-                  }}
-                </For>
+                        )
+                      }}
+                    </For>
+                  </SortableProvider>
+                </div>
+                <div class={`am-tab-fade am-tab-fade-right ${tabScroll.showRight() ? "am-tab-fade-visible" : ""}`} />
               </div>
-              <div class={`am-tab-fade am-tab-fade-right ${tabScroll.showRight() ? "am-tab-fade-visible" : ""}`} />
+              <IconButton
+                icon="plus"
+                size="small"
+                variant="ghost"
+                label={`New session (${modKey}T)`}
+                class="am-tab-add"
+                onClick={handleAddSession}
+              />
+              <div class="am-tab-terminal">
+                <Tooltip value="Open Terminal" placement="bottom">
+                  <IconButton
+                    icon="console"
+                    size="small"
+                    variant="ghost"
+                    label="Open Terminal"
+                    onClick={() => {
+                      const id = session.currentSessionID()
+                      if (id) vscode.postMessage({ type: "agentManager.showTerminal", sessionId: id })
+                    }}
+                  />
+                </Tooltip>
+              </div>
             </div>
-            <IconButton
-              icon="plus"
-              size="small"
-              variant="ghost"
-              label={`New session (${modKey}T)`}
-              class="am-tab-add"
-              onClick={handleAddSession}
-            />
-            <div class="am-tab-terminal">
-              <Tooltip value="Open Terminal" placement="bottom">
-                <IconButton
-                  icon="console"
-                  size="small"
-                  variant="ghost"
-                  label="Open Terminal"
-                  onClick={() => {
-                    const id = session.currentSessionID()
-                    if (id) vscode.postMessage({ type: "agentManager.showTerminal", sessionId: id })
-                  }}
-                />
-              </Tooltip>
-            </div>
-          </div>
+            <DragOverlay>
+              <Show when={draggedTab()}>
+                {(tab) => (
+                  <div class="am-tab am-tab-overlay">
+                    <span class="am-tab-label">{tab().title || "Untitled"}</span>
+                  </div>
+                )}
+              </Show>
+            </DragOverlay>
+          </DragDropProvider>
         </Show>
 
         {/* Empty worktree state */}

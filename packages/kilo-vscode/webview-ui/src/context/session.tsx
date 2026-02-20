@@ -37,6 +37,7 @@ import type {
   ExtensionMessage,
   FileAttachment,
 } from "../types/messages"
+import { removeSessionPermissions, upsertPermission } from "./permission-queue"
 
 // Derive human-readable status from the last streaming part
 function computeStatus(
@@ -508,7 +509,7 @@ export const SessionProvider: ParentComponent = (props) => {
   }
 
   function handlePermissionRequest(permission: PermissionRequest) {
-    setPermissions((prev) => [...prev, permission])
+    setPermissions((prev) => upsertPermission(prev, permission))
   }
 
   function handleQuestionRequest(question: QuestionRequest) {
@@ -603,6 +604,7 @@ export const SessionProvider: ParentComponent = (props) => {
           return next
         })
       }
+      setPermissions((prev) => removeSessionPermissions(prev, sessionID))
       setStatusMap(
         produce((map) => {
           delete map[sessionID]

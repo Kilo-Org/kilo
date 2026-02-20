@@ -7,7 +7,7 @@
 }
 
 .am-sidebar {
-  width: 260px;
+  position: relative;
   min-width: 200px;
   border-right: 1px solid var(--border-weak-base);
   display: flex;
@@ -16,6 +16,10 @@
   background: var(--surface-base);
   padding: 8px;
   gap: 4px;
+}
+
+.am-sidebar > [data-component="resize-handle"]::after {
+  background: var(--surface-interactive-base);
 }
 
 /* Fixed local workspace item */
@@ -103,6 +107,12 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-weak);
+}
+
+.am-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 /* Worktree list */
@@ -411,6 +421,29 @@
 
 .am-tab-close:hover {
   opacity: 1;
+}
+
+/* Drag-and-drop sortable tab wrapper */
+
+.am-tab-sortable {
+  display: flex;
+  height: 100%;
+  touch-action: none;
+}
+
+.am-tab-dragging {
+  opacity: 0.25;
+}
+
+/* Drag overlay tab (follows the cursor) */
+
+.am-tab-overlay {
+  background: var(--surface-base);
+  border: 1px solid var(--border-weak-base);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  color: var(--text-base);
 }
 
 .am-tab-add {

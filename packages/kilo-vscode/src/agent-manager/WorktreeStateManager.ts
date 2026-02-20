@@ -29,6 +29,7 @@ export interface ManagedSession {
 interface StateFile {
   worktrees: Record<string, Omit<Worktree, "id">>
   sessions: Record<string, Omit<ManagedSession, "id">>
+  tabOrder?: Record<string, string[]>
 }
 
 const STATE_FILE = "agent-manager.json"
@@ -44,6 +45,7 @@ export class WorktreeStateManager {
   private readonly file: string
   private worktrees = new Map<string, Worktree>()
   private sessions = new Map<string, ManagedSession>()
+  private tabOrder: Record<string, string[]> = {}
   private readonly log: (msg: string) => void
   private saving: Promise<void> | undefined
   private pendingSave = false
@@ -125,6 +127,9 @@ export class WorktreeStateManager {
       }
     }
 
+    // Clean up tab order for this worktree
+    delete this.tabOrder[id]
+
     this.log(`Removed worktree ${id}, orphaned ${orphaned.length} sessions`)
     void this.save()
     return orphaned
@@ -149,6 +154,34 @@ export class WorktreeStateManager {
 
   removeSession(id: string): void {
     this.sessions.delete(id)
+
+    // Remove this session from any tab order arrays
+    for (const [key, order] of Object.entries(this.tabOrder)) {
+      const idx = order.indexOf(id)
+      if (idx !== -1) {
+        order.splice(idx, 1)
+        if (order.length === 0) delete this.tabOrder[key]
+      }
+    }
+
+    void this.save()
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tab order
+  // ---------------------------------------------------------------------------
+
+  getTabOrder(): Record<string, string[]> {
+    return this.tabOrder
+  }
+
+  setTabOrder(key: string, order: string[]): void {
+    this.tabOrder[key] = order
+    void this.save()
+  }
+
+  removeTabOrder(key: string): void {
+    delete this.tabOrder[key]
     void this.save()
   }
 
@@ -162,12 +195,16 @@ export class WorktreeStateManager {
       const data = JSON.parse(content) as StateFile
       this.worktrees.clear()
       this.sessions.clear()
+      this.tabOrder = {}
 
       for (const [id, wt] of Object.entries(data.worktrees ?? {})) {
         this.worktrees.set(id, { id, ...wt })
       }
       for (const [id, s] of Object.entries(data.sessions ?? {})) {
         this.sessions.set(id, { id, ...s })
+      }
+      if (data.tabOrder) {
+        this.tabOrder = data.tabOrder
       }
       this.log(`Loaded state: ${this.worktrees.size} worktrees, ${this.sessions.size} sessions`)
     } catch (error) {
@@ -228,6 +265,9 @@ export class WorktreeStateManager {
     for (const [id, s] of this.sessions) {
       const { id: _, ...rest } = s
       data.sessions[id] = rest
+    }
+    if (Object.keys(this.tabOrder).length > 0) {
+      data.tabOrder = this.tabOrder
     }
 
     const dir = path.dirname(this.file)

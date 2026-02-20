@@ -1,6 +1,16 @@
 // Agent Manager root component
 
-import { Component, For, Show, createSignal, createMemo, createEffect, onMount, onCleanup } from "solid-js"
+import {
+  Component,
+  For,
+  Show,
+  createSignal,
+  createMemo,
+  createEffect,
+  onMount,
+  onCleanup,
+  type Accessor,
+} from "solid-js"
 import type {
   ExtensionMessage,
   AgentManagerRepoInfoMessage,
@@ -48,6 +58,71 @@ type SidebarSelection = typeof LOCAL | string | null
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent)
 const modKey = isMac ? "\u2318" : "Ctrl+"
+
+/** Manages horizontal scroll for the tab list: hides the scrollbar, converts
+ *  vertical wheel events to horizontal scroll, tracks overflow to show/hide
+ *  fade indicators, and auto-scrolls the active tab into view. */
+function useTabScroll(activeTabs: Accessor<SessionInfo[]>, activeId: Accessor<string | undefined>) {
+  const [ref, setRef] = createSignal<HTMLDivElement | undefined>()
+  const [showLeft, setShowLeft] = createSignal(false)
+  const [showRight, setShowRight] = createSignal(false)
+
+  const update = () => {
+    const el = ref()
+    if (!el) return
+    setShowLeft(el.scrollLeft > 2)
+    setShowRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2)
+  }
+
+  // Wheel → horizontal scroll conversion
+  const onWheel = (e: WheelEvent) => {
+    const el = ref()
+    if (!el) return
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+    e.preventDefault()
+    el.scrollLeft += e.deltaY > 0 ? 60 : -60
+  }
+
+  // Recalculate on scroll, resize, or tab changes
+  createEffect(() => {
+    const el = ref()
+    if (!el) return
+    el.addEventListener("scroll", update, { passive: true })
+    el.addEventListener("wheel", onWheel, { passive: false })
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    const mo = new MutationObserver(update)
+    mo.observe(el, { childList: true, subtree: true })
+    onCleanup(() => {
+      el.removeEventListener("scroll", update)
+      el.removeEventListener("wheel", onWheel)
+      ro.disconnect()
+      mo.disconnect()
+    })
+  })
+
+  // Auto-scroll active tab into view
+  createEffect(() => {
+    const id = activeId()
+    const el = ref()
+    // depend on tabs length to trigger on tab add/remove
+    activeTabs()
+    if (!id || !el) return
+    requestAnimationFrame(() => {
+      const tab = el.querySelector(`[data-tab-id="${id}"]`) as HTMLElement | null
+      if (!tab) return
+      const left = tab.offsetLeft
+      const right = left + tab.offsetWidth
+      if (left < el.scrollLeft) {
+        el.scrollTo({ left: left - 8, behavior: "smooth" })
+      } else if (right > el.scrollLeft + el.clientWidth) {
+        el.scrollTo({ left: right - el.clientWidth + 8, behavior: "smooth" })
+      }
+    })
+  })
+
+  return { setRef, showLeft, showRight }
+}
 
 const AgentManagerContent: Component = () => {
   const session = useSession()
@@ -162,6 +237,10 @@ const AgentManagerContent: Component = () => {
 
   // Read-only mode: viewing an unassigned session (not in a worktree or local)
   const readOnly = createMemo(() => selection() === null && !!session.currentSessionID())
+
+  // Tab scroll: hidden scrollbar with fade overflow indicators
+  const visibleTabId = createMemo(() => session.currentSessionID() ?? activePendingId())
+  const tabScroll = useTabScroll(activeTabs, visibleTabId)
 
   // Display name for worktree
   const worktreeLabel = (wt: WorktreeState): string => {
@@ -615,43 +694,48 @@ const AgentManagerContent: Component = () => {
         {/* Tab bar — visible when a section is selected and has tabs or a pending new session */}
         <Show when={selection() !== null && !contextEmpty()}>
           <div class="am-tab-bar">
-            <div class="am-tab-list">
-              <For each={activeTabs()}>
-                {(s) => {
-                  const pending = isPending(s.id)
-                  const active = () =>
-                    pending
-                      ? s.id === activePendingId() && !session.currentSessionID()
-                      : s.id === session.currentSessionID()
-                  return (
-                    <Tooltip value={s.title || "Untitled"} placement="bottom">
-                      <div
-                        class={`am-tab ${active() ? "am-tab-active" : ""}`}
-                        onClick={() => {
-                          if (pending) {
-                            setActivePendingId(s.id)
-                            session.clearCurrentSession()
-                          } else {
-                            setActivePendingId(undefined)
-                            session.selectSession(s.id)
-                          }
-                        }}
-                        onMouseDown={(e: MouseEvent) => handleTabMouseDown(s.id, e)}
-                      >
-                        <span class="am-tab-label">{s.title || "Untitled"}</span>
-                        <IconButton
-                          icon="close-small"
-                          size="small"
-                          variant="ghost"
-                          label="Close tab"
-                          class="am-tab-close"
-                          onClick={(e: MouseEvent) => handleCloseTab(s.id, e)}
-                        />
-                      </div>
-                    </Tooltip>
-                  )
-                }}
-              </For>
+            <div class="am-tab-scroll-area">
+              <div class={`am-tab-fade am-tab-fade-left ${tabScroll.showLeft() ? "am-tab-fade-visible" : ""}`} />
+              <div class="am-tab-list" ref={tabScroll.setRef}>
+                <For each={activeTabs()}>
+                  {(s) => {
+                    const pending = isPending(s.id)
+                    const active = () =>
+                      pending
+                        ? s.id === activePendingId() && !session.currentSessionID()
+                        : s.id === session.currentSessionID()
+                    return (
+                      <Tooltip value={s.title || "Untitled"} placement="bottom">
+                        <div
+                          class={`am-tab ${active() ? "am-tab-active" : ""}`}
+                          data-tab-id={s.id}
+                          onClick={() => {
+                            if (pending) {
+                              setActivePendingId(s.id)
+                              session.clearCurrentSession()
+                            } else {
+                              setActivePendingId(undefined)
+                              session.selectSession(s.id)
+                            }
+                          }}
+                          onMouseDown={(e: MouseEvent) => handleTabMouseDown(s.id, e)}
+                        >
+                          <span class="am-tab-label">{s.title || "Untitled"}</span>
+                          <IconButton
+                            icon="close-small"
+                            size="small"
+                            variant="ghost"
+                            label="Close tab"
+                            class="am-tab-close"
+                            onClick={(e: MouseEvent) => handleCloseTab(s.id, e)}
+                          />
+                        </div>
+                      </Tooltip>
+                    )
+                  }}
+                </For>
+              </div>
+              <div class={`am-tab-fade am-tab-fade-right ${tabScroll.showRight() ? "am-tab-fade-visible" : ""}`} />
             </div>
             <IconButton
               icon="plus"

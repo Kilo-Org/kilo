@@ -308,6 +308,50 @@
   min-width: 0;
   overflow-x: auto;
   height: 100%;
+
+  /* Hide scrollbar while keeping scroll functionality */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.am-tab-list::-webkit-scrollbar {
+  display: none;
+}
+
+/* Wrapper that positions overflow fade indicators */
+.am-tab-scroll-area {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: stretch;
+  height: 100%;
+}
+
+/* Fade indicators for overflow */
+.am-tab-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 32px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.am-tab-fade-visible {
+  opacity: 1;
+}
+
+.am-tab-fade-left {
+  left: 0;
+  background: linear-gradient(to right, var(--surface-base) 0%, transparent 100%);
+}
+
+.am-tab-fade-right {
+  right: 0;
+  background: linear-gradient(to left, var(--surface-base) 0%, transparent 100%);
 }
 
 .am-tab {

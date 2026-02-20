@@ -55,11 +55,13 @@ export const ChatView: Component<ChatViewProps> = (props) => {
   return (
     <div class="chat-view">
       <TaskHeader />
-      <Show when={!id()}>
-        <KiloNotifications />
-      </Show>
-      <div class="chat-messages">
-        <MessageList onSelectSession={props.onSelectSession} />
+      <div class="chat-messages-wrapper">
+        <Show when={!id()}>
+          <KiloNotifications />
+        </Show>
+        <div class="chat-messages">
+          <MessageList onSelectSession={props.onSelectSession} />
+        </div>
       </div>
 
       <Show when={!props.readonly}>

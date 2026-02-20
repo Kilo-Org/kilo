@@ -94,7 +94,10 @@ export class AgentManagerProvider implements vscode.Disposable {
   private async initializeState(): Promise<void> {
     const manager = this.getWorktreeManager()
     const state = this.getStateManager()
-    if (!manager || !state) return
+    if (!manager || !state) {
+      this.pushEmptyState()
+      return
+    }
 
     await state.load()
 
@@ -676,6 +679,17 @@ export class AgentManagerProvider implements vscode.Disposable {
       sessions: state.getSessions(),
       tabOrder: state.getTabOrder(),
       sessionsCollapsed: state.getSessionsCollapsed(),
+      isGitRepo: true,
+    })
+  }
+
+  /** Push empty state when the workspace is not a git repo or has no workspace folder. */
+  private pushEmptyState(): void {
+    this.postToWebview({
+      type: "agentManager.state",
+      worktrees: [],
+      sessions: [],
+      isGitRepo: false,
     })
   }
 

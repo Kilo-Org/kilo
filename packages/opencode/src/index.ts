@@ -26,6 +26,7 @@ import { EOL } from "os"
 import { WebCommand } from "./cli/cmd/web"
 import { PrCommand } from "./cli/cmd/pr"
 import { SessionCommand } from "./cli/cmd/session"
+import { HelpCommand } from "./cli/cmd/help" // kilocode_change
 // kilocode_change start - Import telemetry, instance disposal, and legacy migration
 import { Telemetry } from "@kilocode/kilo-telemetry"
 import { Instance } from "./project/instance" // kilocode_change
@@ -138,6 +139,7 @@ const cli = yargs(hideBin(process.argv))
   // .command(GithubCommand) // kilocode_change (Disabled until backend is ready)
   .command(PrCommand)
   .command(SessionCommand)
+  .command(HelpCommand) // kilocode_change
   .fail((msg, err) => {
     if (
       msg?.startsWith("Unknown argument") ||

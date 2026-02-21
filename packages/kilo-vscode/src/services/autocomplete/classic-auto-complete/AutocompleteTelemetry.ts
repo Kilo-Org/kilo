@@ -1,27 +1,11 @@
-import { TelemetryStub, type ITelemetryClient } from "../shims/TelemetryStub"
+import { TelemetryProxy, TelemetryEventName } from "../../telemetry"
 import type { AutocompleteContext, CacheMatchType, FillInAtCursorSuggestion } from "../types"
-
-export const TelemetryEventName = {
-  AUTOCOMPLETE_SUGGESTION_REQUESTED: "Autocomplete Suggestion Requested",
-  AUTOCOMPLETE_LLM_REQUEST_COMPLETED: "Autocomplete LLM Request Completed",
-  AUTOCOMPLETE_LLM_REQUEST_FAILED: "Autocomplete LLM Request Failed",
-  AUTOCOMPLETE_LLM_SUGGESTION_RETURNED: "Autocomplete LLM Suggestion Returned",
-  AUTOCOMPLETE_SUGGESTION_CACHE_HIT: "Autocomplete Suggestion Cache Hit",
-  AUTOCOMPLETE_ACCEPT_SUGGESTION: "Autocomplete Accept Suggestion",
-  AUTOCOMPLETE_SUGGESTION_FILTERED: "Autocomplete Suggestion Filtered",
-  AUTOCOMPLETE_UNIQUE_SUGGESTION_SHOWN: "Autocomplete Unique Suggestion Shown",
-  INLINE_ASSIST_AUTO_TASK: "Inline Assist Auto Task",
-  GHOST_SERVICE_DISABLED: "Ghost Service Disabled",
-} as const
+import { getSuggestionKey as _getSuggestionKey, insertWithLRUEviction } from "./telemetry-utils"
 
 export type { AutocompleteContext, CacheMatchType, FillInAtCursorSuggestion }
 
-/**
- * Generate a unique key for a suggestion based on its content and context.
- * This key is used to track whether the same suggestion is still being displayed.
- */
 export function getSuggestionKey(suggestion: FillInAtCursorSuggestion): string {
-  return `${suggestion.prefix}|${suggestion.suffix}|${suggestion.text}`
+  return _getSuggestionKey(suggestion)
 }
 
 /**
@@ -77,14 +61,7 @@ export class AutocompleteTelemetry {
   private firedUniqueTelemetryKeys: Map<string, true> = new Map()
 
   private markSuggestionKeyAsFired(suggestionKey: string): void {
-    this.firedUniqueTelemetryKeys.set(suggestionKey, true)
-
-    if (this.firedUniqueTelemetryKeys.size > MAX_FIRED_UNIQUE_TELEMETRY_KEYS) {
-      const oldestKey = this.firedUniqueTelemetryKeys.keys().next().value as string | undefined
-      if (oldestKey) {
-        this.firedUniqueTelemetryKeys.delete(oldestKey)
-      }
-    }
+    insertWithLRUEviction(this.firedUniqueTelemetryKeys, suggestionKey, MAX_FIRED_UNIQUE_TELEMETRY_KEYS)
   }
 
   /**
@@ -95,17 +72,12 @@ export class AutocompleteTelemetry {
     this.autocompleteType = autocompleteType
   }
 
-  private telemetryClient: ITelemetryClient = new TelemetryStub()
-
-  private captureEvent(
-    event: (typeof TelemetryEventName)[keyof typeof TelemetryEventName],
-    properties?: Record<string, unknown>,
-  ): void {
-    const propsWithType = {
+  private captureEvent(event: TelemetryEventName, properties?: Record<string, unknown>): void {
+    const props = {
       ...properties,
       autocompleteType: this.autocompleteType,
     }
-    this.telemetryClient.captureEvent(event, propsWithType)
+    TelemetryProxy.capture(event, props)
   }
 
   /**

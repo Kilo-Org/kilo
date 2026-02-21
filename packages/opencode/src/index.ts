@@ -26,9 +26,19 @@ import { EOL } from "os"
 import { WebCommand } from "./cli/cmd/web"
 import { PrCommand } from "./cli/cmd/pr"
 import { SessionCommand } from "./cli/cmd/session"
-// kilocode_change start - Import telemetry and legacy migration
+// kilocode_change start - Import telemetry, instance disposal, and legacy migration
 import { Telemetry } from "@kilocode/kilo-telemetry"
-import { migrateLegacyKiloAuth } from "@kilocode/kilo-gateway"
+import { Instance } from "./project/instance" // kilocode_change
+import { migrateLegacyKiloAuth, ENV_FEATURE } from "@kilocode/kilo-gateway"
+
+// kilocode_change - set feature for tracking. 'serve' is spawned by other services
+// (extension, cloud) which set their own KILOCODE_FEATURE env var. Direct CLI use
+// (any command other than 'serve') is tagged as 'cli'. If 'serve' is spawned without
+// the env var, it gets 'unknown' so the misconfiguration is visible in data.
+if (!process.env[ENV_FEATURE]) {
+  const isServe = process.argv.includes("serve")
+  process.env[ENV_FEATURE] = isServe ? "unknown" : "cli"
+}
 import { Global } from "./global"
 import { Config } from "./config/config"
 import { Auth } from "./auth"
@@ -187,6 +197,8 @@ try {
   Telemetry.trackCliExit(exitCode)
   await Telemetry.shutdown()
   // kilocode_change end
+
+  await Instance.disposeAll() // kilocode_change - safety net disposal (no-op if already disposed)
 
   // Some subprocesses don't react properly to SIGTERM and similar signals.
   // Most notably, some docker-container-based MCP servers don't handle such signals unless

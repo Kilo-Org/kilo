@@ -11,6 +11,8 @@ export function activate(context: vscode.ExtensionContext) {
   console.log("Kilo Code extension is now active")
   void showChangelogOnUpdate(context)
 
+  const telemetry = TelemetryProxy.getInstance()
+
   // Create shared connection service (one server for all webviews)
   const connectionService = new KiloConnectionService(context)
 
@@ -18,15 +20,19 @@ export function activate(context: vscode.ExtensionContext) {
   const browserAutomationService = new BrowserAutomationService(connectionService)
   browserAutomationService.syncWithSettings()
 
-  // Re-register browser automation MCP server on CLI backend reconnect
+  // Re-register browser automation MCP server on CLI backend reconnect and configure telemetry
   const unsubscribeStateChange = connectionService.onStateChange((state) => {
     if (state === "connected") {
       browserAutomationService.reregisterIfEnabled()
+      const config = connectionService.getServerConfig()
+      if (config) {
+        telemetry.configure(config.baseUrl, config.password)
+      }
     }
   })
 
   // Create the provider with shared service
-  const provider = new KiloProvider(context.extensionUri, connectionService)
+  const provider = new KiloProvider(context.extensionUri, connectionService, context)
 
   // Register the webview view provider for the sidebar.
   // retainContextWhenHidden keeps the webview alive when switching to other sidebar panels.
@@ -69,10 +75,50 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("kilo-code.new.agentManager.nextSession", () => {
       agentManagerProvider.postMessage({ type: "action", action: "sessionNext" })
     }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.previousTab", () => {
+      agentManagerProvider.postMessage({ type: "action", action: "tabPrevious" })
+    }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.nextTab", () => {
+      agentManagerProvider.postMessage({ type: "action", action: "tabNext" })
+    }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.showTerminal", () => {
+      agentManagerProvider.showTerminalForCurrentSession()
+    }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.focusPanel", () => {
+      agentManagerProvider.focusPanel()
+    }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.newTab", () => {
+      agentManagerProvider.postMessage({ type: "action", action: "newTab" })
+    }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.closeTab", () => {
+      agentManagerProvider.postMessage({ type: "action", action: "closeTab" })
+    }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.newWorktree", () => {
+      agentManagerProvider.postMessage({ type: "action", action: "newWorktree" })
+    }),
+    vscode.commands.registerCommand("kilo-code.new.agentManager.closeWorktree", () => {
+      agentManagerProvider.postMessage({ type: "action", action: "closeWorktree" })
+    }),
   )
 
   // Register autocomplete provider
   registerAutocompleteProvider(context, connectionService)
+
+  // Register commit message generation
+  registerCommitMessageService(context, connectionService)
+
+  // Register code actions (editor context menus, terminal context menus, keyboard shortcuts)
+  registerCodeActions(context, provider, agentManagerProvider)
+  registerTerminalActions(context, provider)
+
+  // Register CodeActionProvider (lightbulb quick fixes)
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      { scheme: "file" },
+      new KiloCodeActionProvider(),
+      KiloCodeActionProvider.metadata,
+    ),
+  )
 
   // Dispose services when extension deactivates (kills the server)
   context.subscriptions.push({
@@ -85,7 +131,9 @@ export function activate(context: vscode.ExtensionContext) {
   })
 }
 
-export function deactivate() {}
+export function deactivate() {
+  TelemetryProxy.getInstance().shutdown()
+}
 
 async function showChangelogOnUpdate(context: vscode.ExtensionContext) {
   await showChangelog({
@@ -118,7 +166,7 @@ async function openKiloInNewTab(context: vscode.ExtensionContext, connectionServ
     dark: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "kilo-dark.svg"),
   }
 
-  const tabProvider = new KiloProvider(context.extensionUri, connectionService)
+  const tabProvider = new KiloProvider(context.extensionUri, connectionService, context)
   tabProvider.resolveWebviewPanel(panel)
 
   // Wait for the new panel to become active before locking the editor group.

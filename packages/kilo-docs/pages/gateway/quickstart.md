@@ -53,7 +53,7 @@ const kilo = createOpenAI({
 
 async function main() {
   const result = streamText({
-    model: kilo("anthropic/claude-sonnet-4.5"),
+    model: kilo.chat("anthropic/claude-sonnet-4.5"),
     prompt: "Invent a new holiday and describe its traditions.",
   })
 

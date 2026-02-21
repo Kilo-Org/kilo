@@ -3,11 +3,13 @@ import { ServerManager } from "./server-manager"
 import { HttpClient } from "./http-client"
 import { SSEClient } from "./sse-client"
 import type { ServerConfig, SSEEvent } from "./types"
+import { resolveEventSessionId as resolveEventSessionIdPure } from "./connection-utils"
 
 export type ConnectionState = "connecting" | "connected" | "disconnected" | "error"
 type SSEEventListener = (event: SSEEvent) => void
 type StateListener = (state: ConnectionState) => void
 type SSEEventFilter = (event: SSEEvent) => boolean
+type NotificationDismissListener = (notificationId: string) => void
 
 /**
  * Shared connection service that owns the single ServerManager, HttpClient, and SSEClient.
@@ -24,6 +26,7 @@ export class KiloConnectionService {
 
   private readonly eventListeners: Set<SSEEventListener> = new Set()
   private readonly stateListeners: Set<StateListener> = new Set()
+  private readonly notificationDismissListeners: Set<NotificationDismissListener> = new Set()
 
   /**
    * Shared mapping used to resolve session scope for events that don't reliably include a sessionID.
@@ -131,35 +134,29 @@ export class KiloConnectionService {
    * Returns undefined for global events.
    */
   resolveEventSessionId(event: SSEEvent): string | undefined {
-    switch (event.type) {
-      case "session.created":
-      case "session.updated":
-        return event.properties.info.id
-      case "session.status":
-      case "session.idle":
-      case "todo.updated":
-        return event.properties.sessionID
-      case "message.updated":
-        this.recordMessageSessionId(event.properties.info.id, event.properties.info.sessionID)
-        return event.properties.info.sessionID
-      case "message.part.updated": {
-        const part = event.properties.part as { messageID?: string; sessionID?: string }
-        if (part.sessionID) {
-          return part.sessionID
-        }
-        if (!part.messageID) {
-          return undefined
-        }
-        return this.messageSessionIdsByMessageId.get(part.messageID)
-      }
-      case "permission.asked":
-      case "permission.replied":
-      case "question.asked":
-      case "question.replied":
-      case "question.rejected":
-        return event.properties.sessionID
-      default:
-        return undefined
+    return resolveEventSessionIdPure(
+      event,
+      (messageId) => this.messageSessionIdsByMessageId.get(messageId),
+      (messageId, sessionId) => this.recordMessageSessionId(messageId, sessionId),
+    )
+  }
+
+  /**
+   * Subscribe to notification dismiss events broadcast from any KiloProvider. Returns unsubscribe function.
+   */
+  onNotificationDismissed(listener: NotificationDismissListener): () => void {
+    this.notificationDismissListeners.add(listener)
+    return () => {
+      this.notificationDismissListeners.delete(listener)
+    }
+  }
+
+  /**
+   * Broadcast a notification dismiss event to all subscribed KiloProvider instances.
+   */
+  notifyNotificationDismissed(notificationId: string): void {
+    for (const listener of this.notificationDismissListeners) {
+      listener(notificationId)
     }
   }
 
@@ -181,6 +178,7 @@ export class KiloConnectionService {
     this.serverManager.dispose()
     this.eventListeners.clear()
     this.stateListeners.clear()
+    this.notificationDismissListeners.clear()
     this.messageSessionIdsByMessageId.clear()
     this.client = null
     this.sseClient = null

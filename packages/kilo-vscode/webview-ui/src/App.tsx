@@ -1,4 +1,4 @@
-import { Component, createSignal, createMemo, Switch, Match, onMount, onCleanup } from "solid-js"
+import { Component, createSignal, createMemo, Switch, Match, Show, onMount, onCleanup } from "solid-js"
 import { ThemeProvider } from "@kilocode/kilo-ui/theme"
 import { DialogProvider } from "@kilocode/kilo-ui/context/dialog"
 import { MarkedProvider } from "@kilocode/kilo-ui/context/marked"
@@ -10,14 +10,16 @@ import { DataProvider } from "@kilocode/kilo-ui/context/data"
 import { Toast } from "@kilocode/kilo-ui/toast"
 import Settings from "./components/Settings"
 import ProfileView from "./components/ProfileView"
-import { VSCodeProvider } from "./context/vscode"
+import { VSCodeProvider, useVSCode } from "./context/vscode"
 import { ServerProvider, useServer } from "./context/server"
 import { ProviderProvider } from "./context/provider"
 import { ConfigProvider } from "./context/config"
 import { SessionProvider, useSession } from "./context/session"
 import { LanguageProvider } from "./context/language"
 import { ChatView } from "./components/chat"
+import { KiloNotifications } from "./components/chat/KiloNotifications"
 import SessionList from "./components/history/SessionList"
+import { NotificationsProvider } from "./context/notifications"
 import type { Message as SDKMessage, Part as SDKPart } from "@kilocode/sdk/v2"
 import "./styles/chat.css"
 
@@ -47,18 +49,25 @@ const DummyView: Component<{ title: string }> = (props) => {
  */
 export const DataBridge: Component<{ children: any }> = (props) => {
   const session = useSession()
+  const vscode = useVSCode()
 
   const data = createMemo(() => {
     const id = session.currentSessionID()
-    const msgs = session.allMessages()
-    const parts = session.allParts()
+    const perms = id ? session.permissions().filter((p) => p.sessionID === id) : []
     return {
       session: session.sessions().map((s) => ({ ...s, id: s.id, role: "user" as const })) as unknown as any[],
       session_status: {} as Record<string, any>,
       session_diff: {} as Record<string, any[]>,
-      message: msgs as unknown as Record<string, SDKMessage[]>,
-      part: parts as unknown as Record<string, SDKPart[]>,
-      permission: id ? { [id]: session.permissions() as unknown as any[] } : {},
+      message: id ? { [id]: session.messages() as unknown as SDKMessage[] } : {},
+      part: id
+        ? Object.fromEntries(
+            session
+              .messages()
+              .map((msg) => [msg.id, session.getParts(msg.id) as unknown as SDKPart[]])
+              .filter(([, parts]) => (parts as SDKPart[]).length > 0),
+          )
+        : {},
+      permission: id ? { [id]: perms as unknown as any[] } : {},
     }
   })
 
@@ -70,8 +79,12 @@ export const DataBridge: Component<{ children: any }> = (props) => {
     session.syncSession(sessionID)
   }
 
+  const open = (filePath: string, line?: number, column?: number) => {
+    vscode.postMessage({ type: "openFile", filePath, line, column })
+  }
+
   return (
-    <DataProvider data={data()} directory="" onPermissionRespond={respond} onSyncSession={sync}>
+    <DataProvider data={data()} directory="" onPermissionRespond={respond} onSyncSession={sync} onOpenFile={open}>
       {props.children}
     </DataProvider>
   )
@@ -142,6 +155,9 @@ const AppContent: Component = () => {
     <div class="container">
       <Switch fallback={<ChatView />}>
         <Match when={currentView() === "newTask"}>
+          <Show when={!session.currentSessionID()}>
+            <KiloNotifications />
+          </Show>
           <ChatView onSelectSession={handleSelectSession} />
         </Match>
         <Match when={currentView() === "marketplace"}>
@@ -178,11 +194,13 @@ const App: Component = () => {
                   <CodeComponentProvider component={Code}>
                     <ProviderProvider>
                       <ConfigProvider>
-                        <SessionProvider>
-                          <DataBridge>
-                            <AppContent />
-                          </DataBridge>
-                        </SessionProvider>
+                        <NotificationsProvider>
+                          <SessionProvider>
+                            <DataBridge>
+                              <AppContent />
+                            </DataBridge>
+                          </SessionProvider>
+                        </NotificationsProvider>
                       </ConfigProvider>
                     </ProviderProvider>
                   </CodeComponentProvider>

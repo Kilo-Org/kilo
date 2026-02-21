@@ -11,7 +11,9 @@ import type {
   McpStatus,
   McpConfig,
   Config,
+  KilocodeNotification,
 } from "./types"
+import { extractHttpErrorMessage, parseSSEDataLine } from "./http-utils"
 
 /**
  * HTTP Client for communicating with the CLI backend server.
@@ -43,7 +45,7 @@ export class HttpClient {
     method: string,
     path: string,
     body?: unknown,
-    options?: { directory?: string; allowEmpty?: boolean },
+    options?: { directory?: string; allowEmpty?: boolean; silent?: boolean; signal?: AbortSignal },
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`
 
@@ -60,6 +62,7 @@ export class HttpClient {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: options?.signal,
     })
 
     // Read the raw response first so we can produce useful errors when JSON is empty/truncated.
@@ -67,22 +70,16 @@ export class HttpClient {
 
     // Non-2xx: try to extract an error message from JSON, otherwise fall back to raw text.
     if (!response.ok) {
-      let errorMessage = response.statusText
-      if (rawText.trim().length > 0) {
-        try {
-          const errorJson = JSON.parse(rawText) as { error?: string; message?: string }
-          errorMessage = errorJson.error || errorJson.message || errorMessage
-        } catch {
-          errorMessage = rawText
-        }
-      }
+      const errorMessage = extractHttpErrorMessage(response.statusText, rawText)
 
-      console.error("[Kilo New] HTTP: ❌ Request failed", {
-        method,
-        path,
-        status: response.status,
-        errorMessage,
-      })
+      if (!options?.silent) {
+        console.error("[Kilo New] HTTP: ❌ Request failed", {
+          method,
+          path,
+          status: response.status,
+          errorMessage,
+        })
+      }
 
       throw new Error(`HTTP ${response.status}: ${errorMessage}`)
     }
@@ -128,9 +125,10 @@ export class HttpClient {
 
   /**
    * Get information about an existing session.
+   * Set silent to suppress error logging (e.g. for expected 404s on cross-worktree sessions).
    */
-  async getSession(sessionId: string, directory: string): Promise<SessionInfo> {
-    return this.request<SessionInfo>("GET", `/session/${sessionId}`, undefined, { directory })
+  async getSession(sessionId: string, directory: string, silent?: boolean): Promise<SessionInfo> {
+    return this.request<SessionInfo>("GET", `/session/${sessionId}`, undefined, { directory, silent })
   }
 
   /**
@@ -216,7 +214,7 @@ export class HttpClient {
     sessionId: string,
     parts: Array<{ type: "text"; text: string } | { type: "file"; mime: string; url: string }>,
     directory: string,
-    options?: { providerID?: string; modelID?: string; agent?: string },
+    options?: { providerID?: string; modelID?: string; agent?: string; variant?: string },
   ): Promise<void> {
     const body: Record<string, unknown> = { parts }
     if (options?.providerID && options?.modelID) {
@@ -226,6 +224,9 @@ export class HttpClient {
     if (options?.agent) {
       body.agent = options.agent
     }
+    if (options?.variant) {
+      body.variant = options.variant
+    }
 
     await this.request<void>("POST", `/session/${sessionId}/message`, body, { directory, allowEmpty: true })
   }
@@ -233,12 +234,16 @@ export class HttpClient {
   /**
    * Get all messages for a session.
    */
-  async getMessages(sessionId: string, directory: string): Promise<Array<{ info: MessageInfo; parts: MessagePart[] }>> {
+  async getMessages(
+    sessionId: string,
+    directory: string,
+    signal?: AbortSignal,
+  ): Promise<Array<{ info: MessageInfo; parts: MessagePart[] }>> {
     return this.request<Array<{ info: MessageInfo; parts: MessagePart[] }>>(
       "GET",
       `/session/${sessionId}/message`,
       undefined,
-      { directory },
+      { directory, signal },
     )
   }
 
@@ -323,6 +328,19 @@ export class HttpClient {
   }
 
   /**
+   * Fetch Kilo notifications for the current user from the kilo-gateway.
+   * Returns an empty array if not logged in or if the request fails.
+   */
+  async getNotifications(): Promise<KilocodeNotification[]> {
+    try {
+      return await this.request<KilocodeNotification[]>("GET", "/kilo/notifications")
+    } catch (err) {
+      console.warn("[Kilo] Failed to fetch notifications:", err)
+      return []
+    }
+  }
+
+  /**
    * Switch the active organization.
    * Pass null to switch back to personal account.
    */
@@ -398,38 +416,12 @@ export class HttpClient {
       buffer = lines.pop() ?? "" // Keep incomplete line in buffer
 
       for (const line of lines) {
-        if (!line.startsWith("data: ")) {
-          continue
-        }
-
-        const data = line.slice(6).trim()
-        if (data === "[DONE]") {
-          continue
-        }
-
-        try {
-          const parsed = JSON.parse(data) as {
-            choices?: Array<{ delta?: { content?: string } }>
-            usage?: { prompt_tokens?: number; completion_tokens?: number }
-            cost?: number
-          }
-
-          const content = parsed.choices?.[0]?.delta?.content
-          if (content) {
-            onChunk(content)
-          }
-
-          if (parsed.usage) {
-            inputTokens = parsed.usage.prompt_tokens ?? 0
-            outputTokens = parsed.usage.completion_tokens ?? 0
-          }
-
-          if (parsed.cost !== undefined) {
-            cost = parsed.cost
-          }
-        } catch {
-          // Skip malformed JSON lines
-        }
+        const chunk = parseSSEDataLine(line)
+        if (!chunk) continue
+        if (chunk.content) onChunk(chunk.content)
+        if (chunk.inputTokens !== undefined) inputTokens = chunk.inputTokens
+        if (chunk.outputTokens !== undefined) outputTokens = chunk.outputTokens
+        if (chunk.cost !== undefined) cost = chunk.cost
       }
     }
 

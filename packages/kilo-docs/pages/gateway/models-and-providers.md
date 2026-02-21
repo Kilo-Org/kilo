@@ -13,7 +13,7 @@ Models are identified using the format `provider/model-name`. Pass this as the `
 
 ```typescript
 const result = streamText({
-  model: kilo("anthropic/claude-sonnet-4.5"),
+  model: kilo.chat("anthropic/claude-sonnet-4.5"),
   prompt: "Hello!",
 })
 ```

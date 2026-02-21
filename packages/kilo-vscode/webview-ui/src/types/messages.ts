@@ -174,6 +174,20 @@ export interface DeviceAuthState {
   error?: string
 }
 
+// Kilo notification types (mirrored from kilo-gateway)
+export interface KilocodeNotificationAction {
+  actionText: string
+  actionURL: string
+}
+
+export interface KilocodeNotification {
+  id: string
+  title: string
+  message: string
+  action?: KilocodeNotificationAction
+  showIn?: string[]
+}
+
 // Profile types from kilo-gateway
 export interface KilocodeBalance {
   balance: number
@@ -201,6 +215,8 @@ export interface ProviderModel {
   latest?: boolean
   // Actual shape returned by the server (Provider.Model)
   limit?: { context: number; input?: number; output: number }
+  variants?: Record<string, Record<string, unknown>>
+  capabilities?: { reasoning: boolean }
 }
 
 export interface Provider {
@@ -320,6 +336,7 @@ export interface ErrorMessage {
   type: "error"
   message: string
   code?: string
+  sessionID?: string
 }
 
 export interface PartUpdatedMessage {
@@ -511,6 +528,12 @@ export interface NotificationSettingsLoadedMessage {
   }
 }
 
+export interface NotificationsLoadedMessage {
+  type: "notificationsLoaded"
+  notifications: KilocodeNotification[]
+  dismissedIds: string[]
+}
+
 // Agent Manager worktree session metadata
 export interface AgentManagerSessionMetaMessage {
   type: "agentManager.sessionMeta"
@@ -534,6 +557,7 @@ export interface AgentManagerWorktreeSetupMessage {
   message: string
   sessionId?: string
   branch?: string
+  worktreeId?: string
 }
 
 // Agent Manager worktree state types (mirrored from WorktreeStateManager)
@@ -543,6 +567,8 @@ export interface WorktreeState {
   path: string
   parentBranch: string
   createdAt: string
+  /** Shared identifier for worktrees created together via multi-version mode. */
+  groupId?: string
 }
 
 export interface ManagedSessionState {
@@ -563,6 +589,42 @@ export interface AgentManagerStateMessage {
   type: "agentManager.state"
   worktrees: WorktreeState[]
   sessions: ManagedSessionState[]
+  tabOrder?: Record<string, string[]>
+  sessionsCollapsed?: boolean
+  isGitRepo?: boolean
+}
+
+// Resolved keybindings for agent manager actions
+export interface AgentManagerKeybindingsMessage {
+  type: "agentManager.keybindings"
+  bindings: Record<string, string>
+}
+
+// Multi-version creation progress (extension → webview)
+export interface AgentManagerMultiVersionProgressMessage {
+  type: "agentManager.multiVersionProgress"
+  status: "creating" | "done"
+  total: number
+  completed: number
+  groupId?: string
+}
+
+// Stored variant selections loaded from extension globalState (extension → webview)
+export interface VariantsLoadedMessage {
+  type: "variantsLoaded"
+  variants: Record<string, string>
+}
+
+// Request webview to send initial prompt to a newly created session (extension → webview)
+export interface AgentManagerSendInitialMessage {
+  type: "agentManager.sendInitialMessage"
+  sessionId: string
+  worktreeId: string
+  text: string
+  providerID?: string
+  modelID?: string
+  agent?: string
+  files?: Array<{ mime: string; url: string }>
 }
 
 export type ExtensionMessage =
@@ -598,13 +660,18 @@ export type ExtensionMessage =
   | ConfigLoadedMessage
   | ConfigUpdatedMessage
   | NotificationSettingsLoadedMessage
+  | NotificationsLoadedMessage
   | AgentManagerSessionMetaMessage
   | AgentManagerRepoInfoMessage
   | AgentManagerWorktreeSetupMessage
   | AgentManagerSessionAddedMessage
   | AgentManagerStateMessage
+  | AgentManagerKeybindingsMessage
+  | AgentManagerMultiVersionProgressMessage
+  | AgentManagerSendInitialMessage
   | SetChatBoxMessage
   | TriggerTaskMessage
+  | VariantsLoadedMessage
 
 // ============================================
 // Messages FROM webview TO extension
@@ -622,6 +689,7 @@ export interface SendMessageRequest {
   providerID?: string
   modelID?: string
   agent?: string
+  variant?: string
   files?: FileAttachment[]
 }
 
@@ -669,6 +737,13 @@ export interface RefreshProfileRequest {
 export interface OpenExternalRequest {
   type: "openExternal"
   url: string
+}
+
+export interface OpenFileRequest {
+  type: "openFile"
+  filePath: string
+  line?: number
+  column?: number
 }
 
 export interface CancelLoginRequest {
@@ -779,6 +854,15 @@ export interface ResetAllSettingsRequest {
   type: "resetAllSettings"
 }
 
+export interface RequestNotificationsMessage {
+  type: "requestNotifications"
+}
+
+export interface DismissNotificationMessage {
+  type: "dismissNotification"
+  notificationId: string
+}
+
 export interface SyncSessionRequest {
   type: "syncSession"
   sessionID: string
@@ -833,10 +917,56 @@ export interface RequestRepoInfoMessage {
   type: "agentManager.requestRepoInfo"
 }
 
+export interface RequestStateMessage {
+  type: "agentManager.requestState"
+}
+
+// Configure worktree setup script
+export interface ConfigureSetupScriptRequest {
+  type: "agentManager.configureSetupScript"
+}
+
 // Show terminal for a session
 export interface ShowTerminalRequest {
   type: "agentManager.showTerminal"
   sessionId: string
+}
+
+// Create multiple worktree sessions for the same prompt (multi-version mode)
+export interface CreateMultiVersionRequest {
+  type: "agentManager.createMultiVersion"
+  text: string
+  versions: number
+  providerID?: string
+  modelID?: string
+  agent?: string
+  files?: FileAttachment[]
+  baseBranch?: string
+}
+
+// Persist tab order for a context (worktree ID or "local")
+export interface SetTabOrderRequest {
+  type: "agentManager.setTabOrder"
+  key: string
+  order: string[]
+}
+
+// Persist sessions collapsed state
+export interface SetSessionsCollapsedRequest {
+  type: "agentManager.setSessionsCollapsed"
+  collapsed: boolean
+}
+
+// Variant persistence (webview → extension)
+export interface PersistVariantRequest {
+  type: "persistVariant"
+  key: string
+  value: string
+}
+
+// Request stored variants from extension (webview → extension)
+export interface RequestVariantsMessage {
+  type: "requestVariants"
 }
 
 export type WebviewMessage =
@@ -851,6 +981,7 @@ export type WebviewMessage =
   | LogoutRequest
   | RefreshProfileRequest
   | OpenExternalRequest
+  | OpenFileRequest
   | CancelLoginRequest
   | SetOrganizationRequest
   | WebviewReadyRequest
@@ -875,6 +1006,8 @@ export type WebviewMessage =
   | ResetAllSettingsRequest
   | SyncSessionRequest
   | CreateWorktreeSessionRequest
+  | RequestNotificationsMessage
+  | DismissNotificationMessage
   | CreateWorktreeRequest
   | DeleteWorktreeRequest
   | PromoteSessionRequest
@@ -882,7 +1015,14 @@ export type WebviewMessage =
   | CloseSessionRequest
   | TelemetryRequest
   | RequestRepoInfoMessage
+  | RequestStateMessage
+  | ConfigureSetupScriptRequest
   | ShowTerminalRequest
+  | CreateMultiVersionRequest
+  | SetTabOrderRequest
+  | SetSessionsCollapsedRequest
+  | PersistVariantRequest
+  | RequestVariantsMessage
 
 // ============================================
 // VS Code API type

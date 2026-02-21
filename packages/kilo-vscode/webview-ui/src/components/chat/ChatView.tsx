@@ -27,7 +27,7 @@ export const ChatView: Component<ChatViewProps> = (props) => {
   const sessionPermissions = () => session.permissions().filter((p) => p.sessionID === id())
 
   const questionRequest = () => sessionQuestions()[0]
-  const permissionRequest = () => sessionPermissions()[0]
+  const permissionRequest = () => sessionPermissions().find((p) => !p.tool)
   const blocked = () => sessionPermissions().length > 0 || sessionQuestions().length > 0
 
   const [responding, setResponding] = createSignal(false)
@@ -54,8 +54,10 @@ export const ChatView: Component<ChatViewProps> = (props) => {
   return (
     <div class="chat-view">
       <TaskHeader />
-      <div class="chat-messages">
-        <MessageList onSelectSession={props.onSelectSession} />
+      <div class="chat-messages-wrapper">
+        <div class="chat-messages">
+          <MessageList onSelectSession={props.onSelectSession} />
+        </div>
       </div>
 
       <Show when={!props.readonly}>
@@ -95,6 +97,7 @@ export const ChatView: Component<ChatViewProps> = (props) => {
                       {language.t("ui.permission.allowOnce")}
                     </Button>
                   </div>
+                  <p data-slot="permission-hint">{language.t("ui.permission.sessionHint")}</p>
                 </div>
               </div>
             )}

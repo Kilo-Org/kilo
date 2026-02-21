@@ -25,7 +25,7 @@ That's it! You're ready to [start your first task](/docs/getting-started/quickst
 
 You have two primary ways to pay for model usage in Kilo Code:
 
-1. **Kilo credits (default):** Fastest setup, unified billing, and no separate provider key management.
+1. [**Kilo Gateway (default)**](/docs/ai-providers/kilocode): Fastest setup, unified billing, and no separate provider key management.
 2. **Bring Your Own Key (BYOK):** Use your own provider keys while still using Kilo platform features. See [Bring Your Own Key (BYOK)](/docs/getting-started/byok).
 
 ## Kilo Gateway API Key
@@ -46,7 +46,7 @@ If you prefer to use your own API key or existing subscription, Kilo Code suppor
 | [ChatGPT Plus/Pro](/docs/ai-providers/openai-chatgpt-plus-pro) | Use your existing subscription      | No               |
 | [OpenRouter](/docs/ai-providers/openrouter)                    | Access multiple models with one key | Yes              |
 | [Anthropic](/docs/ai-providers/anthropic)                      | Direct provider access to Claude    | Yes              |
-| [OpenAI](/docs/ai-providers/openai)                            | Access to GPT models                | Yes              |
+| [OpenAI](/docs/ai-providers/openai)                            | Direct provider access to GPT models | Yes              |
 
 {% callout type="info" title="Many More Providers Available" %}
 These are just a few examples! Kilo Code supports many more providers including Google Gemini, DeepSeek, Mistral, Ollama (for local models), AWS Bedrock, Google Vertex, and more. See the complete list at [AI Providers](/docs/ai-providers/).

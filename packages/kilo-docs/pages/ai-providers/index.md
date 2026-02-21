@@ -82,7 +82,7 @@ If you want to use your own keys or specific provider features, use the provider
 - [Claude Code](/docs/ai-providers/claude-code)
 - [DeepSeek](/docs/ai-providers/deepseek)
 - [Fireworks](/docs/ai-providers/fireworks)
-- [Gemini](/docs/ai-providers/gemini)
+- [Google Gemini](/docs/ai-providers/gemini)
 - [Glama](/docs/ai-providers/glama)
 - [Groq](/docs/ai-providers/groq)
 - [Human Relay](/docs/ai-providers/human-relay)

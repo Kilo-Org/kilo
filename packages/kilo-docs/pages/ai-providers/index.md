@@ -9,7 +9,7 @@ Kilo Code supports a broad set of AI providers, from direct model vendors to gat
 
 ## Getting Started
 
-The fastest path is **[Kilo Code (built-in)](/docs/ai-providers/kilocode)**, which works after sign-in with no API key setup.
+The fastest path is **[Kilo Gateway (built-in)](/docs/ai-providers/kilocode)**, which works after sign-in with no API key setup.
 
 If you want to use your own keys or specific provider features, use the provider pages below.
 
@@ -82,8 +82,8 @@ If you want to use your own keys or specific provider features, use the provider
 - [Claude Code](/docs/ai-providers/claude-code)
 - [DeepSeek](/docs/ai-providers/deepseek)
 - [Fireworks](/docs/ai-providers/fireworks)
-- [Google Gemini](/docs/ai-providers/gemini)
 - [Glama](/docs/ai-providers/glama)
+- [Google Gemini](/docs/ai-providers/gemini)
 - [Groq](/docs/ai-providers/groq)
 - [Human Relay](/docs/ai-providers/human-relay)
 - [Inception](/docs/ai-providers/inception)

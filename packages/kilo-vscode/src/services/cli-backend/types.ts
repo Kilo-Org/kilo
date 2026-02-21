@@ -139,6 +139,8 @@ export interface ProviderModel {
   latest?: boolean
   // Actual shape returned by the server (Provider.Model)
   limit?: { context: number; input?: number; output: number }
+  variants?: Record<string, Record<string, unknown>>
+  capabilities?: { reasoning: boolean }
 }
 
 // Provider definition
@@ -172,6 +174,20 @@ export interface ProviderAuthAuthorization {
   url: string
   method: "auto" | "code"
   instructions: string
+}
+
+// Kilo notification from kilo-gateway
+export interface KilocodeNotificationAction {
+  actionText: string
+  actionURL: string
+}
+
+export interface KilocodeNotification {
+  id: string
+  title: string
+  message: string
+  action?: KilocodeNotificationAction
+  showIn?: string[]
 }
 
 // Profile types from kilo-gateway

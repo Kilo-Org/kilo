@@ -34,6 +34,7 @@
     overflow: hidden;
     background: var(--surface-weak);
     border: 1px solid var(--border-weak-base);
+    cursor: pointer; /* kilocode_change */
     transition: border-color 0.15s ease;
 
     &:hover {
@@ -274,6 +275,18 @@
 
   [data-slot="message-part-title-filename"] {
     /* No text-transform - preserve original filename casing */
+
+    /* kilocode_change start */
+    &.clickable {
+      cursor: pointer;
+      transition: color 0.15s ease;
+
+      &:hover {
+        text-decoration: underline;
+        color: var(--text-base);
+      }
+    }
+    /* kilocode_change end */
   }
 
   [data-slot="message-part-path"] {
@@ -289,6 +302,18 @@
     white-space: nowrap;
     direction: rtl;
     text-align: left;
+
+    /* kilocode_change start */
+    &.clickable {
+      cursor: pointer;
+      transition: color 0.15s ease;
+
+      &:hover {
+        text-decoration: underline;
+        color: var(--text-base);
+      }
+    }
+    /* kilocode_change end */
   }
 
   [data-slot="message-part-filename"] {
@@ -344,10 +369,18 @@
 }
 
 [data-component="todos"] {
-  padding: 10px 12px 24px 48px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 2px;
+
+  [data-component="checkbox"] {
+    gap: 8px;
+
+    [data-slot="checkbox-checkbox-content"] {
+      display: contents;
+    }
+  }
 
   [data-slot="message-part-todo-content"] {
     &[data-completed="completed"] {
@@ -545,6 +578,13 @@
     align-items: center;
     gap: 8px;
     justify-content: flex-end;
+  }
+
+  [data-slot="permission-hint"] {
+    font-size: 11px;
+    color: var(--text-dimmed-base);
+    margin: 4px 0 0 0;
+    text-align: right;
   }
 }
 
@@ -789,6 +829,18 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     flex-grow: 1;
+
+    /* kilocode_change start */
+    &.clickable {
+      cursor: pointer;
+      transition: color 0.15s ease;
+
+      &:hover {
+        text-decoration: underline;
+        color: var(--text-base);
+      }
+    }
+    /* kilocode_change end */
   }
 
   [data-slot="apply-patch-deletion-count"] {
@@ -825,4 +877,15 @@
     flex-shrink: 0;
     color: var(--icon-weak);
   }
+
+  /* kilocode_change start */
+  &.clickable {
+    cursor: pointer;
+    transition: color 0.15s ease;
+
+    &:hover {
+      color: var(--text-base);
+    }
+  }
+  /* kilocode_change end */
 }

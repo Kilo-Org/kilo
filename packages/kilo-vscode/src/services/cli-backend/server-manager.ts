@@ -3,6 +3,7 @@ import * as crypto from "crypto"
 import * as fs from "fs"
 import * as path from "path"
 import * as vscode from "vscode"
+import { parseServerPort } from "./server-utils"
 
 export interface ServerInstance {
   port: number
@@ -66,6 +67,14 @@ export class ServerManager {
           ...process.env,
           KILO_SERVER_PASSWORD: password,
           KILO_CLIENT: "vscode",
+          KILOCODE_FEATURE: "vscode-extension", // kilocode_change - feature tracking
+          KILO_TELEMETRY_LEVEL: vscode.env.isTelemetryEnabled ? "all" : "off",
+          KILO_APP_NAME: "kilo-code",
+          KILO_EDITOR_NAME: vscode.env.appName,
+          KILO_PLATFORM: "vscode",
+          KILO_MACHINE_ID: vscode.env.machineId,
+          KILO_APP_VERSION: this.context.extension.packageJSON.version,
+          KILO_VSCODE_VERSION: vscode.version,
         },
         stdio: ["ignore", "pipe", "pipe"],
       })
@@ -77,11 +86,9 @@ export class ServerManager {
         const output = data.toString()
         console.log("[Kilo New] ServerManager: 📥 CLI Server stdout:", output)
 
-        // Parse: "kilo server listening on http://127.0.0.1:12345"
-        const match = output.match(/listening on http:\/\/[\w.]+:(\d+)/)
-        if (match && !resolved) {
+        const port = parseServerPort(output)
+        if (port !== null && !resolved) {
           resolved = true
-          const port = parseInt(match[1], 10)
           console.log("[Kilo New] ServerManager: 🎯 Port detected:", port)
           resolve({ port, password, process: serverProcess })
         }

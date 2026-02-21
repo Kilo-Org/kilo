@@ -5,76 +5,21 @@
 
 import { Component, createSignal, createEffect, on, For, Index, onCleanup, Show, untrack } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
-import { Popover } from "@kilocode/kilo-ui/popover"
 import { Tooltip } from "@kilocode/kilo-ui/tooltip"
 import { FileIcon } from "@kilocode/kilo-ui/file-icon"
 import { useSession } from "../../context/session"
 import { useServer } from "../../context/server"
 import { useLanguage } from "../../context/language"
 import { useVSCode } from "../../context/vscode"
-import { useWorktreeMode, type SessionMode } from "../../context/worktree-mode"
 import { ModelSelector } from "./ModelSelector"
 import { ModeSwitcher } from "./ModeSwitcher"
+import { ThinkingSelector } from "./ThinkingSelector"
 import { useFileMention } from "../../hooks/useFileMention"
 import { useImageAttachments } from "../../hooks/useImageAttachments"
+import { fileName, dirName, buildHighlightSegments } from "./prompt-input-utils"
 
 const AUTOCOMPLETE_DEBOUNCE_MS = 500
 const MIN_TEXT_LENGTH = 3
-
-const WORKTREE_OPTIONS = [
-  { id: "local" as const, label: "Local", description: "Run in current workspace" },
-  { id: "worktree" as const, label: "Worktree", description: "Run in isolated git worktree" },
-]
-
-/**
- * Popover-based Local/Worktree selector shown in the Agent Manager's prompt footer.
- * Matches the visual style of ModeSwitcher and ModelSelector.
- */
-const WorktreeSelector: Component = () => {
-  const ctx = useWorktreeMode()!
-  const [open, setOpen] = createSignal(false)
-
-  function pick(mode: SessionMode) {
-    ctx.setMode(mode)
-    setOpen(false)
-  }
-
-  const label = () => (ctx.mode() === "worktree" ? "Worktree" : "Local")
-
-  return (
-    <Popover
-      placement="top-start"
-      open={open()}
-      onOpenChange={setOpen}
-      triggerAs={Button}
-      triggerProps={{ variant: "ghost", size: "small" }}
-      trigger={
-        <>
-          <span class="worktree-selector-label">{label()}</span>
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ "flex-shrink": "0" }}>
-            <path d="M8 4l4 5H4l4-5z" />
-          </svg>
-        </>
-      }
-    >
-      <div class="worktree-selector-list" role="listbox">
-        <For each={WORKTREE_OPTIONS}>
-          {(opt) => (
-            <div
-              class={`worktree-selector-item${opt.id === ctx.mode() ? " selected" : ""}`}
-              role="option"
-              aria-selected={opt.id === ctx.mode()}
-              onClick={() => pick(opt.id)}
-            >
-              <span class="worktree-selector-item-name">{opt.label}</span>
-              <span class="worktree-selector-item-desc">{opt.description}</span>
-            </div>
-          )}
-        </For>
-      </div>
-    </Popover>
-  )
-}
 
 // Per-session input text storage (module-level so it survives remounts)
 const drafts = new Map<string, string>()
@@ -84,7 +29,6 @@ export const PromptInput: Component = () => {
   const server = useServer()
   const language = useLanguage()
   const vscode = useVSCode()
-  const worktreeMode = useWorktreeMode()
   const mention = useFileMention(vscode)
   const imageAttach = useImageAttachments()
 
@@ -114,18 +58,44 @@ export const PromptInput: Component = () => {
         textareaRef.style.height = "auto"
         textareaRef.style.height = `${Math.min(textareaRef.scrollHeight, 200)}px`
       }
+      window.dispatchEvent(new Event("focusPrompt"))
     }),
   )
+
+  // Focus textarea when any part of the app requests it
+  const onFocusPrompt = () => textareaRef?.focus()
+  window.addEventListener("focusPrompt", onFocusPrompt)
+  onCleanup(() => window.removeEventListener("focusPrompt", onFocusPrompt))
 
   const isBusy = () => session.status() === "busy"
   const isDisabled = () => !server.isConnected()
   const canSend = () => (text().trim().length > 0 || imageAttach.images().length > 0) && !isBusy() && !isDisabled()
 
   const unsubscribe = vscode.onMessage((message) => {
-    if (message.type !== "chatCompletionResult") return
-    const result = message as { type: "chatCompletionResult"; text: string; requestId: string }
-    if (result.requestId === `chat-ac-${requestCounter}` && result.text) {
-      setGhostText(result.text)
+    if (message.type === "chatCompletionResult") {
+      const result = message as { type: "chatCompletionResult"; text: string; requestId: string }
+      if (result.requestId === `chat-ac-${requestCounter}` && result.text) {
+        setGhostText(result.text)
+      }
+    }
+
+    if (message.type === "setChatBoxMessage") {
+      setText(message.text)
+      setGhostText("")
+      if (textareaRef) {
+        textareaRef.value = message.text
+        adjustHeight()
+      }
+    }
+
+    if (message.type === "triggerTask") {
+      if (isBusy() || isDisabled()) return
+      const sel = session.selected()
+      session.sendMessage(message.text, sel?.providerID, sel?.modelID)
+    }
+
+    if (message.type === "action" && message.action === "focusInput") {
+      textareaRef?.focus()
     }
   })
 
@@ -182,43 +152,6 @@ export const PromptInput: Component = () => {
     textareaRef.style.height = `${Math.min(textareaRef.scrollHeight, 200)}px`
   }
 
-  const buildHighlightSegments = (val: string) => {
-    const paths = mention.mentionedPaths()
-    if (paths.size === 0) return [{ text: val, highlight: false }]
-
-    const segments: { text: string; highlight: boolean }[] = []
-    let remaining = val
-
-    while (remaining.length > 0) {
-      let earliest = -1
-      let earliestPath = ""
-
-      for (const path of paths) {
-        const token = `@${path}`
-        const idx = remaining.indexOf(token)
-        if (idx !== -1 && (earliest === -1 || idx < earliest)) {
-          earliest = idx
-          earliestPath = path
-        }
-      }
-
-      if (earliest === -1) {
-        segments.push({ text: remaining, highlight: false })
-        break
-      }
-
-      if (earliest > 0) {
-        segments.push({ text: remaining.substring(0, earliest), highlight: false })
-      }
-
-      const token = `@${earliestPath}`
-      segments.push({ text: token, highlight: true })
-      remaining = remaining.substring(earliest + token.length)
-    }
-
-    return segments
-  }
-
   const handleInput = (e: InputEvent) => {
     const target = e.target as HTMLTextAreaElement
     const val = target.value
@@ -253,7 +186,14 @@ export const PromptInput: Component = () => {
     }
     if (e.key === "Escape" && ghostText()) {
       e.preventDefault()
+      e.stopPropagation()
       dismissSuggestion()
+      return
+    }
+    if (e.key === "Escape" && isBusy()) {
+      e.preventDefault()
+      e.stopPropagation()
+      session.abort()
       return
     }
     if (e.key === "Enter" && !e.shiftKey) {
@@ -275,20 +215,7 @@ export const PromptInput: Component = () => {
     const sel = session.selected()
     const attachments = allFiles.length > 0 ? allFiles : undefined
 
-    // In agent manager worktree mode with no session yet, route through a separate
-    // message type so the extension creates the worktree + session before the webview
-    // tries to update local state for a nonexistent session.
-    if (worktreeMode?.mode() === "worktree" && !session.currentSessionID()) {
-      vscode.postMessage({
-        type: "agentManager.createWorktreeSession",
-        text: message,
-        providerID: sel?.providerID,
-        modelID: sel?.modelID,
-        agent: session.selectedAgent(),
-      })
-    } else {
-      session.sendMessage(message, sel?.providerID, sel?.modelID, attachments)
-    }
+    session.sendMessage(message, sel?.providerID, sel?.modelID, attachments)
 
     requestCounter++
     setText("")
@@ -299,14 +226,6 @@ export const PromptInput: Component = () => {
     drafts.delete(sessionKey())
 
     if (textareaRef) textareaRef.style.height = "auto"
-  }
-
-  const fileName = (path: string) => path.replaceAll("\\", "/").split("/").pop() ?? path
-  const dirName = (path: string) => {
-    const parts = path.replaceAll("\\", "/").split("/")
-    if (parts.length <= 1) return ""
-    const dir = parts.slice(0, -1).join("/")
-    return dir.length > 30 ? `…/${parts.slice(-3, -1).join("/")}` : dir
   }
 
   return (
@@ -365,7 +284,7 @@ export const PromptInput: Component = () => {
       <div class="prompt-input-wrapper">
         <div class="prompt-input-ghost-wrapper">
           <div class="prompt-input-highlight-overlay" ref={highlightRef} aria-hidden="true">
-            <Index each={buildHighlightSegments(text())}>
+            <Index each={buildHighlightSegments(text(), mention.mentionedPaths())}>
               {(seg) => (
                 <Show when={seg().highlight} fallback={<span>{seg().text}</span>}>
                   <span class="prompt-input-file-mention">{seg().text}</span>
@@ -396,9 +315,7 @@ export const PromptInput: Component = () => {
         <div class="prompt-input-hint-selectors">
           <ModeSwitcher />
           <ModelSelector />
-          <Show when={worktreeMode && !session.currentSessionID()}>
-            <WorktreeSelector />
-          </Show>
+          <ThinkingSelector />
         </div>
         <div class="prompt-input-hint-actions">
           <Show

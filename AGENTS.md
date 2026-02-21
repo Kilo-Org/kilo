@@ -6,6 +6,7 @@ Kilo CLI is an open source AI coding agent that generates code from natural lang
 - The default branch in this repo is `dev`.
 - Local `main` ref may not exist; use `dev` or `origin/dev` for diffs.
 - Prefer automation: execute requested actions without confirmation unless blocked by missing info or safety/irreversibility.
+- You may be running in a git worktree. All changes must be made in your current working directory — never modify files in the main repo checkout.
 
 ## Build and Dev
 
@@ -153,6 +154,7 @@ We regularly merge upstream changes from opencode. To minimize merge conflicts a
 2. **Minimize changes to shared files** - When you must modify files that exist in upstream opencode, keep changes as small and isolated as possible.
 
 3. **Use `kilocode_change` markers** - When modifying shared code, mark your changes with `kilocode_change` comments so they can be easily identified during merges.
+   Do not use these markers in files within directories with kilo in the name
 
 4. **Avoid restructuring upstream code** - Don't refactor or reorganize code that comes from opencode unless absolutely necessary.
 

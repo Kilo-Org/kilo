@@ -69,7 +69,7 @@ If you want to use your own keys or specific provider features, use the provider
 | Priority        | Recommended Provider                                |
 | --------------- | --------------------------------------------------- |
 | Ease of use     | [Kilo Code (built-in)](/docs/ai-providers/kilocode) |
-| Best value      | Zhipu AI or Mistral                                 |
+| Best value      | OpenRouter or Mistral                               |
 | Privacy/Offline | Ollama or LM Studio                                 |
 | Enterprise      | AWS Bedrock or Google Vertex                        |
 

@@ -59,6 +59,26 @@ npx @kilocode/cli
 
 Then run `kilo` in any project directory to start.
 
+### Install from GitHub Releases (Optional)
+
+If you prefer downloading a binary from the [Releases page](https://github.com/Kilo-Org/kilo/releases), use this quick guide:
+
+- `kilo-<os>-<arch>.zip` is the CLI binary for your OS and CPU architecture.
+- `darwin` means macOS.
+- `x64` is standard 64-bit Intel/AMD CPUs.
+- `x64_baseline` is a compatibility build for older CPUs that may not support newer instruction sets.
+- `arm64` is Apple Silicon (M1/M2/M3) or ARM-based Linux/Windows.
+- `kilo-vscode-*.vsix` is the VS Code extension package (not the CLI binary).
+- `Source code` archives are for building from source, not normal installation.
+
+For most users:
+
+- **Windows (most PCs):** `kilo-windows-x64.zip`
+- **Windows on ARM:** `kilo-windows-arm64.zip`
+- **macOS Apple Silicon:** `kilo-darwin-arm64.zip`
+- **macOS Intel:** `kilo-darwin-x64.zip`
+- **Linux x64:** `kilo-linux-x64.zip`
+
 ### Autonomous Mode (CI/CD)
 
 Use the `--auto` flag with `kilo run` to enable fully autonomous operation without user interaction. This is ideal for CI/CD pipelines and automated workflows:

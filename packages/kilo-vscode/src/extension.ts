@@ -6,6 +6,9 @@ import { KiloConnectionService } from "./services/cli-backend"
 import { registerAutocompleteProvider } from "./services/autocomplete"
 import { BrowserAutomationService } from "./services/browser-automation"
 import { showChangelogOnUpdate as showChangelog, VERSION_KEY } from "./changelog"
+import { TelemetryProxy } from "./services/telemetry"
+import { registerCommitMessageService } from "./services/commit-message"
+import { registerCodeActions, registerTerminalActions, KiloCodeActionProvider } from "./services/code-actions"
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Kilo Code extension is now active")

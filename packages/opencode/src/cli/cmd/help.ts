@@ -138,7 +138,7 @@ function registry(): Command[] {
       options: [
         { name: "--days", type: "number", describe: "show stats for the last N days" },
         { name: "--tools", type: "number", describe: "number of tools to show" },
-        { name: "--models", type: "number", describe: "show model statistics" },
+        { name: "--models", type: "boolean|number", describe: "show model statistics (flag for all, or N for top N)" },
         { name: "--project", type: "string", describe: "filter by project" },
       ],
     },
@@ -358,6 +358,7 @@ function findCommand(commands: Command[], name: string): Command | undefined {
   for (const command of commands) {
     const parts = command.usage.split(" ")
     if (parts[1] === name) return command
+    if (parts.length === 1 && parts[0] === name) return command
   }
   return undefined
 }

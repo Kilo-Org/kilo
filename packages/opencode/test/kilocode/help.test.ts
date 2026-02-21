@@ -95,4 +95,14 @@ describe("help command", () => {
     expect(text).toContain("kilo stats")
     expect(text).toContain("--days")
   })
+
+  it("shows help for the base kilo command", async () => {
+    const handler = HelpCommand.handler as Function
+    await handler({ command: "kilo", all: false, format: "markdown" })
+    const md = output()
+    expect(md).toContain("`kilo`")
+    expect(md).toContain("start kilo tui")
+    expect(md).toContain("--model")
+    expect(md).not.toContain("Unknown command")
+  })
 })

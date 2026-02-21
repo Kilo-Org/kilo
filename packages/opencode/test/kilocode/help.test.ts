@@ -105,4 +105,14 @@ describe("help command", () => {
     expect(md).toContain("--model")
     expect(md).not.toContain("Unknown command")
   })
+
+  it("shows help for the help command itself", async () => {
+    const handler = HelpCommand.handler as Function
+    await handler({ command: "help", all: false, format: "markdown" })
+    const md = output()
+    expect(md).toContain("`kilo help [command]`")
+    expect(md).toContain("--all")
+    expect(md).toContain("--format")
+    expect(md).not.toContain("Unknown command")
+  })
 })

@@ -189,6 +189,14 @@ function registry(): Command[] {
       ],
     },
     {
+      usage: "kilo help [command]",
+      describe: "show CLI reference",
+      options: [
+        { name: "--all", type: "boolean", describe: "show full CLI reference" },
+        { name: "--format", type: "string", describe: "output format (markdown or text)" },
+      ],
+    },
+    {
       usage: "kilo completion",
       describe: "generate shell completion script",
     },

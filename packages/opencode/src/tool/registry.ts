@@ -78,13 +78,14 @@ export namespace ToolRegistry {
               metadata: { truncated: out.truncated, outputPath: out.truncated ? out.outputPath : undefined },
             }
           }
-          const res = result as { title?: string; output: string; metadata?: { [key: string]: any } }
-          const out = await Truncate.output(res.output, {}, initCtx?.agent)
+          if (typeof result !== "object" || result === null || !("output" in result))
+            throw new Error(`Tool ${id} returned unexpected value: ${typeof result}`)
+          const out = await Truncate.output(result.output, {}, initCtx?.agent)
           return {
-            title: res.title ?? id,
-            output: out.truncated ? out.content : res.output,
+            title: result.title ?? id,
+            output: out.truncated ? out.content : result.output,
             metadata: {
-              ...(res.metadata ?? {}),
+              ...(result.metadata ?? {}),
               truncated: out.truncated,
               outputPath: out.truncated ? out.outputPath : undefined,
             },

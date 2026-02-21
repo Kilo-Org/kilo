@@ -74,7 +74,7 @@ You can configure context condensing thresholds and behavior on a per-profile ba
 ### Maintaining Context Quality
 
 - **Be specific in your initial task**: A clear task description helps create better summaries
-- **Use AGENTS.md**: Combine with [AGENTS.md](/docs/customize/agents-md) for persistent project context that doesn't need to be condensed
+- **Use AGENTS.md for durable context**: Keep stable project instructions in [agents.md](/docs/customize/agents-md) so they do not depend on session history
 - **Review the summary**: After condensing, the summary is visible in your chat history
 
 ## Troubleshooting
@@ -97,6 +97,7 @@ If the condensed summary doesn't capture important details:
 
 ## Related Features
 
-- [AGENTS.md](/docs/customize/agents-md) - Persistent context storage across sessions
+- [Memory Bank (Deprecated)](/docs/customize/context/memory-bank) - Migration guide for legacy Memory Bank content
+- [agents.md](/docs/customize/agents-md) - Recommended place for durable, cross-tool project instructions
 - [Large Projects](/docs/customize/context/large-projects) - Managing context for large codebases
 - [Codebase Indexing](/docs/customize/context/codebase-indexing) - Efficient code search and retrieval

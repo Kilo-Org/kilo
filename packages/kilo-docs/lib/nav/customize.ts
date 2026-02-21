@@ -38,6 +38,10 @@ export const CustomizeNav: NavSection[] = [
         children: "Context Condensing",
       },
       {
+        href: "/customize/context/memory-bank",
+        children: "Memory Bank (Deprecated)",
+      },
+      {
         href: "/customize/context/kilocodeignore",
         children: ".kilocodeignore",
       },

@@ -16,8 +16,9 @@ Legacy Memory Bank status indicators such as `[Memory Bank: Active]` and `[Memor
 
 If you'd like to migrate your memory bank content to AGENTS.md:
 
-1. Examine the contents in `.kilocode/rules/memory-bank/`
+1. Examine legacy content in `.kilocode/rules/memory-bank/` or `.kilocode/memory-bank/`
 2. Move that content into your project's `AGENTS.md` file (or ask Kilo to do it for you)
+3. Use the [Memory Bank migration guide](/docs/customize/context/memory-bank) for a step-by-step checklist
    {% /callout %}
 
 ## What is AGENTS.md?

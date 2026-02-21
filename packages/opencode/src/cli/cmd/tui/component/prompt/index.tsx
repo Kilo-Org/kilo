@@ -807,7 +807,7 @@ export function Prompt(props: PromptProps) {
           customBorderChars={{
             ...EmptyBorder,
             vertical: "┃",
-            bottomLeft: "╹",
+            bottomLeft: "┃", // kilocode_change
           }}
         >
           <box
@@ -1038,7 +1038,7 @@ export function Prompt(props: PromptProps) {
           borderColor={highlight()}
           customBorderChars={{
             ...EmptyBorder,
-            vertical: theme.backgroundElement.a !== 0 ? "╹" : " ",
+            vertical: theme.backgroundElement.a !== 0 ? "┃" : " ", // kilocode_change
           }}
         >
           <box

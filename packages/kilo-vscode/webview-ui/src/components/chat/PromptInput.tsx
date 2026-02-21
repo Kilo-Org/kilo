@@ -189,6 +189,7 @@ export const PromptInput: Component = () => {
       const result = navigate(dir, text())
       if (result === null) return
       setText(result.text)
+      setGhostText("")
       textareaRef.value = result.text
       textareaRef.setSelectionRange(result.text.length, result.text.length)
       adjustHeight()

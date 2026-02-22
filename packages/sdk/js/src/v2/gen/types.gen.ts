@@ -1030,9 +1030,25 @@ export type KeybindsConfig = {
    */
   sidebar_toggle?: string
   /**
+   * Toggle MCP server dialog
+   */
+  mcp_toggle?: string
+  /**
    * Toggle session scrollbar
    */
   scrollbar_toggle?: string
+  /**
+   * Toggle console visibility
+   */
+  console_toggle?: string
+  /**
+   * Toggle diff wrapping
+   */
+  diffwrap_toggle?: string
+  /**
+   * Toggle timestamps visibility
+   */
+  timestamps_toggle?: string
   /**
    * Toggle username visibility
    */
@@ -1045,6 +1061,10 @@ export type KeybindsConfig = {
    * Export session to editor
    */
   session_export?: string
+  /**
+   * Copy session transcript
+   */
+  session_copy?: string
   /**
    * Create a new session
    */

@@ -3,12 +3,27 @@ import { cmd } from "./cmd"
 import { withNetworkOptions, resolveNetworkOptions } from "../network"
 import { Flag } from "../../flag/flag"
 import { Instance } from "../../project/instance" // kilocode_change
+import path from "path"
 
 export const ServeCommand = cmd({
-  command: "serve",
-  builder: (yargs) => withNetworkOptions(yargs),
+  command: "serve [project]",
+  builder: (yargs) =>
+    withNetworkOptions(yargs).positional("project", {
+      type: "string",
+      describe: "path to start kilo server in", // kilocode_change
+    }),
   describe: "starts a headless kilo server", // kilocode_change
   handler: async (args) => {
+    const baseCwd = process.env.PWD ?? process.cwd()
+    const cwd = args.project ? path.resolve(baseCwd, args.project) : process.cwd()
+    try {
+      process.chdir(cwd)
+    } catch {
+      console.error(`Failed to change directory to ${cwd}`)
+      process.exitCode = 1
+      return
+    }
+
     if (!Flag.KILO_SERVER_PASSWORD) {
       console.log("Warning: KILO_SERVER_PASSWORD is not set; server is unsecured.")
     }

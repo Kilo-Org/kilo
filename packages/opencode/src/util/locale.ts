@@ -1,5 +1,6 @@
 export namespace Locale {
-  export function titlecase(str: string) {
+  export function titlecase(str?: string | null) {
+    if (!str) return ""
     return str.replace(/\b\w/g, (c) => c.toUpperCase())
   }
 

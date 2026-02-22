@@ -30,6 +30,7 @@ export const AiProvidersNav: NavSection[] = [
       { href: "/ai-providers/openrouter", children: "OpenRouter" },
       { href: "/ai-providers/glama", children: "Glama" },
       { href: "/ai-providers/requesty", children: "Requesty" },
+      { href: "/ai-providers/zenmux", children: "ZenMux" },
       { href: "/ai-providers/unbound", children: "Unbound" },
       {
         href: "/ai-providers/vercel-ai-gateway",

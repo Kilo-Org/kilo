@@ -37,15 +37,17 @@ export namespace Snapshot {
       .quiet()
       .cwd(Instance.directory)
       .nothrow()
+    const tmpPackRemoved = await cleanupTmpPacks(git)
     if (result.exitCode !== 0) {
       log.warn("cleanup failed", {
         exitCode: result.exitCode,
         stderr: result.stderr.toString(),
         stdout: result.stdout.toString(),
+        tmpPackRemoved,
       })
       return
     }
-    log.info("cleanup", { prune })
+    log.info("cleanup", { prune, tmpPackRemoved })
   }
 
   export async function track() {
@@ -66,12 +68,34 @@ export namespace Snapshot {
       await $`git --git-dir ${git} config core.autocrlf false`.quiet().nothrow()
       log.info("initialized")
     }
-    await $`git --git-dir ${git} --work-tree ${Instance.worktree} add .`.quiet().cwd(Instance.directory).nothrow()
-    const hash = await $`git --git-dir ${git} --work-tree ${Instance.worktree} write-tree`
+    const add = await $`git --git-dir ${git} --work-tree ${Instance.worktree} add .`.quiet().cwd(Instance.directory).nothrow()
+    if (add.exitCode !== 0) {
+      const tmpPackRemoved = await cleanupTmpPacks(git)
+      log.warn("snapshot add failed", {
+        exitCode: add.exitCode,
+        stderr: add.stderr.toString(),
+        stdout: add.stdout.toString(),
+        tmpPackRemoved,
+      })
+      return
+    }
+
+    const write = await $`git --git-dir ${git} --work-tree ${Instance.worktree} write-tree`
       .quiet()
       .cwd(Instance.directory)
       .nothrow()
-      .text()
+    if (write.exitCode !== 0) {
+      const tmpPackRemoved = await cleanupTmpPacks(git)
+      log.warn("snapshot write-tree failed", {
+        exitCode: write.exitCode,
+        stderr: write.stderr.toString(),
+        stdout: write.stdout.toString(),
+        tmpPackRemoved,
+      })
+      return
+    }
+
+    const hash = write.text()
     log.info("tracking", { hash, cwd: Instance.directory, git })
     return hash.trim()
   }
@@ -252,5 +276,13 @@ export namespace Snapshot {
   function gitdir() {
     const project = Instance.project
     return path.join(Global.Path.data, "snapshot", project.id)
+  }
+
+  async function cleanupTmpPacks(git: string) {
+    const pack = path.join(git, "objects", "pack")
+    const files = await fs.readdir(pack).catch(() => [])
+    const tmpPacks = files.filter((file) => file.startsWith("tmp_pack_"))
+    await Promise.all(tmpPacks.map((file) => fs.unlink(path.join(pack, file)).catch(() => undefined)))
+    return tmpPacks.length
   }
 }

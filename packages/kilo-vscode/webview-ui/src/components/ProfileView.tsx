@@ -117,43 +117,43 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
         <h2 style={{ "font-size": "16px", "font-weight": "600", margin: 0 }}>{language.t("profile.title")}</h2>
       </div>
       <div style={{ padding: "16px" }}>
-      <Show
-        when={props.profileData}
-        fallback={
-          <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
-            <Show
-              when={props.deviceAuth.status !== "idle"}
-              fallback={
-                <>
-                  <p
-                    style={{
-                      "font-size": "13px",
-                      color: "var(--vscode-descriptionForeground)",
-                      margin: "0 0 8px 0",
-                    }}
-                  >
-                    {language.t("profile.notLoggedIn")}
-                  </p>
-                  <Button variant="primary" onClick={handleLogin}>
-                    {language.t("profile.action.login")}
-                  </Button>
-                </>
-              }
-            >
-              <DeviceAuthCard
-                status={props.deviceAuth.status}
-                code={props.deviceAuth.code}
-                verificationUrl={props.deviceAuth.verificationUrl}
-                expiresIn={props.deviceAuth.expiresIn}
-                error={props.deviceAuth.error}
-                onCancel={handleCancelLogin}
-                onRetry={handleLogin}
-              />
-            </Show>
-          </div>
-        }
-      >
-        {(data) => (
+        <Show
+          when={props.profileData}
+          fallback={
+            <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
+              <Show
+                when={props.deviceAuth.status !== "idle"}
+                fallback={
+                  <>
+                    <p
+                      style={{
+                        "font-size": "13px",
+                        color: "var(--vscode-descriptionForeground)",
+                        margin: "0 0 8px 0",
+                      }}
+                    >
+                      {language.t("profile.notLoggedIn")}
+                    </p>
+                    <Button variant="primary" onClick={handleLogin}>
+                      {language.t("profile.action.login")}
+                    </Button>
+                  </>
+                }
+              >
+                <DeviceAuthCard
+                  status={props.deviceAuth.status}
+                  code={props.deviceAuth.code}
+                  verificationUrl={props.deviceAuth.verificationUrl}
+                  expiresIn={props.deviceAuth.expiresIn}
+                  error={props.deviceAuth.error}
+                  onCancel={handleCancelLogin}
+                  onRetry={handleLogin}
+                />
+              </Show>
+            </div>
+          }
+        >
+          {(data) => (
           <div style={{ display: "flex", "flex-direction": "column", gap: "12px" }}>
             {/* User header */}
             <Card>
@@ -263,7 +263,7 @@ const ProfileView: Component<ProfileViewProps> = (props) => {
             </div>
           </div>
         )}
-      </Show>
+        </Show>
       </div>
     </div>
   )

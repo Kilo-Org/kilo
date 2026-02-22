@@ -553,6 +553,7 @@ export function Session() {
     {
       title: showTimestamps() ? "Hide timestamps" : "Show timestamps",
       value: "session.toggle.timestamps",
+      keybind: "timestamps_toggle",
       category: "Session",
       slash: {
         name: "timestamps",
@@ -788,6 +789,7 @@ export function Session() {
     {
       title: "Copy session transcript",
       value: "session.copy",
+      keybind: "session_copy",
       category: "Session",
       slash: {
         name: "copy",

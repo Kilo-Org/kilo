@@ -463,6 +463,7 @@ function App() {
     {
       title: "Toggle MCPs",
       value: "mcp.list",
+      keybind: "mcp_toggle",
       category: "Agent",
       slash: {
         name: "mcps",
@@ -589,6 +590,7 @@ function App() {
       title: "Toggle console",
       category: "System",
       value: "app.console",
+      keybind: "console_toggle",
       onSelect: (dialog) => {
         renderer.console.toggle()
         dialog.clear()
@@ -651,6 +653,7 @@ function App() {
     {
       title: kv.get("diff_wrap_mode", "word") === "word" ? "Disable diff wrapping" : "Enable diff wrapping",
       value: "app.toggle.diffwrap",
+      keybind: "diffwrap_toggle",
       category: "System",
       onSelect: (dialog) => {
         const current = kv.get("diff_wrap_mode", "word")

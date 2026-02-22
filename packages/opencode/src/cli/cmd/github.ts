@@ -206,6 +206,8 @@ export const GithubInstallCommand = cmd({
           await addWorkflowFiles()
           printNextSteps()
 
+          const copilotSetupLink = "https://kilo.ai/docs/getting-started/setup-authentication"
+
           function printNextSteps() {
             let step2
             if (provider === "amazon-bedrock") {
@@ -257,25 +259,42 @@ export const GithubInstallCommand = cmd({
               openai: 2,
               google: 3,
             }
-            let provider = await prompts.select({
+            const options = pipe(
+              providers,
+              values(),
+              sortBy(
+                (x) => priority[x.id] ?? 99,
+                (x) => x.name ?? x.id,
+              ),
+              map((x) => ({
+                label: x.name,
+                value: x.id,
+                hint: priority[x.id] === 0 ? "recommended" : undefined,
+              })),
+            )
+
+            if (options.length === 0) {
+              prompts.log.warn("No providers are currently available for GitHub install.")
+              prompts.log.message(`GitHub Copilot is available. See setup docs: ${copilotSetupLink}`)
+              throw new UI.CancelledError()
+            }
+
+            const provider = await prompts.select({
               message: "Select provider",
               maxItems: 8,
-              options: pipe(
-                providers,
-                values(),
-                sortBy(
-                  (x) => priority[x.id] ?? 99,
-                  (x) => x.name ?? x.id,
-                ),
-                map((x) => ({
-                  label: x.name,
-                  value: x.id,
-                  hint: priority[x.id] === 0 ? "recommended" : undefined,
-                })),
-              ),
+              options,
             })
 
-            if (prompts.isCancel(provider)) throw new UI.CancelledError()
+            if (prompts.isCancel(provider)) {
+              prompts.log.message(`GitHub Copilot is available. See setup docs: ${copilotSetupLink}`)
+              throw new UI.CancelledError()
+            }
+
+            if (!providers[provider]) {
+              prompts.log.warn("Invalid provider selection.")
+              prompts.log.message(`GitHub Copilot is available. See setup docs: ${copilotSetupLink}`)
+              throw new UI.CancelledError()
+            }
 
             return provider
           }

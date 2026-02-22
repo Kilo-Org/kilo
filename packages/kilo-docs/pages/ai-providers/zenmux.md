@@ -27,7 +27,7 @@ ZenMux is an AI gateway that lets you route requests to multiple model providers
 - **Model catalog:** ZenMux exposes models from multiple providers. Check [zenmux.ai/models](https://zenmux.ai/models) for availability.
 - **Routing behavior:** Model availability, latency, and policy settings can affect which backend handles a request.
 - **Fallbacks:** Some setups may fail over to another provider automatically when a backend is unavailable.
-- **Troubleshooting:** If requests fail, verify your key, account credits, and base URL settings first.
+- **Troubleshooting:** If requests fail, verify your key, account credits, and base URL settings first, then check ZenMux service status.
 
 ## Relevant Resources
 

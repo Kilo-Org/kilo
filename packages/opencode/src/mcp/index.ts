@@ -254,6 +254,25 @@ export namespace MCP {
     return commands
   }
 
+  async function persistEnabled(name: string, enabled: boolean, fallback?: Config.Mcp) {
+    const cfg = await Config.get()
+    const config = cfg.mcp ?? {}
+    const current = config[name]
+    const entry = isMcpConfigured(current) ? current : fallback
+    if (!entry) return
+
+    await Config.updateGlobal({
+      mcp: {
+        [name]: {
+          ...entry,
+          enabled,
+        },
+      },
+    }).catch((error) => {
+      log.warn("failed to persist mcp enabled state", { name, enabled, error })
+    })
+  }
+
   export async function add(name: string, mcp: Config.Mcp) {
     const s = await state()
     const result = await create(name, mcp)
@@ -534,6 +553,7 @@ export namespace MCP {
         status: "failed",
         error: "Unknown error during connection",
       }
+      await persistEnabled(name, true, mcp)
       return
     }
 
@@ -549,9 +569,14 @@ export namespace MCP {
       }
       s.clients[name] = result.mcpClient
     }
+
+    await persistEnabled(name, true, mcp)
   }
 
   export async function disconnect(name: string) {
+    const cfg = await Config.get()
+    const config = cfg.mcp ?? {}
+    const current = config[name]
     const s = await state()
     const client = s.clients[name]
     if (client) {
@@ -561,6 +586,7 @@ export namespace MCP {
       delete s.clients[name]
     }
     s.status[name] = { status: "disabled" }
+    await persistEnabled(name, false, isMcpConfigured(current) ? current : undefined)
   }
 
   export async function tools() {

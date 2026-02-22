@@ -95,6 +95,7 @@ export namespace Provider {
 
   const CUSTOM_LOADERS: Record<string, CustomLoader> = {
     async anthropic() {
+      const longContextBeta = "context-1m-2025-08-07"
       return {
         autoload: false,
         options: {
@@ -103,8 +104,29 @@ export namespace Provider {
             // TODO: Add adaptive thinking headers when @ai-sdk/anthropic supports it:
             // adaptive-thinking-2026-01-28,effort-2025-11-24,max-effort-2026-01-24
             "anthropic-beta":
-              "claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14,context-1m-2025-08-07",
+              "claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
           },
+        },
+        async getModel(_sdk: any, modelID: string, options?: Record<string, any>) {
+          const input = { ...(options ?? {}) }
+          const headers = { ...(input["headers"] ?? {}) }
+          const raw = typeof headers["anthropic-beta"] === "string" ? headers["anthropic-beta"] : ""
+          const parts = raw
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .filter((item) => item !== longContextBeta)
+
+          if (modelID.toLowerCase().includes("1m")) {
+            parts.push(longContextBeta)
+          }
+
+          headers["anthropic-beta"] = parts.join(",")
+          const sdk = createAnthropic({
+            ...input,
+            headers,
+          })
+          return sdk.languageModel(modelID)
         },
       }
     },

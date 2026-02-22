@@ -10,6 +10,7 @@ import { Config } from "../config/config"
 import { spawn } from "child_process"
 import { Instance } from "../project/instance"
 import { Flag } from "@/flag/flag"
+import { Shell } from "@/shell/shell"
 
 export namespace LSP {
   const log = Log.create({ service: "lsp" })
@@ -201,19 +202,19 @@ export namespace LSP {
         root,
       }).catch((err) => {
         s.broken.add(key)
-        handle.process.kill()
+        void Shell.killTree(handle.process, { exited: () => handle.process.exitCode !== null })
         log.error(`Failed to initialize LSP client ${server.id}`, { error: err })
         return undefined
       })
 
       if (!client) {
-        handle.process.kill()
+        void Shell.killTree(handle.process, { exited: () => handle.process.exitCode !== null })
         return undefined
       }
 
       const existing = s.clients.find((x) => x.root === root && x.serverID === server.id)
       if (existing) {
-        handle.process.kill()
+        void Shell.killTree(handle.process, { exited: () => handle.process.exitCode !== null })
         return existing
       }
 

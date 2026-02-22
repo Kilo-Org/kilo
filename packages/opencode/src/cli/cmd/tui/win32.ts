@@ -121,6 +121,8 @@ export function win32InstallCtrlCGuard() {
       stdin.setRawMode = original
     }
 
+    // Drop any queued mouse/key events before restoring normal input mode.
+    k32!.symbols.FlushConsoleInputBuffer(handle)
     k32!.symbols.SetConsoleMode(handle, initial)
     unhook = undefined
   }

@@ -549,6 +549,7 @@ export namespace MCP {
       }
       s.clients[name] = result.mcpClient
     }
+    await Config.update({ mcp: { [name]: { enabled: true } } })
   }
 
   export async function disconnect(name: string) {
@@ -561,6 +562,7 @@ export namespace MCP {
       delete s.clients[name]
     }
     s.status[name] = { status: "disabled" }
+    await Config.update({ mcp: { [name]: { enabled: false } } })
   }
 
   export async function tools() {

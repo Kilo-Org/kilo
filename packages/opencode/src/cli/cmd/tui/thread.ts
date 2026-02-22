@@ -128,11 +128,18 @@ export const TuiThreadCommand = cmd({
         await client.call("reload", undefined)
       })
       // kilocode_change start - graceful shutdown on external signals
+      let shuttingDown = false
       const shutdown = async () => {
+        if (shuttingDown) return
+        shuttingDown = true
         await client.call("shutdown", undefined).catch(() => {})
       }
-      process.on("SIGHUP", shutdown)
-      process.on("SIGTERM", shutdown)
+      process.once("SIGHUP", shutdown)
+      process.once("SIGTERM", shutdown)
+      process.once("SIGINT", shutdown)
+      process.once("disconnect", shutdown)
+      process.stdin.once("end", shutdown)
+      process.stdin.once("close", shutdown)
       // kilocode_change end
 
       const prompt = await iife(async () => {

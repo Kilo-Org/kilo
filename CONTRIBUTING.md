@@ -105,7 +105,7 @@ Examples:
 
 ## Issue Template Compliance (CLI and API)
 
-GitHub Issue Forms enforce required fields in the web UI, but `gh issue create` and API-created issues can bypass that form validation. The compliance bot checks for required structure and may auto-close non-compliant issues after about 2 hours.
+GitHub Issue Forms enforce required fields in the web UI, but `gh issue create` and issues created through the API can bypass that form validation. The compliance bot checks for required structure and may auto-close non-compliant issues after about 2 hours.
 
 When creating issues from CLI/API, include the required headings and content exactly as below.
 

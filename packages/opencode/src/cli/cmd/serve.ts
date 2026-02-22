@@ -14,14 +14,16 @@ export const ServeCommand = cmd({
     }),
   describe: "starts a headless kilo server", // kilocode_change
   handler: async (args) => {
-    const baseCwd = process.env.PWD ?? process.cwd()
-    const cwd = args.project ? path.resolve(baseCwd, args.project) : process.cwd()
-    try {
-      process.chdir(cwd)
-    } catch {
-      console.error(`Failed to change directory to ${cwd}`)
-      process.exitCode = 1
-      return
+    if (args.project) {
+      const cwd = path.resolve(args.project)
+      try {
+        process.chdir(cwd)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "unknown error"
+        console.error(`Failed to change directory to ${cwd}: ${message}`)
+        process.exitCode = 1
+        return
+      }
     }
 
     if (!Flag.KILO_SERVER_PASSWORD) {

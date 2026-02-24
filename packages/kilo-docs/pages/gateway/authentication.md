@@ -15,7 +15,7 @@ The primary authentication method is a Bearer token passed in the `Authorization
 Authorization: Bearer <your_api_key>
 ```
 
-API keys are JWT tokens tied to your Kilo account. See [how to get your API key](/docs/getting-started/setup-authentication#kilo-gateway-api-key) for step-by-step instructions.
+API keys are JWT tokens tied to your Kilo account. You can find your API key on your [personal profile page](https://app.kilo.ai/profile) — look for the **API Key** section. See the [setup guide](/docs/getting-started/setup-authentication#kilo-gateway-api-key) for step-by-step instructions.
 
 ### Using your API key
 

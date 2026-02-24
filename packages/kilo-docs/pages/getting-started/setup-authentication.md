@@ -7,7 +7,26 @@ description: "Configure Kilo Code and connect to your AI providers"
 
 When you install Kilo Code, you'll be prompted to sign in or create a free account. This automatically configures everything you need to get started.
 
+## Kilo Gateway API Key
+
+{% callout type="note" title="Looking for your API key?" %}
+Your Gateway API key is on your **personal profile page** at [app.kilo.ai/profile](https://app.kilo.ai/profile). Look for the **API Key** section near the top of the page.
+{% /callout %}
+
+If you're using the [Kilo AI Gateway](/docs/gateway/) outside of the Kilo Code extension (for example, with the Vercel AI SDK, OpenAI SDK, or cURL), you'll need an API key:
+
+1. Sign in at [app.kilo.ai](https://app.kilo.ai)
+2. Go to **Your Profile** on your **personal account** (not in an organization)
+3. Find the **API Key** section on your profile page
+4. Copy your API key
+
+{% callout type="tip" title="Bonus Credits" %}
+[Add credits to your account](https://app.kilo.ai/profile) and get $20 bonus credits, or sign up for [Kilo Pass](https://kilo.ai/features/kilo-pass).
+{% /callout %}
+
 ## Quick Start with Kilo Account
+
+If you're using the **Kilo Code VS Code extension**, no API key is needed — just sign in:
 
 1. Click **"Try Kilo Code for Free"** in the extension
 2. Sign in with your Google account
@@ -16,19 +35,6 @@ When you install Kilo Code, you'll be prompted to sign in or create a free accou
 {% image src="/docs/img/signupflow.gif" alt="Sign up and registration flow with Kilo Code" /%}
 
 That's it! You're ready to [start your first task](/docs/getting-started/quickstart).
-
-{% callout type="tip" title="Bonus Credits" %}
-[Add credits to your account](https://app.kilo.ai/profile) and get $20 bonus credits, or sign up for [Kilo Pass](https://kilo.ai/features/kilo-pass).
-{% /callout %}
-
-## Kilo Gateway API Key
-
-If you're using the [Kilo AI Gateway](/docs/gateway/) outside of the Kilo Code extension (for example, with the Vercel AI SDK or OpenAI SDK), you'll need an API key:
-
-1. Go to [app.kilo.ai](https://app.kilo.ai)
-2. Go to **Your Profile** on your **personal account** (not in an organization)
-3. Scroll to the bottom of the page
-4. Copy your API key
 
 ## Using Another API Provider
 
